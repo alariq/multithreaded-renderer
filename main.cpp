@@ -85,6 +85,10 @@ struct SVD {
 
 };
 
+struct QVD {
+    vec2 pos;
+};
+
 gosVERTEX_FORMAT_RECORD simple_vdecl[] =
 { 
     {0, 3, false, sizeof(SVD), 0, gosVERTEX_ATTRIB_TYPE::FLOAT },
@@ -92,8 +96,59 @@ gosVERTEX_FORMAT_RECORD simple_vdecl[] =
     {2, 3, false, sizeof(SVD), offsetof(SVD, normal) , gosVERTEX_ATTRIB_TYPE::FLOAT},
 };
 
+gosVERTEX_FORMAT_RECORD quad_vdecl[] =
+{ 
+    {0, 2, false, sizeof(QVD), 0, gosVERTEX_ATTRIB_TYPE::FLOAT }
+};
+
 
 RenderObject* g_ro = 0;
+RenderObject* g_fs_quad = 0;
+
+void render_fullscreen_quad()
+{
+    if(!g_fs_quad)
+    {
+        constexpr const size_t NUM_VERT = 4;
+        constexpr const size_t NUM_IND = 6; 
+
+        QVD vb[NUM_VERT] = { vec2(-1.0f, -1.0f), vec2(-1.0f, 1.0f), vec2(1.0f, -1.0f), vec2(1.0f, 1.0f) };
+
+        uint16_t ib[NUM_IND] = { 0, 2, 3, 0, 3, 1} ;
+
+        g_fs_quad = new RenderObject();
+
+	    g_fs_quad->vdecl_ = 
+            gos_CreateVertexDeclaration(quad_vdecl, sizeof(quad_vdecl) / sizeof(gosVERTEX_FORMAT_RECORD));
+		g_fs_quad->ib_ = 
+            gos_CreateBuffer(gosBUFFER_TYPE::INDEX, gosBUFFER_USAGE::STATIC_DRAW, sizeof(uint16_t), NUM_IND, ib);
+		g_fs_quad->vb_ = 
+            gos_CreateBuffer(gosBUFFER_TYPE::VERTEX, gosBUFFER_USAGE::STATIC_DRAW, sizeof(SVD), NUM_VERT, vb);
+
+        g_fs_quad->world_mat_ = mat4::identity();
+
+        gos_AddRenderMaterial("coloured_quad");
+    }
+
+	gos_SetRenderViewport(0, 0, Environment.drawableWidth, Environment.drawableHeight);
+    
+	mat4 proj_mat = mat4::identity();
+    mat4 view_mat = mat4::identity();
+
+
+    gos_SetRenderState(gos_State_Texture, 0);
+
+
+    HGOSRENDERMATERIAL mat = gos_getRenderMaterial("coloured_quad");
+
+    float colour[4] = {1.0f,1.0f,1.0f,1.0f};
+    gos_SetRenderMaterialParameterFloat4(mat, "colour", colour);
+
+    gos_ApplyRenderMaterial(mat);
+
+    gos_RenderIndexedArray(g_fs_quad->ib_, g_fs_quad->vb_, g_fs_quad->vdecl_);
+
+}
 
 void __stdcall Render(void)
 {
@@ -106,8 +161,8 @@ void __stdcall Render(void)
         SVD vb[NUM_VERT];
         gen_cube_vb(&vb[0], NUM_VERT);
 
-        uint16_t ib[NUM_VERT];
-        for(int i=0;i<NUM_VERT;++i)
+        uint16_t ib[NUM_IND];
+        for(int i=0;i<NUM_IND;++i)
             ib[i] = i;
 
         g_ro = new RenderObject();
@@ -138,6 +193,9 @@ void __stdcall Render(void)
     ShapeRenderer shape_renderer;
     shape_renderer.setup(view_mat, proj_mat);
     shape_renderer.render(*g_ro);
+
+
+    render_fullscreen_quad();
 
 }
 

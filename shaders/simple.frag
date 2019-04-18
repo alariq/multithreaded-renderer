@@ -1,5 +1,5 @@
 #define PREC highp
-#
+
 layout (location=0) out PREC vec4 FragColor;
 
 in PREC vec2 tc;
