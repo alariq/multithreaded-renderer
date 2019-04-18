@@ -1186,6 +1186,8 @@ class gosRenderer {
         gosRenderMaterial* selectBasicRenderMaterial(const RenderState& rs) const ;
         gosRenderMaterial* selectLightedRenderMaterial(const RenderState& rs) const ;
 
+        bool addRenderMaterial(const std::string& name);
+
 		void handleEvents();
 
     private:
@@ -1643,6 +1645,25 @@ bool gosRenderer::beforeDrawCall()
 
 void gosRenderer::afterDrawCall()
 {
+}
+
+bool gosRenderer::addRenderMaterial(const std::string& name)
+{
+    if(materialDB_.count(name)) {
+        STOP(("Trying to add duplicate material name: %s \n", name.c_str()));
+        return false;
+    }
+
+    gosMaterialVariationHelper helper;
+    gosMaterialVariation mvar;
+    helper.getMaterialVariation(mvar);
+
+    gosRenderMaterial* pmat = gosRenderMaterial::load(name.c_str(), mvar);
+    gosASSERT(pmat);
+    materialList_.push_back(pmat);
+    materialDB_[ name ].insert(std::make_pair(0, pmat));
+
+    return true;
 }
 
 gosRenderMaterial* gosRenderer::selectBasicRenderMaterial(const RenderState& rs) const 
@@ -2784,6 +2805,12 @@ HGOSRENDERMATERIAL __stdcall gos_getRenderMaterial(const char* material)
 	gosASSERT(material);
 	gosASSERT(g_gos_renderer);
 	return g_gos_renderer->getRenderMaterial(material);
+}
+
+bool gos_AddRenderMaterial(const char* name)
+{
+	gosASSERT(g_gos_renderer);
+	return g_gos_renderer->addRenderMaterial(std::string(name));
 }
 
 void __stdcall gos_ApplyRenderMaterial(HGOSRENDERMATERIAL material)

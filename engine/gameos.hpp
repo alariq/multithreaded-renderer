@@ -2531,6 +2531,9 @@ void __stdcall gos_SetMaterial( gosMATERIAL* MaterialData );
 void __stdcall gos_RenderIndexedArray( void* pVertexArray, DWORD NumberVertices, WORD* lpwIndices, DWORD NumberIndices, gosVERTEXTYPE VertexType, gosPRIMITIVETYPE PrimitiveType=PRIMITIVE_TRIANGLELIST );
 
 //sebi
+
+bool gos_AddRenderMaterial(const char*name);
+
 HGOSRENDERMATERIAL __stdcall gos_getRenderMaterial(const char* material);
 void __stdcall gos_ApplyRenderMaterial(HGOSRENDERMATERIAL material);
 void __stdcall gos_SetRenderMaterialParameterFloat4(HGOSRENDERMATERIAL material, const char* name, const float* v);
