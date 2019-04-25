@@ -95,5 +95,5 @@ message("sdl2 prefix: ${SDL2_PREFIX}")
 
 
 add_executable(mt-renderer ${SOURCES})
-target_link_libraries(mt-renderer engine platform ${SDL_LIBS} ${GLEW} ${ADDITIONAL_LIBS} ${OPENGL_gl_LIBRARY})
+target_link_libraries(mt-renderer engine platform ${SDL_LIBS} ${GLEW} ${ADDITIONAL_LIBS} ${OPENGL_gl_LIBRARY} pthread)
 

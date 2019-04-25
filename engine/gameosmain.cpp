@@ -2,6 +2,7 @@
 #include "gos_render.h"
 #include <stdio.h>
 #include <time.h>
+#include <queue>
 
 #include <SDL2/SDL.h>
 #include "gos_input.h"
@@ -10,6 +11,9 @@
 #include "utils/shader_builder.h"
 #include "utils/gl_utils.h"
 #include "utils/timing.h"
+#include "utils/threading.h"
+
+#include "Remotery/lib/Remotery.h"
 
 #include <signal.h>
 
@@ -26,6 +30,125 @@ static bool g_exit = false;
 static bool g_focus_lost = false;
 bool g_debug_draw_calls = false;
 static camera g_camera;
+
+
+// TODO: implement GPU/CPU bound stats (based on who wait for whom)
+
+const uint32_t NUM_BUFFERED_FRAMES = 1;
+threading::Event* g_main_event[NUM_BUFFERED_FRAMES];
+threading::Event* g_render_event[NUM_BUFFERED_FRAMES];
+
+SDL_Thread *g_render_thread = 0;
+bool g_rendering = true;
+int RenderThreadMain(void* data);
+
+class R_job {
+public:
+    virtual void exec() = 0;
+    virtual ~R_job() {}
+};
+
+class R_wait_event: public R_job {
+    threading::Event* ev_;
+    int ev_idx_;
+
+    R_wait_event(const R_wait_event& rwe);
+    void operator=(const R_wait_event& rwe);
+
+public:
+    R_wait_event(threading::Event* ev, int ev_idx):ev_(ev), ev_idx_(ev_idx) {}
+
+    void exec() {
+        printf("RT: WAIT FOR EVENT [%d]\n", ev_idx_);
+        rmt_ScopedCPUSample(RT_wait, 0);
+        ev_->Wait();
+        printf("RT: WAIT FOR EVENT DONE [%d]\n", ev_idx_);
+    }
+};
+
+class R_signal_event: public R_job {
+    threading::Event* ev_;
+    int ev_idx_;
+
+    // TODO: use = delete
+    R_signal_event(const R_signal_event& rwe);
+    void operator=(const R_signal_event& rwe);
+public:
+    R_signal_event(threading::Event* ev, int ev_idx):ev_(ev), ev_idx_(ev_idx) {}
+
+    void exec() {
+        rmt_ScopedCPUSample(RT_signal, 0);
+        printf("RT: SIGNAL EVENT [%d]\n", ev_idx_);
+        ev_->Signal();
+        printf("RT: SIGNAL EVENT DONE [%d]\n", ev_idx_);
+    }
+};
+
+class R_draw_job: public R_job {
+    std::string name_;
+    uint64_t sleep_millisec_;
+public:    
+    R_draw_job(const std::string& name, uint64_t sleep_millisec):
+        name_(name), sleep_millisec_(sleep_millisec) {}
+
+    void exec() {
+        rmt_ScopedCPUSample(draw, 0);
+        timing::sleep(sleep_millisec_ * 1000000);
+    }
+};
+
+class R_scope_begin: public R_job {
+    std::string name_;
+public:    
+    R_scope_begin(const std::string& name):
+        name_(name){}
+
+    void exec() {
+        rmt_BeginCPUSampleDynamic(name_.c_str(), 0);
+    }
+};
+
+class R_scope_end: public R_job {
+public:    
+    R_scope_end() {}
+
+    void exec() {
+        rmt_EndCPUSample();
+    }
+};
+
+class RenderJobQueue {
+    SDL_mutex* mutex_;
+    std::queue<R_job*> job_list_;
+
+public:
+    RenderJobQueue() {
+        mutex_ = SDL_CreateMutex();
+    }
+
+    ~RenderJobQueue() {
+        SDL_DestroyMutex(mutex_);
+    }
+
+    void push(R_job* job) {
+        SDL_LockMutex(mutex_);
+        job_list_.push(job);
+        SDL_UnlockMutex(mutex_);
+    }
+
+    R_job* pop() {
+        R_job* pjob = 0;
+        SDL_LockMutex(mutex_);
+        if(!job_list_.empty()) {
+            pjob = job_list_.front();
+            job_list_.pop();
+        }
+        SDL_UnlockMutex(mutex_);
+        return pjob;
+    }
+};
+
+RenderJobQueue* g_render_job_queue = 0;
 
 input::MouseInfo g_mouse_info;
 input::KeyboardInfo g_keyboard_info;
@@ -241,6 +364,21 @@ int main(int argc, char** argv)
     int w = Environment.screenWidth;
     int h = Environment.screenHeight;
 
+    Remotery* rmt;
+    rmt_CreateGlobalInstance(&rmt);
+
+    g_render_job_queue = new RenderJobQueue();
+
+    SPEW(("INIT", "Starting render thread...\n"));
+    int         threadReturnValue;
+ 
+    g_render_thread = SDL_CreateThread(RenderThreadMain, "RenderThread", (void *)NULL);
+    if (NULL == g_render_thread) {
+        SPEW(("Render", "SDL_CreateThread failed: %s\n", SDL_GetError()));
+    } else {
+        SPEW(("Render", "[OK] STATUS: %d\n", threadReturnValue));
+    }
+
     graphics::RenderWindowHandle win = graphics::create_window("mc2", w, h);
     if(!win)
         return 1;
@@ -303,29 +441,88 @@ int main(int argc, char** argv)
 
 	timing::init();
 
+    for(int i=0; i<NUM_BUFFERED_FRAMES;++i) {
+        g_main_event[i] = new threading::Event();
+        g_render_event[i] = new threading::Event();
+        g_render_event[i]->Signal();
+    }
+
+    int ev_index = NUM_BUFFERED_FRAMES - 1;
+    uint32_t render_frame_number = 0;
     while( !g_exit ) {
 
-		uint64_t start_tick = timing::gettickcount();
-		timing::sleep(10*1000000);
+        char frnum_str[32] = {0};
+        sprintf(frnum_str, "Frame: %d", render_frame_number);
+        rmt_BeginCPUSampleDynamic(frnum_str, 0);
 
-        Environment.DoGameLogic();
+        SPEW(("SYNC", "Main: sync[%d]->Wait\n", ev_index));
+        {
+            rmt_ScopedCPUSample(WaitRender, 0);
+            g_render_event[ev_index]->Wait();
+        }
+
+		uint64_t start_tick = timing::gettickcount();
+		//timing::sleep(10*1000000);
+
+        {
+            rmt_ScopedCPUSample(DoGameLogic, 0);
+            Environment.DoGameLogic();
+		    //timing::sleep(10*1000000);
+        }
 
         process_events();
 
-		gos_RendererHandleEvents();
+        {
+            rmt_ScopedCPUSample(RenderFrameCreation, 0);
+		    //timing::sleep(5*1000000);
 
-        graphics::make_current_context(ctx);
-        draw_screen();
-        graphics::swap_window(win);
+            // start render frame
+            g_render_job_queue->push( new R_scope_begin(frnum_str) );
+            g_render_job_queue->push( new R_wait_event(g_main_event[ev_index], ev_index) );
+
+            gos_RendererHandleEvents();
+
+            const uint32_t num_draw_calls = (rand()%3) + 1;
+            for(int i=0; i<num_draw_calls;++i) {
+                g_render_job_queue->push( new R_draw_job(std::string("DIP"), (rand()%2) + 1) );
+            }
+
+            graphics::make_current_context(ctx);
+            draw_screen();
+            graphics::swap_window(win);
+
+            g_render_job_queue->push( new R_signal_event(g_render_event[ev_index], ev_index) );
+            g_render_job_queue->push( new R_scope_end() );
+        }
+
+        SPEW(("SYNC", "Main sync[%d]->Signal\n", ev_index));
+        {
+            rmt_ScopedCPUSample(MainSignal, 0);
+            g_main_event[ev_index]->Signal();
+        }
+        ev_index = (ev_index+1) % NUM_BUFFERED_FRAMES;
+
+		//timing::sleep(8*1000000);
+
+        render_frame_number++;
 
         g_exit |= gosExitGameOS();
 
 		uint64_t end_tick = timing::gettickcount();
 		uint64_t dt = timing::ticks2ms(end_tick - start_tick);
 		frameRate = 1000.0f / (float)dt;
+
+        rmt_EndCPUSample();
     }
     
     Environment.TerminateGameEngine();
+
+
+    g_rendering = false;
+    SPEW(("EXIT", "Waiting for render thread to finish"));
+    SDL_WaitThread(g_render_thread, &threadReturnValue);
+
+    delete g_render_job_queue;
 
     gos_DestroyRenderer();
 
@@ -335,3 +532,19 @@ int main(int argc, char** argv)
     return 0;
 }
 #endif // DISABLE_GAMEOS_MAIN
+
+
+
+int RenderThreadMain(void* data) {
+
+    while(g_rendering) {
+        R_job* pjob = g_render_job_queue->pop();
+        if(pjob)
+        {
+            pjob->exec();
+        }
+    };
+
+    printf("RenderThread Exit\n");
+
+}

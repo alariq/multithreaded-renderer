@@ -26,6 +26,8 @@ set(SOURCES ${SOURCES}
     utils/timing.cpp
     utils/string_utils.cpp
     utils/file_utils.cpp
+    utils/threading.cpp
+    Remotery/lib/Remotery.c
     )
 
 #find_package(SDL2 REQUIRED PATHS "/opt" NO_DEFAULT_PATH)
