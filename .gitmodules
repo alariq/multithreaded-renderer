@@ -1,0 +1,3 @@
+[submodule "engine/Remotery"]
+	path = engine/Remotery
+	url = https://github.com/Celtoys/Remotery.git
