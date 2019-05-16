@@ -26,15 +26,28 @@ extern void gos_RenderUpdateDebugInput();
 
 extern bool gosExitGameOS();
 
+
+#define SIMULATE_MAIN_THREAD_WORK 1
+
+
 static bool g_exit = false;
 static bool g_focus_lost = false;
 bool g_debug_draw_calls = false;
 static camera g_camera;
 
 
+////////////////////////////////////////////////////////////////////////////////
+// Render thread owned variables
+//
+////////////////////////////////////////////////////////////////////////////////
+graphics::RenderWindowHandle g_win = 0;
+graphics::RenderContextHandle g_ctx = 0;
+////////////////////////////////////////////////////////////////////////////////
+
+
 // TODO: implement GPU/CPU bound stats (based on who wait for whom)
 
-const uint32_t NUM_BUFFERED_FRAMES = 1;
+const uint32_t NUM_BUFFERED_FRAMES = 2;
 threading::Event* g_main_event[NUM_BUFFERED_FRAMES];
 threading::Event* g_render_event[NUM_BUFFERED_FRAMES];
 
@@ -44,7 +57,7 @@ int RenderThreadMain(void* data);
 
 class R_job {
 public:
-    virtual void exec() = 0;
+    virtual int exec() = 0;
     virtual ~R_job() {}
 };
 
@@ -58,11 +71,12 @@ class R_wait_event: public R_job {
 public:
     R_wait_event(threading::Event* ev, int ev_idx):ev_(ev), ev_idx_(ev_idx) {}
 
-    void exec() {
+    int exec() {
         printf("RT: WAIT FOR EVENT [%d]\n", ev_idx_);
         rmt_ScopedCPUSample(RT_wait, 0);
         ev_->Wait();
         printf("RT: WAIT FOR EVENT DONE [%d]\n", ev_idx_);
+        return 0;
     }
 };
 
@@ -76,11 +90,12 @@ class R_signal_event: public R_job {
 public:
     R_signal_event(threading::Event* ev, int ev_idx):ev_(ev), ev_idx_(ev_idx) {}
 
-    void exec() {
+    int exec() {
         rmt_ScopedCPUSample(RT_signal, 0);
         printf("RT: SIGNAL EVENT [%d]\n", ev_idx_);
         ev_->Signal();
         printf("RT: SIGNAL EVENT DONE [%d]\n", ev_idx_);
+        return 0;
     }
 };
 
@@ -91,9 +106,10 @@ public:
     R_draw_job(const std::string& name, uint64_t sleep_millisec):
         name_(name), sleep_millisec_(sleep_millisec) {}
 
-    void exec() {
+    int exec() {
         rmt_ScopedCPUSample(draw, 0);
         timing::sleep(sleep_millisec_ * 1000000);
+        return 0;
     }
 };
 
@@ -103,8 +119,9 @@ public:
     R_scope_begin(const std::string& name):
         name_(name){}
 
-    void exec() {
+    int exec() {
         rmt_BeginCPUSampleDynamic(name_.c_str(), 0);
+        return 0;
     }
 };
 
@@ -112,8 +129,33 @@ class R_scope_end: public R_job {
 public:    
     R_scope_end() {}
 
-    void exec() {
+    int exec() {
         rmt_EndCPUSample();
+        return 0;
+    }
+};
+
+static void draw_screen();
+
+class R_render: public R_job {
+public:
+    R_render() {};
+
+    int exec() {
+        {
+            rmt_ScopedCPUSample(make_current_context, 0);
+            graphics::make_current_context(g_ctx);
+        }
+
+        {
+            rmt_ScopedCPUSample(draw_screen, 0);
+            draw_screen();
+        }
+        {
+            rmt_ScopedCPUSample(swap_window, 0);
+            graphics::swap_window(g_win);
+        }
+        return 0;
     }
 };
 
@@ -145,6 +187,10 @@ public:
         }
         SDL_UnlockMutex(mutex_);
         return pjob;
+    }
+
+    int size() { 
+        return job_list_.size();
     }
 };
 
@@ -223,6 +269,8 @@ extern bool g_disable_quads;
 
 static void draw_screen( void )
 {
+    rmt_ScopedOpenGLSample(draw_screen);
+
     g_disable_quads = false;
     glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
     glCullFace(GL_FRONT);
@@ -379,58 +427,73 @@ int main(int argc, char** argv)
         SPEW(("Render", "[OK] STATUS: %d\n", threadReturnValue));
     }
 
-    graphics::RenderWindowHandle win = graphics::create_window("mc2", w, h);
-    if(!win)
-        return 1;
+    class R_init_renderer: public R_job {
+        int w_, h_;
+    public:
+        R_init_renderer(int w, int h):w_(w), h_(h) {}
+        virtual int exec() {
 
-    graphics::RenderContextHandle ctx = graphics::init_render_context(win);
-    if(!ctx)
-        return 1;
+            g_win = graphics::create_window("mc2", w_, h_);
+            if(!g_win)
+                return 1;
 
-    graphics::make_current_context(ctx);
+            g_ctx = graphics::init_render_context(g_win);
+            if(!g_ctx)
+                return 1;
 
-    GLenum err = glewInit();
-    if (GLEW_OK != err)
-    {
-        SPEW(("GLEW", "Error: %s\n", glewGetErrorString(err)));
-        return 1;
-    }
+            graphics::make_current_context(g_ctx);
 
-	glEnable(GL_DEBUG_OUTPUT);
-	glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
-	//glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 76, 1, "My debug group");
-	glDebugMessageControlARB(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, NULL, GL_TRUE);
-	glDebugMessageCallbackARB(&OpenGLDebugLog, NULL);
+            GLenum err = glewInit();
+            if (GLEW_OK != err)
+            {
+                SPEW(("GLEW", "Error: %s\n", glewGetErrorString(err)));
+                return 1;
+            }
+
+            glEnable(GL_DEBUG_OUTPUT);
+            glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
+            //glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 76, 1, "My debug group");
+            glDebugMessageControlARB(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, NULL, GL_TRUE);
+            glDebugMessageCallbackARB(&OpenGLDebugLog, NULL);
 
 
-    SPEW(("GRAPHICS", "Status: Using GLEW %s\n", glewGetString(GLEW_VERSION)));
-    //if ((!GLEW_ARB_vertex_program || !GLEW_ARB_fragment_program))
-    //{
-     //   SPEW(("GRAPHICS", "No shader program support\n"));
-      //  return 1;
-    //}
+            SPEW(("GRAPHICS", "Status: Using GLEW %s\n", glewGetString(GLEW_VERSION)));
+            //if ((!GLEW_ARB_vertex_program || !GLEW_ARB_fragment_program))
+            //{
+            //   SPEW(("GRAPHICS", "No shader program support\n"));
+            //  return 1;
+            //}
 
-    if(!glewIsSupported("GL_VERSION_3_0")) {
-        SPEW(("GRAPHICS", "Minimum required OpenGL version is 3.0\n"));
-        return 1;
-    }
+            if(!glewIsSupported("GL_VERSION_3_0")) {
+                SPEW(("GRAPHICS", "Minimum required OpenGL version is 3.0\n"));
+                return 1;
+            }
 
-    const char* glsl_version = (const char*)glGetString(GL_SHADING_LANGUAGE_VERSION);
-    SPEW(("GRAPHICS", "GLSL version supported: %s\n", glsl_version));
+            const char* glsl_version = (const char*)glGetString(GL_SHADING_LANGUAGE_VERSION);
+            SPEW(("GRAPHICS", "GLSL version supported: %s\n", glsl_version));
 
-    int glsl_maj = 0, glsl_min = 0;
-    sscanf(glsl_version, "%d.%d", &glsl_maj, &glsl_min);
+            int glsl_maj = 0, glsl_min = 0;
+            sscanf(glsl_version, "%d.%d", &glsl_maj, &glsl_min);
 
-    if(glsl_maj < 3 || (glsl_maj==3 && glsl_min < 30) ) {
-        SPEW(("GRAPHICS", "Minimum required OpenGL version is 330 ES, current: %d.%d\n", glsl_maj, glsl_min));
-        return 1;
-    }
+            if(glsl_maj < 3 || (glsl_maj==3 && glsl_min < 30) ) {
+                SPEW(("GRAPHICS", "Minimum required OpenGL version is 330 ES, current: %d.%d\n", glsl_maj, glsl_min));
+                return 1;
+            }
 
-    char version[16] = {0};
-    snprintf(version, sizeof(version), "%d%d", glsl_maj, glsl_min);
-    SPEW(("GRAPHICS", "Using %s shader version\n", version));
+            char version[16] = {0};
+            snprintf(version, sizeof(version), "%d%d", glsl_maj, glsl_min);
+            SPEW(("GRAPHICS", "Using %s shader version\n", version));
 
-    gos_CreateRenderer(ctx, win, w, h);
+            gos_CreateRenderer(g_ctx, g_win, w_, h_);
+
+            rmt_BindOpenGL();
+
+            return 0;
+        }
+
+        ~R_init_renderer() {}
+    };
+    g_render_job_queue->push(new R_init_renderer(w, h));
 
     Environment.InitializeGameEngine();
 
@@ -441,7 +504,7 @@ int main(int argc, char** argv)
 
 	timing::init();
 
-    for(int i=0; i<NUM_BUFFERED_FRAMES;++i) {
+    for(uint32_t i=0; i<NUM_BUFFERED_FRAMES;++i) {
         g_main_event[i] = new threading::Event();
         g_render_event[i] = new threading::Event();
         g_render_event[i]->Signal();
@@ -455,11 +518,6 @@ int main(int argc, char** argv)
         sprintf(frnum_str, "Frame: %d", render_frame_number);
         rmt_BeginCPUSampleDynamic(frnum_str, 0);
 
-        SPEW(("SYNC", "Main: sync[%d]->Wait\n", ev_index));
-        {
-            rmt_ScopedCPUSample(WaitRender, 0);
-            g_render_event[ev_index]->Wait();
-        }
 
 		uint64_t start_tick = timing::gettickcount();
 		//timing::sleep(10*1000000);
@@ -467,29 +525,54 @@ int main(int argc, char** argv)
         {
             rmt_ScopedCPUSample(DoGameLogic, 0);
             Environment.DoGameLogic();
-		    //timing::sleep(10*1000000);
+#ifdef SIMULATE_MAIN_THREAD_WORK
+		    timing::sleep(3*1000000);
+#endif            
         }
 
         process_events();
 
+        // wait for frame to which we want to push our render commands
+        SPEW(("SYNC", "Main: sync[%d]->Wait\n", ev_index));
         {
+            rmt_ScopedCPUSample(WaitRender, 0);
+            g_render_event[ev_index]->Wait();
+        }
+
+        {
+
             rmt_ScopedCPUSample(RenderFrameCreation, 0);
-		    //timing::sleep(5*1000000);
+#ifdef SIMULATE_MAIN_THREAD_WORK
+		    timing::sleep((float(rand()%100)/50.0f)*1000000);
+#endif
 
             // start render frame
             g_render_job_queue->push( new R_scope_begin(frnum_str) );
             g_render_job_queue->push( new R_wait_event(g_main_event[ev_index], ev_index) );
 
-            gos_RendererHandleEvents();
+            class R_handle_events: public R_job {
+                public:
+                    int exec() {
+                        gos_RendererHandleEvents();
+                        return 0;
+                    }
+            };
+            g_render_job_queue->push( new R_handle_events() );
 
             const uint32_t num_draw_calls = (rand()%3) + 1;
-            for(int i=0; i<num_draw_calls;++i) {
+            for(uint32_t i=0; i<num_draw_calls;++i) {
                 g_render_job_queue->push( new R_draw_job(std::string("DIP"), (rand()%2) + 1) );
             }
+#if 0
+            glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
+            if(render_frame_number == 10)
+            {
+                DWORD htexture = gos_NewTextureFromFile(gos_Texture_Detect, "data/textures/editortacmapsplashscreen.tga");
+                assert(htexture);
+            }
+#endif
 
-            graphics::make_current_context(ctx);
-            draw_screen();
-            graphics::swap_window(win);
+            g_render_job_queue->push( new R_render() );
 
             g_render_job_queue->push( new R_signal_event(g_render_event[ev_index], ev_index) );
             g_render_job_queue->push( new R_scope_end() );
@@ -517,17 +600,27 @@ int main(int argc, char** argv)
     
     Environment.TerminateGameEngine();
 
+    class R_destroy_render: public R_job {
+    public:
+        R_destroy_render() {}
+        ~R_destroy_render() {}
+        int exec() {
+            rmt_UnbindOpenGL();
+            gos_DestroyRenderer();
+            graphics::destroy_render_context(g_ctx);
+            graphics::destroy_window(g_win);
+            g_rendering = false;
+            return 0;
+        }
+    };
 
-    g_rendering = false;
+    g_render_job_queue->push( new R_destroy_render() );
+
     SPEW(("EXIT", "Waiting for render thread to finish"));
     SDL_WaitThread(g_render_thread, &threadReturnValue);
 
+    assert(0 == g_render_job_queue->size());
     delete g_render_job_queue;
-
-    gos_DestroyRenderer();
-
-    graphics::destroy_render_context(ctx);
-    graphics::destroy_window(win);
 
     return 0;
 }
@@ -541,10 +634,16 @@ int RenderThreadMain(void* data) {
         R_job* pjob = g_render_job_queue->pop();
         if(pjob)
         {
-            pjob->exec();
+            int rv = pjob->exec(); 
+            delete pjob;
+            if(0 != rv)
+            {
+                SPEW(("RENDER_QUEUE", "Error executing rendering command, exiting render thread"));
+                break;
+            }
         }
     };
 
     printf("RenderThread Exit\n");
-
+    return 0;
 }

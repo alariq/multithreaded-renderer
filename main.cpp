@@ -20,7 +20,7 @@ void __stdcall Update(void)
     uint64_t end_tick = timing::gettickcount();
     uint64_t dt = timing::ticks2ms(end_tick - start_tick);
 
-    printf("dt: %d\n", dt);
+    printf("dt: %zd\n", dt);
 
     start_tick = timing::gettickcount();
 
@@ -132,8 +132,8 @@ void render_fullscreen_quad()
 
 	gos_SetRenderViewport(0, 0, Environment.drawableWidth, Environment.drawableHeight);
     
-	mat4 proj_mat = mat4::identity();
-    mat4 view_mat = mat4::identity();
+	//mat4 proj_mat = mat4::identity();
+    //mat4 view_mat = mat4::identity();
 
 
     gos_SetRenderState(gos_State_Texture, 0);
@@ -154,7 +154,7 @@ void __stdcall Render(void)
 {
     if(!g_ro)
     {
-
+        
         constexpr const size_t NUM_VERT = 36; 
         constexpr const size_t NUM_IND = 36; 
 
@@ -162,7 +162,7 @@ void __stdcall Render(void)
         gen_cube_vb(&vb[0], NUM_VERT);
 
         uint16_t ib[NUM_IND];
-        for(int i=0;i<NUM_IND;++i)
+        for(uint32_t i=0;i<NUM_IND;++i)
             ib[i] = i;
 
         g_ro = new RenderObject();
@@ -196,7 +196,7 @@ void __stdcall Render(void)
 
 
     render_fullscreen_quad();
-
+    
 }
 
 void GetGameOSEnvironment(const char* cmdline)

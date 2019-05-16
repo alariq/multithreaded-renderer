@@ -12,7 +12,7 @@ else("${CMAKE_SIZEOF_VOID_P}" EQUAL "8")
 	message(STATUS "Target is 32 bits")
 endif("${CMAKE_SIZEOF_VOID_P}" EQUAL "8")
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x -ggdb")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x -ggdb -Wall")
 set(CMAKE_EXPORT_COMPILE_COMMANDS "ON")
  
 
@@ -37,6 +37,7 @@ endif()
 
 add_definitions(-DUSE_ASSEMBLER_CODE=0)
 add_definitions(-DLINUX_BUILD)
+add_definitions(-DRMT_USE_OPENGL=1)
 
 find_path(GLEW_INCLUDE "GL/glew.h")
 
