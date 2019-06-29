@@ -68,6 +68,7 @@ add_subdirectory("./platform" "./out/platform")
 
 set(SOURCES 
     "main.cpp"
+    "test_fixed_block_allocator.cpp"
     )
 
 find_library(GLEW NAMES "GLEW" "glew32")

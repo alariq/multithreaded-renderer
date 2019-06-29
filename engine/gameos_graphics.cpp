@@ -2817,8 +2817,8 @@ void __stdcall gos_ApplyRenderMaterial(HGOSRENDERMATERIAL material)
 {
 	gosASSERT(material);
 
-	//setup commoin stuff
-	gos_SetCommonMaterialParameters(material);
+	//setup common stuff
+	//gos_SetCommonMaterialParameters(material);
 
 	material->apply();
 	material->setSamplerUnit(gosMesh::s_tex1, 0);

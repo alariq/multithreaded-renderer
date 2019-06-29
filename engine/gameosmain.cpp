@@ -54,6 +54,12 @@ threading::Event* g_render_event[NUM_BUFFERED_FRAMES];
 SDL_Thread *g_render_thread = 0;
 bool g_rendering = true;
 int RenderThreadMain(void* data);
+int gRenderFrameNumber;
+int gFrameNumber;
+
+int RendererGetNumBufferedFrames() { return NUM_BUFFERED_FRAMES; }
+int RendererGetCurrentFrame() { return gRenderFrameNumber; }
+int GetCurrentFrame() { return gFrameNumber; }
 
 class R_job {
 public:
@@ -115,11 +121,14 @@ public:
 
 class R_scope_begin: public R_job {
     std::string name_;
+    int frame_num_;
 public:    
-    R_scope_begin(const std::string& name):
-        name_(name){}
+    R_scope_begin(const std::string& name, int frame_num):
+        name_(name),
+        frame_num_(frame_num) {}
 
     int exec() {
+        gRenderFrameNumber = frame_num_;
         rmt_BeginCPUSampleDynamic(name_.c_str(), 0);
         return 0;
     }
@@ -386,7 +395,7 @@ void GLAPIENTRY OpenGLDebugLog(GLenum source, GLenum type, GLuint id, GLenum sev
 int main(int argc, char** argv)
 {
     //signal(SIGTRAP, SIG_IGN);
-
+    
     // gather command line
     uint32_t cmdline_len = 0;
     for(int i=0;i<argc;++i) {
@@ -493,7 +502,20 @@ int main(int argc, char** argv)
 
         ~R_init_renderer() {}
     };
-    g_render_job_queue->push(new R_init_renderer(w, h));
+
+
+    R_init_renderer* init_renderer_job = new R_init_renderer(w, h);
+    // initializing it on render thread because all graphics operations (like shader creation)
+    // should be created on a thread on which context was created (maybe it is not true, but  glCreateShader fails otherwise)
+    bool init_renderer_on_rener_thread = true;
+    if(init_renderer_on_rener_thread)
+        g_render_job_queue->push(init_renderer_job);
+    else
+    {
+        init_renderer_job->exec();
+        delete init_renderer_job;
+    }
+
 
     Environment.InitializeGameEngine();
 
@@ -510,17 +532,34 @@ int main(int argc, char** argv)
         g_render_event[i]->Signal();
     }
 
+
+    // in order for initial render frame to not touch resources used by game thread
+    gRenderFrameNumber = NUM_BUFFERED_FRAMES - 1;
+    gFrameNumber = 0;
+
     int ev_index = NUM_BUFFERED_FRAMES - 1;
-    uint32_t render_frame_number = 0;
+    uint32_t frame_number = 0;
     while( !g_exit ) {
 
         char frnum_str[32] = {0};
-        sprintf(frnum_str, "Frame: %d", render_frame_number);
+        sprintf(frnum_str, "Frame: %d", frame_number);
         rmt_BeginCPUSampleDynamic(frnum_str, 0);
-
+        gFrameNumber = frame_number;
 
 		uint64_t start_tick = timing::gettickcount();
 		//timing::sleep(10*1000000);
+        
+
+        // Have to wait this early because in DoGameLogic we construct render lists
+        // which are used by render thread
+        // we could move it after this function but then have to increase number of buffers +1
+
+        // wait for frame to which we want to push our render commands
+        //SPEW(("SYNC", "Main: sync[%d]->Wait\n", ev_index));
+        //{
+        //   rmt_ScopedCPUSample(WaitRender, 0);
+        //   g_render_event[ev_index]->Wait();
+        //}
 
         {
             rmt_ScopedCPUSample(DoGameLogic, 0);
@@ -547,7 +586,7 @@ int main(int argc, char** argv)
 #endif
 
             // start render frame
-            g_render_job_queue->push( new R_scope_begin(frnum_str) );
+            g_render_job_queue->push( new R_scope_begin(frnum_str, frame_number) );
             g_render_job_queue->push( new R_wait_event(g_main_event[ev_index], ev_index) );
 
             class R_handle_events: public R_job {
@@ -586,8 +625,8 @@ int main(int argc, char** argv)
         ev_index = (ev_index+1) % NUM_BUFFERED_FRAMES;
 
 		//timing::sleep(8*1000000);
-
-        render_frame_number++;
+        
+        frame_number++;
 
         g_exit |= gosExitGameOS();
 
