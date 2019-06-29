@@ -57,9 +57,21 @@ int RenderThreadMain(void* data);
 int gRenderFrameNumber;
 int gFrameNumber;
 
+
+// TODO: make them unique_ptr to better show ownership transfer ?
+// 2 different render thread contexts usually can be active on game and render thread
+void* gRenderFrameContext = nullptr; //custom data to pass from game thread to render thread
+void* gRenderThreadRenderFrameContext = nullptr; //custom data to pass from game thread to render thread
+
+bool IsRenderThread() {
+    return SDL_GetThreadID(nullptr) == SDL_GetThreadID(g_render_thread);
+}
+
 int RendererGetNumBufferedFrames() { return NUM_BUFFERED_FRAMES; }
 int RendererGetCurrentFrame() { return gRenderFrameNumber; }
 int GetCurrentFrame() { return gFrameNumber; }
+void SetRenderFrameContext(void* rfc) { assert(!IsRenderThread()); gRenderFrameContext = rfc; }
+void* GetRenderFrameContext() { assert(IsRenderThread()); return gRenderThreadRenderFrameContext; }
 
 class R_job {
 public:
@@ -122,13 +134,16 @@ public:
 class R_scope_begin: public R_job {
     std::string name_;
     int frame_num_;
+    void* render_frame_context_;
 public:    
-    R_scope_begin(const std::string& name, int frame_num):
+    R_scope_begin(const std::string& name, int frame_num, void* rfc):
         name_(name),
-        frame_num_(frame_num) {}
+        frame_num_(frame_num),
+        render_frame_context_(rfc) {}
 
     int exec() {
         gRenderFrameNumber = frame_num_;
+        gRenderThreadRenderFrameContext = render_frame_context_;
         rmt_BeginCPUSampleDynamic(name_.c_str(), 0);
         return 0;
     }
@@ -139,6 +154,8 @@ public:
     R_scope_end() {}
 
     int exec() {
+        // render thread render frame context only valid between rendering commands
+        gRenderThreadRenderFrameContext = nullptr;
         rmt_EndCPUSample();
         return 0;
     }
@@ -549,18 +566,6 @@ int main(int argc, char** argv)
 		uint64_t start_tick = timing::gettickcount();
 		//timing::sleep(10*1000000);
         
-
-        // Have to wait this early because in DoGameLogic we construct render lists
-        // which are used by render thread
-        // we could move it after this function but then have to increase number of buffers +1
-
-        // wait for frame to which we want to push our render commands
-        //SPEW(("SYNC", "Main: sync[%d]->Wait\n", ev_index));
-        //{
-        //   rmt_ScopedCPUSample(WaitRender, 0);
-        //   g_render_event[ev_index]->Wait();
-        //}
-
         {
             rmt_ScopedCPUSample(DoGameLogic, 0);
             Environment.DoGameLogic();
@@ -586,7 +591,7 @@ int main(int argc, char** argv)
 #endif
 
             // start render frame
-            g_render_job_queue->push( new R_scope_begin(frnum_str, frame_number) );
+            g_render_job_queue->push( new R_scope_begin(frnum_str, frame_number, gRenderFrameContext) );
             g_render_job_queue->push( new R_wait_event(g_main_event[ev_index], ev_index) );
 
             class R_handle_events: public R_job {

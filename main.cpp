@@ -1,5 +1,6 @@
 #include "engine/utils/timing.h"
 #include "engine/utils/gl_utils.h"
+#include "engine/utils/ts_queue.h"
 #include "engine/gameos.hpp"
 
 #include "Remotery/lib/Remotery.h"
@@ -7,10 +8,14 @@
 #include <cstddef>
 #include <string>
 #include <list>
+#include <atomic>
+
 
 extern int RendererGetNumBufferedFrames();
 extern int RendererGetCurrentFrame();
 extern int GetCurrentFrame();
+extern void SetRenderFrameContext(void* rfc);
+extern void* GetRenderFrameContext();
 
 #if defined(DO_TESTS)
 extern void test_fixed_block_allocator();
@@ -62,6 +67,77 @@ struct RenderPacket {
     class GameObject* go_;
 #endif
 };
+
+class NonCopyable {
+    NonCopyable(const NonCopyable&) = delete;
+    NonCopyable& operator=(const NonCopyable&) = delete;
+protected:
+    NonCopyable()= default;
+};
+
+typedef std::vector<RenderPacket> RenderPacketList_t;
+class RenderList: public NonCopyable {
+    std::atomic_int ref_count;
+    int id_;
+    RenderPacketList_t packets_;
+public:
+    RenderList():ref_count(0) {
+        static int id = 0;
+        id_ = id++;
+    }
+
+    void Acquire() { int old = ref_count.fetch_add(1); (void)old; assert(old==0); }
+    void Release() { int old = ref_count.fetch_sub(1); (void)old; assert(old==1); }
+    bool IsAcquired() { return ref_count == 1; }
+    // for debugging purposes
+    int GetId() const { return id_; }
+
+    size_t GetCapacity() { return packets_.capacity(); }
+
+    void ReservePackets(size_t count) {
+        size_t old_size = packets_.capacity();
+        packets_.reserve(old_size + count);
+    }
+    
+    // allocates "count" amount of packets and returns pointer to memory
+    RenderPacket* AddPacket() {
+        assert(packets_.size() + 1 <= packets_.capacity()); // just to ensure that we do not reallocate
+        packets_.emplace_back(RenderPacket());
+        return &packets_[packets_.size()-1];
+    }
+
+    RenderPacketList_t& GetRenderPackets() { return packets_; }
+
+};
+
+TSQueue<RenderList*> gFreeRenderLists;
+
+RenderList* AcquireRenderList()
+{
+    RenderList* rl = gFreeRenderLists.pop();
+    if(!rl)
+    {
+        // all render lists are taken get new one
+        rl = new RenderList();
+    }
+
+    rl->Acquire();
+    return rl;
+}
+
+void ReleaseRenderList(RenderList* rl) {
+    assert(rl && rl->IsAcquired());
+
+    rl->Release();
+    rl->GetRenderPackets().resize(0);
+    gFreeRenderLists.push(rl);
+}
+
+struct RenderFrameContext {
+    RenderList* rl_;
+    int frame_number_;
+};
+
 
 RenderMesh* CreateRenderMesh(const char* /*res*/) {
 
@@ -134,9 +210,6 @@ public:
 
 std::list<GameObject*> g_world_objects;
 
-typedef std::list<RenderPacket> RenderPacketList_t;
-RenderPacketList_t* g_render_packets;
-
 float get_random(float min, float max)
 {
     float v = float(rand()%RAND_MAX) / float(RAND_MAX);
@@ -160,8 +233,6 @@ void __stdcall Init(void)
     test_fixed_block_allocator();
 #endif
 
-    int count = RendererGetNumBufferedFrames() + 1;
-    g_render_packets = new RenderPacketList_t[count];
 }
 
 void __stdcall Deinit(void)
@@ -217,12 +288,15 @@ void __stdcall Update(void)
 
     // prepare list of objects to render
     it = g_world_objects.begin();
-    const int list_idx = GetCurrentFrame() % (RendererGetNumBufferedFrames()+1);
-    RenderPacketList_t& current_render_list = g_render_packets[list_idx];
+    
+    RenderList* frame_render_list = AcquireRenderList();
 
     char listidx_str[32] = {0};
-    sprintf(listidx_str, "list_idx: %d", list_idx);
+    sprintf(listidx_str, "list_idx: %d", frame_render_list->GetId());
     rmt_BeginCPUSampleDynamic(listidx_str, 0);
+
+    if(frame_render_list->GetCapacity() < g_world_objects.size())
+        frame_render_list->ReservePackets(g_world_objects.size());
 
     int counter = 0;
     for(;it!=end;++it)
@@ -232,22 +306,27 @@ void __stdcall Update(void)
         // chek if visible
         // ...
 
-        RenderPacket rp;
         // maybe instead create separate render thread render objects or make all render object always live on render thread
         if(go->GetMesh()) // if initialized
         {
-            rp.mesh_ = go->GetMesh();
-            rp.m_ = go->GetTransform();
+            RenderPacket* rp = frame_render_list->AddPacket();
+
+            rp->mesh_ = go->GetMesh();
+            rp->m_ = go->GetTransform();
 #if DO_BAD_THING_FOR_TEST
-            rp.go_ = go;
+            rp->go_ = go;
 #endif
-            current_render_list.push_back(rp);
         }
 
         counter++;
     }
 
     rmt_EndCPUSample();
+
+    RenderFrameContext* rfc = new RenderFrameContext();
+    rfc->frame_number_ = GetCurrentFrame();
+    rfc->rl_ = frame_render_list;
+    SetRenderFrameContext(rfc);
 
 }
 
@@ -351,13 +430,13 @@ void __stdcall Render(void)
         initialized = true;
     }
 
-	gos_SetRenderViewport(0, 0, Environment.drawableWidth, Environment.drawableHeight);
+    gos_SetRenderViewport(0, 0, Environment.drawableWidth, Environment.drawableHeight);
     
     float aspect = Environment.drawableWidth / Environment.drawableHeight;
 
     gos_SetRenderState(gos_State_TextureAddress, gos_TextureWrap);
 
-	mat4 proj_mat = frustumProjMatrix(-aspect*0.5f, aspect*0.5f, -.5f, .5f, 1.0f, 100.0f);
+    mat4 proj_mat = frustumProjMatrix(-aspect*0.5f, aspect*0.5f, -.5f, .5f, 1.0f, 100.0f);
 
     static float angle = 0.0f;
     mat4 view_mat = mat4::translation(vec3(0, 0, -8));// * mat4::rotationY(angle);
@@ -371,39 +450,39 @@ void __stdcall Render(void)
     rp.mesh_ = g_ro;
     rp.m_ = mat4::identity();
     shape_renderer.render(rp);
-
     
-    const int list_idx = RendererGetCurrentFrame() % (RendererGetNumBufferedFrames()+1);
-    RenderPacketList_t& current_render_list = g_render_packets[list_idx];
+    RenderFrameContext* rfc = (RenderFrameContext*)GetRenderFrameContext();
+    assert(rfc);
+    assert(rfc->frame_number_ == RendererGetCurrentFrame());
 
-    RenderPacketList_t::const_iterator it = current_render_list.begin();
-    RenderPacketList_t::const_iterator end = current_render_list.end();
+    const RenderPacketList_t& rpl = rfc->rl_->GetRenderPackets();
+    RenderPacketList_t::const_iterator it = rpl.begin();
+    RenderPacketList_t::const_iterator end = rpl.end();
     int counter = 0;
 
-    char listidx_str[32] = {0};
-    sprintf(listidx_str, "list_idx: %d", list_idx);
-    rmt_BeginCPUSampleDynamic(listidx_str, 0);
+    char rfc_info[128] = {0};
+    sprintf(rfc_info, "rfc: %d rl: %d", rfc->frame_number_, rfc->rl_->GetId());
+    rmt_BeginCPUSampleDynamic(rfc_info, 0);
 
     for(;it!=end;)
     {
         /*const*/ RenderPacket rp = (*it);
 #if DO_BAD_THING_FOR_TEST
-        // test: get transform on render thread which can't be done (becaus it is changing on game thread)
+        // test: get transform on render thread which can't be done (because it is changing on game thread)
         // also cache miss on attempt to call function
         rp.m_ = rp.go_->GetTransform();
 #endif
 
         shape_renderer.render(rp);
 
-        RenderPacketList_t::const_iterator todel = it;
         it++;
-        //current_render_list.erase(todel);
         counter++;
     }
 
-    current_render_list.clear();
-
     rmt_EndCPUSample();
+
+    ReleaseRenderList(rfc->rl_);
+    delete rfc;
 
     render_fullscreen_quad();
     
