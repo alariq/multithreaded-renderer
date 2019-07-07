@@ -23,6 +23,7 @@ set(SOURCES ${SOURCES}
     utils/shader_builder.cpp
     utils/matrix.cpp
     utils/vec.cpp
+    utils/frustum.cpp
     utils/timing.cpp
     utils/string_utils.cpp
     utils/file_utils.cpp
