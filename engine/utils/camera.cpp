@@ -177,7 +177,7 @@ void camera::compose_view_matrix(mat4* view, const float (& mat)[3*4])
 	view->setRow(2, vec4(front, dot(-pos, front)));
 }
 
-void camera::compose_view_matrix(mat4* view, const vec3& right, vec3& up, vec3& front, vec3 world_pos)
+void camera::compose_view_matrix(mat4* view, const vec3& right, const vec3& up, const vec3& front, const vec3& world_pos)
 {
 	view->setRow(0, vec4(right, dot(-world_pos, right)));
 	view->setRow(1, vec4(up, dot(-world_pos, up)));

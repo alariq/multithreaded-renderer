@@ -18,7 +18,7 @@ struct camera
 	
 	void set_view(const mat4& view_mat);
 
-	static void compose_view_matrix(mat4* view, const vec3& right, vec3& up, vec3& front, vec3 world_pos);
+    static void compose_view_matrix(mat4* view, const vec3& right, const vec3& up, const vec3& front, const vec3& world_pos);
 	static void compose_view_matrix(mat4* view, const float (& mat)[3*4]);
 	static void view_get_world_pos(const mat4& view, vec3* world_pos);
 

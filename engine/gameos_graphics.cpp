@@ -1560,7 +1560,7 @@ void gosRenderer::applyRenderStates() {
 
    ////////////////////////////////////////////////////////////////////////////////
    uint32_t tex_states[] = { gos_State_Texture, gos_State_Texture2, gos_State_Texture3 };
-   for(int i=0; i<sizeof(tex_states) / sizeof(tex_states[0]); ++i) {
+   for(uint32_t i=0; i<sizeof(tex_states) / sizeof(tex_states[0]); ++i) {
        DWORD gosTextureHandle = renderStates_[tex_states[i]];
 
        glActiveTexture(GL_TEXTURE0 + i);
@@ -1597,7 +1597,7 @@ void gosRenderer::endFrame()
     static uint64_t last_check_time = timing::get_wall_time_ms();
     if(timing::get_wall_time_ms() - last_check_time > 500)
     {
-        for(int i=0; i< materialList_.size(); ++i)
+        for(uint32_t i=0; i< materialList_.size(); ++i)
         {
             materialList_[i]->checkReload();
         }

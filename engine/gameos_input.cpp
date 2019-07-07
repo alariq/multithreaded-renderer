@@ -296,7 +296,7 @@ SDL_Scancode remap_gos_to_sdl(const gosEnum_KeyIndex key_index) {
 ////////////////////////////////////////////////////////////////////////////////
 DWORD __stdcall gos_GetKey()
 {
-    if(g_keyboard_info.first_pressed_!=-1) {
+    if(g_keyboard_info.first_pressed_!=(uint32_t)-1) {
         SDL_Scancode sc = (SDL_Scancode)g_keyboard_info.first_pressed_;
         SDL_Keycode kc = SDL_GetKeyFromScancode(sc);
         unsigned char c = 0;

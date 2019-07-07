@@ -27,15 +27,15 @@ GLuint getNativeBlendMode(BlendMode bm) {
 	{
 		case BM_ADD:
 		default:
-			return GL_FUNC_ADD_EXT;
+			return GL_FUNC_ADD;
 		case BM_SUBTRACT:
-			return GL_FUNC_SUBTRACT_EXT;
+			return GL_FUNC_SUBTRACT;
 		case BM_REVERSE_SUBTRACT:
-			return GL_FUNC_REVERSE_SUBTRACT_EXT;
+			return GL_FUNC_REVERSE_SUBTRACT;
 		case BM_MIN:
-			return GL_MIN_EXT;
+			return GL_MIN;
 		case BM_MAX:
-			return GL_MAX_EXT;
+			return GL_MAX;
 	}
 }
 

@@ -385,7 +385,7 @@ bool glsl_shader::reload(const char* prefix)
     if(!load_shader(fname_.c_str(), shader_source, shader_includes))
     {
 		log_error("Shader filename: %s, failed to load shader\n", fname_.c_str());
-        return nullptr;
+        return false;
     }
 	
     const char* strings[] = { prefix == nullptr ? "" : prefix, shader_source.c_str() };
@@ -405,7 +405,7 @@ uint64_t glsl_shader::getModTimeMs()
 
 	uint64_t mt = get_file_mod_time_ms(fname_.c_str());
 
-    for(int i=0;i<includes_.size();++i)
+    for(uint32_t i=0;i<includes_.size();++i)
     {
 	    uint64_t t = get_file_mod_time_ms(includes_[i].c_str());
         mt = max(mt, t);
