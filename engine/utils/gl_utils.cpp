@@ -44,10 +44,15 @@ const GLint textureFormats[TF_COUNT] = {
     GL_RGB,
     GL_RGBA,
 
-    GL_R,
+    GL_R32F,
     GL_RG,
     GL_RGB,
     GL_RGBA,
+
+	GL_R32UI,
+	GL_RG32UI,
+	GL_RGB32UI,
+	GL_RGBA32UI,
 };
 
 const GLint textureInternalFormats[TF_COUNT] = {
@@ -61,43 +66,33 @@ const GLint textureInternalFormats[TF_COUNT] = {
     GL_RG32F,
     GL_RGB32F,
     GL_RGBA32F,
+
+	GL_R32UI,
+	GL_RG32UI,
+	GL_RGB32UI,
+	GL_RGBA32UI,
 };
 
 
 const int textureFormatNumChannels[TF_COUNT] = {
     0,
-    1,
-    2,
-    3,
-    4,
-    1,
-    2,
-    3,
-    4
+    1, 2, 3, 4,
+	1, 2, 3, 4,
+	1, 2, 3, 4,
 };
 
 const GLint textureFormatChannelType[TF_COUNT] = {
     0,
-    GL_UNSIGNED_BYTE,
-    GL_UNSIGNED_BYTE,
-    GL_UNSIGNED_BYTE,
-    GL_UNSIGNED_BYTE,
-    GL_FLOAT,
-    GL_FLOAT,
-    GL_FLOAT,
-    GL_FLOAT,
+    GL_UNSIGNED_BYTE, GL_UNSIGNED_BYTE, GL_UNSIGNED_BYTE, GL_UNSIGNED_BYTE,
+    GL_FLOAT, GL_FLOAT, GL_FLOAT, GL_FLOAT,
+	GL_UNSIGNED_INT,GL_UNSIGNED_INT,GL_UNSIGNED_INT,GL_UNSIGNED_INT,
 };
 
 const static uint32_t textureFormatChannelSize[TF_COUNT] = {
     0,
-    1,
-    1,
-    1,
-    1,
-    4,
-    4,
-    4,
-    4,
+    1, 1, 1, 1,
+    4, 4, 4, 4,
+	4, 4, 4, 4,
 };
 
 uint32_t

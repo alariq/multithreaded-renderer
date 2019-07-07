@@ -16,6 +16,7 @@ set(SOURCES ${SOURCES}
 
     utils/stream.cpp
     utils/camera.cpp
+    utils/gl_fbo.cpp
     utils/gl_utils.cpp
     utils/gl_render_constants.cpp
     utils/Image.cpp

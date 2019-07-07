@@ -35,6 +35,12 @@ enum TexFormat {
     TF_RG32F,
     TF_RGB32F,
     TF_RGBA32F,
+    TF_R32UI,
+    TF_RG32UI,
+    TF_RGB32UI,
+    TF_RGBA32UI,
+    TF_DEPTH16F,
+    TF_DEPTH32F,
     TF_COUNT
 };
 
