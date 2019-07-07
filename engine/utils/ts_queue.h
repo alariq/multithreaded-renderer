@@ -1,3 +1,6 @@
+#ifndef TS_QUEUE_H
+#define TS_QUEUE_H
+
 #include "SDL2/SDL.h"
 #include <queue>
 
@@ -38,3 +41,4 @@ public:
     }
 };
 
+#endif // TS_QUEUE_H
