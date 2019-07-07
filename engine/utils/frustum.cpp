@@ -16,10 +16,10 @@ void Frustum::updateFromCamera(const mat4& view, float fov, float aspect, float 
     vec3 nbr = p + near * dir + right * w * near - up * h * near;
     vec3 nbl = p + near * dir - right * w * near - up * h * near;
 
-    vec3 ftr =    p + far * dir + right * w * far + up * h * far;
-    vec3 ftl =     p + far * dir - right * w * far + up * h * far;
-    vec3 fbr =    p + far * dir + right * w * far - up * h * far;
-    vec3 fbl =     p + far * dir - right * w * far - up * h * far;
+    vec3 ftr = p + far * dir + right * w * far + up * h * far;
+    vec3 ftl = p + far * dir - right * w * far + up * h * far;
+    vec3 fbr = p + far * dir + right * w * far - up * h * far;
+    vec3 fbl = p + far * dir - right * w * far - up * h * far;
 
     points[NEAR_TOP_RIGHT] = ntr;
     points[NEAR_TOP_LEFT] = ntl;
@@ -100,7 +100,7 @@ void Frustum::makeMeshFromFrustum(const Frustum* f, char* out_vertices, int coun
     // bottom plane
     *((vec3*)out_vertices) = f->points[NEAR_BOTTOM_LEFT];out_vertices += stride;
     *((vec3*)out_vertices) = f->points[FAR_BOTTOM_LEFT];out_vertices += stride;
-    *((vec3*)out_vertices) = f->points[FAR_BOTTOM_RIGHT];out_vertices += stride;
+    *((vec3*)out_vertices) = f->points[NEAR_BOTTOM_RIGHT];out_vertices += stride;
                            
     *((vec3*)out_vertices) = f->points[NEAR_BOTTOM_RIGHT];out_vertices += stride;
     *((vec3*)out_vertices) = f->points[FAR_BOTTOM_LEFT];out_vertices += stride;
