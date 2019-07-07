@@ -2728,6 +2728,7 @@ enum gos_TextureFormat
 	gos_Texture_Alpha=2,		// 4444 or failing that 8888 (maximum alpha with at least 12 bits of RGB - ie: not 8332)
 	gos_Texture_Bump=3,			// dUdV bump map (create from monochrome image)
 	gos_Texture_Normal=4,		// texture map of normals (create from monochrome image)
+    gos_Texture_Depth=5,        // sebi: depth render target
 };
 
 //
@@ -2826,6 +2827,12 @@ DWORD __stdcall gos_NewTextureFromMemory( gos_TextureFormat Format, const char* 
 // For Rectangular textures, use RECT_TEX(width,height) to pack the width and height values
 //
 DWORD __stdcall gos_NewEmptyTexture( gos_TextureFormat Format, const char* Name, DWORD HeightWidth, DWORD Hints=0, gos_RebuildFunction pFunc=0, void *pInstance=0 );
+
+DWORD __stdcall gos_NewRenderTarget( gos_TextureFormat Format, const char* Name, DWORD HeightWidth, DWORD Hints=0, gos_RebuildFunction pFunc=0, void *pInstance=0 );
+
+
+DWORD __stdcall gos_TextureGetNativeId( DWORD Handle );
+
 
 //
 // Destroy a texture handle (unload from memory)

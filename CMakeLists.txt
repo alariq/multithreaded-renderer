@@ -68,6 +68,8 @@ add_subdirectory("./platform" "./out/platform")
 
 set(SOURCES 
     "main.cpp"
+    "shadow_renderer.cpp"
+    "renderer.cpp"
     "test_fixed_block_allocator.cpp"
     )
 

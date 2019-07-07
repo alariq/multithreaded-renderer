@@ -31,10 +31,9 @@ extern bool gosExitGameOS();
 
 
 static bool g_exit = false;
+static bool g_grab_focus = false;
 static bool g_focus_lost = false;
 bool g_debug_draw_calls = false;
-static camera g_camera;
-
 
 ////////////////////////////////////////////////////////////////////////////////
 // Render thread owned variables
@@ -90,10 +89,10 @@ public:
     R_wait_event(threading::Event* ev, int ev_idx):ev_(ev), ev_idx_(ev_idx) {}
 
     int exec() {
-        printf("RT: WAIT FOR EVENT [%d]\n", ev_idx_);
+        //printf("RT: WAIT FOR EVENT [%d]\n", ev_idx_);
         rmt_ScopedCPUSample(RT_wait, 0);
         ev_->Wait();
-        printf("RT: WAIT FOR EVENT DONE [%d]\n", ev_idx_);
+        //printf("RT: WAIT FOR EVENT DONE [%d]\n", ev_idx_);
         return 0;
     }
 };
@@ -110,9 +109,9 @@ public:
 
     int exec() {
         rmt_ScopedCPUSample(RT_signal, 0);
-        printf("RT: SIGNAL EVENT [%d]\n", ev_idx_);
+        //printf("RT: SIGNAL EVENT [%d]\n", ev_idx_);
         ev_->Signal();
-        printf("RT: SIGNAL EVENT DONE [%d]\n", ev_idx_);
+        //printf("RT: SIGNAL EVENT DONE [%d]\n", ev_idx_);
         return 0;
     }
 };
@@ -228,8 +227,10 @@ input::KeyboardInfo g_keyboard_info;
 static void handle_key_down( SDL_Keysym* keysym ) {
     switch( keysym->sym ) {
         case SDLK_ESCAPE:
-            //if(keysym->mod & KMOD_ALT)
+            if(!g_grab_focus)
                 g_exit = true;
+            else
+                g_grab_focus = false;
             break;
         case 'd':
             if(keysym->mod & KMOD_RALT)
@@ -242,10 +243,12 @@ static void process_events( void ) {
 
     beginUpdateMouseState(&g_mouse_info);
 
+    bool skipMouseClick = false;
+
     SDL_Event event;
     while( SDL_PollEvent( &event ) ) {
 
-        if(g_focus_lost) {
+        if(g_focus_lost && !g_grab_focus) {
             if(event.type != SDL_WINDOWEVENT_FOCUS_GAINED) {
                 continue;
             } else {
@@ -279,6 +282,11 @@ static void process_events( void ) {
             break;
         case SDL_MOUSEBUTTONDOWN:
         case SDL_MOUSEBUTTONUP:
+            if(!g_grab_focus)
+            {
+                g_grab_focus = true;
+                skipMouseClick = true;
+            }
             //input::handleMouseButton(&event, &g_mouse_info);
             break;
         case SDL_MOUSEWHEEL:
@@ -286,8 +294,10 @@ static void process_events( void ) {
             break;
         }
     }
+    
+    if(!skipMouseClick)
+        input::updateMouseState(&g_mouse_info);
 
-    input::updateMouseState(&g_mouse_info);
     input::updateKeyboardState(&g_keyboard_info);
 }
 
@@ -306,14 +316,7 @@ static void draw_screen( void )
 	const int viewport_h = Environment.drawableHeight;
     glViewport(0, 0, viewport_w, viewport_h);
 
-    mat4 proj;
-    g_camera.get_projection(&proj);
-    mat4 viewM;
-    g_camera.get_view(&viewM);
-
-#if 1
-
-
+#if 0
     gos_VERTEX q[4];
     q[0].x = 10; q[0].y = 10;
     q[0].z = 0.0;
@@ -404,7 +407,7 @@ void GLAPIENTRY OpenGLDebugLog(GLenum source, GLenum type, GLuint id, GLenum sev
 			id,
 			getStringForSeverity(severity)
 		);
-		printf("Message : %s\n", message);
+  		printf("Message : %s\n", message);
 	}
 }
 
@@ -536,11 +539,6 @@ int main(int argc, char** argv)
 
     Environment.InitializeGameEngine();
 
-	float aspect = (float)w/(float)h;
-	mat4 proj_mat = frustumProjMatrix(-aspect*0.5f, aspect*0.5f, -.5f, .5f, 1.0f, 100.0f);
-	g_camera.set_projection(proj_mat);
-	g_camera.set_view(mat4::translation(vec3(0, 0, -16)));
-
 	timing::init();
 
     for(uint32_t i=0; i<NUM_BUFFERED_FRAMES;++i) {
@@ -577,7 +575,7 @@ int main(int argc, char** argv)
         process_events();
 
         // wait for frame to which we want to push our render commands
-        SPEW(("SYNC", "Main: sync[%d]->Wait\n", ev_index));
+        //SPEW(("SYNC", "Main: sync[%d]->Wait\n", ev_index));
         {
             rmt_ScopedCPUSample(WaitRender, 0);
             g_render_event[ev_index]->Wait();
@@ -622,7 +620,7 @@ int main(int argc, char** argv)
             g_render_job_queue->push( new R_scope_end() );
         }
 
-        SPEW(("SYNC", "Main sync[%d]->Signal\n", ev_index));
+        //SPEW(("SYNC", "Main sync[%d]->Signal\n", ev_index));
         {
             rmt_ScopedCPUSample(MainSignal, 0);
             g_main_event[ev_index]->Signal();
@@ -642,7 +640,6 @@ int main(int argc, char** argv)
         rmt_EndCPUSample();
     }
     
-    Environment.TerminateGameEngine();
 
     class R_destroy_render: public R_job {
     public:
@@ -662,6 +659,8 @@ int main(int argc, char** argv)
 
     SPEW(("EXIT", "Waiting for render thread to finish"));
     SDL_WaitThread(g_render_thread, &threadReturnValue);
+
+    Environment.TerminateGameEngine();
 
     assert(0 == g_render_job_queue->size());
     delete g_render_job_queue;

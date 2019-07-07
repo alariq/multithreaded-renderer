@@ -15,6 +15,7 @@
 #include "platform_str.h"
 
 #include "utils/shader_builder.h"
+#include "utils/gl_fbo.h"
 #include "utils/gl_utils.h"
 #include "utils/Image.h"
 #include "utils/vec.h"
@@ -462,6 +463,8 @@ class gosMesh {
 		static void drawIndexed(HGOSBUFFER ib, HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl);
 
 		static const std::string s_tex1;
+		static const std::string s_tex2;
+		static const std::string s_tex3;
 
     private:
 
@@ -491,6 +494,8 @@ class gosMesh {
 };
 
 const std::string gosMesh::s_tex1 = std::string("tex1");
+const std::string gosMesh::s_tex2 = std::string("tex2");
+const std::string gosMesh::s_tex3 = std::string("tex3");
 
 void gosMesh::draw(gosRenderMaterial* material) const
 {
@@ -504,6 +509,8 @@ void gosMesh::draw(gosRenderMaterial* material) const
     material->apply();
 
     material->setSamplerUnit(s_tex1, 0);
+    material->setSamplerUnit(s_tex2, 1);
+    material->setSamplerUnit(s_tex3, 2);
 
 	glBindBuffer(GL_ARRAY_BUFFER, vb_);
     CHECK_GL_ERROR;
@@ -548,6 +555,8 @@ void gosMesh::drawIndexed(gosRenderMaterial* material) const
     material->apply();
 
     material->setSamplerUnit(s_tex1, 0);
+    material->setSamplerUnit(s_tex2, 1);
+    material->setSamplerUnit(s_tex3, 2);
 
 	glBindBuffer(GL_ARRAY_BUFFER, vb_);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ib_);
@@ -595,6 +604,8 @@ void gosMesh::drawIndexed(HGOSBUFFER ib, HGOSBUFFER vb, HGOSVERTEXDECLARATION vd
 	CHECK_GL_ERROR;
 
 	material->setSamplerUnit(s_tex1, 0);
+	material->setSamplerUnit(s_tex2, 1);
+	material->setSamplerUnit(s_tex3, 2);
 	CHECK_GL_ERROR;
 
 	glBindBuffer(GL_ARRAY_BUFFER, vb->buffer_);
@@ -909,7 +920,17 @@ bool gosTexture::createHardwareTexture() {
 
         tex_ = create2DTexture(img.getWidth(), img.getHeight(), tf, img.getPixels());
         return tex_.isValid();
-    } else {
+    } else if(format_ == gos_Texture_Depth) {
+	    GLuint tex_id = createRenderTexture(tex_.w, tex_.h, GL_DEPTH_COMPONENT, GL_DEPTH_COMPONENT, GL_FLOAT, GL_NEAREST, GL_NEAREST);
+
+        tex_.id = tex_id;
+        tex_.fmt_ = TF_DEPTH32F;
+        tex_.type_ = TT_2D;
+        tex_.format = GL_DEPTH_COMPONENT;
+
+        return tex_.isValid();
+    } 
+    else {
         gosASSERT(tex_.w >0 && tex_.h > 0);
 
         TexFormat tf = TF_RGBA8; // TODO: check format_ and do appropriate stuff
@@ -2355,6 +2376,32 @@ void __stdcall gos_DeleteFont( HGOSFONT3D FontHandle )
     getGosRenderer()->deleteFont(font);
 }
 
+DWORD __stdcall gos_TextureGetNativeId( DWORD Handle )
+{
+    gosTexture* texture = getGosRenderer()->getTexture(Handle);
+    gosASSERT(texture);
+    return texture->getTextureId();
+}
+
+DWORD __stdcall gos_NewRenderTarget( gos_TextureFormat Format, const char* Name, DWORD HeightWidth, DWORD Hints/*=0*/, gos_RebuildFunction pFunc/*=0*/, void *pInstance/*=0*/)
+{
+    int w = HeightWidth;
+    int h = HeightWidth;
+    if(HeightWidth&0xffff0000)
+    {
+        h = HeightWidth >> 16;
+        w = HeightWidth & 0xffff;
+    }
+    gosTexture* ptex = new gosTexture(Format, Hints, w, h, Name);
+
+    if(!ptex->createHardwareTexture()) {
+        STOP(("Failed to create texture\n"));
+        return INVALID_TEXTURE_ID;
+    }
+
+    return g_gos_renderer->addTexture(ptex);
+}
+
 DWORD __stdcall gos_NewEmptyTexture( gos_TextureFormat Format, const char* Name, DWORD HeightWidth, DWORD Hints/*=0*/, gos_RebuildFunction pFunc/*=0*/, void *pInstance/*=0*/)
 {
     int w = HeightWidth;
@@ -2822,6 +2869,8 @@ void __stdcall gos_ApplyRenderMaterial(HGOSRENDERMATERIAL material)
 
 	material->apply();
 	material->setSamplerUnit(gosMesh::s_tex1, 0);
+	material->setSamplerUnit(gosMesh::s_tex2, 1);
+	material->setSamplerUnit(gosMesh::s_tex3, 2);
 	material->setUniformBlock("lights_data", 0);
 }
 

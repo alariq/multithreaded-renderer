@@ -572,7 +572,7 @@ bool __stdcall gos_GetUserDataDirectory(char* user_dir, const int len)
     }
     
     size_t conf_len = strlen(mc2_conf_dir);
-    conf_len = len - 1 < conf_len ? len - 1 : conf_len;
+    conf_len = (uint32_t)len - 1 < conf_len ? len - 1 : conf_len;
 
     strncpy(user_dir, mc2_conf_dir, conf_len);
     user_dir[conf_len] = '\0';
