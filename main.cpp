@@ -144,7 +144,7 @@ class FrustumObject: public GameObject {
             // dangerous: we are on a game thread
             if(mesh_)
             {
-                const int vb_size = Frustum::NUM_FRUSTUM_PLANES * 6;
+                const int vb_size = Frustum::kNUM_FRUSTUM_PLANES * 6;
                 SVD vb[vb_size];
                 Frustum::makeMeshFromFrustum(&frustum_, (char*)&vb[0], vb_size, (int)sizeof(SVD));
                 gos_UpdateBuffer(mesh_->vb_, vb, 0, vb_size * sizeof(SVD));
@@ -157,7 +157,7 @@ class FrustumObject: public GameObject {
             mesh_ = new RenderMesh();
 	        mesh_->vdecl_ = gos_CreateVertexDeclaration(simple_vdecl, sizeof(simple_vdecl) / sizeof(gosVERTEX_FORMAT_RECORD));
 
-            const int ib_size = Frustum::NUM_FRUSTUM_PLANES * 6;
+            const int ib_size = Frustum::kNUM_FRUSTUM_PLANES * 6;
             const int vb_size = ib_size;
             uint16_t ib[ib_size];
             SVD vb[vb_size];
