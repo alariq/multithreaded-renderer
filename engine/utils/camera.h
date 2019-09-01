@@ -8,7 +8,8 @@ struct camera
 {
     camera();
 
-	void set_projection(const mat4& proj);
+	void set_projection(const float fov, const float aspect, const float near, const float far);
+	void set_ortho_projection(const float l, const float r, const float t, const float b, const float near, const float far);
 	void get_projection(mat4* proj) const { *proj = proj_; }
 	void update(float dt);
 	void get_pos(float (*p)[4] ) const; 
@@ -37,6 +38,7 @@ struct camera
 	float right[4];
 	float up[4];
 
+
 	mat4 proj_;
 	mat4 inv_proj_;
 	mat4 view_;
@@ -44,8 +46,16 @@ struct camera
 	mat4 world_;
 	mat4 view_proj_inv_;
 
-	
-	
+private:
+
+	void set_projection(const mat4& proj);
+
+    float fov_;
+    float aspect_;
+    float left_, right_, top_, bottom_;
+    float near_;
+    float far_;
+    bool is_perspective_;
 };
 
 

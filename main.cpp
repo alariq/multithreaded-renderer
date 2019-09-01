@@ -275,10 +275,7 @@ void __stdcall Init(void)
     g_camera.update(0.0f);
 
 
-    mat4 shadow_proj_mat = orthoMatrix(-30, 30, 30, -30, 0.1f, 200.0f, false);
-    g_shadow_camera.set_projection(shadow_proj_mat);
-
-    vec3 light_dir = normalize(vec3(-0.0,-1.0,-1.0));
+    vec3 light_dir = normalize(vec3(-1.0,-1.0,-1.0));
 
     vec3 up = vec3(0,1,0);
 
@@ -288,6 +285,8 @@ void __stdcall Init(void)
     mat4 shadow_view = mat4::identity();
     // negative light dir by convention
     camera::compose_view_matrix(&shadow_view, right, up, -light_dir, -light_dir*50.0f);
+
+    g_shadow_camera.set_ortho_projection(-30, 30, 30, -30, 0.1f, 200.0f);
     g_shadow_camera.set_view(shadow_view);
     //g_shadow_camera.update(0);
 
@@ -339,9 +338,7 @@ void UpdateCamera(float dt)
     fov += (float)WheelDelta;
 
     float aspect = Environment.drawableWidth / Environment.drawableHeight;
-    mat4 proj_mat = perspectiveMatrixX(fov * 3.1415f / 180.0f, 1.0f, aspect, .1f, 1000.0f, false);
-
-    g_camera.set_projection(proj_mat);
+    g_camera.set_projection(fov, aspect, 0.1f, 1000.0f);
 
     g_camera.update(dt);
 

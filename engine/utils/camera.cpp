@@ -25,6 +25,13 @@ camera::camera():rot_x(0), rot_y(0), dist(0)
 	inv_view_ = mat4::identity();
 	world_ = mat4::identity();
 	view_proj_inv_ = mat4::identity();
+
+    fov_ = 0;
+    aspect_ = 0;
+    left_ = right_ = top_ = bottom_ = 0;
+    near_ = far_ = 0;
+    is_perspective_ = false;
+
 }
 
 void camera::get_pos(float (*p)[4] ) const
@@ -45,6 +52,24 @@ void camera::set_projection(const mat4& proj)
 	);
 
 	inv_proj_ = invProj;
+}
+
+void camera::set_projection(const float fov, const float aspect, const float near, const float far)
+{
+    aspect_ = aspect; fov_ = fov;
+    near_ = near; far_ = far;
+    mat4 pm = perspectiveMatrixX(fov * 3.1415f / 180.0f, 1.0f, aspect, .1f, 1000.0f, false);
+    is_perspective_ = true;
+    this->set_projection(pm);
+
+}
+void camera::set_ortho_projection(const float l, const float r, const float t, const float b, const float near, const float far)
+{
+    top_ = t; bottom_ = b; left_ = l; right_ = r;
+    near_ = near; far_ = far;
+    mat4 pm = orthoMatrix(l, r, t, b, near, far, false);
+    is_perspective_ = false;
+    this->set_projection(pm);
 }
 
 void camera::update(float dt)
