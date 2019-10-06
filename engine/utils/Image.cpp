@@ -99,6 +99,7 @@ static FORMAT getFormatFromBpp(const unsigned int bpp) {
 		return FORMAT_RGBA8;
 		break;
 	}
+    assert(0 && "getFormatFromBpp: unsupported bpp");
 }
 
 Image::Image(void)

@@ -46,6 +46,11 @@ struct camera
 	mat4 world_;
 	mat4 view_proj_inv_;
 
+    float get_fov() const { return fov_; }
+    float get_aspect() const { return aspect_; }
+    float get_near() const { return near_; }
+    float get_far() const { return far_; }
+
 private:
 
 	void set_projection(const mat4& proj);

@@ -392,13 +392,9 @@ const char* getStringForSeverity(GLenum type)
 	default: return "(undefined)";
 	}
 }
-//typedef void (GLAPIENTRY *GLDEBUGPROCARB)(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar* message, const void* userParam);
-#ifdef PLATFORM_WINDOWS
-void GLAPIENTRY OpenGLDebugLog(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar* message, const void* userParam)
-#else
-void GLAPIENTRY OpenGLDebugLog(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar* message, GLvoid* userParam)
-#endif
+void GLAPIENTRY OpenGLDebugLog(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar* message, const GLvoid* userParam)
 {
+    (void)userParam;
 	if (severity != GL_DEBUG_SEVERITY_NOTIFICATION && severity != GL_DEBUG_SEVERITY_LOW)
 	{
 		printf("Type: %s; Source: %s; ID: %d; Severity : %s\n",
@@ -483,7 +479,7 @@ int main(int argc, char** argv)
             glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
             //glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 76, 1, "My debug group");
             glDebugMessageControlARB(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, NULL, GL_TRUE);
-            glDebugMessageCallbackARB(&OpenGLDebugLog, NULL);
+            glDebugMessageCallbackARB((GLDEBUGPROCARB)&OpenGLDebugLog, NULL);
 
 
             SPEW(("GRAPHICS", "Status: Using GLEW %s\n", glewGetString(GLEW_VERSION)));

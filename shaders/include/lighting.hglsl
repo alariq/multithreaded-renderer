@@ -97,7 +97,7 @@ vec3 get_base_light(
     {
 
     }
-    else if (start_v_light & 0x00ffffff)		//Some other kind of light, just add it in.
+    else if (0 != (start_v_light & 0x00ffffffu))		//Some other kind of light, just add it in.
     {
         if (!lightsOut)
         {
