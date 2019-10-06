@@ -68,7 +68,9 @@ flags = [
 '-I',
 '/home/a/prog/3rdparty'
 '-I',
-'./engine'
+'./engine',
+'-I',
+'./platform/include'
 ]
 
 

@@ -1,4 +1,5 @@
 cmake_minimum_required (VERSION 2.8)
+cmake_policy(SET CMP0072 NEW) # cmake --help-policy CMP0072
 project(mc2)
 
 include(CMakeToolsHelpers OPTIONAL)
@@ -17,7 +18,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS "ON")
  
 
 if(NOT MSVC)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unused-local-typedefs -Werror=array-bounds -Wno-switch -Wwrite-strings -Wno-unknown-warning-option -Wunused-variable" ) # -fsanitize=address -fno-omit-frame-pointer")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror=return-type -Wno-unused-local-typedefs -Werror=array-bounds -Wno-switch -Wwrite-strings -Wno-unknown-warning-option -Wunused-variable" ) # -fsanitize=address -fno-omit-frame-pointer")
 endif()
 # -Wno-unused-local-typedefs - to disable "typedef was ignored on this declaration"
 
@@ -41,26 +42,14 @@ add_definitions(-DRMT_USE_OPENGL=1)
 
 find_path(GLEW_INCLUDE "GL/glew.h")
 
-find_package(SDL2 QUIET)
-if(SDL2_FOUND)
-    set(SDL_LIBS ${SDL2_LIBRARIES})
-    set(SDL_INCLUDES "${SDL2_PREFIX}/include")
-else()
-    message("sdl2 package was not found, looking for libs and headers separately")
-    find_library(SDL2 NAMES "SDL2")
-    find_library(SDL2main NAMES "SDL2main")
-    find_path(SDL2_INCLUDE "SDL2/SDL.h")
-    set(SDL_LIBS ${SDL2} ${SDL2main})
-    set(SDL_INCLUDES ${SDL2_INCLUDE})
-endif()
-message("SDL libs are here: ${SDL_LIBS}")
+find_package(SDL2 REQUIRED)
 
 get_filename_component(COM_PATH1 "./GameOS/include" ABSOLUTE)
 get_filename_component(COM_PATH2 "./GameOS/gameos" ABSOLUTE)
 
 set(COMMON_INCLUDE_DIRS  ${COM_PATH1} ${COM_PATH2})
 
-include_directories(${SDL_INCLUDES})
+include_directories(SDL2::SDL2)
 include_directories(${GLEW_INCLUDE})
 
 add_subdirectory("./engine" "./out/engine")
@@ -75,7 +64,6 @@ set(SOURCES
 
 find_library(GLEW NAMES "GLEW" "glew32")
 
-# TODO: get rid of gl library by not using old style opengl
 find_package(OpenGL REQUIRED)
 
 message("OPENGL library found in ${OPENGL}")
@@ -95,9 +83,6 @@ else()
 	set(ADDITIONAL_LIBS winmm)
 endif()
 
-message("sdl2 prefix: ${SDL2_PREFIX}")
-
-
 add_executable(mt-renderer ${SOURCES})
-target_link_libraries(mt-renderer engine platform ${SDL_LIBS} ${GLEW} ${ADDITIONAL_LIBS} ${OPENGL_gl_LIBRARY} pthread)
+target_link_libraries(mt-renderer engine platform SDL2::SDL2 ${GLEW} ${ADDITIONAL_LIBS} OpenGL::GL pthread)
 
