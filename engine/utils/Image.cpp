@@ -331,11 +331,11 @@ bool Image::loadCompressedTGA(const TGAHeader* header, const unsigned char* mem,
 
 	const int pixelSize = header->bpp / 8;
 	unsigned char p[5];
-	int num_read_pixels = 0;
-	int offset = 0;
+	size_t num_read_pixels = 0;
+	size_t offset = 0;
 	const size_t num_pixels = width * height;
 
-	unsigned char* dest = pixels = new unsigned char[width * height * pixelSize];
+	//unsigned char* dest = pixels = new unsigned char[width * height * pixelSize];
 
 	while (num_read_pixels < num_pixels) {
 
@@ -343,10 +343,6 @@ bool Image::loadCompressedTGA(const TGAHeader* header, const unsigned char* mem,
 			return false;
 
 		memcpy(p, mem + offset, pixelSize + 1);
-		if (len < pixelSize + 1)
-		{
-			int sdfas = 0;
-		}
 		len -= pixelSize + 1;
 		offset += pixelSize + 1;
 

@@ -9,8 +9,11 @@
 //
 // Support for .d3f fonts files
 //
+#if defined(PLATFORM_WINDOWS)
 #pragma warning( push )
-#pragma warning( disable : 4200 ) 
+#pragma warning( disable : 4200 )  // zero-sized array in struct/union
+#endif
+
 //
 // Original FontEdit program
 //
@@ -56,8 +59,10 @@ typedef struct
 } D3DFontTexture;
 
 #pragma pack( pop )
-#pragma warning( pop )
 
+#if defined(PLATFORM_WINDOWS)
+#pragma warning( pop )
+#endif
 
 
 

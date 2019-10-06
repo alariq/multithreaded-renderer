@@ -117,7 +117,7 @@ void updateKeyboardState(KeyboardInfo* ki) {
 
     int array_len;
     const Uint8* state = SDL_GetKeyboardState(&array_len);
-    assert(array_len <= sizeof(ki->last_state_)/sizeof(ki->last_state_[0]));
+    assert((unsigned int)array_len <= sizeof(ki->last_state_)/sizeof(ki->last_state_[0]));
 
     ki->first_pressed_ = -1;
 
@@ -138,7 +138,7 @@ void updateKeyboardState(KeyboardInfo* ki) {
         }
 #endif
 
-        if(ki->first_pressed_==-1 && ls==KS_PRESSED) {
+        if(ki->first_pressed_==-1u && ls==KS_PRESSED) {
             ki->first_pressed_ = i;
         }
     }

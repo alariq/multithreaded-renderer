@@ -2244,6 +2244,7 @@ gosFont* gosFont::load(const char* fontFile) {
 	memset(glyphName, 0, glyphNameSize);
 
     uint32_t formatted_len = S_snprintf(textureName, textureNameSize, "%s/%s%s", dir, fname, tex_ext);
+    (void)formatted_len;
 	gosASSERT(formatted_len <= textureNameSize - 1);
 
     formatted_len = S_snprintf(glyphName, glyphNameSize, "%s/%s%s", dir, fname, glyph_ext);
