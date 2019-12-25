@@ -1,9 +1,10 @@
 .vscode/
+.clangd/
 dump/
 *.swp
 build/
 build-rel/
 cachegrind.*
 callgrind.*
-
+tools/
 
