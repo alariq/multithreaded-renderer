@@ -329,7 +329,7 @@ bool Image::loadCompressedTGA(const TGAHeader* header, const unsigned char* mem,
 
 	format = getFormatFromBpp(header->bpp);
 
-	const int pixelSize = header->bpp / 8;
+	const size_t pixelSize = header->bpp / 8;
 	unsigned char p[5];
 	size_t num_read_pixels = 0;
 	size_t offset = 0;

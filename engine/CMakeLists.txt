@@ -29,6 +29,8 @@ set(SOURCES ${SOURCES}
     utils/string_utils.cpp
     utils/file_utils.cpp
     utils/threading.cpp
+    utils/obj_loader.cpp
+    utils/hashing.cpp
     Remotery/lib/Remotery.c
     )
 

@@ -33,7 +33,8 @@ struct half {
 struct vec2 {
 	float x, y;
 
-	vec2():x(0),y(0) {}
+	// to use in unions
+	vec2() = default;//:x(0),y(0) {}
 	explicit vec2(const float iv){
 		x = y = iv;
 	}
@@ -71,7 +72,8 @@ bool operator != (const vec2 &u, const vec2 &v);
 struct vec3 {
 	float x, y, z;
 
-	vec3():x(0),y(0), z(0) {}
+	// to use in unions
+	vec3() = default;//:x(0),y(0), z(0) {}
 	explicit vec3(const float iv){
 		x = y = z = iv;
 	}
@@ -216,6 +218,20 @@ vec4 operator / (const vec4 &v, const float s);
 bool operator == (const vec4 &u, const vec4 &v);
 bool operator != (const vec4 &u, const vec4 &v);
 
+struct ivec3 {
+	int x, y, z;
+
+	ivec3():x(0),y(0), z(0){}
+	ivec3(const int iv){
+		x = y = z = iv;
+	}
+	ivec3(const int ix, const int iy, const int iz){
+		x = ix;
+		y = iy;
+		z = iz;
+	}
+	operator const int *() const { return &x;	}
+};
 
 /** 4D integer vector */
 struct ivec4 {

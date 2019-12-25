@@ -496,4 +496,132 @@ void  draw_mesh_ptn(bool b_wireframe, camera* pcam, glsl_program* pmat, glMesh<T
 	glUseProgram(0);
 }
 
+template<typename MeshBuffer>
+void subdivide(MeshBuffer& mb, int& vb_offset, int& ib_offset, vec3 a, vec3 b, vec3 c, int subdiv_count)
+{
+    vec3 ab = normalize(lerp(a, b, 0.5f));
+    vec3 bc = normalize(lerp(b, c, 0.5f));
+    vec3 ca = normalize(lerp(c, a, 0.5f));
+    static const bool ccw = true;
+
+    if(0 == subdiv_count-1) { 
+        vec3 n = normalize(cross(ca - a, ab - a));
+        mb.p(vb_offset, a); mb.p(vb_offset+1, ccw?ca:ab); mb.p(vb_offset+2, ccw?ab:ca);
+        mb.n(vb_offset, n); mb.n(vb_offset+1, n); mb.n(vb_offset+2, n);
+        mb.i(ib_offset, ib_offset); mb.i(ib_offset+1, ib_offset+1); mb.i(ib_offset+2, ib_offset+2);
+        vb_offset+=3;
+        ib_offset+=3;
+
+        n = normalize(cross(bc - ca, ab - ca));
+        mb.p(vb_offset, ca); mb.p(vb_offset+1, ccw?bc:ab); mb.p(vb_offset+2, ccw?ab:bc); 
+        mb.n(vb_offset, n); mb.n(vb_offset+1, n); mb.n(vb_offset+2, n);
+        mb.i(ib_offset, ib_offset); mb.i(ib_offset+1, ib_offset+1); mb.i(ib_offset+2, ib_offset+2);
+        vb_offset+=3;
+        ib_offset+=3;
+
+        n = normalize(cross(c - ca, bc - ca));
+        mb.p(vb_offset, ca); mb.p(vb_offset+1, ccw?c:bc); mb.p(vb_offset+2, ccw?bc:c); 
+        mb.n(vb_offset, n); mb.n(vb_offset+1, n); mb.n(vb_offset+2, n);
+        mb.i(ib_offset, ib_offset); mb.i(ib_offset+1, ib_offset+1); mb.i(ib_offset+2, ib_offset+2);
+        vb_offset+=3;
+        ib_offset+=3;
+
+        n = normalize(cross(bc - ab, b - ab));
+        mb.p(vb_offset, ab); mb.p(vb_offset+1, ccw?bc:b); mb.p(vb_offset+2, ccw?b:bc);
+        mb.n(vb_offset, n); mb.n(vb_offset+1, n); mb.n(vb_offset+2, n);
+        mb.i(ib_offset, ib_offset); mb.i(ib_offset+1, ib_offset+1); mb.i(ib_offset+2, ib_offset+2);
+        vb_offset+=3;
+        ib_offset+=3;
+    } else {
+        subdivide(mb, vb_offset, ib_offset, a, ab, ca, subdiv_count-1);
+        subdivide(mb, vb_offset, ib_offset, ca, ab, bc, subdiv_count-1);
+        subdivide(mb, vb_offset, ib_offset, ca, bc, c, subdiv_count-1);
+        subdivide(mb, vb_offset, ib_offset, ab, b, bc, subdiv_count-1);
+    }
+}
+
+template<typename MeshBuffer>
+void generate_tetrahedron(MeshBuffer& mb)
+{
+    const int num_vertices = 4;
+    const int num_indices = 4 * 3;
+    const float oo_sqrt2 = 1.0f / sqrt(2.0f);
+    const vec3 A(0.0f, 1.0f, oo_sqrt2);
+    const vec3 B(0.0f, -1.0f, oo_sqrt2);
+    const vec3 C(1.0f, 0.0f, -oo_sqrt2);
+    const vec3 D(-1.0f, 0.0f, -oo_sqrt2);
+
+    mb.allocate_vb(num_vertices);
+    mb.allocate_ib(num_indices);
+
+    vec3 a = A;
+    vec3 b = B;
+    vec3 c = C;
+    vec3 d = D;
+
+    vec3 na = normalize(vec3(a.x, a.y, a.z));
+    vec3 nb = normalize(vec3(b.x, b.y, b.z));
+    vec3 nc = normalize(vec3(c.x, c.y, c.z));
+    vec3 nd = normalize(vec3(d.x, d.y, d.z));
+
+    // smoothed normals
+    mb.p(0, na);
+    mb.n(0, na);
+    mb.p(1, nb);
+    mb.n(1, nb);
+    mb.p(2, nc);
+    mb.n(2, nc);
+    mb.p(3, nd);
+    mb.n(3, nd);
+
+    int i=0;
+    mb.i(i++, 1);
+    mb.i(i++, 0);
+    mb.i(i++, 2);
+
+    mb.i(i++,1);
+    mb.i(i++,2);
+    mb.i(i++,3);
+
+    mb.i(i++,1);
+    mb.i(i++,3);
+    mb.i(i++,0);
+
+    mb.i(i++,0);
+    mb.i(i++,3);
+    mb.i(i++,2);
+}
+
+template<typename MeshBuffer>
+void generate_sphere(MeshBuffer& mb, unsigned int subdiv_count)
+{
+    const float oo_sqrt2 = 1.0f / sqrt(2.0f);
+    const vec3 A(0.0f, 1.0f, oo_sqrt2);
+    const vec3 B(0.0f, -1.0f, oo_sqrt2);
+    const vec3 C(1.0f, 0.0f, -oo_sqrt2);
+    const vec3 D(-1.0f, 0.0f, -oo_sqrt2);
+
+    mb.allocate_vb(3*pow(4, subdiv_count+1));
+    mb.allocate_ib(3*pow(4, subdiv_count+1));
+
+    vec3 a = A;
+    vec3 b = B;
+    vec3 c = C;
+    vec3 d = D;
+
+    vec3 na = normalize(vec3(a.x, a.y, a.z));
+    vec3 nb = normalize(vec3(b.x, b.y, b.z));
+    vec3 nc = normalize(vec3(c.x, c.y, c.z));
+    vec3 nd = normalize(vec3(d.x, d.y, d.z));
+
+    int ib_offset = 0;
+    int vb_offset = 0;
+    subdivide(mb, vb_offset, ib_offset, nb, na, nc, subdiv_count);
+    subdivide(mb, vb_offset, ib_offset, nb, nc, nd, subdiv_count);
+    subdivide(mb, vb_offset, ib_offset, nb, nd, na, subdiv_count);
+    subdivide(mb, vb_offset, ib_offset, na, nd, nc, subdiv_count);
+    assert(vb_offset<=(int)mb.vb_size_);
+    assert(ib_offset<=(int)mb.ib_size_);
+}
+
 #endif // __GL_UTILS_H__
