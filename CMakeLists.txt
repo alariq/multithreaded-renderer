@@ -18,7 +18,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS "ON")
  
 
 if(NOT MSVC)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror=return-type -Wno-unused-local-typedefs -Werror=array-bounds -Wno-switch -Wwrite-strings -Wno-unknown-warning-option -Wunused-variable" ) # -fsanitize=address -fno-omit-frame-pointer")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror=return-type -Wno-unused-local-typedefs -Wno-unused-function -Werror=array-bounds -Wno-switch -Wwrite-strings -Wno-unknown-warning-option -Wunused-variable" ) # -fsanitize=address -fno-omit-frame-pointer")
 endif()
 # -Wno-unused-local-typedefs - to disable "typedef was ignored on this declaration"
 
@@ -58,6 +58,9 @@ add_subdirectory("./platform" "./out/platform")
 set(SOURCES 
     "main.cpp"
     "shadow_renderer.cpp"
+    "particle_system.cpp"
+    "debug_renderer.cpp"
+    "deferred_renderer.cpp"
     "renderer.cpp"
     "test_fixed_block_allocator.cpp"
     )

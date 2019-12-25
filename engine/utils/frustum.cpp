@@ -1,13 +1,8 @@
 #include "frustum.h"
 #include <cassert>
 
-void Frustum::updateFromCamera(const mat4& view, float fov, float aspect, float near, float far)
+void Frustum::updateFromCamera(const vec3& p, const vec3& dir, const vec3& right, const vec3& up, float fov, float aspect, float near, float far)
 {
-    vec3 dir = view.getRow(2).xyz();
-    vec3 right = view.getRow(0).xyz();
-    vec3 up = view.getRow(1).xyz();
-    vec3 p = -view.getCol3().xyz();
-
     float w = tanf(0.5f * fov);
     float h = w / aspect;
 

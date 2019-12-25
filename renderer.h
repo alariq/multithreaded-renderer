@@ -3,10 +3,12 @@
 #include "engine/utils/gl_utils.h"
 #include "engine/utils/ts_queue.h"
 #include "engine/utils/camera.h"
+#include "engine/utils/frustum.h"
 #include "engine/gameos.hpp"
 
-#include <list>
+#include <vector>
 #include <atomic>
+#include <functional>
 
 // uncomment to see shadowing artefacts because of game threads transforms used in render thread
 //#define DO_BAD_THING_FOR_TEST 1
@@ -14,25 +16,33 @@
 struct RenderMesh {
     HGOSBUFFER				vb_;
     HGOSBUFFER				ib_;
+    HGOSBUFFER				inst_vb_;
     HGOSVERTEXDECLARATION	vdecl_;
     HGOSRENDERMATERIAL      mat_;
+    uint32_t                num_instances;
     uint32_t                tex_id_;
 };
 
 struct RenderPacket {
-    RenderMesh* mesh_;
+    RenderMesh mesh_;
     mat4 m_;
+    vec4 debug_color;
     // material, other params
 #if DO_BAD_THING_FOR_TEST
     class GameObject* go_;
 #endif
+    uint32_t is_render_to_shadow: 1;
+    uint32_t is_transparent_pass: 1;
+    uint32_t is_opaque_pass: 1;
+    uint32_t is_debug_pass: 1;
 };
 
 class NonCopyable {
     NonCopyable(const NonCopyable&) = delete;
+    NonCopyable(NonCopyable&&) = delete;
     NonCopyable& operator=(const NonCopyable&) = delete;
 protected:
-    NonCopyable()= default;
+    NonCopyable() = default;
 };
 
 typedef std::vector<RenderPacket> RenderPacketList_t;
@@ -59,7 +69,6 @@ public:
         packets_.reserve(old_size + count);
     }
     
-    // allocates "count" amount of packets and returns pointer to memory
     RenderPacket* AddPacket() {
         assert(packets_.size() + 1 <= packets_.capacity()); // just to ensure that we do not reallocate
         packets_.emplace_back(RenderPacket());
@@ -74,27 +83,28 @@ RenderList* AcquireRenderList();
 void ReleaseRenderList(RenderList* rl);
 void DeleteRenderLists();
 
+const int MAX_SHADOW_CASCADES = 4;
+
+struct CSMInfo {
+    uint32_t num_cascades_;
+    Frustum fr_[MAX_SHADOW_CASCADES];
+    //GLuint depth_textures_[MAX_SHADOW_CASCADES];
+    mat4 shadow_vp_[MAX_SHADOW_CASCADES];
+    float zfar_[MAX_SHADOW_CASCADES]; // in proj space
+};
+
 struct RenderFrameContext {
     RenderList* rl_;
     int frame_number_;
+    CSMInfo csm_info_;
+    std::vector<std::function<void(void)>> commands_;
+
+    //TODO: for each view, setup its parameters, fbo, obj lists etc...
+    mat4 view_;
+    mat4 proj_;
+    mat4 shadow_view_;
+    mat4 shadow_inv_view_;
 };
 
-
-class ShadowRenderPass {
-
-    GLuint fbo_;
-    DWORD gos_depth_texture_;
-    GLuint depth_texture_id_;
-    GLuint width_;
-    GLuint height_;
-
-public:
-    bool Init(uint32_t size); 
-    void Render(const struct camera* shadow_camera, const RenderPacketList_t& rpl);
-
-    uint32_t GetShadowMap() { return gos_depth_texture_; }
-
-    ~ShadowRenderPass();
-    
-};
+void ScheduleRenderCommand(RenderFrameContext *rfc, std::function<void(void)>&& );
 

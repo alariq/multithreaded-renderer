@@ -230,7 +230,12 @@ static void handle_key_down( SDL_Keysym* keysym ) {
             if(!g_grab_focus)
                 g_exit = true;
             else
+            {
                 g_grab_focus = false;
+                //graphics::grab_window_input(g_win, false);
+                //SDL_CaptureMouse(SDL_FALSE);
+                SDL_SetRelativeMouseMode(SDL_FALSE);
+            }
             break;
         case 'd':
             if(keysym->mod & KMOD_RALT)
@@ -279,11 +284,15 @@ static void process_events( void ) {
             break;
         case SDL_MOUSEMOTION:
             input::handleMouseMotion(&event, &g_mouse_info); 
+            printf("dx: %.3f dy: %.3f\n", g_mouse_info.rel_x_, g_mouse_info.rel_y_);
             break;
         case SDL_MOUSEBUTTONDOWN:
         case SDL_MOUSEBUTTONUP:
             if(!g_grab_focus)
             {
+                //graphics::grab_window_input(g_win, true);
+                //SDL_CaptureMouse(SDL_TRUE);
+                SDL_SetRelativeMouseMode(SDL_TRUE);
                 g_grab_focus = true;
                 skipMouseClick = true;
             }
@@ -635,12 +644,30 @@ int main(int argc, char** argv)
 
         rmt_EndCPUSample();
     }
-    
 
-    class R_destroy_render: public R_job {
+    threading::Event rendering_finished_ev;
+    class R_stop_renderer: public R_job {
+        threading::Event* rendering_finished_;
     public:
-        R_destroy_render() {}
-        ~R_destroy_render() {}
+        R_stop_renderer(threading::Event* ev):rendering_finished_(ev) {}
+        ~R_stop_renderer() {}
+        int exec() {
+            rendering_finished_->Signal();
+            return 0;
+        }
+    };
+
+    g_render_job_queue->push( new R_stop_renderer(&rendering_finished_ev) );
+    SPEW(("EXIT", "Waiting for all queued render commands to finish"));
+    rendering_finished_ev.Wait();
+
+    SPEW(("EXIT", "TerminateGameEngine()"));
+    Environment.TerminateGameEngine();
+
+    class R_destroy_renderer: public R_job {
+    public:
+        R_destroy_renderer() {}
+        ~R_destroy_renderer() {}
         int exec() {
             rmt_UnbindOpenGL();
             gos_DestroyRenderer();
@@ -651,12 +678,9 @@ int main(int argc, char** argv)
         }
     };
 
-    g_render_job_queue->push( new R_destroy_render() );
-
+    g_render_job_queue->push( new R_destroy_renderer() );
     SPEW(("EXIT", "Waiting for render thread to finish"));
     SDL_WaitThread(g_render_thread, &threadReturnValue);
-
-    Environment.TerminateGameEngine();
 
     assert(0 == g_render_job_queue->size());
     delete g_render_job_queue;

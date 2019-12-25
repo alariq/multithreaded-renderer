@@ -6,6 +6,7 @@
 #include "gameos.hpp"
 #include "font3d.hpp"
 #include "gos_font.h"
+#include "utils/render_constants.h"
 
 #ifdef LINUX_BUILD
 #include <cstdarg>
@@ -100,7 +101,9 @@ public:
 		delete vdecl;
 	}
 
-	void apply() {
+	void apply(HGOSBUFFER vb = 0, HGOSBUFFER instance_vb = 0) {
+
+        // by conention instance vb is stream 1
 
 		for (uint32_t i = 0; i < count_; ++i) {
 
@@ -108,8 +111,15 @@ public:
 
 			GLuint type = getGLVertexAttribType(rec->type);
 
+            if(vb && instance_vb)
+            {
+                glBindBuffer(GL_ARRAY_BUFFER, rec->stream != 0
+                                                  ? instance_vb->buffer_
+                                                  : vb->buffer_);
+            }
 			glEnableVertexAttribArray(rec->index);
 			glVertexAttribPointer(rec->index, rec->num_components, type, rec->normalized ? GL_TRUE : GL_FALSE, rec->stride, BUFFER_OFFSET(rec->offset));
+		    glVertexAttribDivisor(rec->index, rec->stream != 0 ? 1 : 0);
 		}
 	}
 
@@ -118,6 +128,7 @@ public:
 		for (uint32_t i = 0; i < count_; ++i) {
 			gosVERTEX_FORMAT_RECORD* rec = vf_ + i;
 			glDisableVertexAttribArray(rec->index);
+            glVertexAttribDivisor(rec->index, 0);
 		}
 	}
 
@@ -461,6 +472,8 @@ class gosMesh {
 
 		static void drawIndexed(HGOSBUFFER ib, HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl, gosRenderMaterial* material);
 		static void drawIndexed(HGOSBUFFER ib, HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl);
+		static void draw(HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl);
+		static void drawInstanced(HGOSBUFFER vb, HGOSBUFFER instance_vb, uint32_t instance_count, HGOSVERTEXDECLARATION vdecl);
 
 		static const std::string s_tex1;
 		static const std::string s_tex2;
@@ -656,6 +669,44 @@ void gosMesh::drawIndexed(HGOSBUFFER ib, HGOSBUFFER vb, HGOSVERTEXDECLARATION vd
 
 }
 
+void gosMesh::draw(HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl)
+{
+	CHECK_GL_ERROR;
+
+	glBindBuffer(GL_ARRAY_BUFFER, vb->buffer_);
+	CHECK_GL_ERROR;
+
+	vdecl->apply();
+	CHECK_GL_ERROR;
+
+	GLenum pt = GL_TRIANGLES;
+	glDrawArrays(pt, 0, vb->count_);
+
+	vdecl->end();
+
+	//material->end();
+	glUseProgram(0);
+
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+}
+
+void gosMesh::drawInstanced(HGOSBUFFER vb, HGOSBUFFER instance_vb, uint32_t instance_count, HGOSVERTEXDECLARATION vdecl)
+{
+	CHECK_GL_ERROR;
+
+	vdecl->apply(vb, instance_vb);
+	CHECK_GL_ERROR;
+
+	GLenum pt = GL_TRIANGLES;
+	glDrawArraysInstanced(pt, 0, vb->count_, instance_count);
+
+	vdecl->end();
+
+	//material->end();
+	glUseProgram(0);
+
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+}
 
 
 class gosTexture {
@@ -922,12 +973,17 @@ bool gosTexture::createHardwareTexture() {
         return tex_.isValid();
     } else if(format_ == gos_Texture_Depth) {
 	    GLuint tex_id = createRenderTexture(tex_.w, tex_.h, GL_DEPTH_COMPONENT, GL_DEPTH_COMPONENT, GL_FLOAT, GL_NEAREST, GL_NEAREST);
-
         tex_.id = tex_id;
         tex_.fmt_ = TF_DEPTH32F;
         tex_.type_ = TT_2D;
         tex_.format = GL_DEPTH_COMPONENT;
-
+        return tex_.isValid();
+    } else if(format_ == gos_Texture_RGBA8) {
+	    GLuint tex_id = createRenderTexture(tex_.w, tex_.h, GL_RGBA, GL_RGBA, GL_UNSIGNED_BYTE, GL_NEAREST, GL_NEAREST);
+        tex_.id = tex_id;
+        tex_.fmt_ = TF_RGBA8;
+        tex_.type_ = TT_2D;
+        tex_.format = GL_RGBA;
         return tex_.isValid();
     } 
     else {
@@ -1184,6 +1240,8 @@ class gosRenderer {
         void drawIndexedTris(gos_VERTEX* vertices, int num_vertices, WORD* indices, int num_indices);
 		void drawIndexedTris(HGOSBUFFER ib, HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl, const float* mvp);
 		void drawIndexedTris(HGOSBUFFER ib, HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl);
+		void drawTris(HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl);
+		void drawTrisInstanced(HGOSBUFFER vb, HGOSBUFFER instanced_vb, uint32_t instance_count, HGOSVERTEXDECLARATION vdecl);
         void drawText(const char* text);
 
         void beginFrame();
@@ -1608,6 +1666,7 @@ void gosRenderer::applyRenderStates() {
 
 void gosRenderer::beginFrame()
 {
+    glFrontFace(GL_CCW);
     glBindVertexArray(gVAO);
     num_draw_calls_ = 0;
 }
@@ -1937,6 +1996,28 @@ void gosRenderer::drawIndexedTris(HGOSBUFFER ib, HGOSBUFFER vb, HGOSVERTEXDECLAR
 
 	gosMesh::drawIndexed(ib, vb, vdecl);
 
+    afterDrawCall();
+}
+
+void gosRenderer::drawTris(HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl)
+{
+    gosASSERT(vb);
+
+    if(beforeDrawCall()) return;
+
+    applyRenderStates();
+	// maybe getCurMaterial->set.... to not set it from outer code?
+	gosMesh::draw(vb, vdecl);
+
+    afterDrawCall();
+}
+
+void gosRenderer::drawTrisInstanced(HGOSBUFFER vb, HGOSBUFFER instance_vb, uint32_t instance_count, HGOSVERTEXDECLARATION vdecl)
+{
+    gosASSERT(vb);
+    if(beforeDrawCall()) return;
+    applyRenderStates();
+	gosMesh::drawInstanced(vb, instance_vb, instance_count, vdecl);
     afterDrawCall();
 }
 
@@ -2514,6 +2595,19 @@ void __stdcall gos_RenderIndexedArray(HGOSBUFFER ib, HGOSBUFFER vb, HGOSVERTEXDE
     g_gos_renderer->drawIndexedTris(ib, vb, vdecl);
 }
 
+void __stdcall gos_RenderArray(HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl)
+{
+    gosASSERT(g_gos_renderer);
+    g_gos_renderer->drawTris(vb, vdecl);
+}
+
+void __stdcall gos_RenderArrayInstanced(HGOSBUFFER vb, HGOSBUFFER instance_vb, uint32_t instance_count, HGOSVERTEXDECLARATION vdecl)
+{
+    gosASSERT(g_gos_renderer);
+    g_gos_renderer->drawTrisInstanced(vb, instance_vb, instance_count, vdecl);
+}
+
+
 void __stdcall gos_SetRenderState( gos_RenderState RenderState, int Value )
 {
     gosASSERT(g_gos_renderer);
@@ -2768,6 +2862,25 @@ GLenum getGLBufferUsage(gosBUFFER_USAGE usage)
 	return u;
 }
 
+GLenum getGLMapFlags(uint32_t acc_flags)
+{
+	GLbitfield gl_flags = 0;
+    if(acc_flags & gosBUFFER_ACCESS::READ)
+        gl_flags |= GL_MAP_READ_BIT;
+
+    if(acc_flags & gosBUFFER_ACCESS::WRITE)
+        gl_flags |= GL_MAP_WRITE_BIT;
+
+    if(acc_flags & gosBUFFER_ACCESS::NO_SYNC)
+        gl_flags |= GL_MAP_UNSYNCHRONIZED_BIT;
+
+    if(acc_flags & gosBUFFER_ACCESS::COHERENT)
+        gl_flags |= GL_MAP_COHERENT_BIT;
+
+    return gl_flags;
+}
+
+
 
 
 gosBuffer* __stdcall gos_CreateBuffer(gosBUFFER_TYPE type, gosBUFFER_USAGE usage, int element_size, uint32_t count, void* buffer_data)
@@ -2826,6 +2939,27 @@ void __stdcall gos_UpdateBuffer(HGOSBUFFER buffer, void* data, size_t offset, si
     glBindBuffer(gl_target, buffer->buffer_);
 	glBufferSubData(gl_target, offset, num_bytes, data);
 	//glBufferData(gl_target, num_bytes, data, GL_DYNAMIC_DRAW);
+    glBindBuffer(gl_target, 0);
+}
+
+void* __stdcall gos_MapBuffer(HGOSBUFFER buffer, size_t offset, size_t num_bytes, uint32_t flags)
+{
+	gosASSERT(buffer);
+	GLenum gl_target = getGLBufferType(buffer->type_);
+    GLbitfield gl_flags = getGLMapFlags(flags);
+
+    glBindBuffer(gl_target, buffer->buffer_);
+    void* ptr = glMapBufferRange(gl_target, offset, num_bytes, gl_flags);
+    glBindBuffer(gl_target, 0);
+    gosASSERT(ptr);
+    return ptr; 
+}
+
+void __stdcall gos_UnmapBuffer(HGOSBUFFER buffer)
+{
+	GLenum gl_target = getGLBufferType(buffer->type_);
+    glBindBuffer(gl_target, buffer->buffer_);
+    glUnmapBuffer(gl_target);
     glBindBuffer(gl_target, 0);
 }
 

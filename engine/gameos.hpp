@@ -2243,6 +2243,8 @@ void __stdcall gos_RenderIndexedArray( gos_VERTEX_3UV* pVertexArray, DWORD Numbe
 
 void __stdcall gos_RenderIndexedArray(HGOSBUFFER ib, HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl, const float* mvp); //sebi
 void __stdcall gos_RenderIndexedArray(HGOSBUFFER ib, HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl); //sebi
+void __stdcall gos_RenderArray(HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl); //sebi
+void __stdcall gos_RenderArrayInstanced(HGOSBUFFER vb, HGOSBUFFER instance_vb, uint32_t instance_count, HGOSVERTEXDECLARATION vdecl); //sebi
 
 
 void __stdcall gos_SetRenderViewport(float x, float y, float w, float h);
@@ -2605,6 +2607,14 @@ enum class gosBUFFER_USAGE {
 	NUM_BUFFER_USAGE
 };
 
+enum gosBUFFER_ACCESS: uint32_t {
+    READ = 0x01,
+    WRITE = 0x2,
+    NO_SYNC = 0x4,
+    COHERENT = 0x8,
+	NUM_BUFFER_ACCESS
+};
+
 enum class gosVERTEX_ATTRIB_TYPE {
 	BYTE,
 	UNSIGNED_BYTE,
@@ -2622,11 +2632,21 @@ struct gosVERTEX_FORMAT_RECORD {
 	int stride;
 	int offset;
 	gosVERTEX_ATTRIB_TYPE type;
+    int stream;
+
+    gosVERTEX_FORMAT_RECORD(){}
+    gosVERTEX_FORMAT_RECORD(int idx, int num_comp, bool norm, int vert_stride,
+                            int off, gosVERTEX_ATTRIB_TYPE va_type,
+                            int vb_stream)
+        : index(idx), num_components(num_comp), normalized(norm),
+          stride(vert_stride), offset(off), type(va_type), stream(vb_stream) {}
 };
 
 HGOSBUFFER __stdcall gos_CreateBuffer(gosBUFFER_TYPE type, gosBUFFER_USAGE usage, int element_size, uint32_t count, void* pdata);
 void __stdcall gos_DestroyBuffer(HGOSBUFFER buffer);
 void __stdcall gos_UpdateBuffer(HGOSBUFFER buffer, void* data, size_t offset, size_t num_bytes);
+void* __stdcall gos_MapBuffer(HGOSBUFFER buffer, size_t offset, size_t num_bytes, uint32_t flags);
+void __stdcall gos_UnmapBuffer(HGOSBUFFER buffer);
 void __stdcall gos_BindBufferBase(HGOSBUFFER buffer, uint32_t slot);
 
 uint32_t gos_GetBufferSizeBytes(HGOSBUFFER buffer);
@@ -2729,6 +2749,7 @@ enum gos_TextureFormat
 	gos_Texture_Bump=3,			// dUdV bump map (create from monochrome image)
 	gos_Texture_Normal=4,		// texture map of normals (create from monochrome image)
     gos_Texture_Depth=5,        // sebi: depth render target
+    gos_Texture_RGBA8=6         // sebi
 };
 
 //

@@ -393,6 +393,16 @@ bool resize_window(RenderWindowHandle rw_handle, int width, int height)
 }
 
 //==============================================================================
+void grab_window_input(RenderWindowHandle rw_handle, bool grab)
+{
+    RenderWindow* rw = (RenderWindow*)rw_handle;
+    assert(rw);
+
+    SDL_SetWindowGrab(rw->window_, grab ? SDL_TRUE : SDL_FALSE);
+    SDL_WarpMouseInWindow(rw->window_, rw->width_/2, rw->height_/2);
+}
+
+//==============================================================================
 bool set_window_fullscreen(RenderWindowHandle rw_handle, bool fullscreen)
 {
     RenderWindow* rw = (RenderWindow*)rw_handle;

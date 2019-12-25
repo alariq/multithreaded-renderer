@@ -1,4 +1,5 @@
 #include "renderer.h"
+#include <cassert>
 
 TSQueue<RenderList*> gFreeRenderLists;
 
@@ -31,3 +32,8 @@ void DeleteRenderLists() {
     }
 }
 
+void ScheduleRenderCommand(RenderFrameContext *rfc, std::function<void(void)>&& cmd)
+{
+    assert(rfc);
+    rfc->commands_.push_back(cmd);
+}

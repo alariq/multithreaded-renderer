@@ -27,7 +27,7 @@ camera::camera():rot_x(0), rot_y(0), dist(0)
 	view_proj_inv_ = mat4::identity();
 
     fov_ = 0;
-    aspect_ = 0;
+    width_ = height_ = 0;
     left_ = right_ = top_ = bottom_ = 0;
     near_ = far_ = 0;
     is_perspective_ = false;
@@ -54,11 +54,13 @@ void camera::set_projection(const mat4& proj)
 	inv_proj_ = invProj;
 }
 
-void camera::set_projection(const float fov, const float aspect, const float near, const float far)
+void camera::set_projection(const float fov, const int w, const int h, const float near, const float far)
 {
-    aspect_ = aspect; fov_ = fov;
+    width_ = w;
+    height_ = h;
+    fov_ = fov;
     near_ = near; far_ = far;
-    mat4 pm = perspectiveMatrixX(fov * 3.1415f / 180.0f, 1.0f, aspect, .1f, 1000.0f, false);
+    mat4 pm = perspectiveMatrixX(fov * 3.1415f / 180.0f, w, h, .1f, 1000.0f, false);
     is_perspective_ = true;
     this->set_projection(pm);
 
