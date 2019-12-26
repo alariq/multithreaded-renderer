@@ -1582,6 +1582,7 @@ void gosRenderer::applyRenderStates() {
        case 0: glDepthFunc(GL_ALWAYS); break;
        case 1: glDepthFunc(GL_LEQUAL); break;
        case 2: glDepthFunc(GL_LESS); break;
+       case 3: glDepthFunc(GL_GREATER); break;
        default: gosASSERT(0 && "Wrong depth test value");
    }
    curStates_[gos_State_ZCompare] = renderStates_[gos_State_ZCompare];

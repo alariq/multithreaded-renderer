@@ -2054,7 +2054,7 @@ enum gos_RenderState
 
 	gos_State_Filter,			// Default: gos_FilterNone			gos_FilterMode
 
-	gos_State_ZCompare,			// Default: 1						0=No z buffer test, 1=LessEqual test with z buffer, 2=Less test
+	gos_State_ZCompare,			// Default: 1						0=No z buffer test, 1=LessEqual test with z buffer, 2=Less test, 3=greater
 
 	gos_State_ZWrite,			// Default: 1						true/false - write to ZBuffer enabled/disabled
 
