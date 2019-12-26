@@ -21,11 +21,29 @@ GLuint createRenderTexture(int w, int h, int fmt, int int_fmt, int type, GLint m
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
-	glTexImage2D(GL_TEXTURE_2D, 0, int_fmt, w, h, 0, fmt, type, NULL);
+	glTexStorage2D(GL_TEXTURE_2D, 1, int_fmt, w, h);
 
 	glBindTexture(GL_TEXTURE_2D, 0);
 
 	return color_tex;
+}
+
+GLuint createRenderTexture(uint32_t w, uint32_t h, int int_fmt, uint32_t levels)
+{
+	GLuint rt;
+	glGenTextures(1, &rt);
+
+	glBindTexture(GL_TEXTURE_2D, rt);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+	glTexStorage2D(GL_TEXTURE_2D, levels, int_fmt, w, h);
+
+	glBindTexture(GL_TEXTURE_2D, 0);
+
+	return rt;
 }
 
 GLuint createRenderBuffer(int w, int h, const TexFormat format)

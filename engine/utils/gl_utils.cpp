@@ -32,7 +32,7 @@ vec4 uint32_to_vec4(uint32_t v) {
 	return (1.0f / 255.0f) * vec4(x, y, z, w);
 }
 
-// maybe just 
+    // maybe just 
 // header: extern uint32_t TF_R8
 // cpp: TF_R8 = GL_R8 
 // ?
@@ -53,6 +53,11 @@ const GLint textureFormats[TF_COUNT] = {
 	GL_RG32UI,
 	GL_RGB32UI,
 	GL_RGBA32UI,
+
+    GL_DEPTH_COMPONENT,
+    GL_DEPTH_COMPONENT,
+    GL_DEPTH_STENCIL,
+    GL_DEPTH_STENCIL
 };
 
 const GLint textureInternalFormats[TF_COUNT] = {
@@ -71,6 +76,11 @@ const GLint textureInternalFormats[TF_COUNT] = {
 	GL_RG32UI,
 	GL_RGB32UI,
 	GL_RGBA32UI,
+
+    GL_DEPTH_COMPONENT16,
+    GL_DEPTH_COMPONENT32,
+    GL_DEPTH24_STENCIL8,
+    GL_DEPTH32F_STENCIL8
 };
 
 
@@ -79,6 +89,7 @@ const int textureFormatNumChannels[TF_COUNT] = {
     1, 2, 3, 4,
 	1, 2, 3, 4,
 	1, 2, 3, 4,
+    1, 1, 1, 1
 };
 
 const GLint textureFormatChannelType[TF_COUNT] = {
@@ -86,6 +97,8 @@ const GLint textureFormatChannelType[TF_COUNT] = {
     GL_UNSIGNED_BYTE, GL_UNSIGNED_BYTE, GL_UNSIGNED_BYTE, GL_UNSIGNED_BYTE,
     GL_FLOAT, GL_FLOAT, GL_FLOAT, GL_FLOAT,
 	GL_UNSIGNED_INT,GL_UNSIGNED_INT,GL_UNSIGNED_INT,GL_UNSIGNED_INT,
+    // not much sense for depth formats...
+    GL_HALF_FLOAT, GL_FLOAT, GL_UNSIGNED_INT, GL_FLOAT
 };
 
 const static uint32_t textureFormatChannelSize[TF_COUNT] = {
@@ -93,6 +106,7 @@ const static uint32_t textureFormatChannelSize[TF_COUNT] = {
     1, 1, 1, 1,
     4, 4, 4, 4,
 	4, 4, 4, 4,
+    2, 4, 4, 4 // ot much sense for depth/depth-stencil
 };
 
 uint32_t
@@ -159,7 +173,11 @@ void destroyTexture(Texture* tex)
 
 Texture create2DTexture(int w, int h, TexFormat fmt, const uint8_t* texdata)
 {
-	GLuint texID;
+    // probably use functions for render target creation
+    assert(fmt < TF_DEPTH16F &&
+           "Shoud not create depth textures using this function");
+
+    GLuint texID;
 	glGenTextures(1, &texID);
 	glBindTexture(GL_TEXTURE_2D, texID);
 

@@ -41,6 +41,8 @@ enum TexFormat {
     TF_RGBA32UI,
     TF_DEPTH16F,
     TF_DEPTH32F,
+    TF_DEPTH16F_S8,
+    TF_DEPTH32F_S8,
     TF_COUNT
 };
 
