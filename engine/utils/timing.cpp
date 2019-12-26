@@ -29,7 +29,7 @@ namespace timing {
 #endif
 	}
 
-	void sleep(unsigned int nanosec) {
+	void sleep(unsigned long nanosec) {
 #ifdef PLATFORM_WINDOWS
 		Sleep(nanosec / 1000000);
 #else

@@ -5,7 +5,7 @@
 
 namespace timing {
 
-void sleep(unsigned int nanosec);
+void sleep(unsigned long nanosec);
 void init();
 uint64_t gettickcount();
 uint64_t ticks2ms(uint64_t ticks);
