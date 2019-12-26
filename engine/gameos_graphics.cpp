@@ -972,18 +972,29 @@ bool gosTexture::createHardwareTexture() {
         tex_ = create2DTexture(img.getWidth(), img.getHeight(), tf, img.getPixels());
         return tex_.isValid();
     } else if(format_ == gos_Texture_Depth) {
-	    GLuint tex_id = createRenderTexture(tex_.w, tex_.h, GL_DEPTH_COMPONENT, GL_DEPTH_COMPONENT, GL_FLOAT, GL_NEAREST, GL_NEAREST);
+        GLuint tex_id =
+            createRenderTexture(tex_.w, tex_.h, GL_DEPTH_COMPONENT32F, 1);
         tex_.id = tex_id;
         tex_.fmt_ = TF_DEPTH32F;
         tex_.type_ = TT_2D;
         tex_.format = GL_DEPTH_COMPONENT;
         return tex_.isValid();
+    } else if(format_ == gos_Texture_Depth_Stencil) {
+        GLuint tex_id =
+            createRenderTexture(tex_.w, tex_.h, GL_DEPTH32F_STENCIL8, 1);
+        tex_.id = tex_id;
+        tex_.fmt_ = TF_DEPTH32F_S8;
+        tex_.type_ = TT_2D;
+        tex_.format = GL_DEPTH32F_STENCIL8;
+        return tex_.isValid();
     } else if(format_ == gos_Texture_RGBA8) {
-	    GLuint tex_id = createRenderTexture(tex_.w, tex_.h, GL_RGBA, GL_RGBA, GL_UNSIGNED_BYTE, GL_NEAREST, GL_NEAREST);
+        GLuint tex_id =
+            createRenderTexture(tex_.w, tex_.h, GL_RGBA, GL_RGBA8,
+                                GL_UNSIGNED_BYTE, GL_NEAREST, GL_NEAREST);
         tex_.id = tex_id;
         tex_.fmt_ = TF_RGBA8;
         tex_.type_ = TT_2D;
-        tex_.format = GL_RGBA;
+        tex_.format = GL_RGBA8;
         return tex_.isValid();
     } 
     else {
@@ -1504,12 +1515,18 @@ void gosRenderer::initRenderStates() {
 	renderStates_[gos_State_MonoEnable] = 0;
 	renderStates_[gos_State_Culling] = gos_Cull_None;
 	renderStates_[gos_State_StencilEnable] = 0;
-	renderStates_[gos_State_StencilFunc] = gos_Cmp_Never;
-	renderStates_[gos_State_StencilRef] = 0;
-	renderStates_[gos_State_StencilMask] = 0xffffffff;
-	renderStates_[gos_State_StencilZFail] = gos_Stencil_Keep;
-	renderStates_[gos_State_StencilFail] = gos_Stencil_Keep;
-	renderStates_[gos_State_StencilPass] = gos_Stencil_Keep;
+	renderStates_[gos_State_StencilFunc_Front] = gos_Cmp_Never;
+	renderStates_[gos_State_StencilFunc_Back] = gos_Cmp_Never;
+	renderStates_[gos_State_StencilRef_Front] = 0;
+	renderStates_[gos_State_StencilRef_Back] = 0;
+	renderStates_[gos_State_StencilMask_Front] = 0xffffffff;
+	renderStates_[gos_State_StencilMask_Back] = 0xffffffff;
+	renderStates_[gos_State_StencilZFail_Front] = gos_Stencil_Keep;
+	renderStates_[gos_State_StencilZFail_Back] = gos_Stencil_Keep;
+	renderStates_[gos_State_StencilFail_Front] = gos_Stencil_Keep;
+	renderStates_[gos_State_StencilFail_Back] = gos_Stencil_Keep;
+	renderStates_[gos_State_StencilPass_Front] = gos_Stencil_Keep;
+	renderStates_[gos_State_StencilPass_Back] = gos_Stencil_Keep;
 	renderStates_[gos_State_Multitexture] = gos_Multitexture_None;
 	renderStates_[gos_State_Ambient] = 0xffffff;
 	renderStates_[gos_State_Lighting] = 0;
@@ -1543,6 +1560,74 @@ void gosRenderer::popRenderStates()
     renderStatesStackPointer--;
 }
 
+static GLenum translateCompareMode(const uint32_t cmp_mode) {
+    GLenum gl_cmp_mode = GL_ALWAYS;
+    switch (cmp_mode) {
+    case gos_Cmp_Never:
+        gl_cmp_mode = GL_NEVER;
+        break;
+    case gos_Cmp_Less:
+        gl_cmp_mode = GL_LESS;
+        break;
+    case gos_Cmp_Equal:
+        gl_cmp_mode = GL_EQUAL;
+        break;
+    case gos_Cmp_LessEqual:
+        gl_cmp_mode = GL_LEQUAL;
+        break;
+    case gos_Cmp_Greater:
+        gl_cmp_mode = GL_GREATER;
+        break;
+    case gos_Cmp_NotEqual:
+        gl_cmp_mode = GL_NOTEQUAL;
+        break;
+    case gos_Cmp_GreaterEqual:
+        gl_cmp_mode = GL_GEQUAL;
+        break;
+    case gos_Cmp_Always:
+        gl_cmp_mode = GL_ALWAYS;
+        break;
+    default:
+        gosASSERT(0 && "Wrong stencil func");
+    }
+    return gl_cmp_mode;
+}
+
+// TODO: have backend dependent enums: enum eXXX { kValueXXX = GL_XXX, ... }
+static GLenum translateStencilOp(const uint32_t f) {
+    GLenum gl_func = GL_KEEP;
+    switch (f) {
+    case gos_Stencil_Keep:
+        gl_func = GL_KEEP;
+        break;
+    case gos_Stencil_Zero:
+        gl_func = GL_ZERO;
+    case gos_Stencil_Replace:
+        gl_func = GL_REPLACE;
+        break;
+    case gos_Stencil_IncrSat:
+        gl_func = GL_INCR;
+        break;
+    case gos_Stencil_DecrSat:
+        gl_func = GL_DECR;
+        break;
+    case gos_Stencil_Invert:
+        gl_func = GL_INVERT;
+        break;
+    case gos_Stencil_Incr:
+        gl_func = GL_INCR_WRAP;
+        break;
+    case gos_Stencil_Decr:
+        gl_func = GL_DECR_WRAP;
+        break;
+    default:
+        gosASSERT(0 && "Unknown stencil function");
+    }
+
+    return gl_func;
+}
+
+
 void gosRenderer::applyRenderStates() {
 
 	////////////////////////////////////////////////////////////////////////////////
@@ -1559,6 +1644,35 @@ void gosRenderer::applyRenderStates() {
 	curStates_[gos_State_Culling] = renderStates_[gos_State_Culling];
 
 	////////////////////////////////////////////////////////////////////////////////
+    
+	////////////////////////////////////////////////////////////////////////////////
+	if(renderStates_[gos_State_StencilEnable])
+    {
+        glEnable(GL_STENCIL_TEST);
+        for (int i = 0; i < 2; ++i) {
+            int32_t ref = renderStates_[gos_State_StencilRef_Front + i];
+            uint32_t mask = renderStates_[gos_State_StencilMask_Front + i];
+            GLenum face = i == 0 ? GL_FRONT : GL_BACK;
+            GLenum cmp = translateCompareMode(renderStates_[gos_State_StencilFunc_Front + i]);
+            GLenum sfail = translateStencilOp(renderStates_[gos_State_StencilFail_Front + i]);
+            GLenum zfail = translateStencilOp(renderStates_[gos_State_StencilZFail_Front + i]);
+            GLenum zpass = translateStencilOp(renderStates_[gos_State_StencilPass_Front + i]);
+
+            glStencilFuncSeparate(face, cmp, ref, mask);
+            glStencilOpSeparate(face, sfail, zfail, zpass);
+
+            curStates_[gos_State_StencilRef_Front + i] = ref;
+            curStates_[gos_State_StencilMask_Front + i] = mask;
+            curStates_[gos_State_StencilFunc_Front + i] = renderStates_[gos_State_StencilFunc_Front + i];
+            curStates_[gos_State_StencilFail_Front + i] = renderStates_[gos_State_StencilFail_Front + i];
+            curStates_[gos_State_StencilZFail_Front + i] = renderStates_[gos_State_StencilZFail_Front + i];
+            curStates_[gos_State_StencilPass_Front + i] = renderStates_[gos_State_StencilPass_Front + i];
+        }
+    } else {
+        glDisable(GL_STENCIL_TEST);
+    }
+    curStates_[gos_State_StencilEnable] = renderStates_[gos_State_StencilEnable];
+    ////////////////////////////////////////////////////////////////////////////////
 
 	////////////////////////////////////////////////////////////////////////////////
 	fog_color_ = uint32_to_vec4(renderStates_[gos_State_Fog]);

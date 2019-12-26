@@ -2088,17 +2088,23 @@ enum gos_RenderState
 
 	gos_State_StencilEnable,	// Default: false					true/false  - Enable stencil operations
 
-	gos_State_StencilFunc,		// Default: gos_Cmp_Never			Set to one of the gos_CompareMode values
+	gos_State_StencilFunc_Front,// Default: gos_Cmp_Never			Set to one of the gos_CompareMode values
+	gos_State_StencilFunc_Back,// Default: gos_Cmp_Never			Set to one of the gos_CompareMode values
 
-	gos_State_StencilRef,		// Default: 0						Set to the pixel value to compare`
+	gos_State_StencilRef_Front,// Default: 0						Set to the pixel value to compare`
+	gos_State_StencilRef_Back,// Default: 0						Set to the pixel value to compare`
 
-	gos_State_StencilMask,		// Default: 0xffffffff				Used to mask the reference and pixel before the compare
+	gos_State_StencilMask_Front,		// Default: 0xffffffff				Used to mask the reference and pixel before the compare
+	gos_State_StencilMask_Back,		    // Default: 0xffffffff				Used to mask the reference and pixel before the compare
 
-	gos_State_StencilZFail,		// Default: gos_Stencil_Keep		Operation on the stencil buffer to perform when the function passes, but the Z buffer test fails
+	gos_State_StencilZFail_Front,		// Default: gos_Stencil_Keep		Operation on the stencil buffer to perform when the function passes, but the Z buffer test fails
+	gos_State_StencilZFail_Back,		// Default: gos_Stencil_Keep		Operation on the stencil buffer to perform when the function passes, but the Z buffer test fails
 
-	gos_State_StencilFail,		// Default: gos_Stencil_Keep		Operation on the stencil buffer to perform when the function fails
+	gos_State_StencilFail_Front,		// Default: gos_Stencil_Keep		Operation on the stencil buffer to perform when the function fails
+	gos_State_StencilFail_Back,		    // Default: gos_Stencil_Keep		Operation on the stencil buffer to perform when the function fails
 
-	gos_State_StencilPass,		// Default: gos_Stencil_Keep		Operation on the stencil buffer to perform when the function passes and so does the Z buffer test
+	gos_State_StencilPass_Front,		// Default: gos_Stencil_Keep		Operation on the stencil buffer to perform when the function passes and so does the Z buffer test
+	gos_State_StencilPass_Back,		    // Default: gos_Stencil_Keep		Operation on the stencil buffer to perform when the function passes and so does the Z buffer test
 
 	gos_State_Multitexture,		// Default: gos_Multitexture_None	Select multitexture mode for rendering (see gos_GetMachineInformation to see if modes are valid)
 
@@ -2749,7 +2755,8 @@ enum gos_TextureFormat
 	gos_Texture_Bump=3,			// dUdV bump map (create from monochrome image)
 	gos_Texture_Normal=4,		// texture map of normals (create from monochrome image)
     gos_Texture_Depth=5,        // sebi: depth render target
-    gos_Texture_RGBA8=6         // sebi
+    gos_Texture_Depth_Stencil=6,// sebi: depth-stencil render target
+    gos_Texture_RGBA8=7         // sebi
 };
 
 //
