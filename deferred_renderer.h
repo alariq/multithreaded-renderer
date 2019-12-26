@@ -7,6 +7,7 @@
 class DeferredRenderer {
 
     GLuint deferred_fbo_;
+    GLuint lighting_fbo_;
     GLuint forward_fbo_;
     DWORD gos_g_buffer_albedo;
     GLuint g_buffer_albedo;
@@ -27,7 +28,8 @@ class DeferredRenderer {
     public:
     bool Init(int width, int height);
     void RenderGeometry(struct RenderFrameContext* rfc);
-    void RenderLighting(vec3 light_dir);
+    void RenderDirectionalLighting(const struct RenderFrameContext* rfc);
+    void RenderPointLighting(struct RenderFrameContext* rfc);
     void RenderForward(std::function<void(void)> f);
     void Present(int width, int height);
 

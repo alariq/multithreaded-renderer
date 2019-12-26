@@ -23,6 +23,13 @@ struct RenderMesh {
     uint32_t                tex_id_;
 };
 
+struct PointLight {
+    vec4 color_; // w - intensity
+    float radius_;
+    mat4 transform_;
+    vec3 pos;
+};
+
 struct RenderPacket {
     RenderMesh mesh_;
     mat4 m_;
@@ -102,8 +109,12 @@ struct RenderFrameContext {
     //TODO: for each view, setup its parameters, fbo, obj lists etc...
     mat4 view_;
     mat4 proj_;
+    mat4 inv_proj_;
     mat4 shadow_view_;
     mat4 shadow_inv_view_;
+
+    // point lights that passed frustum culling
+    std::vector<PointLight> point_lights_;
 };
 
 void ScheduleRenderCommand(RenderFrameContext *rfc, std::function<void(void)>&& );

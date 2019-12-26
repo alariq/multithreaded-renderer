@@ -47,12 +47,6 @@ RenderMesh* g_sphere = 0;
 class FrustumObject;
 FrustumObject* g_frustum_object = nullptr;
 
-struct PointLight {
-    vec4 color_; // w - intensity
-    float radius_;
-    mat4 transform_;
-};
-
 std::vector<PointLight> g_light_list;
 
 struct DebugRenderObject {
@@ -575,9 +569,12 @@ void __stdcall Update(void)
         for(int i=0; i<30;++i)
         {
             PointLight l;
-            l.color_ = random_vec4(0.0f, 1.0f);
-            l.radius_ = random(0.5f, 5.0f);
+            vec3 color = random_vec(0.2f, 1.0f);
+            float intensity = get_random(0.5f, 1.5f);
+            l.color_ = vec4(color.x, color.y, color.z, intensity);
+            l.radius_ = random(1.5f, 7.0f);
             vec3 pos = random_vec(vec3(-40.0f, 5.0f, -40.0f), vec3(40.0f, 15.0f, 40.0f));
+            l.pos = pos;
             l.transform_ = translate(pos) * mat4::scale(vec3(l.radius_));
             g_light_list.push_back(l);
         }
@@ -655,7 +652,7 @@ void __stdcall Update(void)
         for(auto& l: g_light_list) {
             RenderPacket* rp = frame_render_list->AddPacket();
             rp->mesh_ = *g_sphere;
-            rp->m_ = l.transform_;
+            rp->m_ = l.transform_ * mat4::scale(vec3(0.1f));
             rp->debug_color = vec4(l.color_.getXYZ(), 0.5f);
             rp->is_debug_pass = 1;
             rp->is_opaque_pass = 0;
@@ -674,13 +671,16 @@ void __stdcall Update(void)
     rfc->csm_info_ = csm_info;
     g_camera.get_view(&rfc->view_);
     g_camera.get_projection(&rfc->proj_);
+    rfc->inv_proj_ = g_camera.inv_proj_;
     g_shadow_camera.get_view(&rfc->shadow_view_);
     rfc->shadow_inv_view_ = g_shadow_camera.inv_view_;
+    rfc->point_lights_ = g_light_list;
     SetRenderFrameContext(rfc);
     //
     
-    uint64_t sleep_ms= std::max(33ull - dt, 1ull);
-    timing::sleep(sleep_ms*1000000);
+    //uint64_t sleep_ms= std::max(33ull - dt, 1ull);
+    //timing::sleep(sleep_ms*1000000);
+    timing::sleep(32000000ull);
 }
 
 class ShapeRenderer {
@@ -972,7 +972,8 @@ void __stdcall Render(void)
 #else // !FORWARD_RENDERING
 
     g_deferred_renderer.RenderGeometry(rfc);
-    g_deferred_renderer.RenderLighting(lightdir.getXYZ());
+    g_deferred_renderer.RenderDirectionalLighting(rfc);
+    g_deferred_renderer.RenderPointLighting(rfc);
     g_deferred_renderer.RenderForward([&rpl, &view_mat, &proj_mat]() {
         RenderParticles(rpl, view_mat, proj_mat);
         RenderDebugObjects(rpl, view_mat, proj_mat);

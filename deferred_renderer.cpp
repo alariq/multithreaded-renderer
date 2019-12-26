@@ -6,10 +6,11 @@
 
 bool DeferredRenderer::Init(int width, int height)
 {
-    GLuint fbos[2]; 
-    glGenFramebuffers(2, fbos);
+    GLuint fbos[3]; 
+    glGenFramebuffers(3, fbos);
     deferred_fbo_ = fbos[0];
-    forward_fbo_ = fbos[1];
+    lighting_fbo_ = fbos[1];
+    forward_fbo_ = fbos[2];
 
     height_ = height;
     width_ = width;
@@ -45,7 +46,9 @@ bool DeferredRenderer::Init(int width, int height)
 
     gos_AddRenderMaterial("deferred");
     gos_AddRenderMaterial("lightpass");
+    gos_AddRenderMaterial("pointlightpass");
 
+    bool status = false;
     // setup deferred fbo
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, deferred_fbo_);
     {
@@ -54,9 +57,20 @@ bool DeferredRenderer::Init(int width, int height)
         glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, g_buffer_albedo, 0);
         glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, g_buffer_normal, 0);
         glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, g_buffer_depth, 0);
-        checkFramebufferStatus();
+        status = checkFramebufferStatus();
+        assert(status);
     }
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+
+    // setup forward fbo
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, lighting_fbo_);
+    {
+        GLuint drawBuffers[] = { GL_COLOR_ATTACHMENT0 };
+        glDrawBuffers(sizeof(drawBuffers)/sizeof(drawBuffers[0]), drawBuffers);
+        glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, backbuffer, 0);
+        status = checkFramebufferStatus();
+        assert(status);
+    }
 
     // setup forward fbo
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, forward_fbo_);
@@ -65,7 +79,8 @@ bool DeferredRenderer::Init(int width, int height)
         glDrawBuffers(sizeof(drawBuffers)/sizeof(drawBuffers[0]), drawBuffers);
         glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, backbuffer, 0);
         glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, g_buffer_depth, 0);
-        checkFramebufferStatus();
+        status = checkFramebufferStatus();
+        assert(status);
     }
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
 
@@ -75,10 +90,12 @@ bool DeferredRenderer::Init(int width, int height)
 
 class DeferredShapeRenderer {
 	mat4 view_proj_;
+	mat4 view_;
     DWORD missing_tex_;
 public:
 	void setup(const mat4& view, const mat4& proj, DWORD missing_tex) {
 		view_proj_ =  proj * view;
+        view_ = view;
         missing_tex_ = missing_tex;
 	}
 
@@ -93,7 +110,9 @@ public:
         gos_SetRenderState(gos_State_Filter, gos_FilterBiLinear);
 
         mat4 wvp = view_proj_ * rp.m_;
+        mat4 wv = view_ * rp.m_;
 		gos_SetRenderMaterialParameterMat4(mat, "wvp_", (const float*)wvp);
+		gos_SetRenderMaterialParameterMat4(mat, "wv_", (const float*)wv);
 
 		gos_ApplyRenderMaterial(mat);
 
@@ -135,9 +154,9 @@ void DeferredRenderer::RenderGeometry(struct RenderFrameContext* rfc)
     }
 }
 
-void DeferredRenderer::RenderLighting(vec3 lightdir)
+void DeferredRenderer::RenderDirectionalLighting(const struct RenderFrameContext* rfc)
 {
-    glBindFramebuffer(GL_FRAMEBUFFER, forward_fbo_);
+    glBindFramebuffer(GL_FRAMEBUFFER, lighting_fbo_);
 
     gos_SetRenderViewport(0, 0, width_, height_);
     glViewport(0, 0, (GLsizei)width_, (GLsizei)height_);
@@ -151,9 +170,14 @@ void DeferredRenderer::RenderLighting(vec3 lightdir)
     gos_SetRenderState(gos_State_ZCompare, false);
     gos_SetRenderState(gos_State_ZWrite, false);
 
+    vec4 lightdir = -rfc->shadow_view_.getRow(2);
+    vec4 lightdir_view_space = rfc->view_ * vec4(lightdir.x, lightdir.y, lightdir.z, 0.0f);
+
     HGOSRENDERMATERIAL mat = gos_getRenderMaterial("lightpass");
-    const float ld[4] = {lightdir.x, lightdir.y, lightdir.z, 0.0f };
-    gos_SetRenderMaterialParameterFloat4(mat, "lightdir_", ld);
+    const float ld_vs[4] = {lightdir_view_space.x, lightdir_view_space.y, lightdir_view_space.z, 0.0f };
+    gos_SetRenderMaterialParameterFloat4(mat, "lightdir_view_space_", ld_vs);
+    gos_SetRenderMaterialParameterMat4(mat, "proj_", rfc->proj_);
+    gos_SetRenderMaterialParameterMat4(mat, "inv_proj_", rfc->inv_proj_);
 
     gos_ApplyRenderMaterial(mat);
 
@@ -161,12 +185,58 @@ void DeferredRenderer::RenderLighting(vec3 lightdir)
     gos_RenderIndexedArray(g_fs_quad->ib_, g_fs_quad->vb_, g_fs_quad->vdecl_);
 }
 
+void DeferredRenderer::RenderPointLighting(struct RenderFrameContext* rfc)
+{
+    ///glBindFramebuffer(GL_FRAMEBUFFER, lighting_fbo_);
+    glBindFramebuffer(GL_FRAMEBUFFER, forward_fbo_);
+
+    gos_SetRenderViewport(0, 0, width_, height_);
+    glViewport(0, 0, (GLsizei)width_, (GLsizei)height_);
+
+    gos_SetRenderState(gos_State_Texture, gos_g_buffer_albedo);
+    gos_SetRenderState(gos_State_Texture2, gos_g_buffer_normal);
+    gos_SetRenderState(gos_State_Texture3, gos_g_buffer_depth);
+    gos_SetRenderState(gos_State_Culling, gos_Cull_CW);
+    gos_SetRenderState(gos_State_ZCompare, 3);
+    //make sure we do not write in depth because we are using it as depth rt
+    gos_SetRenderState(gos_State_ZWrite, false);
+    // additive blending
+    gos_SetRenderState(gos_State_AlphaMode, gos_Alpha_AlphaOne);
+
+    const auto& point_lights = rfc->point_lights_;
+    const mat4 view_proj = rfc->proj_ * rfc->view_;
+
+    HGOSRENDERMATERIAL mat = gos_getRenderMaterial("pointlightpass");
+    for (const PointLight &l : point_lights) {
+
+        const mat4 wvp = view_proj * l.transform_;
+        const mat4 wv = rfc->view_ * l.transform_;
+        // what is better?
+        const vec4 viewpos = wv * vec4(0, 0, 0, 1);
+        //const vec4 viewpos = rfc->view_ * vec4(l.pos.x, l.pos.y, l.pos.z, 1);
+
+        const float viewpos_radius[4] = { viewpos.x, viewpos.y, viewpos.z, l.radius_ };
+
+        gos_SetRenderMaterialParameterFloat4(mat, "color_", l.color_);
+        gos_SetRenderMaterialParameterFloat4(mat, "viewpos_radius_", viewpos_radius);
+        gos_SetRenderMaterialParameterMat4(mat, "wv_", wv);
+        gos_SetRenderMaterialParameterMat4(mat, "wvp_", wvp);
+        gos_SetRenderMaterialParameterMat4(mat, "proj_", rfc->proj_);
+
+        gos_ApplyRenderMaterial(mat);
+
+        extern RenderMesh* g_sphere;
+        gos_RenderIndexedArray(g_sphere->ib_, g_sphere->vb_, g_sphere->vdecl_);
+    }
+}
+
 void DeferredRenderer::RenderForward(std::function<void(void)> f)
 {
-    //glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    //glDrawBuffer(GL_BACK);
-
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, forward_fbo_);
+
+    gos_SetRenderState(gos_State_Texture, 0);
+    gos_SetRenderState(gos_State_Texture2, 0);
+    gos_SetRenderState(gos_State_Texture3, 0);
 
     gos_SetRenderViewport(0, 0, width_, height_);
     glViewport(0, 0, (GLsizei)width_, (GLsizei)height_);
