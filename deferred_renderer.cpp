@@ -6,18 +6,19 @@
 
 bool DeferredRenderer::Init(int width, int height)
 {
-    GLuint fbos[3]; 
-    glGenFramebuffers(3, fbos);
+    GLuint fbos[4]; 
+    glGenFramebuffers(4, fbos);
     deferred_fbo_ = fbos[0];
     lighting_fbo_ = fbos[1];
     forward_fbo_ = fbos[2];
+    stencil_fbo_ = fbos[3];
 
     height_ = height;
     width_ = width;
     uint32_t wh = (height_<<16) | width_;
 
     gos_g_buffer_depth =
-        gos_NewRenderTarget(gos_Texture_Depth, "g_bufer_depth", wh);
+        gos_NewRenderTarget(gos_Texture_Depth_Stencil, "g_bufer_depth", wh);
     g_buffer_depth = gos_TextureGetNativeId(gos_g_buffer_depth);
 
     gos_g_buffer_albedo =
@@ -47,6 +48,7 @@ bool DeferredRenderer::Init(int width, int height)
     gos_AddRenderMaterial("deferred");
     gos_AddRenderMaterial("lightpass");
     gos_AddRenderMaterial("pointlightpass");
+    gos_AddRenderMaterial("null");
 
     bool status = false;
     // setup deferred fbo
@@ -56,7 +58,7 @@ bool DeferredRenderer::Init(int width, int height)
         glDrawBuffers(sizeof(drawBuffers)/sizeof(drawBuffers[0]), drawBuffers);
         glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, g_buffer_albedo, 0);
         glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, g_buffer_normal, 0);
-        glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, g_buffer_depth, 0);
+        glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_TEXTURE_2D, g_buffer_depth, 0);
         status = checkFramebufferStatus();
         assert(status);
     }
@@ -78,7 +80,17 @@ bool DeferredRenderer::Init(int width, int height)
         GLuint drawBuffers[] = { GL_COLOR_ATTACHMENT0 };
         glDrawBuffers(sizeof(drawBuffers)/sizeof(drawBuffers[0]), drawBuffers);
         glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, backbuffer, 0);
-        glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, g_buffer_depth, 0);
+        glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_TEXTURE_2D, g_buffer_depth, 0);
+        status = checkFramebufferStatus();
+        assert(status);
+    }
+
+    // setup stencil fbo
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, stencil_fbo_);
+    {
+        GLuint drawBuffers[] = { GL_NONE };
+        glDrawBuffers(sizeof(drawBuffers)/sizeof(drawBuffers[0]), drawBuffers);
+        glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_TEXTURE_2D, g_buffer_depth, 0);
         status = checkFramebufferStatus();
         assert(status);
     }
@@ -142,6 +154,7 @@ void DeferredRenderer::RenderGeometry(struct RenderFrameContext* rfc)
 
     glClear(GL_DEPTH_BUFFER_BIT|GL_COLOR_BUFFER_BIT);
 
+    gos_SetRenderState(gos_State_StencilEnable, 0);
     gos_SetRenderState(gos_State_ZCompare, 1);
     gos_SetRenderState(gos_State_ZWrite, true);
     gos_SetRenderState(gos_State_AlphaMode, gos_Alpha_OneZero);
@@ -187,15 +200,13 @@ void DeferredRenderer::RenderDirectionalLighting(const struct RenderFrameContext
 
 void DeferredRenderer::RenderPointLighting(struct RenderFrameContext* rfc)
 {
-    ///glBindFramebuffer(GL_FRAMEBUFFER, lighting_fbo_);
+    // forward_fbo_ has depth so shold be a bit faster due to depth culling
+    //glBindFramebuffer(GL_FRAMEBUFFER, lighting_fbo_);
     glBindFramebuffer(GL_FRAMEBUFFER, forward_fbo_);
 
     gos_SetRenderViewport(0, 0, width_, height_);
     glViewport(0, 0, (GLsizei)width_, (GLsizei)height_);
 
-    gos_SetRenderState(gos_State_Texture, gos_g_buffer_albedo);
-    gos_SetRenderState(gos_State_Texture2, gos_g_buffer_normal);
-    gos_SetRenderState(gos_State_Texture3, gos_g_buffer_depth);
     gos_SetRenderState(gos_State_Culling, gos_Cull_CW);
     gos_SetRenderState(gos_State_ZCompare, 3);
     //make sure we do not write in depth because we are using it as depth rt
@@ -203,31 +214,141 @@ void DeferredRenderer::RenderPointLighting(struct RenderFrameContext* rfc)
     // additive blending
     gos_SetRenderState(gos_State_AlphaMode, gos_Alpha_AlphaOne);
 
-    const auto& point_lights = rfc->point_lights_;
-    const mat4 view_proj = rfc->proj_ * rfc->view_;
+    gos_SetRenderState(gos_State_Texture, gos_g_buffer_albedo);
+    gos_SetRenderState(gos_State_Texture2, gos_g_buffer_normal);
+    gos_SetRenderState(gos_State_Texture3, gos_g_buffer_depth);
 
     HGOSRENDERMATERIAL mat = gos_getRenderMaterial("pointlightpass");
+    draw_point_lights(rfc, mat);
+}
+
+void DeferredRenderer::draw_point_lights(const struct RenderFrameContext* rfc, HGOSRENDERMATERIAL mat)
+{
+    const auto &point_lights = rfc->point_lights_;
+    const mat4 view_proj = rfc->proj_ * rfc->view_;
+
+    const bool is_null_mat = mat == gos_getRenderMaterial("null");
+
     for (const PointLight &l : point_lights) {
 
         const mat4 wvp = view_proj * l.transform_;
-        const mat4 wv = rfc->view_ * l.transform_;
-        // what is better?
-        const vec4 viewpos = wv * vec4(0, 0, 0, 1);
-        //const vec4 viewpos = rfc->view_ * vec4(l.pos.x, l.pos.y, l.pos.z, 1);
 
-        const float viewpos_radius[4] = { viewpos.x, viewpos.y, viewpos.z, l.radius_ };
+        if (!is_null_mat) {
+            const mat4 wv = rfc->view_ * l.transform_;
+            // what is better?
+            const vec4 viewpos = wv * vec4(0, 0, 0, 1);
+            // const vec4 viewpos = rfc->view_ * vec4(l.pos.x, l.pos.y, l.pos.z, // 1);
 
-        gos_SetRenderMaterialParameterFloat4(mat, "color_", l.color_);
-        gos_SetRenderMaterialParameterFloat4(mat, "viewpos_radius_", viewpos_radius);
-        gos_SetRenderMaterialParameterMat4(mat, "wv_", wv);
+            const float viewpos_radius[4] = {viewpos.x, viewpos.y, viewpos.z, l.radius_};
+            gos_SetRenderMaterialParameterFloat4(mat, "color_", l.color_);
+            gos_SetRenderMaterialParameterFloat4(mat, "viewpos_radius_", viewpos_radius);
+            gos_SetRenderMaterialParameterMat4(mat, "wv_", wv);
+            gos_SetRenderMaterialParameterMat4(mat, "proj_", rfc->proj_);
+        }
         gos_SetRenderMaterialParameterMat4(mat, "wvp_", wvp);
-        gos_SetRenderMaterialParameterMat4(mat, "proj_", rfc->proj_);
 
         gos_ApplyRenderMaterial(mat);
 
-        extern RenderMesh* g_sphere;
+        extern RenderMesh *g_sphere;
         gos_RenderIndexedArray(g_sphere->ib_, g_sphere->vb_, g_sphere->vdecl_);
     }
+}
+
+// fil stencil buffer where point lights are
+void DeferredRenderer::stencil_pass(const struct RenderFrameContext* rfc) {
+
+    glBindFramebuffer(GL_FRAMEBUFFER, stencil_fbo_);
+
+    gos_SetRenderViewport(0, 0, width_, height_);
+    glViewport(0, 0, (GLsizei)width_, (GLsizei)height_);
+
+    // draw back and front faces
+    gos_SetRenderState(gos_State_Culling, gos_Cull_None);
+    gos_SetRenderState(gos_State_ZCompare, 1);
+    gos_SetRenderState(gos_State_ZWrite, false);
+    // no blending
+    gos_SetRenderState(gos_State_AlphaMode, gos_Alpha_OneZero);
+
+    gos_SetRenderState(gos_State_StencilEnable, 1);
+    // values for stencil test are not interesting
+    gos_SetRenderState(gos_State_StencilRef_Front, 0);
+    gos_SetRenderState(gos_State_StencilRef_Back, 0);
+    gos_SetRenderState(gos_State_StencilMask_Front, 0);
+    gos_SetRenderState(gos_State_StencilMask_Back, 0);
+
+    gos_SetRenderState(gos_State_StencilFunc_Front, gos_Cmp_Always);
+    gos_SetRenderState(gos_State_StencilFunc_Back, gos_Cmp_Always);
+
+    // for front faces
+    gos_SetRenderState(gos_State_StencilZFail_Front, gos_Stencil_Decr); // Z fail
+    gos_SetRenderState(gos_State_StencilPass_Front, gos_Stencil_Keep); // Z pass
+    // for back faces
+    gos_SetRenderState(gos_State_StencilZFail_Back, gos_Stencil_Incr); // Z fail
+    gos_SetRenderState(gos_State_StencilPass_Back, gos_Stencil_Keep); // Z pass
+    // we always pass stencil test so nothing interesting here
+    gos_SetRenderState(gos_State_StencilFail_Front, gos_Stencil_Keep);
+    gos_SetRenderState(gos_State_StencilFail_Back, gos_Stencil_Keep);
+
+    glClear(GL_STENCIL_BUFFER_BIT);
+    HGOSRENDERMATERIAL mat = gos_getRenderMaterial("null");
+    draw_point_lights(rfc, mat);
+}
+
+void DeferredRenderer::RenderPointLighting2(struct RenderFrameContext* rfc)
+{
+    stencil_pass(rfc);
+    {
+        glBindFramebuffer(GL_FRAMEBUFFER, forward_fbo_);
+
+        gos_SetRenderState(gos_State_ZCompare, 0);
+        gos_SetRenderState(gos_State_ZWrite, 0);
+
+        gos_SetRenderState(gos_State_StencilEnable, 1);
+
+        gos_SetRenderState(gos_State_StencilRef_Front, 0);
+        gos_SetRenderState(gos_State_StencilRef_Back, 0);
+
+        gos_SetRenderState(gos_State_StencilMask_Front, 0xff);
+        gos_SetRenderState(gos_State_StencilMask_Back, 0xff);
+
+        gos_SetRenderState(gos_State_StencilFunc_Front, gos_Cmp_NotEqual);
+        gos_SetRenderState(gos_State_StencilFunc_Back, gos_Cmp_NotEqual);
+
+        gos_SetRenderState(gos_State_StencilPass_Front, gos_Stencil_Keep);
+        gos_SetRenderState(gos_State_StencilPass_Back, gos_Stencil_Keep);
+        gos_SetRenderState(gos_State_StencilZFail_Front, gos_Stencil_Keep);
+        gos_SetRenderState(gos_State_StencilZFail_Back, gos_Stencil_Keep);
+        gos_SetRenderState(gos_State_StencilFail_Front, gos_Stencil_Keep);
+        gos_SetRenderState(gos_State_StencilFail_Back, gos_Stencil_Keep);
+
+#if defined(DEBUG_POINT_LIGTH_STENCIL)
+        // draw fullscreen quad only where stencil is marked
+        gos_SetRenderState(gos_State_Culling, gos_Cull_CW);
+        HGOSRENDERMATERIAL mat = gos_getRenderMaterial("coloured_quad");
+        float colour[4] = {1.0f,1.0f,1.0f,1.0f};
+        gos_SetRenderMaterialParameterFloat4(mat, "colour", colour);
+
+        gos_ApplyRenderMaterial(mat);
+    
+        extern RenderMesh* g_fs_quad;
+        gos_RenderIndexedArray(g_fs_quad->ib_, g_fs_quad->vb_, g_fs_quad->vdecl_);
+#else
+        // cw/ccw? does it matter for convex in this case?
+        gos_SetRenderState(gos_State_Culling, gos_Cull_CCW);
+
+        // additive blending
+        gos_SetRenderState(gos_State_AlphaMode, gos_Alpha_AlphaOne);
+
+        gos_SetRenderState(gos_State_Texture, gos_g_buffer_albedo);
+        gos_SetRenderState(gos_State_Texture2, gos_g_buffer_normal);
+        gos_SetRenderState(gos_State_Texture3, gos_g_buffer_depth);
+
+        HGOSRENDERMATERIAL mat = gos_getRenderMaterial("pointlightpass");
+        draw_point_lights(rfc, mat);
+#endif
+    }
+
+    gos_SetRenderState(gos_State_StencilEnable, 0);
 }
 
 void DeferredRenderer::RenderForward(std::function<void(void)> f)

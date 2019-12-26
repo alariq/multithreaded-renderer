@@ -973,7 +973,7 @@ void __stdcall Render(void)
 
     g_deferred_renderer.RenderGeometry(rfc);
     g_deferred_renderer.RenderDirectionalLighting(rfc);
-    g_deferred_renderer.RenderPointLighting(rfc);
+    g_deferred_renderer.RenderPointLighting2(rfc);
     g_deferred_renderer.RenderForward([&rpl, &view_mat, &proj_mat]() {
         RenderParticles(rpl, view_mat, proj_mat);
         RenderDebugObjects(rpl, view_mat, proj_mat);
