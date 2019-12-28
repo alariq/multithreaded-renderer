@@ -9,6 +9,7 @@ uniform sampler2D tex3;
 
 uniform vec4 lightdir_view_space_;
 uniform mat4 proj_;
+uniform vec4 debug_params_;
 
 in PREC vec2 o_pos;
 in PREC vec2 o_uv;
@@ -47,9 +48,14 @@ void main(void)
     vec3 diffuse = albedo * ndotl * intensity;
     vec3 ambient = vec3(0.1, 0.05, 0.05);
 
-    vec3 pixel_viewpos = unproject(depth, o_viewray, proj_);
-
-	FragColor = vec4(diffuse + ambient, 1.0);
-	//FragColor = vec4(pixel_viewpos.zzz/100, 1.0);
+    if(debug_params_.x!=0.0)
+    {
+        vec3 pixel_viewpos = unproject(depth, o_viewray, proj_);
+        FragColor = vec4(pixel_viewpos.zzz/100, 1.0);
+    }
+    else
+    {
+        FragColor = vec4(diffuse + ambient, 1.0);
+    }
 }
 

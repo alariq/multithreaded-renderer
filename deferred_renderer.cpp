@@ -191,6 +191,8 @@ void DeferredRenderer::RenderDirectionalLighting(const struct RenderFrameContext
     gos_SetRenderMaterialParameterFloat4(mat, "lightdir_view_space_", ld_vs);
     gos_SetRenderMaterialParameterMat4(mat, "proj_", rfc->proj_);
     gos_SetRenderMaterialParameterMat4(mat, "inv_proj_", rfc->inv_proj_);
+    const float debug_params[] = { 0,0,0,0 };
+    gos_SetRenderMaterialParameterFloat4(mat, "debug_params_", debug_params);
 
     gos_ApplyRenderMaterial(mat);
 

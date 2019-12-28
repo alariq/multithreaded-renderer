@@ -5,8 +5,6 @@ layout(location = 1) in float lifetime;
 layout(location = 2) in vec3 pos;
 
 uniform mat4 wvp_;
-uniform mat4 wv_;
-uniform mat4 proj_;
 
 out vec2 o_uv;
 out float o_lifetime;

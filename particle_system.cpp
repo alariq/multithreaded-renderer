@@ -532,15 +532,12 @@ public:
 
         mat4 vp = proj_ * view_;
         mat4 wvp = vp * rp.m_;
-        mat4 wv = view_ * rp.m_;
         float has_texture[] = { ro.tex_id_ ? 1.0f : 0.0f, 
                                 0.0f,
                                 0.0f, 
                                 0.0f };
 
 		gos_SetRenderMaterialParameterMat4(mat, "wvp_", (const float*)wvp);
-		gos_SetRenderMaterialParameterMat4(mat, "wv_", (const float*)wv);
-		gos_SetRenderMaterialParameterMat4(mat, "proj_", (const float*)proj_);
 		gos_SetRenderMaterialParameterFloat4(mat, "has_texture", has_texture);
 
 		gos_ApplyRenderMaterial(mat);
@@ -566,6 +563,7 @@ void RenderParticles(const RenderPacketList_t& rpl, const mat4& view, const mat4
     gos_SetRenderState(gos_State_ZCompare, 1);
     gos_SetRenderState(gos_State_ZWrite, false);
     gos_SetRenderState(gos_State_AlphaMode, gos_Alpha_AlphaInvAlpha);
+    gos_SetRenderState(gos_State_Culling, gos_Cull_None);
     for(;it!=end;++it)
     {
         const RenderPacket& rp = (*it);

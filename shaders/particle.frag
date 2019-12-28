@@ -12,5 +12,6 @@ void main(void)
 {
 	PREC vec3 c = has_texture.x!=0.0 ? texture2D(tex, o_uv).rgb : vec3(1.0);
 	//FragColor = vec4( 0.0000000001*c*(1.0 - o_lifetime) + uv.x, uv.y, 0.0, 1.0);
-	FragColor = vec4(o_uv.x, o_uv.y, 0.0, (1.0 - o_lifetime) );
+    c = 0.00000001*c;
+	FragColor = vec4(o_uv.x + c.r, o_uv.y + c.g, c.b, (1.0 - o_lifetime) );
 }
