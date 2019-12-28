@@ -196,6 +196,7 @@ typedef struct gos_StringRes*   HSTRRES; //sebi
 typedef class gosBuffer*		HGOSBUFFER; //sebi
 typedef class gosVertexDeclaration*	HGOSVERTEXDECLARATION; //sebi
 typedef class gosRenderMaterial*	HGOSRENDERMATERIAL; //sebi
+typedef class gosTextureSampler*	HGOSTEXTURESAMPLER; //sebi
 
 
 
@@ -1950,6 +1951,15 @@ enum gos_AlphaMode
 };
 
 //
+// Compare modes (Used for gos_State_Compare)
+//
+enum gos_TextureCompareMode
+{
+	gos_TextureCompareNone=1,			// 
+	gos_TextureCompareRefToTexture,    // for depth textures
+};
+
+//
 // Filter modes (Used for gos_State_Filter)
 //
 enum gos_FilterMode
@@ -1966,6 +1976,7 @@ enum gos_TextureAddressMode
 {
 	gos_TextureWrap=1,			// Wrap textures u,v's
 	gos_TextureClamp,			// Clamp u,v values to 0.0 and 1.0
+	gos_TextureClampToBorder,   //sebi
 };
 
 //
@@ -2011,6 +2022,8 @@ enum gos_CompareMode
 	gos_Cmp_GreaterEqual=7,		// Accept when value is greater than or equal to the reference
 	gos_Cmp_Always=8,			// Always pass the test
 };
+
+typedef gos_CompareMode gos_CompareFunc;
 
 //
 // Functions for stencil operations
@@ -2660,6 +2673,22 @@ uint32_t gos_GetBufferSizeBytes(HGOSBUFFER buffer);
 HGOSVERTEXDECLARATION __stdcall gos_CreateVertexDeclaration(gosVERTEX_FORMAT_RECORD* records, int count);
 void __stdcall gos_DestroyVertexDeclaration(HGOSVERTEXDECLARATION buffer);
 
+HGOSTEXTURESAMPLER __stdcall gos_CreateTextureSampler(gos_TextureAddressMode address_s,
+                                        gos_TextureAddressMode address_t,
+                                        gos_TextureAddressMode address_r,
+                                        gos_FilterMode min_filter,
+                                        gos_FilterMode mag_filter,
+                                        gos_FilterMode mip_filter,
+                                        bool use_mips,
+                                        gos_TextureCompareMode cmp_mode = gos_TextureCompareNone,
+                                        gos_CompareFunc cmp_func = gos_Cmp_Always,
+                                        vec4 border_color = vec4(0,0,0,0),
+                                        float min_lod = -1000,
+                                        float max_lod = 1000);
+
+void __stdcall gos_DestroyTextureSampler(gosTextureSampler* ts);
+
+void __stdcall gos_SetSamplerState(uint32_t index, HGOSTEXTURESAMPLER sampler);
 
 //
 // Uniform buffers attachment slots (indices)

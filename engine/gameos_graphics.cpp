@@ -28,6 +28,7 @@ class gosRenderer;
 class gosFont;
 
 static const DWORD INVALID_TEXTURE_ID = 0;
+static const uint32_t MAX_TEXTURE_UNITS = 16;
 
 static gosRenderer* g_gos_renderer = NULL;
 
@@ -39,6 +40,63 @@ struct gosTextureInfo {
     int width_;
     int height_;
     gos_TextureFormat format_;
+};
+
+GLint getGLTextureAddressMode(gos_TextureAddressMode address_mode) {
+    GLint gl_address_mode = GL_REPEAT;
+    switch(address_mode) {
+        case gos_TextureWrap:	gl_address_mode = GL_REPEAT; break;
+        case gos_TextureClamp:	gl_address_mode = GL_CLAMP_TO_EDGE; break;
+        case gos_TextureClampToBorder:gl_address_mode = GL_CLAMP_TO_BORDER; break;
+        default: gosASSERT(0 && "unknown texture address mode");
+    }
+    return gl_address_mode;
+}
+
+GLint getGLTextureFilterMode(gos_FilterMode filter_mode) {
+    GLint gl_filter_mode = GL_NEAREST;
+    switch(filter_mode) {
+        case gos_FilterNone:	    gl_filter_mode = GL_NEAREST; break;
+        case gos_FilterBiLinear:    gl_filter_mode = GL_LINEAR; break;
+        default: gosASSERT(0 && "unknown texture filter mode");
+    }
+    return gl_filter_mode;
+}
+
+GLint getGLTextureFilterMode(gos_FilterMode filter_mode,
+                             gos_FilterMode mip_filter_mode) {
+    GLint gl_filter_mode = GL_NEAREST;
+    switch (filter_mode) {
+    case gos_FilterNone:
+        gl_filter_mode =
+            (mip_filter_mode == gos_FilterNone ? GL_NEAREST_MIPMAP_NEAREST
+                                               : GL_NEAREST_MIPMAP_LINEAR);
+        break;
+    case gos_FilterBiLinear:
+        gl_filter_mode =
+            (mip_filter_mode == gos_FilterNone ? GL_LINEAR_MIPMAP_NEAREST
+                                               : GL_LINEAR_MIPMAP_LINEAR);
+        break;
+    default:
+        gosASSERT(0 && "unknown texture filter mode");
+    }
+    return gl_filter_mode;
+}
+
+struct gosTextureSampler {
+    gos_TextureAddressMode address_s;
+    gos_TextureAddressMode address_t;
+    gos_TextureAddressMode address_r;
+    gos_FilterMode min_filter;
+    gos_FilterMode mag_filter;
+    gos_FilterMode mip_filter;
+    bool use_mips;
+    gos_TextureCompareMode cmp_mode;
+    gos_CompareMode cmp_func;
+    float min_lod;
+    float max_lod;
+
+    GLuint gl_sampler;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1070,6 +1128,12 @@ class gosRenderer {
             return (uint32_t)(textureList_.size()-1);
         }
 
+		uint32_t addTextureSampler(gosTextureSampler* ts) {
+			gosASSERT(ts);
+			samplerList_.push_back(ts);
+			return (uint32_t)(samplerList_.size() - 1);
+		}
+
         uint32_t addFont(gosFont* font) {
             gosASSERT(font);
             fontList_.push_back(font);
@@ -1163,6 +1227,16 @@ class gosRenderer {
             return textureList_[texture_id];
         }
 
+        bool deleteTextureSampler(gosTextureSampler* ts) {
+			std::vector<gosTextureSampler*>::iterator it = std::find(samplerList_.begin(), samplerList_.end(), ts);
+			if (it != samplerList_.end())
+			{
+				samplerList_.erase(it);
+				return true;
+			}
+			return false;
+        }
+
         void deleteTexture(DWORD texture_id) {
             // FIXME: bad use object list, with stable ids
             // to not waste space
@@ -1228,6 +1302,11 @@ class gosRenderer {
 
         int getRenderState(gos_RenderState RenderState) const {
             return renderStates_[RenderState];
+        }
+
+        void setSamplerState(uint32_t unit, HGOSTEXTURESAMPLER sampler) {
+            gosASSERT(unit < MAX_TEXTURE_UNITS);
+            samplerStates_[unit] = sampler;
         }
 
         void setScreenMode(DWORD width, DWORD height, DWORD bit_depth, bool GotoFullScreen, bool anti_alias) {
@@ -1299,6 +1378,7 @@ class gosRenderer {
         void initRenderStates();
 
         std::vector<gosTexture*> textureList_;
+        std::vector<gosTextureSampler*> samplerList_;
         std::vector<gosFont*> fontList_;
         std::vector<gosBuffer*> bufferList_;
         std::vector<gosVertexDeclaration*> vertexDeclarationList_;
@@ -1317,6 +1397,7 @@ class gosRenderer {
         // states data
         RenderState curStates_;
         RenderState renderStates_;
+        HGOSTEXTURESAMPLER samplerStates_[MAX_TEXTURE_UNITS];
 
         static const int RENDER_STATES_STACK_SIZE = 16;
         int renderStatesStackPointer;
@@ -1532,6 +1613,8 @@ void gosRenderer::initRenderStates() {
 	renderStates_[gos_State_Lighting] = 0;
 	renderStates_[gos_State_NormalizeNormals] = 0;
 	renderStates_[gos_State_VertexBlend] = 0;
+
+    memset(samplerStates_, 0, MAX_TEXTURE_UNITS*sizeof(samplerStates_[0]));
 
     applyRenderStates();
     renderStatesStackPointer = -1;
@@ -1762,7 +1845,13 @@ void gosRenderer::applyRenderStates() {
        gosTexture* tex = gosTextureHandle == INVALID_TEXTURE_ID ? 0 : this->getTexture(gosTextureHandle);
        if(tex) {
            glBindTexture(GL_TEXTURE_2D, tex->getTextureId());
-           setSamplerParams(tex->getTextureType(), address_mode, filter);
+           if(samplerStates_[i]) {
+                glBindSampler(i, samplerStates_[i]->gl_sampler);
+           } else {
+               //TODO: get rid of this old scheme
+               glBindSampler(i, 0);
+               setSamplerParams(tex->getTextureType(), address_mode, filter);
+           }
 
            gosTextureInfo texinfo;
            tex->getTextureInfo(&texinfo);
@@ -3155,6 +3244,80 @@ void __stdcall gos_SetCommonMaterialParameters(HGOSRENDERMATERIAL material)
 	// TODO: make typed parameters !!!!!!!!!!!!!!! not just float* pointers, helps track errors
 	gos_SetRenderMaterialParameterMat4(material, "projection_", projection);
 	gos_SetRenderMaterialParameterFloat4(material, "vp", vp);
+}
+
+HGOSTEXTURESAMPLER __stdcall gos_CreateTextureSampler(gos_TextureAddressMode address_s,
+                                        gos_TextureAddressMode address_t,
+                                        gos_TextureAddressMode address_r,
+                                        gos_FilterMode min_filter,
+                                        gos_FilterMode mag_filter,
+                                        gos_FilterMode mip_filter,
+                                        bool use_mips,
+                                        gos_TextureCompareMode cmp_mode,
+                                        gos_CompareFunc cmp_func,
+                                        vec4 border_color,
+                                        float min_lod/* = -1000*/,
+                                        float max_lod/* = 1000*/)
+{
+    gosASSERT(g_gos_renderer);
+    gosTextureSampler* ts = new gosTextureSampler;
+
+    ts->address_s = address_s;
+    ts->address_t = address_t;
+    ts->address_r = address_r;
+    ts->min_filter = min_filter;
+    ts->mag_filter = mag_filter;
+    ts->mip_filter = mip_filter;
+    ts->use_mips = use_mips;
+    ts->cmp_mode = cmp_mode;
+    ts->cmp_func = cmp_func;
+
+    ts->min_lod = min_lod;
+    ts->max_lod = max_lod;
+
+    glGenSamplers(1, &ts->gl_sampler);
+    glSamplerParameteri(ts->gl_sampler, GL_TEXTURE_WRAP_S, getGLTextureAddressMode(address_s));
+    glSamplerParameteri(ts->gl_sampler, GL_TEXTURE_WRAP_T, getGLTextureAddressMode(address_t));
+    glSamplerParameteri(ts->gl_sampler, GL_TEXTURE_WRAP_R, getGLTextureAddressMode(address_r));
+
+    glSamplerParameteri(ts->gl_sampler, GL_TEXTURE_MIN_FILTER,
+                        use_mips
+                            ? getGLTextureFilterMode(min_filter, mip_filter)
+                            : getGLTextureFilterMode(min_filter));
+
+    glSamplerParameteri(ts->gl_sampler, GL_TEXTURE_MAG_FILTER,
+                        getGLTextureFilterMode(mag_filter));
+
+    glSamplerParameteri(ts->gl_sampler, GL_TEXTURE_COMPARE_MODE,
+                        cmp_mode == gos_TextureCompareNone
+                            ? GL_NONE
+                            : GL_COMPARE_REF_TO_TEXTURE);
+
+    glSamplerParameteri(ts->gl_sampler, GL_TEXTURE_COMPARE_FUNC,
+                        translateCompareMode(cmp_func));
+
+    glSamplerParameterf(ts->gl_sampler, GL_TEXTURE_MIN_LOD, min_lod);
+    glSamplerParameterf(ts->gl_sampler, GL_TEXTURE_MAX_LOD, max_lod);
+
+	g_gos_renderer->addTextureSampler(ts);
+    return ts;
+}
+
+void __stdcall gos_DestroyTextureSampler(gosTextureSampler* ts)
+{
+	gosASSERT(ts);
+    gosASSERT(g_gos_renderer);
+    glDeleteSamplers(1, &ts->gl_sampler);
+	bool rv = g_gos_renderer->deleteTextureSampler(ts);
+    (void)rv;
+    gosASSERT(rv);
+	delete ts;
+}
+
+void __stdcall gos_SetSamplerState(uint32_t tex_unit_index, HGOSTEXTURESAMPLER sampler)
+{
+    gosASSERT(g_gos_renderer);
+    g_gos_renderer->setSamplerState(tex_unit_index, sampler);
 }
 
 
