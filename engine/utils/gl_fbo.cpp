@@ -154,6 +154,18 @@ bool checkFramebufferStatus()
     }
 }
 
+void downlsampleFboDepth(GLuint src_fbo, GLuint dst_fbo, uint32_t src_width,
+                         uint32_t src_height, uint32_t dst_width,
+                         uint32_t dst_height) {
+
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, src_fbo);//CHECK_GL_ERROR();
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, dst_fbo);//CHECK_GL_ERROR();
+
+    glBlitFramebuffer(0, 0, src_width, src_height,
+                        0, 0, dst_width, dst_height,
+                        GL_DEPTH_BUFFER_BIT, GL_NEAREST);//CHECK_GL_ERROR();
+}
+
 void  draw_quad(float aspect)
 {
 	float r = aspect;

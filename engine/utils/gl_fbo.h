@@ -20,6 +20,9 @@ void setFrameBuffer(GLuint fb);
 
 // check FBO completeness
 bool checkFramebufferStatus();
+void downlsampleFboDepth(GLuint src_fbo, GLuint dst_fbo, uint32_t src_width,
+                         uint32_t src_height, uint32_t dst_width,
+                         uint32_t dst_height);
 
 void draw_quad(GLuint texture, float aspect);
 void draw_quad(float aspect);
