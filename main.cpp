@@ -973,11 +973,20 @@ void __stdcall Render(void)
 
     g_deferred_renderer.RenderGeometry(rfc);
     g_deferred_renderer.RenderDirectionalLighting(rfc);
-    g_deferred_renderer.RenderPointLighting2(rfc);
-    g_deferred_renderer.RenderForward([&rpl, &view_mat, &proj_mat]() {
-        RenderParticles(rpl, view_mat, proj_mat);
-        RenderDebugObjects(rpl, view_mat, proj_mat);
-    });
+    g_deferred_renderer.RenderPointLighting(rfc);
+    bool downsampled_particles = true;
+    g_deferred_renderer.RenderForward(
+        [&rpl, &view_mat, &proj_mat, downsampled_particles]() {
+            if (!downsampled_particles)
+                RenderParticles(rpl, view_mat, proj_mat);
+            //RenderDebugObjects(rpl, view_mat, proj_mat);
+        });
+    if (downsampled_particles) {
+        g_deferred_renderer.RenderDownsampledForward(
+            [&rpl, &view_mat, &proj_mat]() {
+                RenderParticles(rpl, view_mat, proj_mat);
+            });
+    }
     g_deferred_renderer.Present(Environment.drawableWidth,
                                 Environment.drawableHeight);
 

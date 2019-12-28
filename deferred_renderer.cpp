@@ -4,21 +4,28 @@
 #include "utils/gl_fbo.h"
 #include <functional>
 
-bool DeferredRenderer::Init(int width, int height)
+bool DeferredRenderer::Init(uint32_t width, uint32_t height)
 {
-    GLuint fbos[4]; 
-    glGenFramebuffers(4, fbos);
+    GLuint fbos[5]; 
+    glGenFramebuffers(5, fbos);
     deferred_fbo_ = fbos[0];
     lighting_fbo_ = fbos[1];
     forward_fbo_ = fbos[2];
     stencil_fbo_ = fbos[3];
+    downsampled_fbo_ = fbos[4];
 
-    height_ = height;
+    // as we downsample make sure we are at least multiple of 2
+    assert(0 == (height&0x1) && 0 == (width&0x1));
+
     width_ = width;
+    height_ = height;
     uint32_t wh = (height_<<16) | width_;
 
+    bool use_stencil = false;
+    gos_TextureFormat depth_format = use_stencil ? gos_Texture_Depth_Stencil : gos_Texture_Depth;
+
     gos_g_buffer_depth =
-        gos_NewRenderTarget(gos_Texture_Depth_Stencil, "g_bufer_depth", wh);
+        gos_NewRenderTarget(depth_format, "g_bufer_depth", wh);
     g_buffer_depth = gos_TextureGetNativeId(gos_g_buffer_depth);
 
     gos_g_buffer_albedo =
@@ -33,7 +40,20 @@ bool DeferredRenderer::Init(int width, int height)
         gos_NewRenderTarget(gos_Texture_RGBA8, "backbuffer", wh);
     backbuffer = gos_TextureGetNativeId(gos_backbuffer);
 
-    GLuint t[] = { g_buffer_depth, g_buffer_albedo, g_buffer_normal, backbuffer};
+    // downsampled buffers (used for particle rendering)
+    // TODO: move them to particle related code
+    ds_width_ = width / 2;
+    ds_height_ = height / 2;
+    uint32_t ds_wh = (ds_height_<<16) | ds_width_;
+    gos_downsampled_color =
+        gos_NewRenderTarget(gos_Texture_RGBA8, "downsampled_color", ds_wh);
+    downsampled_color = gos_TextureGetNativeId(gos_downsampled_color);
+    gos_downsampled_depth =
+        gos_NewRenderTarget(depth_format, "downsampled_depth", ds_wh);
+    downsampled_depth = gos_TextureGetNativeId(gos_downsampled_depth);
+
+    GLuint t[] = {g_buffer_depth, g_buffer_albedo,   g_buffer_normal,
+                  backbuffer,     downsampled_color, downsampled_depth};
     for(GLuint tex: t) {
         glBindTexture(GL_TEXTURE_2D, tex);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
@@ -43,29 +63,46 @@ bool DeferredRenderer::Init(int width, int height)
         glBindTexture(GL_TEXTURE_2D, 0);
     }
 
-    checker_tex_ = gos_NewTextureFromFile(gos_Texture_Detect, "data/textures/texture_density.tga");
+    smp_nearest_clamp_nomips_ = gos_CreateTextureSampler(
+        gos_TextureClamp, gos_TextureClamp, gos_TextureClamp, gos_FilterNone,
+        gos_FilterNone, gos_FilterNone, false);
+
+    smp_linear_wrap_nomips_ = gos_CreateTextureSampler(
+        gos_TextureWrap, gos_TextureWrap, gos_TextureWrap, gos_FilterBiLinear,
+        gos_FilterBiLinear, gos_FilterNone, false);
+
+    smp_linear_clamp_nomips_ = gos_CreateTextureSampler(
+        gos_TextureClamp, gos_TextureClamp, gos_TextureClamp, gos_FilterBiLinear,
+        gos_FilterBiLinear, gos_FilterNone, false);
+
+    checker_tex_ = gos_NewTextureFromFile(gos_Texture_Detect,
+                                          "data/textures/texture_density.tga");
 
     gos_AddRenderMaterial("deferred");
     gos_AddRenderMaterial("lightpass");
     gos_AddRenderMaterial("pointlightpass");
     gos_AddRenderMaterial("null");
+    gos_AddRenderMaterial("upsample_bilateral");
+    gos_AddRenderMaterial("copy_depth");
 
     bool status = false;
     // setup deferred fbo
-    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, deferred_fbo_);
+    glBindFramebuffer(GL_FRAMEBUFFER, deferred_fbo_);
     {
-        GLenum drawBuffers[] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1};
+        GLenum drawBuffers[] = {GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1};
         glDrawBuffers(sizeof(drawBuffers)/sizeof(drawBuffers[0]), drawBuffers);
         glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, g_buffer_albedo, 0);
         glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, g_buffer_normal, 0);
-        glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_TEXTURE_2D, g_buffer_depth, 0);
+        glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, g_buffer_depth, 0);
+        if(use_stencil)
+            glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_TEXTURE_2D, g_buffer_depth, 0);
         status = checkFramebufferStatus();
         assert(status);
     }
-    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
     // setup forward fbo
-    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, lighting_fbo_);
+    glBindFramebuffer(GL_FRAMEBUFFER, lighting_fbo_);
     {
         GLuint drawBuffers[] = { GL_COLOR_ATTACHMENT0 };
         glDrawBuffers(sizeof(drawBuffers)/sizeof(drawBuffers[0]), drawBuffers);
@@ -75,27 +112,44 @@ bool DeferredRenderer::Init(int width, int height)
     }
 
     // setup forward fbo
-    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, forward_fbo_);
+    glBindFramebuffer(GL_FRAMEBUFFER, forward_fbo_);
     {
         GLuint drawBuffers[] = { GL_COLOR_ATTACHMENT0 };
         glDrawBuffers(sizeof(drawBuffers)/sizeof(drawBuffers[0]), drawBuffers);
         glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, backbuffer, 0);
-        glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_TEXTURE_2D, g_buffer_depth, 0);
+        glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, g_buffer_depth, 0);
+        if(use_stencil)
+            glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_TEXTURE_2D, g_buffer_depth, 0);
         status = checkFramebufferStatus();
         assert(status);
     }
 
     // setup stencil fbo
-    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, stencil_fbo_);
+    glBindFramebuffer(GL_FRAMEBUFFER, stencil_fbo_);
     {
         GLuint drawBuffers[] = { GL_NONE };
         glDrawBuffers(sizeof(drawBuffers)/sizeof(drawBuffers[0]), drawBuffers);
-        glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_TEXTURE_2D, g_buffer_depth, 0);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, g_buffer_depth, 0);
+        if(use_stencil)
+            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_TEXTURE_2D, g_buffer_depth, 0);
         status = checkFramebufferStatus();
         assert(status);
     }
-    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
+    glBindFramebuffer(GL_FRAMEBUFFER, downsampled_fbo_);
+    {
+        GLuint drawBuffers[] = { GL_COLOR_ATTACHMENT0 };
+        glDrawBuffers(sizeof(drawBuffers)/sizeof(drawBuffers[0]), drawBuffers);
+        glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 , GL_TEXTURE_2D, downsampled_color, 0);
+        glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, downsampled_depth, 0);
+        if(use_stencil)
+            glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_TEXTURE_2D, downsampled_depth, 0);
+        status = checkFramebufferStatus();
+        assert(status);
+    }
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    CHECK_GL_ERROR;
 
     return true;
 }
@@ -104,11 +158,13 @@ class DeferredShapeRenderer {
 	mat4 view_proj_;
 	mat4 view_;
     DWORD missing_tex_;
+    HGOSTEXTURESAMPLER sampler_;
 public:
-	void setup(const mat4& view, const mat4& proj, DWORD missing_tex) {
+	void setup(const mat4& view, const mat4& proj, DWORD missing_tex, HGOSTEXTURESAMPLER sampler) {
 		view_proj_ =  proj * view;
         view_ = view;
         missing_tex_ = missing_tex;
+        sampler_ = sampler;
 	}
 
     void render(const RenderPacket &rp) {
@@ -119,7 +175,7 @@ public:
         DWORD texid = ro.tex_id_ ? ro.tex_id_ : missing_tex_; 
 
         gos_SetRenderState(gos_State_Texture, texid);
-        gos_SetRenderState(gos_State_Filter, gos_FilterBiLinear);
+        gos_SetSamplerState(0, sampler_);
 
         mat4 wvp = view_proj_ * rp.m_;
         mat4 wv = view_ * rp.m_;
@@ -135,6 +191,8 @@ public:
         } else {
     		gos_RenderArray(ro.vb_, ro.vdecl_);
         }
+
+        gos_SetSamplerState(0, 0);
     }
 };
 
@@ -145,7 +203,7 @@ void DeferredRenderer::RenderGeometry(struct RenderFrameContext* rfc)
     RenderPacketList_t::const_iterator end = rpl.end();
 
     DeferredShapeRenderer r;
-    r.setup(rfc->view_, rfc->proj_, checker_tex_);
+    r.setup(rfc->view_, rfc->proj_, checker_tex_, smp_linear_wrap_nomips_);
 
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, deferred_fbo_);
 
@@ -177,8 +235,12 @@ void DeferredRenderer::RenderDirectionalLighting(const struct RenderFrameContext
     glClear(GL_COLOR_BUFFER_BIT);
     
     gos_SetRenderState(gos_State_Texture, gos_g_buffer_albedo);
+    gos_SetSamplerState(0, smp_nearest_clamp_nomips_);
     gos_SetRenderState(gos_State_Texture2, gos_g_buffer_normal);
+    gos_SetSamplerState(1, smp_nearest_clamp_nomips_);
     gos_SetRenderState(gos_State_Texture3, gos_g_buffer_depth);
+    gos_SetSamplerState(2, smp_nearest_clamp_nomips_);
+
     gos_SetRenderState(gos_State_Culling, gos_Cull_CW);
     gos_SetRenderState(gos_State_ZCompare, false);
     gos_SetRenderState(gos_State_ZWrite, false);
@@ -217,8 +279,11 @@ void DeferredRenderer::RenderPointLighting(struct RenderFrameContext* rfc)
     gos_SetRenderState(gos_State_AlphaMode, gos_Alpha_AlphaOne);
 
     gos_SetRenderState(gos_State_Texture, gos_g_buffer_albedo);
+    gos_SetSamplerState(0, smp_nearest_clamp_nomips_);
     gos_SetRenderState(gos_State_Texture2, gos_g_buffer_normal);
+    gos_SetSamplerState(1, smp_nearest_clamp_nomips_);
     gos_SetRenderState(gos_State_Texture3, gos_g_buffer_depth);
+    gos_SetSamplerState(2, smp_nearest_clamp_nomips_);
 
     HGOSRENDERMATERIAL mat = gos_getRenderMaterial("pointlightpass");
     draw_point_lights(rfc, mat);
@@ -361,6 +426,10 @@ void DeferredRenderer::RenderForward(std::function<void(void)> f)
     gos_SetRenderState(gos_State_Texture2, 0);
     gos_SetRenderState(gos_State_Texture3, 0);
 
+    gos_SetSamplerState(0, 0);
+    gos_SetSamplerState(1, 0);
+    gos_SetSamplerState(2, 0);
+
     gos_SetRenderViewport(0, 0, width_, height_);
     glViewport(0, 0, (GLsizei)width_, (GLsizei)height_);
 
@@ -370,6 +439,93 @@ void DeferredRenderer::RenderForward(std::function<void(void)> f)
     gos_SetRenderState(gos_State_Culling, gos_Cull_CCW);
 
     f();
+}
+
+void DeferredRenderer::RenderDownsampledForward(std::function<void(void)> f)
+{
+
+    // NEEDED?????
+    // clear downsampled fbo before rendering into it
+//    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, downsampled_fbo_);
+//    gos_SetRenderViewport(0, 0, width_, height_);
+//    glViewport(0, 0, (GLsizei)width_, (GLsizei)height_);
+//    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+    //
+
+    // downsample depth
+    downlsampleFboDepth(stencil_fbo_, downsampled_fbo_, width_, height_,
+                        ds_width_, ds_height_);
+    if(0)
+    {
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, downsampled_fbo_);
+        glDrawBuffer(GL_NONE);
+
+        gos_SetRenderState(gos_State_StencilEnable, 0);
+        gos_SetRenderState(gos_State_ZCompare, 0);
+        gos_SetRenderState(gos_State_ZWrite, 1);
+        gos_SetRenderState(gos_State_AlphaMode, gos_Alpha_OneZero);
+        gos_SetRenderState(gos_State_Culling, gos_Cull_CW);
+
+        gos_SetRenderState(gos_State_Texture, gos_g_buffer_depth);
+        gos_SetSamplerState(0, smp_nearest_clamp_nomips_);
+        HGOSRENDERMATERIAL mat = gos_getRenderMaterial("copy_depth");
+        gos_ApplyRenderMaterial(mat);
+
+        extern RenderMesh *g_fs_quad;
+        gos_RenderIndexedArray(g_fs_quad->ib_, g_fs_quad->vb_,
+                               g_fs_quad->vdecl_);
+        glDrawBuffer(GL_COLOR_ATTACHMENT0);
+    }
+
+    CHECK_GL_ERROR;
+
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, downsampled_fbo_);
+
+    gos_SetRenderState(gos_State_Texture, 0);
+    gos_SetRenderState(gos_State_Texture2, 0);
+    gos_SetRenderState(gos_State_Texture3, 0);
+
+    gos_SetSamplerState(0, 0);
+    gos_SetSamplerState(0, 0);
+    gos_SetSamplerState(0, 0);
+
+    gos_SetRenderViewport(0, 0, ds_width_, ds_height_);
+    glViewport(0, 0, (GLsizei)ds_width_, (GLsizei)ds_height_);
+    //glClearColor(0,0,0,0);
+    glClear(GL_COLOR_BUFFER_BIT); // leave depth!
+    //glClearColor(0,0,0,0);
+
+    gos_SetRenderState(gos_State_StencilEnable, 0);
+    gos_SetRenderState(gos_State_ZCompare, 1);
+    gos_SetRenderState(gos_State_ZWrite, false);
+    gos_SetRenderState(gos_State_AlphaMode, gos_Alpha_OneZero);
+    gos_SetRenderState(gos_State_Culling, gos_Cull_CCW);
+
+    f();
+
+    // upsample & blend result with main color buffer by drawing quad
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, forward_fbo_);
+
+    gos_SetRenderViewport(0, 0, width_, height_);
+    glViewport(0, 0, (GLsizei)width_, (GLsizei)height_);
+    
+    gos_SetRenderState(gos_State_StencilEnable, 0);
+    gos_SetRenderState(gos_State_ZCompare, 0);
+    gos_SetRenderState(gos_State_ZWrite, false);
+    //TODO: use separate blending to not overwrite destination alpha if it is used
+    // dst.rgb = src.rgb + (1.0 - src.a) * dst.rgb
+    // dst.a = 1.0 * src.rgb + 0.0 * dst.rgb
+    //glBlendFuncSeparate(GL_ONE, GL_ONE_MINUS_SRC_ALPHA, GL_ZERO, GL_ONE);
+    gos_SetRenderState(gos_State_AlphaMode, gos_Alpha_OneInvAlpha);
+    gos_SetRenderState(gos_State_Culling, gos_Cull_CW);
+
+    gos_SetRenderState(gos_State_Texture, gos_downsampled_color);
+    gos_SetSamplerState(0, smp_linear_wrap_nomips_);
+    HGOSRENDERMATERIAL mat = gos_getRenderMaterial("upsample_bilateral");
+    gos_ApplyRenderMaterial(mat);
+
+    extern RenderMesh* g_fs_quad;
+    gos_RenderIndexedArray(g_fs_quad->ib_, g_fs_quad->vb_, g_fs_quad->vdecl_);
 }
 
 void DeferredRenderer::Present(int w, int h)
@@ -383,6 +539,7 @@ void DeferredRenderer::Present(int w, int h)
 
     
     gos_SetRenderState(gos_State_Texture, gos_backbuffer);
+    gos_SetSamplerState(0, smp_nearest_clamp_nomips_);
     gos_SetRenderState(gos_State_Culling, gos_Cull_CW);
     gos_SetRenderState(gos_State_ZCompare, false);
     gos_SetRenderState(gos_State_ZWrite, 1);
