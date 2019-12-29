@@ -35,6 +35,7 @@ extern void test_fixed_block_allocator();
 const uint32_t NUM_OBJECTS = 3;
 
 bool g_render_initialized_hack = false;
+bool g_update_simulation = true;
 
 DWORD g_htexture = 0;
 ShadowRenderPass* g_shadow_pass = nullptr;
@@ -197,7 +198,7 @@ public:
 
 class GameObject: public Renderable {
 public:
-    virtual void Update(float dt, float current_time) = 0;
+    virtual void Update(float dt) = 0;
     virtual RenderMesh* GetMesh() const = 0;
     virtual mat4 GetTransform() const = 0;
     virtual ~GameObject() {}
@@ -224,7 +225,7 @@ public:
         ParticleSystemManager::Instance().Add(ps_);
     }
 
-    virtual void Update(float dt, float current_time) { }
+    virtual void Update(float /*dt*/) { }
 
     virtual RenderMesh* GetMesh() const { return nullptr; }
     virtual mat4 GetTransform() const { return tr_; }
@@ -256,7 +257,7 @@ class FrustumObject: public GameObject {
             DeinitRenderResources(); // dangerous
         }
         
-        void Update(float dt, float current_time) {
+        void Update(float dt) {
             //UpdateFrustum(view_, fov_, aspect_, nearv_, farv_);
         }
 
@@ -336,8 +337,7 @@ class FrustumObject: public GameObject {
 
 class MeshObject: public GameObject {
 public:
-  typedef std::function<void(float dt, float current_time, MeshObject *)>
-      Updater_t;
+  typedef std::function<void(float dt, MeshObject *)> Updater_t;
 
 private:
     std::string name_;
@@ -382,9 +382,9 @@ public:
    void SetScale(const vec3& scale) { scale_ = scale; }
    void SetUpdater(Updater_t updater) { updater_ = updater; }
 
-   void Update(float dt, float current_time) {
+   void Update(float dt) {
        if (updater_)
-           updater_(dt, current_time, this);
+           updater_(dt, this);
    }
 
    mat4 GetTransform() const {
@@ -474,7 +474,6 @@ void UpdateCamera(float dt)
     g_camera.dz += gos_GetKeyStatus(KEY_W) ? dt*moveSpeedK : 0.0f;
     g_camera.dz -= gos_GetKeyStatus(KEY_S) ? dt*moveSpeedK : 0.0f;
 
-
     int XDelta, YDelta, WheelDelta;
     float XPos, YPos;
     DWORD buttonsPressed;
@@ -511,10 +510,14 @@ void __stdcall Update(void)
             go->SetScale(get_random(vec3(1), vec3(2.5)));
             go->SetRotation(get_random(vec3(0), vec3(2.0f * 3.1415f)));
 #if 1
+            float start_time = (float)timing::ticks2ms(timing::gettickcount()) / 1000;
+            const float amplitude = get_random(12.0f, 30.0f);
+            const float phase = get_random(0.0f, 2.0*3.1415);
             go->SetUpdater(
-                [base_pos](float dt, float current_time, MeshObject *go) {
+                [base_pos, start_time, amplitude, phase](float dt, MeshObject *go) mutable {
                     vec3 p = go->GetPosition();
-                    p.y = base_pos.y + base_pos.y * sin(current_time * 0.001);
+                    p.y = base_pos.y + amplitude * 0.5 * (sin(phase + start_time) + 1.0f);
+                    start_time += dt;
 #if DO_BAD_THING_FOR_TEST
                     go->SetPosition(get_random(vec3(-10), vec3(10)) +
                                     vec3(1000, 1000, 1000));
@@ -593,25 +596,29 @@ void __stdcall Update(void)
 
     start_tick = timing::gettickcount();
 
+    if(gos_GetKeyStatus(KEY_P) == KEY_PRESSED)
+        g_update_simulation = !g_update_simulation;
+
     if(g_render_initialized_hack)
        UpdateCamera(dt*0.001f);
 
-    ParticleSystemManager::Instance().Update(dt);
-    
     std::list<GameObject*>::const_iterator it = g_world_objects.begin();
     std::list<GameObject*>::const_iterator end = g_world_objects.end();
+
+    if(g_update_simulation)
+    {
+        ParticleSystemManager::Instance().Update(dt);
+    
     for(;it!=end;++it)
     {
         GameObject* go = *it;
-        go->Update(dt*0.001f, end_tick);
+            go->Update(dt*0.001f);
+    }
+        it = g_world_objects.begin();
     }
 
-
     // prepare list of objects to render
-    it = g_world_objects.begin();
-    
     RenderList* frame_render_list = AcquireRenderList();
-
 
     char listidx_str[32] = {0};
     sprintf(listidx_str, "list_idx: %d", frame_render_list->GetId());

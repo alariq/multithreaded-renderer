@@ -22,6 +22,18 @@ uniform mat4 proj_;
 
 in vec4 gl_FragCoord;
 
+float fetch_linear_z(float z_buf_depth, mat4 proj)
+{
+    // z_ndc same thing as z post projection, just a different name
+    float z_ndc = 2.0*z_buf_depth - 1; // may be influenced by glDepthRange
+
+    // post projection Z -> view Z
+    // post projection Z is Zproj / Wproj , where Wproj is Zview
+    float view_space_depth = proj[3][2] / (z_ndc - proj[2][2]);
+    return view_space_depth;
+}
+    
+
 // https://mynameismjp.wordpress.com/2010/09/05/position-from-depth-3/
 vec3 unproject(float z_buf_depth, vec3 viewpos, mat4 proj) {
     // set view space position to the plane at z = 1
@@ -29,14 +41,7 @@ vec3 unproject(float z_buf_depth, vec3 viewpos, mat4 proj) {
     // by real view z and get point coordinate
     vec3 viewray = vec3(viewpos.x / viewpos.z, viewpos.y / viewpos.z, 1.0f);
 
-    // z_ndc same thing as z post projection, just a different name
-    float z_ndc = 2.0*z_buf_depth - 1; // may be influenced by glDepthRange
-
-    // post projection Z -> view Z
-    // post projection Z is Zproj / Wproj , where Wproj is Zview
-    float view_space_depth = proj[3][2] / (z_ndc - proj[2][2]);
-
-    vec3 pos_view_space = viewray * view_space_depth;
+    vec3 pos_view_space = viewray * fetch_linear_z(z_buf_depth, proj_);
     return pos_view_space;
 }
 
