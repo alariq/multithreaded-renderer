@@ -441,7 +441,7 @@ void DeferredRenderer::RenderForward(std::function<void(void)> f)
     f();
 }
 
-void DeferredRenderer::RenderDownsampledForward(std::function<void(void)> f)
+void DeferredRenderer::RenderDownsampledForward(std::function<void(void)> f, const mat4& proj)
 {
 
     // NEEDED?????
@@ -510,7 +510,7 @@ void DeferredRenderer::RenderDownsampledForward(std::function<void(void)> f)
     glViewport(0, 0, (GLsizei)width_, (GLsizei)height_);
     
     gos_SetRenderState(gos_State_StencilEnable, 0);
-    gos_SetRenderState(gos_State_ZCompare, 0);
+    gos_SetRenderState(gos_State_ZCompare, 1);
     gos_SetRenderState(gos_State_ZWrite, false);
     //TODO: use separate blending to not overwrite destination alpha if it is used
     // dst.rgb = src.rgb + (1.0 - src.a) * dst.rgb
@@ -519,9 +519,26 @@ void DeferredRenderer::RenderDownsampledForward(std::function<void(void)> f)
     gos_SetRenderState(gos_State_AlphaMode, gos_Alpha_OneInvAlpha);
     gos_SetRenderState(gos_State_Culling, gos_Cull_CW);
 
+    gos_SetRenderState(gos_State_TextureAddress, gos_TextureClamp);
+    gos_SetRenderState(gos_State_Filter, gos_FilterNone);
+
     gos_SetRenderState(gos_State_Texture, gos_downsampled_color);
-    gos_SetSamplerState(0, smp_linear_wrap_nomips_);
+    gos_SetSamplerState(0, smp_nearest_clamp_nomips_);
+
+    gos_SetRenderState(gos_State_Texture2, gos_downsampled_depth);
+    gos_SetSamplerState(1, smp_nearest_clamp_nomips_);
+
+    gos_SetRenderState(gos_State_Texture3, gos_g_buffer_depth);
+    gos_SetSamplerState(2, smp_nearest_clamp_nomips_);
+
     HGOSRENDERMATERIAL mat = gos_getRenderMaterial("upsample_bilateral");
+    
+    const float low_res_texture_size[4] = { (float)ds_width_, (float)ds_height_, 0.0f, 0.0f };
+    const float low_res_texel_size[4] = { 1.0f / (float)ds_width_, 1.0f / (float)ds_height_, 0.0f, 0.0f };
+    gos_SetRenderMaterialParameterFloat4(mat, "low_res_texture_size_", low_res_texture_size);
+    gos_SetRenderMaterialParameterFloat4(mat, "low_res_texel_size_", low_res_texel_size);
+    gos_SetRenderMaterialParameterMat4(mat, "proj_", proj);
+
     gos_ApplyRenderMaterial(mat);
 
     extern RenderMesh* g_fs_quad;

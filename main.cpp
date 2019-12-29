@@ -609,11 +609,11 @@ void __stdcall Update(void)
     {
         ParticleSystemManager::Instance().Update(dt);
     
-    for(;it!=end;++it)
-    {
-        GameObject* go = *it;
+        for(;it!=end;++it)
+        {
+            GameObject* go = *it;
             go->Update(dt*0.001f);
-    }
+        }
         it = g_world_objects.begin();
     }
 
@@ -986,13 +986,14 @@ void __stdcall Render(void)
         [&rpl, &view_mat, &proj_mat, downsampled_particles]() {
             if (!downsampled_particles)
                 RenderParticles(rpl, view_mat, proj_mat);
-            //RenderDebugObjects(rpl, view_mat, proj_mat);
+            RenderDebugObjects(rpl, view_mat, proj_mat);
         });
     if (downsampled_particles) {
         g_deferred_renderer.RenderDownsampledForward(
             [&rpl, &view_mat, &proj_mat]() {
                 RenderParticles(rpl, view_mat, proj_mat);
-            });
+            },
+            rfc->proj_);
     }
     g_deferred_renderer.Present(Environment.drawableWidth,
                                 Environment.drawableHeight);

@@ -51,7 +51,7 @@ class DeferredRenderer {
     void RenderPointLighting(struct RenderFrameContext* rfc);
     void RenderPointLighting2(struct RenderFrameContext* rfc);
     void RenderForward(std::function<void(void)> f);
-    void RenderDownsampledForward(std::function<void(void)> f);
+    void RenderDownsampledForward(std::function<void(void)> f, const mat4& proj);
     void Present(int width, int height);
 
     void DownsampleSceneDepth();
