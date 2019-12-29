@@ -8,5 +8,5 @@ uniform vec4 colour_;
 
 void main(void)
 {
-	FragColor = vec4(colour_*0.0000001 + vec4(0.5*o_normal + 0.5, 1.0));
+	FragColor = vec4(colour_);// + vec4(0.5*o_normal + 0.5, 1.0));
 }

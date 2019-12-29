@@ -569,14 +569,14 @@ void __stdcall Update(void)
         }
 
         // create some point lights
-        for(int i=0; i<30;++i)
+        for(int i=0; i<100;++i)
         {
             PointLight l;
-            vec3 color = random_vec(0.2f, 1.0f);
+            vec3 color = random_vec(0.f, 1.0f);
             float intensity = get_random(0.5f, 1.5f);
             l.color_ = vec4(color.x, color.y, color.z, intensity);
-            l.radius_ = random(1.5f, 7.0f);
-            vec3 pos = random_vec(vec3(-40.0f, 5.0f, -40.0f), vec3(40.0f, 15.0f, 40.0f));
+            l.radius_ = random(2.5f, 7.0f);
+            vec3 pos = random_vec(vec3(-50.0f, 5.0f, -50.0f), vec3(50.0f, 15.0f, 50.0f));
             l.pos = pos;
             l.transform_ = translate(pos) * mat4::scale(vec3(l.radius_));
             g_light_list.push_back(l);
