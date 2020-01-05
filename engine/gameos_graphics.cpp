@@ -93,6 +93,7 @@ struct gosTextureSampler {
     bool use_mips;
     gos_TextureCompareMode cmp_mode;
     gos_CompareMode cmp_func;
+    vec4 border_colour;
     float min_lod;
     float max_lod;
 
@@ -3255,7 +3256,7 @@ HGOSTEXTURESAMPLER __stdcall gos_CreateTextureSampler(gos_TextureAddressMode add
                                         bool use_mips,
                                         gos_TextureCompareMode cmp_mode,
                                         gos_CompareFunc cmp_func,
-                                        vec4 border_color,
+                                        vec4 border_colour,
                                         float min_lod/* = -1000*/,
                                         float max_lod/* = 1000*/)
 {
@@ -3271,7 +3272,7 @@ HGOSTEXTURESAMPLER __stdcall gos_CreateTextureSampler(gos_TextureAddressMode add
     ts->use_mips = use_mips;
     ts->cmp_mode = cmp_mode;
     ts->cmp_func = cmp_func;
-
+    ts->border_colour = border_colour;
     ts->min_lod = min_lod;
     ts->max_lod = max_lod;
 
@@ -3295,6 +3296,10 @@ HGOSTEXTURESAMPLER __stdcall gos_CreateTextureSampler(gos_TextureAddressMode add
 
     glSamplerParameteri(ts->gl_sampler, GL_TEXTURE_COMPARE_FUNC,
                         translateCompareMode(cmp_func));
+
+    if(address_r == gos_TextureClampToBorder || address_t == gos_TextureClampToBorder || address_s == gos_TextureClampToBorder) {
+        glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, (float*)&border_colour);
+    }
 
     glSamplerParameterf(ts->gl_sampler, GL_TEXTURE_MIN_LOD, min_lod);
     glSamplerParameterf(ts->gl_sampler, GL_TEXTURE_MAX_LOD, max_lod);
