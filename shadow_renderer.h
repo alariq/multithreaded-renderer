@@ -1,7 +1,7 @@
 #pragma  once
 
 #include "renderer.h"
-
+#include "gameos.hpp"
 #include "engine/utils/gl_utils.h"
 #include "engine/utils/frustum.h"
 
@@ -15,6 +15,8 @@ class ShadowRenderPass {
     GLuint width_;
     GLuint height_;
     uint32_t num_cascades_;
+    HGOSTEXTURESAMPLER smp_shadow_;
+    bool use_pcf_;
 
 public:
     bool Init(const uint32_t size, const int num_cascades);
@@ -22,6 +24,7 @@ public:
     mat4 Render(const struct CSMInfo *csm_info, const RenderPacketList_t &rpl);
 
     uint32_t GetShadowMap(int cascade_index) { return gos_depth_texture_[cascade_index]; }
+    HGOSTEXTURESAMPLER GetSadowSampler() { return smp_shadow_; }
     uint32_t GetNumCascades() { return num_cascades_; }
 
     ~ShadowRenderPass();

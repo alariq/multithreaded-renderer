@@ -170,10 +170,20 @@ bool ShadowRenderPass::Init(const uint32_t size, const int num_cascades)
     width_ = size;
     height_ = size;
     num_cascades_ = num_cascades;
+    use_pcf_ = true;
 
     // not a real constraint, but gos_NewRenderTarget accepts only one dimension parameter :-/
     assert(width_ == height_); 
     assert(num_cascades < MAX_SHADOW_CASCADES);
+
+    gos_TextureAddressMode addr = gos_TextureClampToBorder;
+    gos_FilterMode filter = use_pcf_ ? gos_FilterBiLinear : gos_FilterNone;
+    gos_TextureCompareMode cmp_mode = use_pcf_ ? gos_TextureCompareRefToTexture : gos_TextureCompareNone;
+    gos_CompareFunc cmp_func = gos_Cmp_Less;
+
+    smp_shadow_ =
+        gos_CreateTextureSampler(addr, addr, addr, filter, filter, filter,
+                                 false, cmp_mode, cmp_func, vec4(0, 0, 0, 0));
 
     glGenFramebuffers(num_cascades, &fbo_);
     for(int i=0; i<num_cascades;++i)
@@ -188,12 +198,15 @@ bool ShadowRenderPass::Init(const uint32_t size, const int num_cascades)
         
         //setSamplerParams(TT_2D, TAM_CLAMP_TO_EDGE, TFM_LINEAR);
         
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_FUNC, GL_LEQUAL);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, use_pcf_ ? GL_LINEAR : GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, use_pcf_ ? GL_LINEAR : GL_NEAREST);
+        if(use_pcf_)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE);
+
+        //glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, );
         glBindTexture(GL_TEXTURE_2D, 0);
 
         //glBindFramebuffer(GL_FRAMEBUFFER, fbo_);
@@ -207,38 +220,20 @@ bool ShadowRenderPass::Init(const uint32_t size, const int num_cascades)
 mat4 ShadowRenderPass::Render(const struct CSMInfo *csm_info,
                               const RenderPacketList_t &rpl) {
 
-#if 0
-    mat4 shadow_view_m;
-    mat4 proj_m;
-    shadow_camera->get_view(&shadow_view_m);
-    shadow_camera->get_projection(&proj_m);
-
-    Frustum fr;
-    mat4 main_view_m;
-    view_camera->get_view(&main_view_m);
-    // we adjust near and far planes to calculate shadows only for nearby objects
-    float cascade_near = .1f;
-    float cascade_far = 50.0f;
-
-    // TODO: add getFrustum method to camera class!
-    vec3 dir = main_view_m.getRow(2).xyz();
-    vec3 right = main_view_m.getRow(0).xyz();
-    vec3 up = main_view_m.getRow(1).xyz();
-    vec4 pos = view_camera->inv_view_ * vec4(0,0,0,1);
-    fr.updateFromCamera(pos.xyz(), dir, right, up , view_camera->get_fov(), view_camera->get_aspect(), cascade_near, cascade_far);
-
-    // get shadow projection matrix which fits view frustum
-    mat4 new_shadow_proj = applyCropMatrix(fr, shadow_view_m);
-#endif
-
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fbo_);
 
     assert(num_cascades_ <= csm_info->num_cascades_);
 
     gos_SetRenderState(gos_State_Culling, gos_Cull_CW);
 
+    glEnable(GL_POLYGON_OFFSET_FILL);
+
     for(uint32_t i = 0; i < num_cascades_; ++i)
     {
+        // make values be dependent on a cascade
+        static float a = 1.0f;
+        static float b = 4096.0f;
+        glPolygonOffset(a, b);
 
         glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depth_texture_id_[i], 0);
 
@@ -253,12 +248,12 @@ mat4 ShadowRenderPass::Render(const struct CSMInfo *csm_info,
 
         glViewport(0, 0, (GLsizei)width_, (GLsizei)height_);
 
-        gos_SetRenderState(gos_State_Culling, gos_Cull_CCW);
-
         // TODO: do occlusion check against each cascade!
 
         RenderPacketList_t::const_iterator it = rpl.begin();
         RenderPacketList_t::const_iterator end = rpl.end();
+
+        gos_SetRenderState(gos_State_Culling, gos_Cull_CCW);
 
         for(;it!=end;++it)
         {
@@ -283,6 +278,8 @@ mat4 ShadowRenderPass::Render(const struct CSMInfo *csm_info,
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glDrawBuffer(GL_BACK);
+
+    glDisable(GL_POLYGON_OFFSET_FILL);
 
     return csm_info->shadow_vp_[0];
 }

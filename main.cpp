@@ -548,13 +548,7 @@ void __stdcall Update(void)
 
         ParticleSystemObject* pso = ParticleSystemObject::Create();
         g_world_objects.push_back(pso);
-#if 0
-        go = MeshObject::Create("minicooper");
-        go->SetRotation(vec3(-90*3.1415f/180.0f,0.0f,0.0f));
-        go->SetPosition(vec3(10,0,10));
-        go->SetScale(vec3(0.1f));
-        g_world_objects.push_back(go);
-#endif
+
         // make vilage
         const float rot[] = {0, 150, 30, 90, 55};
         const float scales[] = {0.1f, 0.07f, 0.12f, 0.08f, 0.1f};
@@ -698,6 +692,8 @@ class ShapeRenderer {
     const mat4* shadow_matrices_;
     vec4 lightdir_;
     const float* zfar_;
+    HGOSTEXTURESAMPLER shadow_sampler_;
+    DWORD gos_default_texture_;
 
 public:
 
@@ -708,11 +704,16 @@ public:
 	}
 
     void set_shadow_params(const vec4 lightdir, const mat4 *shadow_matrices,
-                           const DWORD *shadow_maps, const float *zfar) {
+                           const DWORD *shadow_maps,
+                           const HGOSTEXTURESAMPLER shadow_sampler,
+                           const float *zfar,
+                           const DWORD gos_default_texture) {
         shadow_matrices_ = shadow_matrices;
         shadow_maps_ = shadow_maps;
+        shadow_sampler_ = shadow_sampler;
         lightdir_ = lightdir;
         zfar_ = zfar;
+        gos_default_texture_ = gos_default_texture;
     }
 
     void render(const RenderPacket &rp) {
@@ -720,30 +721,36 @@ public:
 
         HGOSRENDERMATERIAL mat = gos_getRenderMaterial("simple");
 
-        gos_SetRenderState(gos_State_Texture, ro.tex_id_);
+        gos_SetRenderState(gos_State_Texture, ro.tex_id_ ? ro.tex_id_ : gos_default_texture_);
         gos_SetRenderState(gos_State_Filter, gos_FilterBiLinear);
 
-        gos_SetRenderState(gos_State_Texture2, shadow_maps_[0]);
-        gos_SetRenderState(gos_State_Texture3, shadow_maps_[1]);
+        gos_SetRenderState(gos_State_ZCompare, 1);
+        gos_SetRenderState(gos_State_Culling, gos_Cull_CCW);
 
-		//gos_SetRenderMaterialParameterMat4(mat, "world_", (const float*)rp.m_);
-        
-        mat4 wv = proj_ * view_;
-        mat4 wvp = wv * rp.m_;
+        gos_SetRenderState(gos_State_Texture2, shadow_maps_[0]);
+        gos_SetSamplerState(1, shadow_sampler_);
+        gos_SetRenderState(gos_State_Texture3, shadow_maps_[1]);
+        gos_SetSamplerState(2, shadow_sampler_);
+
+        mat4 vp = proj_ * view_;
+        mat4 wvp = vp * rp.m_;
+        mat4 world_normal_;
+        glu_InvertMatrixf(rp.m_, (float*)&world_normal_);
+        world_normal_ = transpose(world_normal_);
         mat4 vpshadow0 = shadow_matrices_[0];
         mat4 vpshadow1 = shadow_matrices_[1];
-        float has_texture[] = { ro.tex_id_ ? 1.0f : 0.0f, 
-                                (shadow_maps_[0] || shadow_maps_[1]) ? 1.0f : 0.0f, 
-                                0.0f, 
-                                0.0f };
+        float params[] = {0.0f,
+                          (shadow_maps_[0] || shadow_maps_[1]) ? 1.0f : 0.0f,
+                           0.0f, 0.0f};
 
-		//gos_SetRenderMaterialParameterMat4(mat, "world_", (const float*)rp.m_);
+        //gos_SetRenderMaterialParameterMat4(mat, "world_", (const float*)rp.m_);
 		gos_SetRenderMaterialParameterMat4(mat, "wvp_", (const float*)wvp);
+		gos_SetRenderMaterialParameterMat4(mat, "world_normal_", (const float*)world_normal_);
 		//gos_SetRenderMaterialParameterMat4(mat, "vpshadow_", (const float*)vpshadow);
 		gos_SetRenderMaterialParameterMat4(mat, "wvpshadow0_", (const float*)(vpshadow0 * rp.m_));
 		gos_SetRenderMaterialParameterMat4(mat, "wvpshadow1_", (const float*)(vpshadow1 * rp.m_));
 		gos_SetRenderMaterialParameterFloat4(mat, "lightdir_", (const float*)lightdir_);
-		gos_SetRenderMaterialParameterFloat4(mat, "has_texture", has_texture);
+		gos_SetRenderMaterialParameterFloat4(mat, "params_", params);
 		gos_SetRenderMaterialParameterFloat4(mat, "z_far_", zfar_);
 
 		gos_ApplyRenderMaterial(mat);
@@ -788,7 +795,6 @@ void __stdcall Render(void)
     static bool initialized = false;
     if(!initialized)
     {
-
         DWORD def_tex = gos_NewTextureFromFile(
             gos_Texture_Detect, "data/textures/texture_density.tga");
         assert(def_tex);
@@ -946,8 +952,11 @@ void __stdcall Render(void)
 
     mat4 cascade_matrices[] = { csm_info.shadow_vp_[0], csm_info.shadow_vp_[1] };
     DWORD cascade_shadow_maps[] = { g_shadow_pass->GetShadowMap(0), g_shadow_pass->GetShadowMap(1) };
+    HGOSTEXTURESAMPLER shadow_sampler = g_shadow_pass->GetSadowSampler();
 
-    shape_renderer.set_shadow_params(lightdir, cascade_matrices, cascade_shadow_maps, csm_info.zfar_); 
+    shape_renderer.set_shadow_params(
+        lightdir, cascade_matrices, cascade_shadow_maps, shadow_sampler,
+        csm_info.zfar_, load_texture("default"));
 
     const RenderPacketList_t& rpl = rfc->rl_->GetRenderPackets();
 
@@ -955,13 +964,12 @@ void __stdcall Render(void)
     sprintf(rfc_info, "rfc: %d rl: %d", rfc->frame_number_, rfc->rl_->GetId());
     rmt_BeginCPUSampleDynamic(rfc_info, 0);
 
+//#define FORWARD_RENDERING
 #if defined(FORWARD_RENDERING)
     glClear(GL_DEPTH_BUFFER_BIT|GL_COLOR_BUFFER_BIT);
     RenderPacketList_t::const_iterator it = rpl.begin();
     RenderPacketList_t::const_iterator end = rpl.end();
 
-    gos_SetRenderState(gos_State_ZCompare, 1);
-    gos_SetRenderState(gos_State_Culling, render_from_shadow_camera? gos_Cull_CW : gos_Cull_CCW);
     for(;it!=end;++it)
     {
         const RenderPacket& rp = (*it);

@@ -1,3 +1,4 @@
+//#version 450
 
 layout(location = 0) in vec3 pos;
 layout(location = 1) in vec2 texcoord;
@@ -5,6 +6,7 @@ layout(location = 2) in vec3 normal;
 
 uniform mat4 wvp_;
 uniform mat4 world_;
+uniform mat4 world_normal_; // inverse transpose of a world matrix
 uniform mat4 wvpshadow0_;
 uniform mat4 wvpshadow1_;
 
@@ -22,6 +24,7 @@ void main(void)
 
     opos = pos;
 	tc = texcoord;
-    norm = normal;
+    //norm = (transpose(inverse(world_normal_)) * vec4(normal, 0.0)).xyz;
+    norm = (world_normal_ * vec4(normal, 0)).xyz;
 }
 
