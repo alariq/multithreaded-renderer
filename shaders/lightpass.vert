@@ -11,11 +11,11 @@ out vec3 o_viewray;
 
 void main(void)
 {
-	gl_Position     = vec4(pos.xy, 0.9999, 1);
+	gl_Position     = vec4(pos.xy, 1.0, 1);
     o_pos = pos;
     o_uv = pos*0.5 + 0.5;
 
-    vec3 pos_view_space = (inv_proj_ * vec4(pos.xy, 0.9990, 1)).xyz;
+    vec3 pos_view_space = (inv_proj_ * vec4(pos.xy, 1.0, 1)).xyz;
     o_viewray = vec3(pos_view_space.xy / pos_view_space.z, 1.0);
 
 }

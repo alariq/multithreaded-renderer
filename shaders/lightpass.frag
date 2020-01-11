@@ -27,6 +27,7 @@ vec3 unproject(float z_buf_depth, vec3 viewpos, mat4 proj) {
 
     // post projection Z -> view Z
     // post projection Z is Zproj / Wproj , where Wproj is Zview
+    // in C++ those are proj[2][3] and proj[2][2] because C++ row-major
     float view_space_depth = proj[3][2] / (z_ndc - proj[2][2]);
 
     vec3 pos_view_space = viewray * view_space_depth;
@@ -55,7 +56,18 @@ void main(void)
     }
     else
     {
+#define VISUALIZE_IN_SHADOW_AREA 0
+#if VISUALIZE_IN_SHADOW_AREA
+        if(depth < 1.0) // skip background
+        {
+            bool in_shadow = dot(normal, lightdir_view_space_.xyz) >=0;
+            FragColor = vec4((in_shadow ? 0 : 1).xxx,  1.0);
+        }
+        else
+            FragColor = vec4(0); 
+#else
         FragColor = vec4(diffuse + ambient, 1.0);
+#endif
     }
 }
 
