@@ -1,5 +1,6 @@
 #include "deferred_renderer.h"
 #include "gameos.hpp"
+#include "res_man.h"
 #include "renderer.h"
 #include "utils/gl_fbo.h"
 #include <functional>
@@ -258,8 +259,8 @@ void DeferredRenderer::RenderDirectionalLighting(const struct RenderFrameContext
 
     gos_ApplyRenderMaterial(mat);
 
-    extern RenderMesh* g_fs_quad;
-    gos_RenderIndexedArray(g_fs_quad->ib_, g_fs_quad->vb_, g_fs_quad->vdecl_);
+    RenderMesh* fs_quad = res_man_load_mesh("fs_quad");
+    gos_RenderIndexedArray(fs_quad->ib_, fs_quad->vb_, fs_quad->vdecl_);
 }
 
 void DeferredRenderer::RenderPointLighting(struct RenderFrameContext* rfc)
@@ -295,6 +296,7 @@ void DeferredRenderer::draw_point_lights(const struct RenderFrameContext* rfc, H
     const mat4 view_proj = rfc->proj_ * rfc->view_;
 
     const bool is_null_mat = mat == gos_getRenderMaterial("null");
+    RenderMesh *sphere = res_man_load_mesh("sphere");
 
     for (const PointLight &l : point_lights) {
 
@@ -316,8 +318,7 @@ void DeferredRenderer::draw_point_lights(const struct RenderFrameContext* rfc, H
 
         gos_ApplyRenderMaterial(mat);
 
-        extern RenderMesh *g_sphere;
-        gos_RenderIndexedArray(g_sphere->ib_, g_sphere->vb_, g_sphere->vdecl_);
+        gos_RenderIndexedArray(sphere->ib_, sphere->vb_, sphere->vdecl_);
     }
 }
 
@@ -541,8 +542,8 @@ void DeferredRenderer::RenderDownsampledForward(std::function<void(void)> f, con
 
     gos_ApplyRenderMaterial(mat);
 
-    extern RenderMesh* g_fs_quad;
-    gos_RenderIndexedArray(g_fs_quad->ib_, g_fs_quad->vb_, g_fs_quad->vdecl_);
+    RenderMesh* fs_quad = res_man_load_mesh("fs_quad");
+    gos_RenderIndexedArray(fs_quad->ib_, fs_quad->vb_, fs_quad->vdecl_);
 }
 
 void DeferredRenderer::Present(int w, int h)
@@ -565,8 +566,8 @@ void DeferredRenderer::Present(int w, int h)
 
     gos_ApplyRenderMaterial(mat);
 
-    extern RenderMesh* g_fs_quad;
-    gos_RenderIndexedArray(g_fs_quad->ib_, g_fs_quad->vb_, g_fs_quad->vdecl_);
+    RenderMesh* fs_quad = res_man_load_mesh("fs_quad");
+    gos_RenderIndexedArray(fs_quad->ib_, fs_quad->vb_, fs_quad->vdecl_);
 }
 
 

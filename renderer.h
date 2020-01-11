@@ -10,6 +10,21 @@
 #include <atomic>
 #include <functional>
 
+struct SVD {
+    vec3 pos;
+    vec2 uv;
+    vec3 normal;
+};
+
+struct QVD {
+    vec2 pos;
+    vec3 uv;
+};
+
+HGOSVERTEXDECLARATION get_svd_vdecl();
+HGOSVERTEXDECLARATION get_pos_only_vdecl();
+HGOSVERTEXDECLARATION get_quad_vdecl();
+
 // uncomment to see shadowing artefacts because of game threads transforms used in render thread
 //#define DO_BAD_THING_FOR_TEST 1
 
@@ -118,4 +133,3 @@ struct RenderFrameContext {
 };
 
 void ScheduleRenderCommand(RenderFrameContext *rfc, std::function<void(void)>&& );
-

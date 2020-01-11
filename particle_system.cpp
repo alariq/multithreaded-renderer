@@ -462,6 +462,7 @@ void ParticleSystem::Update(const float dt)
 
 void ParticleSystem::Render(struct RenderFrameContext *rfc)
 {
+    rfc->rl_->ReservePackets(emitters_.size());
     for(auto e: emitters_)
         e->AddRenderPacket(rfc);
 }

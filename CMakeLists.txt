@@ -63,6 +63,9 @@ set(SOURCES
     "deferred_renderer.cpp"
     "renderer.cpp"
     "test_fixed_block_allocator.cpp"
+    "scene.cpp"
+    "obj_model.cpp"
+    "res_man.cpp"
     )
 
 find_library(GLEW NAMES "GLEW" "glew32")

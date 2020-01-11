@@ -139,7 +139,7 @@ class gosVertexDeclaration {
 	gosVertexDeclaration() :vf_(0), count_(0) {}
 public:
 
-	static gosVertexDeclaration* create(gosVERTEX_FORMAT_RECORD* vf, int count)
+	static gosVertexDeclaration* create(const gosVERTEX_FORMAT_RECORD* vf, int count)
 	{
 		gosVertexDeclaration* vdecl = new gosVertexDeclaration();
 		if (!vdecl)
@@ -3168,7 +3168,7 @@ void __stdcall gos_UnmapBuffer(HGOSBUFFER buffer)
     glBindBuffer(gl_target, 0);
 }
 
-HGOSVERTEXDECLARATION __stdcall gos_CreateVertexDeclaration(gosVERTEX_FORMAT_RECORD* records, int count)
+HGOSVERTEXDECLARATION __stdcall gos_CreateVertexDeclaration(const gosVERTEX_FORMAT_RECORD* records, int count)
 {
 	gosASSERT(records && count > 0);
     gosASSERT(g_gos_renderer);

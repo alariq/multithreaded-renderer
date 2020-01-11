@@ -2670,7 +2670,7 @@ void __stdcall gos_BindBufferBase(HGOSBUFFER buffer, uint32_t slot);
 
 uint32_t gos_GetBufferSizeBytes(HGOSBUFFER buffer);
 
-HGOSVERTEXDECLARATION __stdcall gos_CreateVertexDeclaration(gosVERTEX_FORMAT_RECORD* records, int count);
+HGOSVERTEXDECLARATION __stdcall gos_CreateVertexDeclaration(const gosVERTEX_FORMAT_RECORD* records, int count);
 void __stdcall gos_DestroyVertexDeclaration(HGOSVERTEXDECLARATION buffer);
 
 HGOSTEXTURESAMPLER __stdcall gos_CreateTextureSampler(gos_TextureAddressMode address_s,
