@@ -10,8 +10,62 @@ std::unordered_map<std::string, RenderMesh*> g_world_meshes;
 std::unordered_map<std::string, DWORD> g_world_textures;
 static bool is_res_man_initialized = false;
 
-static RenderMesh* CreateCubeRenderMesh(const char* /*res*/) {
+struct SVDAdapter {
+    SVD *vb_ = nullptr;
+    uint16_t *ib_ = nullptr;
+    size_t vb_size_ = 0;
+    size_t ib_size_ = 0;
+    int offset_ = 0;
 
+    enum { kVertexSize = sizeof(SVD) };
+
+    void allocate_vb(size_t size) {
+        SVD* new_vb = new SVD[vb_size_ + size];
+        memcpy(new_vb, vb_, sizeof(SVD)*vb_size_);
+        delete[] vb_;
+        vb_ = new_vb;
+        vb_size_ += size;
+    }
+    void allocate_ib(size_t size) {
+        uint16_t* new_ib = new uint16_t[ib_size_ + size];
+        memcpy(new_ib, ib_, sizeof(uint16_t)*ib_size_);
+        delete[] ib_;
+        ib_ = new_ib;
+        ib_size_ += size;
+    }
+    ~SVDAdapter() {
+        delete[] vb_;
+        delete[] ib_;
+    }
+    void set_offset(int offset) { offset_ = offset; }
+    void p(unsigned int i, vec3 p) { vb_[i+offset_].pos = p; }
+    void n(unsigned int i, vec3 n) { vb_[i+offset_].normal = n; }
+    void uv(unsigned int i, vec2 uv) { vb_[i+offset_].uv = uv; }
+    void i(unsigned int i, uint16_t idx) { ib_[i] = idx; }
+};
+
+template <typename MeshBuffer>
+static RenderMesh *render_mesh_from_mesh_buffer(const MeshBuffer &mb,
+                                           HGOSVERTEXDECLARATION vdecl) {
+    RenderMesh *mesh = new RenderMesh();
+    mesh->vdecl_ = vdecl;
+    if (mb.ib_) {
+        mesh->ib_ = gos_CreateBuffer(gosBUFFER_TYPE::INDEX,
+                                     gosBUFFER_USAGE::STATIC_DRAW,
+                                     sizeof(uint16_t), mb.ib_size_, mb.ib_);
+    } else {
+        mesh->ib_ = nullptr;
+    }
+
+    assert(mb.vb_);
+    mesh->vb_ =
+        gos_CreateBuffer(gosBUFFER_TYPE::VERTEX, gosBUFFER_USAGE::STATIC_DRAW,
+                         mb.kVertexSize, mb.vb_size_, mb.vb_);
+    return mesh;
+}
+
+static RenderMesh* CreateCubeRenderMesh() {
+#if 0
         constexpr const size_t NUM_VERT = 36; 
         constexpr const size_t NUM_IND = 36; 
 
@@ -33,17 +87,24 @@ static RenderMesh* CreateCubeRenderMesh(const char* /*res*/) {
                                    NUM_VERT, vb);
 
         return ro;
+#else
+        SVDAdapter svd_adapter;
+        generate_cube(svd_adapter, vec3(1), vec3(0));
+        return render_mesh_from_mesh_buffer(svd_adapter, get_svd_vdecl());
+#endif
+
 }
 
 static RenderMesh* CreateRenderMesh(const ObjFile* obj) {
 
-        RenderMesh* ro = new RenderMesh();
         uint32_t* ib;
         ObjVertex* vb;
         uint32_t ib_count, vb_count;
         create_index_and_vertex_buffers(obj, &ib, &ib_count, &vb, &vb_count);
 
         static_assert(sizeof(SVD) == sizeof(ObjVertex), "Vetex structure sizez are different");
+
+        RenderMesh* ro = new RenderMesh();
         ro->vdecl_ = get_svd_vdecl();
 
         ro->ib_ = gos_CreateBuffer(gosBUFFER_TYPE::INDEX,
@@ -53,7 +114,7 @@ static RenderMesh* CreateRenderMesh(const ObjFile* obj) {
                                    gosBUFFER_USAGE::STATIC_DRAW, sizeof(ObjVertex),
                                    vb_count, vb);
         delete[] ib;
-        delete vb;
+        delete[] vb;
 
         return ro;
 }
@@ -81,40 +142,16 @@ static RenderMesh* CreateFSQuadRenderMesh() {
 }
 
 static RenderMesh *CreateSphereRenderMesh() {
-    struct SVDAdapter {
-        SVD *vb_ = nullptr;
-        uint16_t *ib_ = nullptr;
-        size_t vb_size_ = 0;
-        size_t ib_size_ = 0;
-
-        void allocate_vb(size_t size) {
-            delete vb_;
-            vb_ = new SVD[size];
-            vb_size_ = size;
-        }
-        void allocate_ib(size_t size) {
-            delete ib_;
-            ib_ = new uint16_t[size];
-            ib_size_ = size;
-        }
-        void p(unsigned int i, vec3 p) { vb_[i].pos = p; }
-        void n(unsigned int i, vec3 n) { vb_[i].normal = n; }
-        void uv(unsigned int i, vec2 uv) { vb_[i].uv = uv; }
-        void i(unsigned int i, uint16_t idx) { ib_[i] = idx; }
-    };
-
     SVDAdapter svd_adapter;
     generate_sphere(svd_adapter, 5);
-    RenderMesh* sphere = new RenderMesh();
-    sphere->vdecl_ = get_svd_vdecl();
-    sphere->ib_ = gos_CreateBuffer(
-        gosBUFFER_TYPE::INDEX, gosBUFFER_USAGE::STATIC_DRAW, sizeof(uint16_t),
-        svd_adapter.ib_size_, svd_adapter.ib_);
-    sphere->vb_ =
-        gos_CreateBuffer(gosBUFFER_TYPE::VERTEX, gosBUFFER_USAGE::STATIC_DRAW,
-                         sizeof(SVD), svd_adapter.vb_size_, svd_adapter.vb_);
+    return render_mesh_from_mesh_buffer(svd_adapter, get_svd_vdecl());
+}
 
-    return sphere;
+static RenderMesh *CreateAxesRenderMesh() {
+
+    SVDAdapter svd_adapter;
+    generate_axes(svd_adapter);
+    return render_mesh_from_mesh_buffer(svd_adapter, get_svd_vdecl());
 }
 
 void initialize_res_man() { 
@@ -128,7 +165,7 @@ void initialize_res_man() {
     g_world_textures.insert(std::make_pair("default", def_tex));
 
     // create default mesh
-    RenderMesh *def = CreateCubeRenderMesh("cube");
+    RenderMesh *def = CreateCubeRenderMesh();
     def->tex_id_ = def_tex;
     g_world_meshes.insert(std::make_pair("cube", def));
     g_world_meshes.insert(std::make_pair("default", def));
@@ -140,6 +177,10 @@ void initialize_res_man() {
     def = CreateSphereRenderMesh();
     def->tex_id_ = def_tex;
     g_world_meshes.insert(std::make_pair("sphere", def));
+
+    def = CreateAxesRenderMesh();
+    def->tex_id_ = def_tex;
+    g_world_meshes.insert(std::make_pair("axes", def));
 
     gos_AddRenderMaterial("coloured_quad");
     gos_AddRenderMaterial("textured_quad");

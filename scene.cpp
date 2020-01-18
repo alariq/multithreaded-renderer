@@ -54,6 +54,11 @@ void initialize_scene(const camera* cam, class RenderFrameContext* rfc) {
     go->SetScale(vec3(50, 1, 50));
     g_world_objects.push_back(go);
 
+    go = MeshObject::Create("axes");
+    go->SetPosition(vec3(0, 20, 0));
+    go->SetScale(vec3(10, 10, 10));
+    g_world_objects.push_back(go);
+
     camera loc_cam = *cam;
     loc_cam.set_projection(45, Environment.drawableWidth,
                            Environment.drawableHeight, 2.0f, 20.0f);

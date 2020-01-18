@@ -43,14 +43,6 @@ ShadowRenderPass* g_shadow_pass = nullptr;
 uint32_t g_show_cascade_index = 2;
 bool render_from_shadow_camera = false;
 
-struct DebugRenderObject {
-    RenderMesh mesh_;
-    mat4 transform_;
-    vec4 colour;
-};
-
-class GameObject;
-
 DeferredRenderer g_deferred_renderer;
 
 camera g_camera;

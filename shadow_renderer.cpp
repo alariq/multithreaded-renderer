@@ -271,8 +271,10 @@ mat4 ShadowRenderPass::Render(const struct CSMInfo *csm_info,
             gos_SetRenderMaterialParameterMat4(mat, "wvp_", (const float*)wvp);
 
             gos_ApplyRenderMaterial(mat);
-
-            gos_RenderIndexedArray(ro.ib_, ro.vb_, ro.vdecl_);
+            if(ro.ib_)
+                gos_RenderIndexedArray(ro.ib_, ro.vb_, ro.vdecl_);
+            else
+                gos_RenderArray(ro.vb_, ro.vdecl_);
         }
     }
 
