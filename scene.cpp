@@ -9,10 +9,11 @@
 #include "utils/timing.h"
 #include <list>
 
-static std::list<GameObject*> g_world_objects;
+typedef std::list<GameObject*> ObjList_t;
+static ObjList_t g_world_objects;
 static std::vector<PointLight> g_light_list;
 
-void initialize_scene(const camera* cam, class RenderFrameContext* rfc) {
+void initialize_scene(const camera *cam, struct RenderFrameContext *rfc) {
 
     const uint32_t NUM_OBJECTS = 3;
     for (uint32_t i = 0; i < NUM_OBJECTS; ++i) {
@@ -44,7 +45,7 @@ void initialize_scene(const camera* cam, class RenderFrameContext* rfc) {
         g_world_objects.push_back(go);
     }
 
-    MeshObject *go = MeshObject::Create("column");
+    MeshObject* go = MeshObject::Create("column");
     go->SetPosition(vec3(0, 0, 0));
     go->SetScale(vec3(4, 8, 4));
     g_world_objects.push_back(go);
@@ -98,7 +99,7 @@ void initialize_scene(const camera* cam, class RenderFrameContext* rfc) {
     std::list<GameObject *>::const_iterator it = g_world_objects.begin();
     std::list<GameObject *>::const_iterator end = g_world_objects.end();
     for (; it != end; ++it) {
-        GameObject* go = *it;
+        GameObject *go = *it;
 
         // TEMP: TODO: I know I can't touch GameObject in render thread
         // but I need to initalize its render state
@@ -108,8 +109,17 @@ void initialize_scene(const camera* cam, class RenderFrameContext* rfc) {
     }
 }
 
-void scene_update(const camera* cam, const float dt)
-{
+void finalize_scene() {
+
+    std::list<GameObject *>::const_iterator it = g_world_objects.begin();
+    std::list<GameObject *>::const_iterator end = g_world_objects.end();
+    for (; it != end; ++it) {
+        GameObject *go = *it;
+        delete go;
+    }
+}
+
+void scene_update(const camera *cam, const float dt) {
     std::list<GameObject *>::const_iterator it = g_world_objects.begin();
     std::list<GameObject *>::const_iterator end = g_world_objects.end();
 
@@ -122,35 +132,34 @@ void scene_update(const camera* cam, const float dt)
         // if object is frustum object.... and we wnt to update it
         if (0) {
             camera loc_cam = *cam;
-            loc_cam.set_projection(45.0f, Environment.drawableWidth, Environment.drawableHeight, 4.0f, 20.0f);
-            ((FrustumObject*)go)->UpdateFrustum(&loc_cam);
+            loc_cam.set_projection(45.0f, Environment.drawableWidth,
+                                   Environment.drawableHeight, 4.0f, 20.0f);
+            ((FrustumObject *)go)->UpdateFrustum(&loc_cam);
         }
     }
 }
 
+void scene_render_update(struct RenderFrameContext *rfc) {
 
-void scene_render_update(class RenderFrameContext* rfc) {
+    RenderList *frame_render_list = rfc->rl_;
 
-    RenderList* frame_render_list = rfc->rl_;
-
-    if(frame_render_list->GetCapacity() < g_world_objects.size())
+    if (frame_render_list->GetCapacity() < g_world_objects.size())
         frame_render_list->ReservePackets(g_world_objects.size());
 
-    std::list<GameObject*>::const_iterator it = g_world_objects.begin();
-    std::list<GameObject*>::const_iterator end = g_world_objects.end();
+    std::list<GameObject *>::const_iterator it = g_world_objects.begin();
+    std::list<GameObject *>::const_iterator end = g_world_objects.end();
 
-    for(;it!=end;++it)
-    {
-        GameObject* go = *it;
+    for (; it != end; ++it) {
+        GameObject *go = *it;
 
         // check if visible
         // ...
 
         // maybe instead create separate render thread render objects or make
         // all render object always live on render thread
-        if(go->GetMesh()) // if initialized
+        if (go->GetMesh()) // if initialized
         {
-            RenderPacket* rp = frame_render_list->AddPacket();
+            RenderPacket *rp = frame_render_list->AddPacket();
 
             rp->mesh_ = *go->GetMesh();
             rp->m_ = go->GetTransform();
@@ -164,13 +173,13 @@ void scene_render_update(class RenderFrameContext* rfc) {
         }
     }
 
-    RenderMesh* sphere = res_man_load_mesh("sphere");
+    RenderMesh *sphere = res_man_load_mesh("sphere");
     assert(sphere);
     {
         frame_render_list->ReservePackets(g_light_list.size());
         // add lights to debug render pass
-        for(auto& l: g_light_list) {
-            RenderPacket* rp = frame_render_list->AddPacket();
+        for (auto &l : g_light_list) {
+            RenderPacket *rp = frame_render_list->AddPacket();
             rp->mesh_ = *sphere;
             rp->m_ = l.transform_ * mat4::scale(vec3(0.1f));
             rp->debug_color = vec4(l.color_.getXYZ(), 0.5f);
@@ -184,15 +193,35 @@ void scene_render_update(class RenderFrameContext* rfc) {
     rfc->point_lights_ = g_light_list;
 }
 
+void scene_get_intersected_objects(
+    const vec3& ws_orig, const vec3 &ws_dir,
+    std::vector<std::pair<float, GameObject *>>& out_obj) {
 
+    using el_t = std::pair<float, GameObject *>;
+    for (auto &obj : g_world_objects) {
+        if (!obj->GetMesh())
+            continue;
 
-void finalize_scene() {
+        // transform to object space
 
-    std::list<GameObject*>::const_iterator it = g_world_objects.begin();
-    std::list<GameObject*>::const_iterator end = g_world_objects.end();
-    for(;it!=end;++it)
-    {
-        GameObject* go = *it;
-        delete go;
+        float inv_w[16];
+        glu_InvertMatrixf(obj->GetTransform(), inv_w);
+        const mat4 inv_world(inv_w[0], inv_w[1], inv_w[2], inv_w[3], inv_w[4],
+                             inv_w[5], inv_w[6], inv_w[7], inv_w[8], inv_w[9],
+                             inv_w[10], inv_w[11], inv_w[12], inv_w[13],
+                             inv_w[14], inv_w[15]);
+
+        const vec3 os_orig = (inv_world * vec4(ws_orig, 1)).xyz();
+        const vec3 os_dir = normalize((inv_world * vec4(ws_dir, 0)).xyz());
+
+        vec3 t = intersect_aabb_ray(obj->GetMesh()->aabb_, os_orig, os_dir);
+        if (t.z && t.x >= 0.0f) {
+            // transform t back to world space
+            const vec3 int_pos = os_orig + os_dir * t.x;
+            const vec3 int_wpos =
+                (obj->GetTransform() * vec4(int_pos, 1.0f)).xyz();
+            const float dist = length(int_wpos - ws_orig);
+            out_obj.push_back(std::make_pair(dist, obj));
+        }
     }
 }

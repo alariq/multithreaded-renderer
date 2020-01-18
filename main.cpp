@@ -7,6 +7,7 @@
 #include "engine/gameos.hpp"
 
 #include "scene.h"
+#include "editor.h"
 #include "res_man.h"
 #include "renderer.h"
 #include "shadow_renderer.h"
@@ -87,6 +88,7 @@ void __stdcall Deinit(void)
 
     delete g_shadow_pass;
 
+    finalize_editor();
     finalize_scene();
     finalize_res_man();
 
@@ -135,6 +137,7 @@ void __stdcall Update(void)
     if(!initialization_done)
     {
         initialize_scene(&g_camera, rfc);
+        initialize_editor();
         initialization_done = true;
     }
 
@@ -157,6 +160,8 @@ void __stdcall Update(void)
     if(g_update_simulation)
         scene_update(&g_camera, dt);
 
+    editor_update(&g_camera, dt);
+
     // prepare list of objects to render
     RenderList* frame_render_list = AcquireRenderList();
 
@@ -178,8 +183,10 @@ void __stdcall Update(void)
     sprintf(listidx_str, "list_idx: %d", frame_render_list->GetId());
     rmt_BeginCPUSampleDynamic(listidx_str, 0);
 
-    if(g_render_initialized_hack)
+    if(g_render_initialized_hack) {
        scene_render_update(rfc);
+       editor_render_update(rfc);
+    }
 
     rmt_EndCPUSample();
 

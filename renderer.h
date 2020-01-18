@@ -4,6 +4,7 @@
 #include "engine/utils/ts_queue.h"
 #include "engine/utils/camera.h"
 #include "engine/utils/frustum.h"
+#include "engine/utils/intersection.h" //aabb
 #include "engine/gameos.hpp"
 
 #include <vector>
@@ -36,6 +37,7 @@ struct RenderMesh {
     HGOSRENDERMATERIAL      mat_;
     uint32_t                num_instances;
     uint32_t                tex_id_;
+    AABB                    aabb_;
 };
 
 struct PointLight {
