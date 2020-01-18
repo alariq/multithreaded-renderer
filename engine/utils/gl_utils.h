@@ -722,6 +722,8 @@ void generate_axes(MeshBuffer& mb)
     generate_cube(mb, vec3(0.1f,1.0f,0.1f), vec3(0.0f, 1.0f, 0.0f));
     mb.set_offset(mb.vb_size_);
     generate_cube(mb, vec3(0.1f,0.1f,1.0f), vec3(0.0f, 0.0f, 1.0f));
+    mb.set_offset(mb.vb_size_);
+    generate_cube(mb, vec3(0.15f), vec3(0.0f));
 }
 
 #endif // __GL_UTILS_H__
