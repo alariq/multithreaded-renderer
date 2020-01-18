@@ -17,6 +17,7 @@ public:
 
 class GameObject: public Renderable {
 public:
+    virtual const char* GetName() const = 0;
     virtual void Update(float dt) = 0;
     virtual RenderMesh* GetMesh() const = 0;
     virtual mat4 GetTransform() const = 0;
@@ -33,6 +34,7 @@ public:
 
     virtual void Update(float /*dt*/) { }
 
+    virtual const char* GetName() const { return "particle system"; };
     virtual RenderMesh* GetMesh() const { return nullptr; }
     virtual mat4 GetTransform() const { return tr_; }
     virtual mat4 SetTransform(const mat4& tr) { return tr_ = tr; }
@@ -55,6 +57,7 @@ class FrustumObject: public GameObject {
             DeinitRenderResources(); // dangerous, should schedule to render thread
         }
 
+        virtual const char* GetName() const { return "frustum"; };
         void Update(float dt) {}
         void UpdateFrustum(const camera* pcam);
 
@@ -92,7 +95,7 @@ public:
 
    const vec3& GetPosition() const { return pos_; }
    vec3& GetPosition() { return pos_; }
-   const char* GetName() { return name_.c_str(); } 
+   const char* GetName() const { return name_.c_str(); } 
 
    void SetPosition(const vec3& pos) { pos_ = pos; }
    void SetRotation(const vec3& rot) { rot_ = rot; }
