@@ -1,5 +1,4 @@
 #include "obj_loader.h"
-#include "hashing.h"
 
 #include <stdio.h>
 #include <unordered_map>
@@ -92,21 +91,6 @@ ObjFile* load_obj_from_file(const char* file)
     fclose(fh);
     return obj;
 }
-
-
-struct obj_vertex_id_comparator {
-    bool operator()(ObjVertexId const& a, ObjVertexId const& b) const noexcept {
-        return 0 == memcmp(&a, &b, sizeof(ObjVertexId));
-    }
-};
-
-struct obj_vertex_id_hash
-{
-    std::size_t operator()(ObjVertexId const& o) const noexcept
-    {
-        return stl_container_hash((const uint8_t*)&o, sizeof(ObjVertexId));
-    }
-};
 
 void create_index_and_vertex_buffers(const ObjFile* obj, uint32_t** ib, uint32_t * ib_count, ObjVertex** vb, uint32_t* vb_count) {
 
