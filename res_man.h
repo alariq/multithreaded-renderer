@@ -2,7 +2,7 @@
 
 #include "gameos.hpp"
 #include <string>
-class RenderMesh;
+struct RenderMesh;
 
 void initialize_res_man();
 void finalize_res_man();

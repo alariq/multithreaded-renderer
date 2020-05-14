@@ -1,5 +1,6 @@
 #include "threading.h"
 #include "SDL2/SDL.h"
+#include "logging.h"
 
 namespace threading {
 
@@ -34,7 +35,7 @@ namespace threading {
                 raised = true;
                 rv = SDL_CondSignal(condition_);
                 if(rv)
-                    printf("SDL_CondSignal failed rv: %d : %s\n", rv, SDL_GetError());
+                    log_error("SDL_CondSignal failed rv: %d : %s\n", rv, SDL_GetError());
             }
             SDL_UnlockMutex(mutex_);
             return rv;
@@ -47,7 +48,7 @@ namespace threading {
             {
                 rv = SDL_CondWait(condition_, mutex_);
                 if(rv)
-                    printf("SDL_CondWait failed rv: %d : %s\n", rv, SDL_GetError());
+                    log_error("SDL_CondWait failed rv: %d : %s\n", rv, SDL_GetError());
             }
             raised = false;
             SDL_UnlockMutex(mutex_);

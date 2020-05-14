@@ -196,7 +196,7 @@ typedef struct gos_StringRes*   HSTRRES; //sebi
 typedef class gosBuffer*		HGOSBUFFER; //sebi
 typedef class gosVertexDeclaration*	HGOSVERTEXDECLARATION; //sebi
 typedef class gosRenderMaterial*	HGOSRENDERMATERIAL; //sebi
-typedef class gosTextureSampler*	HGOSTEXTURESAMPLER; //sebi
+typedef struct gosTextureSampler*	HGOSTEXTURESAMPLER; //sebi
 
 
 
@@ -2266,7 +2266,7 @@ void __stdcall gos_RenderArray(HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl); //se
 void __stdcall gos_RenderArrayInstanced(HGOSBUFFER vb, HGOSBUFFER instance_vb, uint32_t instance_count, HGOSVERTEXDECLARATION vdecl); //sebi
 
 
-void __stdcall gos_SetRenderViewport(float x, float y, float w, float h);
+void __stdcall gos_SetRenderViewport(uint32_t x, uint32_t y, uint32_t w, uint32_t h);
 void __stdcall gos_GetRenderViewport(float* x, float* y, float* w, float* h); //sebi
 
 //

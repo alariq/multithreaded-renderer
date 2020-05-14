@@ -9,13 +9,13 @@
 
 camera::camera():rot_x(0), rot_y(0), dist(0)
 {
-	memset(pos, 0, sizeof(pos));
-	pos[2] = -5;
+	memset(pos_, 0, sizeof(pos_));
+	pos_[2] = -5;
 
-	memset(lookat, 0, sizeof(lookat));
-	memset(right, 0, sizeof(right));
-	memset(up, 0, sizeof(up));
-	lookat[2] = right[0] = up[1] = 1.0f;
+	memset(lookat_vec, 0, sizeof(lookat_vec));
+	memset(right_vec, 0, sizeof(right_vec));
+	memset(up_vec, 0, sizeof(up_vec));
+	lookat_vec[2] = right_vec[0] = up_vec[1] = 1.0f;
 	dx = dy = dz = 0;
 	move_scale = .1f;
 
@@ -36,7 +36,7 @@ camera::camera():rot_x(0), rot_y(0), dist(0)
 
 void camera::get_pos(float (*p)[4] ) const
 {
-	memcpy(p, pos, sizeof(pos) );
+	memcpy(p, pos_, sizeof(pos_) );
 }
 
 void camera::set_projection(const mat4& proj)
@@ -56,8 +56,8 @@ void camera::set_projection(const mat4& proj)
 
 void camera::set_projection(const float fov, const int w, const int h, const float near, const float far)
 {
-    width_ = w;
-    height_ = h;
+    width_ = (float)w;
+    height_ = (float)h;
     fov_ = fov;
     near_ = near; far_ = far;
     mat4 pm = perspectiveMatrixX(fov * 3.1415f / 180.0f, w, h, .1f, 1000.0f, false);
@@ -74,7 +74,7 @@ void camera::set_ortho_projection(const float l, const float r, const float t, c
     this->set_projection(pm);
 }
 
-void camera::update(float dt)
+void camera::update(float /*dt*/)
 {
 	mat4 rotX = rotateY4(rot_x);
 	mat4 rotY = rotateX4(rot_y);
@@ -83,17 +83,17 @@ void camera::update(float dt)
 
 	//vec4 dpos = matrot*vec4(dx, 0, dz, 1);
 
-	vec3 p(pos[0], pos[1], pos[2]);
+	vec3 p(pos_[0], pos_[1], pos_[2]);
 
 	
 	p += dx*matrot.getRightVec();
 	p += dy*matrot.getUpVec();
 	p += dz*matrot.getForwardVec();
 
-	pos[0] = p.x;
-	pos[1] = p.y;
-	pos[2] = p.z;
-	pos[3] = 0;
+	pos_[0] = p.x;
+	pos_[1] = p.y;
+	pos_[2] = p.z;
+	pos_[3] = 0;
 
 	// build view matrix
 	view_ = mat4::identity();
@@ -135,11 +135,11 @@ void camera::update(float dt)
 #endif
 	
 	vec3 v = invView.getForwardVec();
-	lookat[0] = v.x; lookat[1] = v.y; lookat[2] = v.z; lookat[3] = 0.0f;
+	lookat_vec[0] = v.x; lookat_vec[1] = v.y; lookat_vec[2] = v.z; lookat_vec[3] = 0.0f;
 	v = invView.getRightVec();
-	right[0] = v.x; right[1] = v.y; right[2] = v.z; right[3] = 0.0f;
+	right_vec[0] = v.x; right_vec[1] = v.y; right_vec[2] = v.z; right_vec[3] = 0.0f;
 	v = invView.getUpVec();
-	up[0] = v.x; up[1] = v.y; up[2] = v.z; up[3] = 0.0f;
+	up_vec[0] = v.x; up_vec[1] = v.y; up_vec[2] = v.z; up_vec[3] = 0.0f;
 	
 	dx = dy = dz = 0;
 
@@ -176,18 +176,18 @@ void camera::set_view(const mat4& view_mat)
 	view_proj_inv_ = inv_view_*inv_proj_;
 
 	vec3 v = invView.getForwardVec();
-	lookat[0] = v.x; lookat[1] = v.y; lookat[2] = v.z; lookat[3] = 0.0f;
+	lookat_vec[0] = v.x; lookat_vec[1] = v.y; lookat_vec[2] = v.z; lookat_vec[3] = 0.0f;
 	v = invView.getRightVec();
-	right[0] = v.x; right[1] = v.y; right[2] = v.z; right[3] = 0.0f;
+	right_vec[0] = v.x; right_vec[1] = v.y; right_vec[2] = v.z; right_vec[3] = 0.0f;
 	v = invView.getUpVec();
-	up[0] = v.x; up[1] = v.y; up[2] = v.z; up[3] = 0.0f;
-	
+	up_vec[0] = v.x; up_vec[1] = v.y; up_vec[2] = v.z; up_vec[3] = 0.0f;
+
 	dx = dy = dz = 0;
 	vec3 tr = inv_view_.getTranslation();
-	pos[0] = tr.x;
-	pos[1] = tr.y;
-	pos[2] = tr.z;
-	pos[3] = 0;
+	pos_[0] = tr.x;
+	pos_[1] = tr.y;
+	pos_[2] = tr.z;
+	pos_[3] = 0;
 
 }
 
@@ -233,7 +233,7 @@ void camera::set_pos(const vec3& world_pos)
 	view_.setElem(3, 1, dot(-world_pos, up));
 	view_.setElem(3, 2, dot(-world_pos, front));
 
-	pos[0] = world_pos.x;
-	pos[1] = world_pos.y;
-	pos[2] = world_pos.z;
+	pos_[0] = world_pos.x;
+	pos_[1] = world_pos.y;
+	pos_[2] = world_pos.z;
 }

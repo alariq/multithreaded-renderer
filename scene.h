@@ -4,10 +4,10 @@
 #include <vector>
 class GameObject;
 
-void initialize_scene(const class camera* cam, struct RenderFrameContext* rfc);
+void initialize_scene(const struct camera* cam, struct RenderFrameContext* rfc);
 void finalize_scene();
 
-void scene_update(const class camera* cam, const float dt);
+void scene_update(const struct camera* cam, const float dt);
 void scene_render_update(struct RenderFrameContext*);
 
 void scene_get_intersected_objects(

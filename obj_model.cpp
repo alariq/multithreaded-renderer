@@ -27,8 +27,8 @@ ParticleSystemObject::~ParticleSystemObject() {
 
 FrustumObject *FrustumObject::Create(const camera *pcam) {
     FrustumObject *o =
-        new FrustumObject(pcam->view_, pcam->get_fov(), pcam->get_aspect(),
-                          pcam->get_near(), pcam->get_far());
+        new FrustumObject(/*pcam->view_, pcam->get_fov(), pcam->get_aspect(),
+                          pcam->get_near(), pcam->get_far()*/);
     o->UpdateFrustum(pcam);
     return o;
 }
@@ -71,7 +71,7 @@ void FrustumObject::InitRenderResources() {
     uint16_t ib[ib_size];
     SVD vb[vb_size];
     memset(&vb, 0, sizeof(vb));
-    for (int i = 0; i < ib_size; ++i)
+    for (uint16_t i = 0; i < ib_size; ++i)
         ib[i] = i;
 
     mesh_->ib_ =

@@ -13,7 +13,7 @@ typedef std::list<GameObject*> ObjList_t;
 static ObjList_t g_world_objects;
 static std::vector<PointLight> g_light_list;
 
-void initialize_scene(const camera *cam, struct RenderFrameContext *rfc) {
+void initialize_scene(const struct camera *cam, struct RenderFrameContext *rfc) {
 
     const uint32_t NUM_OBJECTS = 3;
     for (uint32_t i = 0; i < NUM_OBJECTS; ++i) {
@@ -31,7 +31,7 @@ void initialize_scene(const camera *cam, struct RenderFrameContext *rfc) {
                         phase](float dt, MeshObject *go) mutable {
             vec3 p = go->GetPosition();
             p.y =
-                base_pos.y + amplitude * 0.5 * (sin(phase + start_time) + 1.0f);
+                base_pos.y + amplitude * 0.5f * (sin(phase + start_time) + 1.0f);
             start_time += dt;
 #if DO_BAD_THING_FOR_TEST
             go->SetPosition(random_vec(vec3(-10), vec3(10)) +
@@ -89,23 +89,23 @@ void initialize_scene(const camera *cam, struct RenderFrameContext *rfc) {
         float intensity = random(0.5f, 1.5f);
         l.color_ = vec4(color.x, color.y, color.z, intensity);
         l.radius_ = random(2.5f, 7.0f);
-        vec3 pos =
+        vec3 p =
             random_vec(vec3(-50.0f, 5.0f, -50.0f), vec3(50.0f, 15.0f, 50.0f));
-        l.pos = pos;
-        l.transform_ = translate(pos) * mat4::scale(vec3(l.radius_));
+        l.pos = p;
+        l.transform_ = translate(p) * mat4::scale(vec3(l.radius_));
         g_light_list.push_back(l);
     }
 
     std::list<GameObject *>::const_iterator it = g_world_objects.begin();
     std::list<GameObject *>::const_iterator end = g_world_objects.end();
     for (; it != end; ++it) {
-        GameObject *go = *it;
+        GameObject *gameobj = *it;
 
         // TEMP: TODO: I know I can't touch GameObject in render thread
         // but I need to initalize its render state
         // make it shader object and take weak ref to it, then check if it is
         // still valid when render thread does it's job
-        ScheduleRenderCommand(rfc, [go]() { go->InitRenderResources(); });
+        ScheduleRenderCommand(rfc, [gameobj]() { gameobj->InitRenderResources(); });
     }
 }
 

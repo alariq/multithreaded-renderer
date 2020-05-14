@@ -8,6 +8,7 @@
 
 #include <sys/types.h>
 #include <cassert>
+#include <algorithm> // min/max
 
 bool is_aligned(void* ptr, size_t alignment)
 {

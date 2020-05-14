@@ -125,7 +125,7 @@ public:
 
     int exec() {
         rmt_ScopedCPUSample(draw, 0);
-        timing::sleep(sleep_millisec_ * 1000000);
+        timing::sleep(sleep_millisec_ * 1000000ull);
         return 0;
     }
 };
@@ -263,7 +263,7 @@ static void process_events( void ) {
 
         switch( event.type ) {
         case SDL_KEYDOWN:
-            handle_key_down( &event.key.keysym );
+           handle_key_down( &event.key.keysym );
             // fallthrough
         case SDL_KEYUP:
             handleKeyEvent(&event, &g_keyboard_info);
@@ -452,14 +452,17 @@ int main(int argc, char** argv)
     g_render_job_queue = new RenderJobQueue();
 
     SPEW(("INIT", "Starting render thread...\n"));
-    int         threadReturnValue;
  
     g_render_thread = SDL_CreateThread(RenderThreadMain, "RenderThread", (void *)NULL);
     if (NULL == g_render_thread) {
         SPEW(("Render", "SDL_CreateThread failed: %s\n", SDL_GetError()));
     } else {
-        SPEW(("Render", "[OK] STATUS: %d\n", threadReturnValue));
+        SPEW(("Render", "Created Render Thread\n"));
     }
+
+	g_win = graphics::create_window("mt-renderer", w, h);
+	if (!g_win)
+		return 1;
 
     class R_init_renderer: public R_job {
         int w_, h_;
@@ -467,9 +470,6 @@ int main(int argc, char** argv)
         R_init_renderer(int w, int h):w_(w), h_(h) {}
         virtual int exec() {
 
-            g_win = graphics::create_window("mc2", w_, h_);
-            if(!g_win)
-                return 1;
 
             g_ctx = graphics::init_render_context(g_win);
             if(!g_ctx)
@@ -532,7 +532,7 @@ int main(int argc, char** argv)
     R_init_renderer* init_renderer_job = new R_init_renderer(w, h);
     // initializing it on render thread because all graphics operations (like shader creation)
     // should be created on a thread on which context was created (maybe it is not true, but  glCreateShader fails otherwise)
-    bool init_renderer_on_rener_thread = true;
+	bool init_renderer_on_rener_thread = true;
     if(init_renderer_on_rener_thread)
         g_render_job_queue->push(init_renderer_job);
     else
@@ -672,7 +672,6 @@ int main(int argc, char** argv)
             rmt_UnbindOpenGL();
             gos_DestroyRenderer();
             graphics::destroy_render_context(g_ctx);
-            graphics::destroy_window(g_win);
             g_rendering = false;
             return 0;
         }
@@ -680,10 +679,15 @@ int main(int argc, char** argv)
 
     g_render_job_queue->push( new R_destroy_renderer() );
     SPEW(("EXIT", "Waiting for render thread to finish"));
-    SDL_WaitThread(g_render_thread, &threadReturnValue);
+	int thread_status;
+    SDL_WaitThread(g_render_thread, &thread_status);
+    SPEW(("Render", "Finished Render Thread, status: %d\n", thread_status));
 
     assert(0 == g_render_job_queue->size());
     delete g_render_job_queue;
+
+    SPEW(("EXIT", "Destroying window"));
+    graphics::destroy_window(g_win);
 
     return 0;
 }

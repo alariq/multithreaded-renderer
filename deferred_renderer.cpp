@@ -472,9 +472,9 @@ void DeferredRenderer::RenderDownsampledForward(std::function<void(void)> f, con
         HGOSRENDERMATERIAL mat = gos_getRenderMaterial("copy_depth");
         gos_ApplyRenderMaterial(mat);
 
-        extern RenderMesh *g_fs_quad;
-        gos_RenderIndexedArray(g_fs_quad->ib_, g_fs_quad->vb_,
-                               g_fs_quad->vdecl_);
+		RenderMesh* fs_quad = res_man_load_mesh("fs_quad");
+        gos_RenderIndexedArray(fs_quad->ib_, fs_quad->vb_,
+                               fs_quad->vdecl_);
         glDrawBuffer(GL_COLOR_ATTACHMENT0);
     }
 

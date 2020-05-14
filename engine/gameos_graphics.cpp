@@ -237,7 +237,9 @@ class gosMaterialVariationHelper {
 
         void getMaterialVariation(gosMaterialVariation& variation)
         {
-            std::string defines_str = "#version 420\n";
+            std::string defines_str = "#version 420\n#extension GL_ARB_enhanced_layouts : enable\n";
+			// or can go with just
+            // std::string defines_str = "#version 440\n"; // if supported
             std::string unique_suffix_str = "#";
             for(auto d : defines)
             {
@@ -2836,7 +2838,7 @@ void __stdcall gos_SetupViewport( bool FillZ, float ZBuffer, bool FillBG, DWORD 
 }
 
 
-void __stdcall gos_SetRenderViewport(float x, float y, float w, float h)
+void __stdcall gos_SetRenderViewport(uint32_t x, uint32_t y, uint32_t w, uint32_t h)
 {
     gosASSERT(g_gos_renderer);
 	//glViewport(x, y, w, h);

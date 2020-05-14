@@ -69,7 +69,7 @@ public:
         if(it != ps_list_.end()) {
             ps_list_.erase(it);
         } else {
-            auto it =
+            it =
                 std::find(need_initialize_.begin(), need_initialize_.end(), ps);
             if(it != need_initialize_.end())
                 need_initialize_.erase(it);

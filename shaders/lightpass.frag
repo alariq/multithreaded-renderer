@@ -52,7 +52,8 @@ void main(void)
     if(debug_params_.x!=0.0)
     {
         vec3 pixel_viewpos = unproject(depth, o_viewray, proj_);
-        FragColor = vec4(pixel_viewpos.zzz/100, 1.0);
+        FragColor = vec4(pixel_viewpos.zzz/100, 1.0 + 
+                pixel_viewpos.xy*0.0001/* to not optimize out inv_proj_*/);
     }
     else
     {

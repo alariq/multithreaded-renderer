@@ -5,8 +5,8 @@
 
 #include <functional>
 
-class RenderMesh;
-class camera;
+struct RenderMesh;
+struct camera;
 class ParticleSystem;
 
 class Renderable {
@@ -49,8 +49,8 @@ class FrustumObject: public GameObject {
 
         static FrustumObject* Create(const camera* pcam);
 
-        FrustumObject(const mat4 &view, float fov, float aspect, float nearv,
-                      float farv)
+        FrustumObject(/*const mat4 &view, float fov, float aspect, float nearv,
+                      float farv*/)
             : mesh_(nullptr) {}
 
         ~FrustumObject() {
@@ -58,7 +58,7 @@ class FrustumObject: public GameObject {
         }
 
         virtual const char* GetName() const { return "frustum"; };
-        void Update(float dt) {}
+        void Update(float /*dt*/) {}
         void UpdateFrustum(const camera* pcam);
 
         void InitRenderResources();
@@ -81,7 +81,7 @@ private:
     vec3 rot_;
     vec3 pos_;
 
-    MeshObject():mesh_(nullptr) {}
+    MeshObject():mesh_(nullptr), scale_(0), rot_(0), pos_(0) {}
 
     Updater_t updater_;
 

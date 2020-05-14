@@ -67,22 +67,22 @@ void generate_position_line(const EmitterGeometry& ep, vec3* pos, size_t count)
     }
 }
 
-void generate_position_rectangle(const EmitterGeometry& ep, vec3* pos, size_t count)
+void generate_position_rectangle(const EmitterGeometry& /*ep*/, vec3* /*pos*/, size_t /*count*/)
 {
     //const EmitterGeometry::LineEmitterGeometry& lep = ep.lep;
 }
 
-void generate_position_cube(const EmitterGeometry& ep, vec3* pos, size_t count)
+void generate_position_cube(const EmitterGeometry& /*ep*/, vec3* /*pos*/, size_t /*count*/)
 {
     //const EmitterGeometry::LineEmitterGeometry& lep = ep.lep;
 }
 
-void generate_position_circle(const EmitterGeometry& ep, vec3* pos, size_t count)
+void generate_position_circle(const EmitterGeometry& /*ep*/, vec3* /*pos*/, size_t /*count*/)
 {
     //const EmitterGeometry::LineEmitterGeometry& lep = ep.lep;
 }
 
-void generate_position_sphere(const EmitterGeometry& ep, vec3* pos, size_t count)
+void generate_position_sphere(const EmitterGeometry& /*ep*/, vec3* /*pos*/, size_t /*count*/)
 {
     //const EmitterGeometry::LineEmitterGeometry& lep = ep.lep;
 }
@@ -110,8 +110,15 @@ vec3 spherical_to_cartesian(float theta, float phi)
     vec3 rv;
     float sin_theta, cos_theta;
     float sin_phi, cos_phi;
+#if defined(PLATFORM_WINDOWS)
+	sin_theta = sinf(theta);
+	cos_theta = cosf(theta);
+	sin_phi = sinf(phi);
+	cos_phi = sinf(phi);
+#else
     sincosf(theta, &sin_theta, &cos_theta);
     sincosf(phi, &sin_phi, &cos_phi);
+#endif
 
     // Y - is up
     rv.x = sin_theta * cos_phi;
@@ -192,9 +199,9 @@ class StandardEmitter: public ParticleEmitterInterface {
 
     void reallocate(size_t new_capacity)
     {
-        vec3 * pos, *dir;
-        float* v, *acc;
-        vec2 * lifetime;
+        vec3 * pos = nullptr, *dir = nullptr;
+        float* v = nullptr, *acc = nullptr;
+        vec2 * lifetime = nullptr;
         if(new_capacity)
         {
             pos = new vec3[new_capacity];
@@ -232,7 +239,7 @@ class StandardEmitter: public ParticleEmitterInterface {
         }
     }
 
-    void assign(uint32_t i_to, uint32_t i_from)
+    void assign(int i_to, size_t i_from)
     {
         pos_[i_to] = pos_[i_from];
         dir_[i_to] = dir_[i_from];
@@ -345,7 +352,7 @@ public:
 
         uint32_t new_count = (uint32_t)num2gen;
 
-        uint32_t old_size = size_;
+        size_t old_size = size_;
         if(size_ + new_count > capacity_)
         {
             assert(size_ + new_count <= MAX_VB_SIZE/sizeof(ParticleInstVDecl));
@@ -360,7 +367,7 @@ public:
         generate_lifetime(lifetime_from_, lifetime_to_, lifetime_ + old_size, new_count);
 
         size_ += new_count;
-        for(uint32_t i = 0; i < size_; ++i)
+        for(int i = 0; i < size_; ++i)
         {
             lifetime_[i].x += clamped_dt_sec;
             if(lifetime_[i].x > lifetime_[i].y) // if  > max
@@ -401,7 +408,7 @@ public:
         rp->mesh_.vb_ = get_quad_vb();
         rp->mesh_.tex_id_ = 0;
         rp->mesh_.vdecl_ = get_vdecl();
-        rp->mesh_.num_instances = size_;
+        rp->mesh_.num_instances = (uint32_t)size_;
         rp->m_ = mat4::identity();
         rp->is_render_to_shadow = 0;
         rp->is_transparent_pass = 1;
@@ -414,7 +421,7 @@ public:
             
         cur_vb_ = (cur_vb_ + 1) % NUM_BUFFERS;
         HGOSBUFFER vb = vb_[cur_vb_];
-        uint32_t size = size_;
+        uint32_t size = (uint32_t)size_;
         assert(vb);
 
         ParticleInstVDecl* pdata = new ParticleInstVDecl[size_];

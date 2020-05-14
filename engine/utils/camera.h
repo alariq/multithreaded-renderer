@@ -33,10 +33,10 @@ struct camera
 	float dz;
 	float move_scale;
 
-	float pos[4];
-	float lookat[4];
-	float right[4];
-	float up[4];
+	float pos_[4];
+	float lookat_vec[4];
+	float right_vec[4];
+	float up_vec[4];
 
 
 	mat4 proj_;

@@ -29,9 +29,9 @@ namespace timing {
 #endif
 	}
 
-	void sleep(unsigned long nanosec) {
+	void sleep(uint64_t nanosec) {
 #ifdef PLATFORM_WINDOWS
-		Sleep(nanosec / 1000000);
+		Sleep((DWORD)(nanosec / 1000000ull));
 #else
 		timespec ts;
 		ts.tv_sec = 0;
@@ -73,8 +73,8 @@ namespace timing {
         // or clock_gettime(CLOCKREALTIME, ts);
         struct timespec ts;
         timespec_get(&ts, TIME_UTC);
-		size_t milliseconds = ts.tv_sec * 1e+3;
-		milliseconds += ts.tv_nsec / 1e+6;
+		size_t milliseconds = ts.tv_sec * 1000;
+		milliseconds += ts.tv_nsec / 1000000;
         return milliseconds;
     }
 }
