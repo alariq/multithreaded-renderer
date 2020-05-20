@@ -106,7 +106,7 @@ static inline unsigned long long rdtsc(void)
 #ifdef _ARMOR
 #define gosASSERT(x)	do { if(!(x)&&ErrorHandler(gos_ErrorVerify+gos_ErrorNoRegisters,#x)) ENTER_DEBUGGER } while(0)
 #else
-#define gosASSERT(x)	((void)0)
+#define gosASSERT(x)	((void)(x))
 #endif
 //
 // Report an error if the condition is false
@@ -114,7 +114,7 @@ static inline unsigned long long rdtsc(void)
 #ifdef _ARMOR
 #define gosREPORT(x,Message)	do { if(!(x)&&ErrorHandler(gos_ErrorMessage+gos_ErrorNoRegisters,Message)) ENTER_DEBUGGER } while(0)
 #else
-#define gosREPORT(x,Message)	((void)0)
+#define gosREPORT(x,Message)	((void)(x))
 #endif
 //
 // Display a message and enter exception handler (can not be continued)
@@ -134,10 +134,12 @@ static inline unsigned long long rdtsc(void)
 // 2nd parameter is a printf style string
 //  eg: "%d beans used.",BeansUsed
 //
+template<class ...Ts> void sink(Ts... args) {}
+
 #ifdef _ARMOR
 #define SPEW(x)		InternalFunctionSpew x
 #else
-#define SPEW(x)		((void)0)
+#define SPEW(x)		(void)(sink x)
 #endif
 
 

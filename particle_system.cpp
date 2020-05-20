@@ -367,7 +367,7 @@ public:
         generate_lifetime(lifetime_from_, lifetime_to_, lifetime_ + old_size, new_count);
 
         size_ += new_count;
-        for(int i = 0; i < size_; ++i)
+        for(size_t i = 0; i < size_; ++i)
         {
             lifetime_[i].x += clamped_dt_sec;
             if(lifetime_[i].x > lifetime_[i].y) // if  > max

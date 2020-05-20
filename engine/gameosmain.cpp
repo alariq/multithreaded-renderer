@@ -319,29 +319,10 @@ static void draw_screen( void )
     g_disable_quads = false;
     glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
     glCullFace(GL_FRONT);
-    //CHECK_GL_ERROR;
     
 	const int viewport_w = Environment.drawableWidth;
 	const int viewport_h = Environment.drawableHeight;
     glViewport(0, 0, viewport_w, viewport_h);
-
-#if 0
-    gos_VERTEX q[4];
-    q[0].x = 10; q[0].y = 10;
-    q[0].z = 0.0;
-    q[0].rhw = 1;
-    q[0].argb = 0xffff0000;
-    q[1] = q[2] = q[3] = q[0];
-
-    q[1].x = 210; q[1].y = 10;
-    q[2].x = 110; q[2].y = 210;
-    q[3].x = 10; q[3].y = 210;
-
-    g_disable_quads = false;
-    gos_DrawQuads(&q[0], 4);
-    g_disable_quads = true;
-#endif
-
     CHECK_GL_ERROR;
 
     // TODO: reset all states to sane defaults!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -457,7 +438,7 @@ int main(int argc, char** argv)
     if (NULL == g_render_thread) {
         SPEW(("Render", "SDL_CreateThread failed: %s\n", SDL_GetError()));
     } else {
-        SPEW(("Render", "Created Render Thread\n"));
+        SPEW(("Render", "[OK] STATUS\n"));
     }
 
 	g_win = graphics::create_window("mt-renderer", w, h);
@@ -658,10 +639,10 @@ int main(int argc, char** argv)
     };
 
     g_render_job_queue->push( new R_stop_renderer(&rendering_finished_ev) );
-    SPEW(("EXIT", "Waiting for all queued render commands to finish"));
+    SPEW(("EXIT", "Waiting for all queued render commands to finish\n"));
     rendering_finished_ev.Wait();
 
-    SPEW(("EXIT", "TerminateGameEngine()"));
+    SPEW(("EXIT", "TerminateGameEngine()\n"));
     Environment.TerminateGameEngine();
 
     class R_destroy_renderer: public R_job {

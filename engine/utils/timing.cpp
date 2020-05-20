@@ -34,8 +34,8 @@ namespace timing {
 		Sleep((DWORD)(nanosec / 1000000ull));
 #else
 		timespec ts;
-		ts.tv_sec = 0;
-		ts.tv_nsec = nanosec;
+		ts.tv_sec = nanosec / 1e+9;
+		ts.tv_nsec = nanosec - ts.tv_sec * 1e+9;
 		nanosleep(&ts, NULL);
 #endif
 	}
