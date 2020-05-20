@@ -1057,6 +1057,13 @@ bool gosTexture::createHardwareTexture() {
         tex_.type_ = TT_2D;
         tex_.format = GL_RGBA8;
         return tex_.isValid();
+    } else if(format_ == gos_Texture_R32UI) {
+        GLuint tex_id = createRenderTexture(tex_.w, tex_.h, GL_R32UI, 1);
+        tex_.id = tex_id;
+        tex_.fmt_ = TF_R32UI;
+        tex_.type_ = TT_2D;
+        tex_.format = GL_R32UI;
+        return tex_.isValid();
     } 
     else {
         gosASSERT(tex_.w >0 && tex_.h > 0);

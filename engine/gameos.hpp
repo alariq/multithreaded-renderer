@@ -2787,7 +2787,8 @@ enum gos_TextureFormat
 	gos_Texture_Normal=4,		// texture map of normals (create from monochrome image)
     gos_Texture_Depth=5,        // sebi: depth render target
     gos_Texture_Depth_Stencil=6,// sebi: depth-stencil render target
-    gos_Texture_RGBA8=7         // sebi
+    gos_Texture_RGBA8=7,         // sebi
+    gos_Texture_R32UI=8         // sebi
 };
 
 //
@@ -3227,6 +3228,8 @@ size_t __stdcall gos_GetMachineInformation( MachineInfo mi, int Param1=0, int Pa
 int gos_GetWindowDisplayIndex();
 int gos_GetNumDisplayModes(int DisplayIndex);
 bool gos_GetDisplayModeByIndex(int DisplayIndex, int ModeIndex, int* XRes, int* YRes, int* BitDepth);
+
+void __stdcall gos_SetRelativeMouseMode(bool is_relative);
 
 //
 //
