@@ -74,5 +74,39 @@ namespace threading {
     }
 
 
+////////////////////////////////////////////////////////////////////////////////
+
+    class Thread::PimplThread {
+        friend class Thread;
+        SDL_Thread* thread_;
+
+        PimplThread(Thread::thread_func fn, const char* name, void* data) {
+            thread_ = SDL_CreateThread(fn, name, data);   
+        }
+
+        ~PimplThread() {
+            if(thread_)
+                Wait();
+        }
+
+        int Wait() {
+            int status;
+            SDL_WaitThread(thread_, &status);
+            thread_ = nullptr;
+            return status;
+        }
+    };
+
+    Thread::Thread(thread_func fn, const char* name, void* data) {
+        pthread_ = new PimplThread(fn, name, data);
+    }
+
+    Thread::~Thread() {
+        delete pthread_;
+    }
+
+    int Thread::Wait() { 
+        return pthread_->Wait();
+    }
 };
 

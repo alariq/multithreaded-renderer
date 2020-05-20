@@ -87,7 +87,8 @@ message("OpenGL library include: ${OPENGL_INCLUDE_DIR}")
 
 #if(NOT ${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
 if(NOT WIN32)
-	set(ADDITIONAL_LIBS dl pthread)
+    # atomic to link atomic support for 128bit data
+	set(ADDITIONAL_LIBS dl pthread atomic)
 	message("Not win32 system")
 else()
 	# winmm for timeGetTime, maybe switch to GetTickCount to remove this dependency

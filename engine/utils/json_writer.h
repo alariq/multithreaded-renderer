@@ -5,6 +5,8 @@
 #include<cstring> // memcpy
 #include<cstdio>
 #include<cassert>
+#include<cstdint>
+#include<vector>
 
 #define CLASS_NO_COPY(Klass)\
     Klass& operator=(const Klass&) = delete;\

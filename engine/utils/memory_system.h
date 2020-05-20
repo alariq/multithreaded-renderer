@@ -10,6 +10,18 @@
 #include <cassert>
 #include <algorithm> // min/max
 
+#define THREAD_SAFE 0
+#define THREAD_SAFE_LOCK_FREE 1
+
+#if THREAD_SAFE 
+#include "SDL2/SDL.h"
+#define FREE_LIST_HEAD_ALIGN 
+#elif THREAD_SAFE_LOCK_FREE
+#include <atomic>
+#define FREE_LIST_HEAD_ALIGN alignas(16)
+#endif
+
+
 bool is_aligned(void* ptr, size_t alignment)
 {
     return (((size_t)ptr) & ~(alignment - 1)) == 0;
@@ -130,9 +142,34 @@ class FixedBlockAllocator {
         Block* next_;
     };
 
-    Block* free_list_;
+    struct FREE_LIST_HEAD_ALIGN FreeListHead {
+        Block* node_;
+#if THREAD_SAFE_LOCK_FREE
+        uint64_t aba_;
+        FreeListHead() {}
+        FreeListHead(Block *node, uint64_t aba) : node_(node), aba_(aba) {}
+#endif
+    };
+
+#if THREAD_SAFE_LOCK_FREE
+    std::atomic<FreeListHead> free_list_;
+    Block* get_node(const std::atomic<FreeListHead>& fl) const { return fl.load().node_; }
+#else
+    FreeListHead free_list_;
+    Block* get_node(const FreeListHead& fl) const { return fl.node_; }
+#endif
+
     void* buffer_;
     size_t buffer_size_;
+
+#if THREAD_SAFE
+    SDL_mutex* mutex_;
+    void lock() { SDL_LockMutex(mutex_); }
+    void unlock() { SDL_UnlockMutex(mutex_); }
+#else
+    void lock() {}
+    void unlock() {}
+#endif
 
     enum {
         kBlockSize = sizeof(T),
@@ -141,6 +178,7 @@ class FixedBlockAllocator {
     public:
 
     FixedBlockAllocator(void* buffer, size_t size);
+    ~FixedBlockAllocator();
 
     void* Allocate();
     void Deallocate(void* ptr);
@@ -180,7 +218,7 @@ class FixedBlockAllocator {
 };
 
 template<typename T>
-FixedBlockAllocator<T>::FixedBlockAllocator(void* buffer, size_t size)
+FixedBlockAllocator<T>::FixedBlockAllocator(void* buffer, size_t size):free_list_({nullptr,0})
 {
     static_assert(kAlignment >= 8, "Alignment should be minimum 8 bytes");
     assert(buffer);
@@ -197,8 +235,8 @@ FixedBlockAllocator<T>::FixedBlockAllocator(void* buffer, size_t size)
     void* aligned_ptr = align_top(buffer_, kAlignment);
     T* objects = (T*)aligned_ptr;
     Block* cb = (Block*)aligned_ptr;
-    free_list_ = cb;
-    free_list_->next_ = nullptr;
+    cb->next_ = nullptr;
+    free_list_ = FreeListHead(cb, 0);
 
     // initialize free list
     while((unsigned char*)(objects + 1) < (unsigned char*)buffer_ + buffer_size_)
@@ -208,20 +246,47 @@ FixedBlockAllocator<T>::FixedBlockAllocator(void* buffer, size_t size)
         cb = next;
         cb->next_ = nullptr;
     }
+#if THREAD_SAFE
+    mutex_ = SDL_CreateMutex();
+#endif
+}
+
+template<typename T>
+FixedBlockAllocator<T>::~FixedBlockAllocator()
+{
+#if THREAD_SAFE
+    SDL_DestroyMutex(mutex_);
+#endif
 }
 
 template<typename T>
 void* FixedBlockAllocator<T>::Allocate()
 {
+    void* ret_val = nullptr;
+#if THREAD_SAFE_LOCK_FREE
+    FreeListHead cur_head = free_list_.load();
+    FreeListHead new_head;
+    do {
+        if(nullptr == cur_head.node_)
+            return nullptr;
+        // cur_head is updated each time cmpxch fails
+        new_head.node_ = cur_head.node_->next_;
+        new_head.aba_ = cur_head.aba_ + 1;
+    } while (
+        !std::atomic_compare_exchange_strong(&free_list_, &cur_head, new_head));
+    ret_val = cur_head.node_;
+#else
+    lock();
+    ret_val = free_list_;
     if(!free_list_)
-        return nullptr;
+        free_list_ = free_list_->next_;
+    unlock();
+#endif
 
-    void* ptr = free_list_;
-    free_list_ = free_list_->next_;
 #ifdef ENABLE_STATS
     block_count_++;
 #endif
-    return ptr;
+    return ret_val;
 }
 
 template<typename T>
@@ -230,9 +295,23 @@ void FixedBlockAllocator<T>::Deallocate(void* ptr)
     assert(ptr);
     assert(IsOwned(ptr));
 
-    Block* next = free_list_;
-    free_list_ = (Block*)ptr; 
-    free_list_->next_ = next;
+#if THREAD_SAFE_LOCK_FREE
+    FreeListHead cur_head = free_list_.load();
+    FreeListHead new_head;
+    new_head.node_ = (Block*)ptr;
+    do {
+        new_head.node_->next_ = cur_head.node_;
+        // +1 not necessary in case in Deallocation (just copy is ok here)
+        new_head.aba_ = cur_head.aba_ + 1;
+    } while (
+        !std::atomic_compare_exchange_strong(&free_list_, &cur_head, new_head));
+#else
+    lock();
+    ((Block*)ptr)->next_ = free_list_;
+    free_list_ = new_head;
+    unlock();
+#endif
+
 #ifdef ENABLE_STATS
     block_count_--;
 #endif
@@ -452,7 +531,7 @@ void FixedBlockAllocator<T>::BlockMetadata_PrintDetailedMap(class JsonWriter& js
             block_count_, // allocationCount
             total_block_count - block_count_); // unusedRangeCount
 
-    Block* iter = free_list_;
+    Block* iter = get_node(free_list_);
     while(iter)
     {
         size_t offset = (char*)iter - (char*)buffer_;
