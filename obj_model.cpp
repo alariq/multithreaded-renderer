@@ -9,7 +9,6 @@ ParticleSystemObject* ParticleSystemObject::Create()
 
     ParticleSystemObject* pso = new ParticleSystemObject;
     pso->ps_ = ps;
-    pso->tr_ = mat4::identity();
 
     return pso;
 }
@@ -103,6 +102,8 @@ MeshObject *MeshObject::Create(const char *res) {
     obj->name_ = res;
     obj->name_ += std::to_string(obj_num++);
     obj->mesh_name_ = res;
+
+    obj->AddComponent<TransformComponent>();
 
     return obj;
 }

@@ -19,9 +19,10 @@ void initialize_scene(const struct camera *cam, struct RenderFrameContext *rfc) 
     for (uint32_t i = 0; i < NUM_OBJECTS; ++i) {
         MeshObject *go = MeshObject::Create("N");
         vec3 base_pos = random_vec(vec3(-15, 5, -15), vec3(15, 10, 15));
-        go->SetPosition(base_pos);
-        go->SetScale(random_vec(vec3(1), vec3(2.5)));
-        go->SetRotation(random_vec(vec3(0), vec3(2.0f * 3.1415f)));
+        auto* tr_comp = go->GetComponent<TransformComponent>();
+        tr_comp->SetPosition(base_pos);
+        tr_comp->SetScale(random_vec(vec3(1), vec3(2.5)));
+        tr_comp->SetRotation(random_vec(vec3(0), vec3(2.0f * 3.1415f)));
 #if 1
         float start_time =
             (float)timing::ticks2ms(timing::gettickcount()) / 1000;
@@ -29,7 +30,8 @@ void initialize_scene(const struct camera *cam, struct RenderFrameContext *rfc) 
         const float phase = random(0.0f, 2.0f * 3.1415f);
         go->SetUpdater([base_pos, start_time, amplitude,
                         phase](float dt, MeshObject *go) mutable {
-            vec3 p = go->GetPosition();
+            auto* tc = go->GetComponent<TransformComponent>();
+            vec3 p = tc->GetPosition();
             p.y =
                 base_pos.y + amplitude * 0.5f * (sin(phase + start_time) + 1.0f);
             start_time += dt;
@@ -38,7 +40,7 @@ void initialize_scene(const struct camera *cam, struct RenderFrameContext *rfc) 
                             vec3(1000, 1000, 1000));
             // timing::sleep(100000);
 #endif
-            go->SetPosition(p);
+            tc->SetPosition(p);
         });
 #endif
 
@@ -46,18 +48,21 @@ void initialize_scene(const struct camera *cam, struct RenderFrameContext *rfc) 
     }
 
     MeshObject* go = MeshObject::Create("column");
-    go->SetPosition(vec3(0, 0, 0));
-    go->SetScale(vec3(4, 8, 4));
+    auto* tc = go->GetComponent<TransformComponent>();
+    tc->SetPosition(vec3(0, 0, 0));
+    tc->SetScale(vec3(4, 8, 4));
     g_world_objects.push_back(go);
 
     go = MeshObject::Create("floor");
-    go->SetPosition(vec3(0, 0, 0));
-    go->SetScale(vec3(50, 1, 50));
+    tc = go->GetComponent<TransformComponent>();
+    tc->SetPosition(vec3(0, 0, 0));
+    tc->SetScale(vec3(50, 1, 50));
     g_world_objects.push_back(go);
 
     go = MeshObject::Create("axes");
-    go->SetPosition(vec3(0, 20, 0));
-    go->SetScale(vec3(10, 10, 10));
+    tc = go->GetComponent<TransformComponent>();
+    tc->SetPosition(vec3(0, 20, 0));
+    tc->SetScale(vec3(10, 10, 10));
     g_world_objects.push_back(go);
 
     camera loc_cam = *cam;
@@ -76,9 +81,10 @@ void initialize_scene(const struct camera *cam, struct RenderFrameContext *rfc) 
                         vec2(10, -25), vec2(-30, 5)};
     for (int i = 0; i < 5; ++i) {
         go = MeshObject::Create("single_room_building");
-        go->SetRotation(vec3(0.0f, -rot[i] * 3.1415f / 180.0f, 0.0f));
-        go->SetPosition(vec3(pos[i].x, 0.0f, pos[i].y));
-        go->SetScale(vec3(scales[i]));
+        auto* tc = go->GetComponent<TransformComponent>();
+        tc->SetRotation(vec3(0.0f, -rot[i] * 3.1415f / 180.0f, 0.0f));
+        tc->SetPosition(vec3(pos[i].x, 0.0f, pos[i].y));
+        tc->SetScale(vec3(scales[i]));
         g_world_objects.push_back(go);
     }
 
@@ -150,7 +156,7 @@ void scene_render_update(struct RenderFrameContext *rfc) {
     std::list<GameObject *>::const_iterator end = g_world_objects.end();
 
     for (; it != end; ++it) {
-        GameObject *go = *it;
+        const GameObject *go = *it;
 
         // check if visible
         // ...
@@ -160,9 +166,10 @@ void scene_render_update(struct RenderFrameContext *rfc) {
         if (go->GetMesh()) // if initialized
         {
             RenderPacket *rp = frame_render_list->AddPacket();
+            const auto* tc = go->GetComponent<TransformComponent>();
 
             rp->mesh_ = *go->GetMesh();
-            rp->m_ = go->GetTransform();
+            rp->m_ = tc ? tc->GetTransform() : mat4::identity();
             rp->is_opaque_pass = 1;
             rp->is_render_to_shadow = 1;
             rp->is_transparent_pass = 0;
@@ -202,24 +209,34 @@ void scene_get_intersected_objects(
         if (!obj->GetMesh())
             continue;
 
-        // transform to object space
 
-        float inv_w[16];
-        glu_InvertMatrixf(obj->GetTransform(), inv_w);
-        const mat4 inv_world(inv_w[0], inv_w[1], inv_w[2], inv_w[3], inv_w[4],
-                             inv_w[5], inv_w[6], inv_w[7], inv_w[8], inv_w[9],
-                             inv_w[10], inv_w[11], inv_w[12], inv_w[13],
-                             inv_w[14], inv_w[15]);
+        const auto* tc = obj->GetComponent<TransformComponent>();
 
-        const vec3 os_orig = (inv_world * vec4(ws_orig, 1)).xyz();
-        const vec3 os_dir = normalize((inv_world * vec4(ws_dir, 0)).xyz());
+        vec3 os_orig;
+        vec3 os_dir;
+
+        if (tc) {
+            // transform to object space
+            float inv_w[16];
+            glu_InvertMatrixf(tc->GetTransform(), inv_w);
+            const mat4 inv_world =
+                mat4(inv_w[0], inv_w[1], inv_w[2], inv_w[3], inv_w[4], inv_w[5],
+                     inv_w[6], inv_w[7], inv_w[8], inv_w[9], inv_w[10],
+                     inv_w[11], inv_w[12], inv_w[13], inv_w[14], inv_w[15]);
+
+            os_orig = (inv_world * vec4(ws_orig, 1)).xyz();
+            os_dir = normalize((inv_world * vec4(ws_dir, 0)).xyz());
+        } else {
+            os_orig = ws_orig;
+            os_dir = normalize(ws_dir);
+        }
 
         vec3 t = intersect_aabb_ray(obj->GetMesh()->aabb_, os_orig, os_dir);
         if (t.z && t.x >= 0.0f) {
             // transform t back to world space
             const vec3 int_pos = os_orig + os_dir * t.x;
             const vec3 int_wpos =
-                (obj->GetTransform() * vec4(int_pos, 1.0f)).xyz();
+                tc ? (tc->GetTransform() * vec4(int_pos, 1.0f)).xyz() : int_pos;
             const float dist = length(int_wpos - ws_orig);
             out_obj.push_back(std::make_pair(dist, obj));
         }
