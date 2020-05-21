@@ -55,6 +55,8 @@ void RenderDebugObjects(const RenderPacketList_t& rpl, const mat4& view, const m
         }
     };
 
+    const bool do_depth_test = false;
+
     RPSorter sorter;
     sorter.view_ = view;
     std::sort(tmp.begin(), tmp.end(), sorter);
@@ -63,7 +65,7 @@ void RenderDebugObjects(const RenderPacketList_t& rpl, const mat4& view, const m
     gos_SetRenderState(gos_State_ZCompare, 3);
     gos_SetRenderState(gos_State_Culling, gos_Cull_CW);
 #else
-    gos_SetRenderState(gos_State_ZCompare, 1);
+    gos_SetRenderState(gos_State_ZCompare, do_depth_test);
     gos_SetRenderState(gos_State_Culling, gos_Cull_CCW);
 #endif
     //gos_SetRenderState(gos_State_AlphaMode, gos_Alpha_OneZero);

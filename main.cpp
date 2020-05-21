@@ -14,6 +14,7 @@
 #include "particle_system.h"
 #include "debug_renderer.h"
 #include "deferred_renderer.h"
+#include "obj_id_renderer.h"
 
 #include "Remotery/lib/Remotery.h"
 #include <cstdlib>
@@ -35,7 +36,7 @@ extern void* GetRenderFrameContext();
 extern void test_fixed_block_allocator();
 #endif
 
-
+bool g_is_in_editor = false;
 bool g_render_initialized_hack = false;
 bool g_update_simulation = true;
 
@@ -45,6 +46,7 @@ uint32_t g_show_cascade_index = 2;
 bool render_from_shadow_camera = false;
 
 DeferredRenderer g_deferred_renderer;
+ObjIdRenderer g_obj_id_renderer;
 
 camera g_camera;
 camera g_shadow_camera;
@@ -79,11 +81,12 @@ void __stdcall Init(void)
     g_shadow_camera.set_ortho_projection(-30, 30, 30, -30, 0.1f, 200.0f);
     g_shadow_camera.set_view(shadow_view);
 
-    SDL_SetRelativeMouseMode(SDL_TRUE);
 }
 
 void __stdcall Deinit(void)
 {
+    g_obj_id_renderer.Deinit();
+
     DeleteRenderLists();
 
     delete g_shadow_pass;
@@ -119,9 +122,6 @@ void UpdateCamera(float dt)
     g_camera.set_projection(fov, Environment.drawableWidth, Environment.drawableHeight, 0.1f, 1000.0f);
     g_camera.update(dt);
 
-    //vec4 pos = g_camera.inv_view_ * vec4(0,0,0,1);
-    //printf("cam pos: %f %f %f\n", pos.x, pos.y, pos.z);
-
     render_from_shadow_camera = gos_GetKeyStatus(KEY_O) ? true : false;
     g_show_cascade_index += gos_GetKeyStatus(KEY_C) == KEY_PRESSED ? 1 : 0;
     if(g_show_cascade_index>2)
@@ -136,11 +136,11 @@ void __stdcall Update(void)
     static bool initialization_done = false;
     if(!initialization_done)
     {
+        gos_SetRelativeMouseMode(true);
         initialize_scene(&g_camera, rfc);
         initialize_editor();
         initialization_done = true;
     }
-
 
     static uint64_t start_tick = timing::gettickcount();
 
@@ -154,13 +154,20 @@ void __stdcall Update(void)
     if(gos_GetKeyStatus(KEY_P) == KEY_PRESSED)
         g_update_simulation = !g_update_simulation;
 
-    if(g_render_initialized_hack)
-       UpdateCamera(dt*0.001f);
+    if(gos_GetKeyStatus(KEY_TAB) == KEY_PRESSED)
+    {
+        g_is_in_editor = !g_is_in_editor;
+        gos_SetRelativeMouseMode(!g_is_in_editor);
+    }
+
+    if(!g_is_in_editor)
+        // gmae update
+        UpdateCamera(dt*0.001f);
+    else
+        editor_update(&g_camera, dt);
 
     if(g_update_simulation)
         scene_update(&g_camera, dt);
-
-    editor_update(&g_camera, dt);
 
     // prepare list of objects to render
     RenderList* frame_render_list = AcquireRenderList();
@@ -183,9 +190,11 @@ void __stdcall Update(void)
     sprintf(listidx_str, "list_idx: %d", frame_render_list->GetId());
     rmt_BeginCPUSampleDynamic(listidx_str, 0);
 
-    if(g_render_initialized_hack) {
+    if(g_render_initialized_hack)
+    {
        scene_render_update(rfc);
-       editor_render_update(rfc);
+       if(g_is_in_editor)
+          editor_render_update(rfc);
     }
 
     rmt_EndCPUSample();
@@ -306,6 +315,7 @@ void render_fullscreen_quad(uint32_t tex_id)
 void __stdcall Render(void)
 {
     static bool initialized = false;
+    // should this be a command added by Update to render thread?
     if(!initialized)
     {
         initialize_res_man();
@@ -320,6 +330,7 @@ void __stdcall Render(void)
         gos_AddRenderMaterial("particle");
 
         g_deferred_renderer.Init(SCREEN_W, SCREEN_H);
+        g_obj_id_renderer.Init(SCREEN_W, SCREEN_H);
 
         initialized = true;
 
@@ -405,6 +416,7 @@ void __stdcall Render(void)
 #else // !FORWARD_RENDERING
 
     g_deferred_renderer.RenderGeometry(rfc);
+    g_obj_id_renderer.Render(rfc, g_deferred_renderer.GetSceneDepth());
     g_deferred_renderer.RenderDirectionalLighting(rfc);
     g_deferred_renderer.RenderPointLighting(rfc);
     bool downsampled_particles = true;
@@ -423,6 +435,8 @@ void __stdcall Render(void)
     }
     g_deferred_renderer.Present(Environment.drawableWidth,
                                 Environment.drawableHeight);
+
+    //g_obj_id_renderer.Readback(Environment.drawableWidth/2, Environment.drawableHeight/2);
 
 #endif // FORWARD_RENDERING
 

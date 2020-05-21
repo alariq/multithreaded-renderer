@@ -19,8 +19,10 @@ void finalize_editor()
 {
 }
 
+// converts screen position to world space at a given distance from camera
 // x,y = [-1,1] screen space range
-// z - distance from camera pos
+// z - distance from camera pos (in world space)
+// returns: world position at a given distance from camera
 vec3 get_cursor_pos(const camera *cam, const float x, const float y,
                     const float dist_from_cam) {
     vec4 view_pos = cam->inv_proj_ * vec4(x, y, 0.5f, 1.0f);

@@ -54,6 +54,7 @@ class DeferredRenderer {
     void RenderDownsampledForward(std::function<void(void)> f, const mat4& proj);
     void Present(int width, int height);
 
+    GLuint GetSceneDepth() { return g_buffer_depth; }
     void DownsampleSceneDepth();
 
 };

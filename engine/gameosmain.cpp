@@ -31,7 +31,6 @@ extern bool gosExitGameOS();
 
 
 static bool g_exit = false;
-static bool g_grab_focus = false;
 static bool g_focus_lost = false;
 bool g_debug_draw_calls = false;
 
@@ -227,15 +226,6 @@ input::KeyboardInfo g_keyboard_info;
 static void handle_key_down( SDL_Keysym* keysym ) {
     switch( keysym->sym ) {
         case SDLK_ESCAPE:
-            if(!g_grab_focus)
-                g_exit = true;
-            else
-            {
-                g_grab_focus = false;
-                //graphics::grab_window_input(g_win, false);
-                //SDL_CaptureMouse(SDL_FALSE);
-                SDL_SetRelativeMouseMode(SDL_FALSE);
-            }
             break;
         case 'd':
             if(keysym->mod & KMOD_RALT)
@@ -248,12 +238,10 @@ static void process_events( void ) {
 
     beginUpdateMouseState(&g_mouse_info);
 
-    bool skipMouseClick = false;
-
     SDL_Event event;
     while( SDL_PollEvent( &event ) ) {
 
-        if(g_focus_lost && !g_grab_focus) {
+        if(g_focus_lost) {
             if(event.type != SDL_WINDOWEVENT_FOCUS_GAINED) {
                 continue;
             } else {
@@ -284,18 +272,10 @@ static void process_events( void ) {
             break;
         case SDL_MOUSEMOTION:
             input::handleMouseMotion(&event, &g_mouse_info); 
-            printf("dx: %.3f dy: %.3f\n", g_mouse_info.rel_x_, g_mouse_info.rel_y_);
+            //printf("dx: %.3f dy: %.3f\n", g_mouse_info.rel_x_, g_mouse_info.rel_y_);
             break;
         case SDL_MOUSEBUTTONDOWN:
         case SDL_MOUSEBUTTONUP:
-            if(!g_grab_focus)
-            {
-                //graphics::grab_window_input(g_win, true);
-                //SDL_CaptureMouse(SDL_TRUE);
-                SDL_SetRelativeMouseMode(SDL_TRUE);
-                g_grab_focus = true;
-                skipMouseClick = true;
-            }
             //input::handleMouseButton(&event, &g_mouse_info);
             break;
         case SDL_MOUSEWHEEL:
@@ -304,9 +284,7 @@ static void process_events( void ) {
         }
     }
     
-    if(!skipMouseClick)
         input::updateMouseState(&g_mouse_info);
-
     input::updateKeyboardState(&g_keyboard_info);
 }
 
