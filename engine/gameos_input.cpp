@@ -397,6 +397,6 @@ gosEnum_KeyStatus __stdcall gos_GetKeyStatus(gosEnum_KeyIndex index)
 void __stdcall gos_SetRelativeMouseMode(bool is_relative)
 {
     SDL_SetRelativeMouseMode(is_relative ? SDL_TRUE : SDL_FALSE);
-    printf("mouse rel mode: %s\n", is_relative? "true" : "false");
+    SPEW(("Input", "mouse rel mode: %s\n", (is_relative? "true" : "false")));
 }
 

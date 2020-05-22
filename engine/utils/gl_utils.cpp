@@ -24,10 +24,10 @@ uint32_t vec4_to_uint32(const vec4& v) {
 
 vec4 uint32_to_vec4(uint32_t v) {
 
-	float x = v & 0xff;
-	float y = (v>>8) & 0xff;
-	float z = (v>>16) & 0xff;
-	float w = (v>>24) & 0xff;
+	float x = (float)(v & 0xff);
+	float y = (float)((v>>8) & 0xff);
+	float z = (float)((v>>16) & 0xff);
+	float w = (float)((v>>24) & 0xff);
 
 	return (1.0f / 255.0f) * vec4(x, y, z, w);
 }

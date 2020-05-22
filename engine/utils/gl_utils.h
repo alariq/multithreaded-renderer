@@ -601,8 +601,10 @@ void generate_sphere(MeshBuffer& mb, unsigned int subdiv_count)
     const vec3 C(1.0f, 0.0f, -oo_sqrt2);
     const vec3 D(-1.0f, 0.0f, -oo_sqrt2);
 
-    mb.allocate_vb(3*pow(4, subdiv_count+1));
-    mb.allocate_ib(3*pow(4, subdiv_count+1));
+	const unsigned int num_tris = (unsigned int)pow(4, subdiv_count + 1);
+	const unsigned int num_vert = 3 * num_tris;
+    mb.allocate_vb(num_vert);
+    mb.allocate_ib(num_vert);
 
     vec3 a = A;
     vec3 b = B;

@@ -34,6 +34,10 @@ if(MSVC)
 endif()
 
 if(MSVC)
+    # error C2338: related to alignment used in my allocator
+    # VS had a bug
+    add_definitions(-D_ENABLE_EXTENDED_ALIGNED_STORAGE)
+
 	add_definitions(-DPLATFORM_WINDOWS)
 	add_definitions(-D_CRT_SECURE_NO_WARNINGS)
 	message("Compiling on M$ Windows")
