@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <functional>
 #include <vector>
+#include <atomic>
 
 struct RenderMesh;
 struct camera;
@@ -56,9 +57,13 @@ class TransformComponent: public Component {
     void SetScale(const vec3& scale) { scale_ = scale; }
 };
 
+typedef uint32_t GameObjectId;
 class GameObject: public Renderable {
     std::vector<Component*> components_;
+	GameObjectId id_;
 public:
+	GameObjectId GetId() const { return id_; }
+
     virtual const char* GetName() const = 0;
     virtual void Update(float dt) = 0;
     virtual RenderMesh* GetMesh() const = 0;
@@ -85,6 +90,10 @@ public:
         return comp;
     }
 
+	GameObject() {
+		static std::atomic<GameObjectId> counter = 0;
+		id_ = ++counter;
+	}
     virtual ~GameObject() {}
 };
 

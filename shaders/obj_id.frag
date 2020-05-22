@@ -2,12 +2,12 @@
 
 #define PREC highp
 
-layout (location=0) out PREC int ObjId;
+layout (location=0) out PREC float ObjId;
 
 uniform vec4 obj_id_;
 
 void main(void)
 {
-    ObjId = int(obj_id_.x);
+    ObjId = obj_id_.x;
 }
 

@@ -10,7 +10,7 @@
 #include <vector>
 #include <cassert>
 
-static GameObject* g_sel_obj = nullptr; 
+static GameObject* g_sel_obj = nullptr;
 void initialize_editor()
 {
 }
@@ -70,12 +70,16 @@ void editor_update(camera* cam, const float dt) {
     DWORD buttonsPressed;
     gos_GetMouseInfo(&XPos, &YPos, &XDelta, &YDelta, &WheelDelta, &buttonsPressed);
 
+	GameObject *go_under_cursor =
+        scene_get_object_by_id(scene_get_object_id_under_cursor());
+
     if(gos_GetKeyStatus(KEY_ESCAPE) == KEY_RELEASED)
         gos_TerminateApplication();
 
     if (gos_GetKeyStatus(KEY_LMOUSE) == KEY_PRESSED) {
         // get at screen center
-        g_sel_obj = select_object_under_cursor(cam, 0.0f, 0.0f);
+        //g_sel_obj = select_object_under_cursor(cam, 0.0f, 0.0f);
+		g_sel_obj = go_under_cursor;
         if (g_sel_obj) {
             const auto *tc = g_sel_obj->GetComponent<TransformComponent>();
             if (tc) {
@@ -126,7 +130,7 @@ void editor_render_update(struct RenderFrameContext *rfc)
         if(tc) {
            const vec3 pos = tc->GetPosition();
 
-            RenderPacket *rp = frame_render_list->AddPacket();
+            rp = frame_render_list->AddPacket();
             rp->mesh_ = *res_man_load_mesh("axes");
             rp->m_ = mat4::translation(pos) * mat4::scale(vec3(1.0f));
             rp->debug_color = vec4(1,1,1, 0.8f);

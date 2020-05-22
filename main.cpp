@@ -39,6 +39,7 @@ extern void test_fixed_block_allocator();
 bool g_is_in_editor = false;
 bool g_render_initialized_hack = false;
 bool g_update_simulation = true;
+uint32_t g_obj_under_cursor = scene::kInvalidObjectId;
 
 DWORD g_htexture = 0;
 ShadowRenderPass* g_shadow_pass = nullptr;
@@ -160,14 +161,19 @@ void __stdcall Update(void)
         gos_SetRelativeMouseMode(!g_is_in_editor);
     }
 
-    if(!g_is_in_editor)
-        // gmae update
-        UpdateCamera(dt*0.001f);
-    else
-        editor_update(&g_camera, dt);
+	scene_set_object_id_under_cursor(g_obj_under_cursor);
+
+	if (!g_is_in_editor) {
+		// game update
+		UpdateCamera(dt*0.001f);
+	} else {
+		editor_update(&g_camera, dt);
+	}
 
     if(g_update_simulation)
         scene_update(&g_camera, dt);
+
+	g_obj_under_cursor = scene::kInvalidObjectId;
 
     // prepare list of objects to render
     RenderList* frame_render_list = AcquireRenderList();
@@ -416,7 +422,6 @@ void __stdcall Render(void)
 #else // !FORWARD_RENDERING
 
     g_deferred_renderer.RenderGeometry(rfc);
-    g_obj_id_renderer.Render(rfc, g_deferred_renderer.GetSceneDepth());
     g_deferred_renderer.RenderDirectionalLighting(rfc);
     g_deferred_renderer.RenderPointLighting(rfc);
     bool downsampled_particles = true;
@@ -433,10 +438,24 @@ void __stdcall Render(void)
             },
             rfc->proj_);
     }
+
+	if (g_is_in_editor) {
+		g_obj_id_renderer.Render(rfc, g_deferred_renderer.GetSceneDepth());
+
+		int xdelta, ydelta, wheeldelta;
+		float xpos, ypos;
+		DWORD buttonspressed;
+		gos_GetMouseInfo(&xpos, &ypos, &xdelta, &ydelta, &wheeldelta, &buttonspressed);
+
+		// TODO: this stalls GPU, make is async through FBO
+		g_obj_under_cursor =
+			g_obj_id_renderer.Readback(Environment.drawableWidth * xpos,
+									   Environment.drawableHeight * (1 - ypos));
+	}
+
     g_deferred_renderer.Present(Environment.drawableWidth,
                                 Environment.drawableHeight);
 
-    //g_obj_id_renderer.Readback(Environment.drawableWidth/2, Environment.drawableHeight/2);
 
 #endif // FORWARD_RENDERING
 

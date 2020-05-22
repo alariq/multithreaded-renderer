@@ -3,6 +3,7 @@
 #include "gameos.hpp"
 
 #include "engine/utils/gl_fbo.h"
+#include "utils/logging.h"
 
 bool ObjIdRenderer::Init(uint32_t width, uint32_t height)
 {
@@ -12,8 +13,10 @@ bool ObjIdRenderer::Init(uint32_t width, uint32_t height)
     height_ = height;
     uint32_t wh = (height_<<16) | width_;
 
+	// using floating point texture because Nsight can't visualize integer
+    // textures
     gos_obj_id_rt =
-        gos_NewRenderTarget(gos_Texture_R32UI, "obj_id_rt", wh);
+        gos_NewRenderTarget(gos_Texture_R32F, "obj_id_rt", wh);
     g_obj_id_rt = gos_TextureGetNativeId(gos_obj_id_rt);
 
     gos_AddRenderMaterial("obj_id");
@@ -50,7 +53,7 @@ void ObjIdRenderer::Render(struct RenderFrameContext *rfc, GLuint scene_depth)
     gos_SetRenderState(gos_State_AlphaMode, gos_Alpha_OneZero);
     gos_SetRenderState(gos_State_StencilEnable, 0);
     gos_SetRenderState(gos_State_Culling, gos_Cull_CCW);
-    gos_SetRenderState(gos_State_ZCompare, false);
+    gos_SetRenderState(gos_State_ZCompare, 1); // less equal, equal should be enough
     gos_SetRenderState(gos_State_ZWrite, false);
 
     HGOSRENDERMATERIAL mat = gos_getRenderMaterial("obj_id");
@@ -60,19 +63,18 @@ void ObjIdRenderer::Render(struct RenderFrameContext *rfc, GLuint scene_depth)
     const RenderPacketList_t& rpl = rfc->rl_->GetRenderPackets();
     RenderPacketList_t::const_iterator it = rpl.begin();
     RenderPacketList_t::const_iterator end = rpl.end();
-    int index = 1;
     for(;it!=end;++it)
     {
         const RenderPacket& rp = (*it);
         const RenderMesh& ro = rp.mesh_;
 
-        if(!rp.is_debug_pass)
+        if(rp.is_debug_pass)
             continue;
 
         mat4 wvp = vp * rp.m_;
 
 		gos_SetRenderMaterialParameterMat4(mat, "wvp_", (const float*)wvp);
-        float obj_id[4] = { (float)index++, 0.0f, 0.0f, 0.0f }; 
+        float obj_id[4] = { (float)rp.id_, 0.0f, 0.0f, 0.0f }; 
         gos_SetRenderMaterialParameterFloat4(mat, "obj_id_", obj_id);
 
 		gos_ApplyRenderMaterial(mat);
@@ -98,13 +100,13 @@ uint32_t ObjIdRenderer::Readback(int x, int y)
     bool status = checkFramebufferStatus();
     assert(status);
 
-    uint32_t obj_id;
-    glReadPixels(x, y, 1, 1, GL_RED_INTEGER, GL_UNSIGNED_INT, (GLvoid*)&obj_id);
+    float obj_id;
+    glReadPixels(x, y, 1, 1, GL_RED, GL_FLOAT, (GLvoid*)&obj_id);
 
-    printf("x: %d y: %d -> obj_id: %d\n", x, y, obj_id);
+    //log_info("x: %d y: %d -> obj_id: %d\n", x, y, (int)obj_id);
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
-    return obj_id;
+    return (uint32_t)obj_id;
     
 }

@@ -51,6 +51,7 @@ struct RenderPacket {
     RenderMesh mesh_;
     mat4 m_;
     vec4 debug_color;
+	uint32_t id_;
     // material, other params
 #if DO_BAD_THING_FOR_TEST
     class GameObject* go_;

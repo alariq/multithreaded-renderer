@@ -13,6 +13,23 @@ typedef std::list<GameObject*> ObjList_t;
 static ObjList_t g_world_objects;
 static std::vector<PointLight> g_light_list;
 
+static uint32_t g_obj_id_under_cursor = scene::kInvalidObjectId;
+
+void scene_set_object_id_under_cursor(uint32_t obj_id) {
+	g_obj_id_under_cursor = obj_id;
+}
+uint32_t scene_get_object_id_under_cursor() {
+	return g_obj_id_under_cursor;
+}
+
+GameObject* scene_get_object_by_id(GameObjectId id) {
+    for (auto go: g_world_objects) {
+		if (go->GetId() == id)
+			return go;
+    }
+	return nullptr;
+}
+
 void initialize_scene(const struct camera *cam, struct RenderFrameContext *rfc) {
 
     const uint32_t NUM_OBJECTS = 3;
@@ -81,10 +98,10 @@ void initialize_scene(const struct camera *cam, struct RenderFrameContext *rfc) 
                         vec2(10, -25), vec2(-30, 5)};
     for (int i = 0; i < 5; ++i) {
         go = MeshObject::Create("single_room_building");
-        auto* tc = go->GetComponent<TransformComponent>();
-        tc->SetRotation(vec3(0.0f, -rot[i] * 3.1415f / 180.0f, 0.0f));
-        tc->SetPosition(vec3(pos[i].x, 0.0f, pos[i].y));
-        tc->SetScale(vec3(scales[i]));
+        auto* t = go->GetComponent<TransformComponent>();
+        t->SetRotation(vec3(0.0f, -rot[i] * 3.1415f / 180.0f, 0.0f));
+        t->SetPosition(vec3(pos[i].x, 0.0f, pos[i].y));
+        t->SetScale(vec3(scales[i]));
         g_world_objects.push_back(go);
     }
 
@@ -170,6 +187,7 @@ void scene_render_update(struct RenderFrameContext *rfc) {
 
             rp->mesh_ = *go->GetMesh();
             rp->m_ = tc ? tc->GetTransform() : mat4::identity();
+			rp->id_ = go->GetId();
             rp->is_opaque_pass = 1;
             rp->is_render_to_shadow = 1;
             rp->is_transparent_pass = 0;
@@ -190,6 +208,7 @@ void scene_render_update(struct RenderFrameContext *rfc) {
             rp->mesh_ = *sphere;
             rp->m_ = l.transform_ * mat4::scale(vec3(0.1f));
             rp->debug_color = vec4(l.color_.getXYZ(), 0.5f);
+			rp->id_ = scene::kInvalidObjectId;
             rp->is_debug_pass = 1;
             rp->is_opaque_pass = 0;
             rp->is_render_to_shadow = 0;
