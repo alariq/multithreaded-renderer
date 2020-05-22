@@ -2788,7 +2788,8 @@ enum gos_TextureFormat
     gos_Texture_Depth=5,        // sebi: depth render target
     gos_Texture_Depth_Stencil=6,// sebi: depth-stencil render target
     gos_Texture_RGBA8=7,         // sebi
-    gos_Texture_R32UI=8         // sebi
+    gos_Texture_R32UI=8,         // sebi
+    gos_Texture_R32F=9         // sebi
 };
 
 //
