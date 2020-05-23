@@ -60,7 +60,7 @@ void camera::set_projection(const float fov, const int w, const int h, const flo
     height_ = (float)h;
     fov_ = fov;
     near_ = near; far_ = far;
-    mat4 pm = perspectiveMatrixX(fov * 3.1415f / 180.0f, w, h, .1f, 1000.0f, false);
+    mat4 pm = perspectiveMatrixX(fov * 3.1415f / 180.0f, w, h, near, far, false);
     is_perspective_ = true;
     this->set_projection(pm);
 
