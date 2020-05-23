@@ -3,6 +3,7 @@
 #include "utils/vec.h"
 #include "utils/frustum.h"
 
+#include <cstdint>
 #include <algorithm>
 #include <functional>
 #include <vector>
@@ -91,7 +92,7 @@ public:
     }
 
 	GameObject() {
-		static std::atomic<GameObjectId> counter = 0;
+		static std::atomic<GameObjectId> counter{0};
 		id_ = ++counter;
 	}
     virtual ~GameObject() {}

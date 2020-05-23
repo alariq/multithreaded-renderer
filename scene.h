@@ -2,6 +2,7 @@
 
 #include "engine/utils/vec.h"
 #include <vector>
+#include <stdint.h>
 class GameObject;
 typedef uint32_t GameObjectId;
 
