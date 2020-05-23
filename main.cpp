@@ -198,10 +198,10 @@ void __stdcall Update(void)
 
     if(g_render_initialized_hack)
     {
-       scene_render_update(rfc);
-       if(g_is_in_editor)
-          editor_render_update(rfc);
-    }
+		scene_render_update(rfc);
+		if(g_is_in_editor)
+			editor_render_update(rfc);
+	}
 
     rmt_EndCPUSample();
 

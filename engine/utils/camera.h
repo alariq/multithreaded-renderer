@@ -11,11 +11,13 @@ struct camera
 	void set_projection(const float fov, const int width, const int height, const float near, const float far);
 	void set_ortho_projection(const float l, const float r, const float t, const float b, const float near, const float far);
 	void get_projection(mat4* proj) const { *proj = proj_; }
+	const mat4& get_projection() const { return proj_; }
 	void update(float dt);
 	void get_pos(float (*p)[4] ) const; 
 	void set_pos(const vec3& world_pos);
 	void get_view_proj_inv(mat4* vpi) const { *vpi = view_proj_inv_; }
 	void get_view(mat4* view) const { *view = view_; }
+	const mat4& get_view() const { return view_; }
 	
 	void set_view(const mat4& view_mat);
 

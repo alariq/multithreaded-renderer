@@ -134,7 +134,7 @@ static inline unsigned long long rdtsc(void)
 // 2nd parameter is a printf style string
 //  eg: "%d beans used.",BeansUsed
 //
-template<class ...Ts> void sink(Ts... args) {}
+template<class ...Ts> void sink(Ts... ) {}
 
 #ifdef _ARMOR
 #define SPEW(x)		InternalFunctionSpew x
