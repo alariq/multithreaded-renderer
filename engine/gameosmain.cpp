@@ -213,7 +213,7 @@ public:
         return pjob;
     }
 
-    int size() { 
+    size_t size() { 
         return job_list_.size();
     }
 };
@@ -381,15 +381,15 @@ int main(int argc, char** argv)
     //signal(SIGTRAP, SIG_IGN);
     
     // gather command line
-    uint32_t cmdline_len = 0;
+    size_t cmdline_len = 0;
     for(int i=0;i<argc;++i) {
         cmdline_len += strlen(argv[i]);
         cmdline_len += 1; // ' '
     }
     char* cmdline = new char[cmdline_len + 1];
-    uint32_t offset = 0;
+    size_t offset = 0;
     for(int i=0;i<argc;++i) {
-        uint32_t arglen = strlen(argv[i]);
+        size_t arglen = strlen(argv[i]);
         memcpy(cmdline + offset, argv[i], arglen);
         cmdline[offset + arglen] = ' ';
         offset += arglen + 1;
@@ -654,7 +654,7 @@ int main(int argc, char** argv)
 
 
 
-int RenderThreadMain(void* data) {
+int RenderThreadMain(void* /*data*/) {
 
     while(g_rendering) {
         R_job* pjob = g_render_job_queue->pop();
