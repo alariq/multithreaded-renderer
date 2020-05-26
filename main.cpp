@@ -184,11 +184,11 @@ void __stdcall Update(void)
     rfc->frame_number_ = GetCurrentFrame();
     rfc->rl_ = frame_render_list;
     rfc->csm_info_ = csm_info;
-    g_camera.get_view(&rfc->view_);
-    g_camera.get_projection(&rfc->proj_);
-    rfc->inv_proj_ = g_camera.inv_proj_;
+    rfc->view_ = g_camera.get_view();
+    rfc->proj_ = g_camera.get_projection();
+    rfc->inv_proj_ = g_camera.get_inv_projection();
     g_shadow_camera.get_view(&rfc->shadow_view_);
-    rfc->shadow_inv_view_ = g_shadow_camera.inv_view_;
+    rfc->shadow_inv_view_ = g_shadow_camera.get_inv_view();
     SetRenderFrameContext(rfc);
     //
 

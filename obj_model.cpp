@@ -38,7 +38,7 @@ void FrustumObject::UpdateFrustum(const camera *pcam) {
     vec3 dir = view.getRow(2).xyz();
     vec3 right = view.getRow(0).xyz();
     vec3 up = view.getRow(1).xyz();
-    vec4 pos = pcam->inv_view_ * vec4(0, 0, 0, 1);
+    vec4 pos = pcam->get_inv_view() * vec4(0, 0, 0, 1);
 
     frustum_.updateFromCamera(pos.xyz(), dir, right, up, pcam->get_fov(),
                               pcam->get_aspect(), pcam->get_near(),

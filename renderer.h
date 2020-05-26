@@ -128,6 +128,7 @@ struct RenderFrameContext {
     mat4 view_;
     mat4 proj_;
     mat4 inv_proj_;
+    mat4 inv_view_;
     mat4 shadow_view_;
     mat4 shadow_inv_view_;
 

@@ -51,7 +51,7 @@ mat4 applyCropMatrix(const Frustum &f, const mat4& shadow_modelview)
     // include 8 points at the corners of scene AABB (TODO: provide real correct AABB)
 	for(int i=0; i<8; i++)
 	{
-        vec3 pt = vec3(i%2?-200:200, ((i>>1)%2)?-200:200, ((i>>2)%2)?-200:200); 
+        vec3 pt = vec3(i%2?-200.0f:200.0f, ((i>>1)%2)?-200.0f:200.0f, ((i>>2)%2)?-200.0f:200.0f); 
 		transf = shadow_modelview * vec4(pt.x, pt.y, pt.z, 1.0f);
 		if(transf.z > maxZ) maxZ = transf.z;
 	    if(transf.z < minZ) minZ = transf.z;
@@ -94,7 +94,7 @@ mat4 applyCropMatrix(const Frustum &f, const mat4& shadow_modelview)
 
 	for(int i=0; i<8; i++)
 	{
-        vec3 pt = vec3(i%2?-200:200, ((i>>1)%2)?-200:200, ((i>>2)%2)?-200:200); 
+        vec3 pt = vec3(i%2?-200.0f:200.0f, ((i>>1)%2)?-200.0f:200.0f, ((i>>2)%2)?-200.0f:200.0f); 
 		transf = shad_mvp*vec4(pt.x, pt.y, pt.z, 1.0f);
 
 		transf.x /= transf.w;
@@ -145,7 +145,7 @@ void fill_csm_frustums(CSMInfo* csm_info, const struct camera* cam, const struct
     vec3 dir = view_m.getRow(2).xyz();
     vec3 right = view_m.getRow(0).xyz();
     vec3 up = view_m.getRow(1).xyz();
-    vec4 pos = cam->inv_view_ * vec4(0,0,0,1);
+    vec4 pos = cam->get_inv_view() * vec4(0,0,0,1);
 
     csm_info->num_cascades_ = num_cascades;
     for(size_t i=0; i<num_cascades;++i)
