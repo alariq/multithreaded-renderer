@@ -12,12 +12,14 @@ struct camera
 	void set_ortho_projection(const float l, const float r, const float t, const float b, const float near, const float far);
 	void get_projection(mat4* proj) const { *proj = proj_; }
 	const mat4& get_projection() const { return proj_; }
+	const mat4& get_inv_projection() const { return inv_proj_; }
 	void update(float dt);
 	void get_pos(float (*p)[4] ) const; 
 	void set_pos(const vec3& world_pos);
 	void get_view_proj_inv(mat4* vpi) const { *vpi = view_proj_inv_; }
 	void get_view(mat4* view) const { *view = view_; }
 	const mat4& get_view() const { return view_; }
+	const mat4& get_inv_view() const { return inv_view_; }
 	
 	void set_view(const mat4& view_mat);
 
@@ -41,6 +43,13 @@ struct camera
 	float up_vec[4];
 
 
+    float get_fov() const { return fov_; }
+    float get_aspect() const { return (float)width_/(float)height_; }
+    float get_near() const { return near_; }
+    float get_far() const { return far_; }
+
+private:
+
 	mat4 proj_;
 	mat4 inv_proj_;
 	mat4 view_;
@@ -48,12 +57,6 @@ struct camera
 	mat4 world_;
 	mat4 view_proj_inv_;
 
-    float get_fov() const { return fov_; }
-    float get_aspect() const { return (float)width_/(float)height_; }
-    float get_near() const { return near_; }
-    float get_far() const { return far_; }
-
-private:
 
 	void set_projection(const mat4& proj);
 

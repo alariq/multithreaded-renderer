@@ -24,36 +24,37 @@ void finalize_editor()
 // x,y = [-1,1] screen space range
 // z - distance from camera pos (in world space)
 // returns: world position at a given distance from camera
-static vec3 get_cursor_pos(const camera *cam, const float x, const float y,
+static vec3 get_cursor_pos(const mat4* inv_proj, const mat4* inv_view, const float x, const float y,
                     const float dist_from_cam) {
-    vec4 view_pos = cam->inv_proj_ * vec4(x, y, 0.5f, 1.0f);
+    vec4 view_pos = *inv_proj * vec4(x, y, 0.5f, 1.0f);
     vec3 view_pos_n = dist_from_cam * normalize(view_pos.xyz());
-    vec3 wpos = (cam->inv_view_ * vec4(view_pos_n, 1.0f)).xyz();
+    vec3 wpos = (*inv_view * vec4(view_pos_n, 1.0f)).xyz();
     return wpos;
 }
 
 static vec3 screen2world(const camera *cam, const vec2 screen_pos,
                     const float dist_from_cam) {
-    vec4 view_pos = cam->inv_proj_ * vec4(screen_pos, 0.0f, 1.0f);
+    vec4 view_pos = cam->get_inv_projection() * vec4(screen_pos, 0.0f, 1.0f);
     vec3 view_pos_n = dist_from_cam * normalize(view_pos.xyz());
-    vec3 wpos = (cam->inv_view_ * vec4(view_pos_n, 1.0f)).xyz();
+    vec3 wpos = (cam->get_inv_view() * vec4(view_pos_n, 1.0f)).xyz();
     return wpos;
 }
 
 static vec3 screen2world_dir(const camera *cam, const vec2 screen_pos) {
-    vec4 view_pos = cam->inv_proj_ * vec4(screen_pos, 0.0f, 1.0f);
+    vec4 view_pos = cam->get_inv_projection() * vec4(screen_pos, 0.0f, 1.0f);
     vec3 view_pos_n = normalize(view_pos.xyz());
-	return normalize((cam->inv_view_ * vec4(view_pos_n, 0.0f)).xyz());
+	return normalize((cam->get_inv_view() * vec4(view_pos_n, 0.0f)).xyz());
 }
 
 
 // x,y = [-1,1] screen space range
 GameObject* select_object_under_cursor(const camera *cam, float x, float y) {
 
-    const vec3 ws_cursor_pos = get_cursor_pos(cam, x, y, 10.0f);
-    // go->SetPosition(wpos);
+	const mat4& inv_view = cam->get_inv_view();
+    const vec3 ws_cursor_pos =
+		get_cursor_pos(&inv_view, &cam->get_inv_projection(), x, y, 10.0f);
 
-    const vec3 ws_cam_pos = (cam->inv_view_ * vec4(0, 0, 0, 1)).xyz();
+    const vec3 ws_cam_pos = (inv_view * vec4(0, 0, 0, 1)).xyz();
     const vec3 ws_dir = normalize(ws_cursor_pos - ws_cam_pos);
     using el_t = std::pair<float, GameObject *>;
     std::vector<el_t> int_obj;
@@ -89,7 +90,7 @@ static vec3 project_on_x_axis(const vec3 ray_dir, const vec3 ray_origin)
 	return int_dot * vec3(1, 0, 0);
 }
 
-void editor_update(camera *cam, const float dt) {
+void editor_update(camera *cam, const float /*dt*/) {
 
 	int XDelta, YDelta, WheelDelta;
 	float XPos, YPos;
@@ -104,7 +105,6 @@ void editor_update(camera *cam, const float dt) {
 
 	if (gos_GetKeyStatus(KEY_LMOUSE) == KEY_PRESSED) {
 		// get at screen center
-		// g_sel_obj = select_object_under_cursor(cam, 0.0f, 0.0f);
 		g_sel_obj = go_under_cursor;
 		if (g_sel_obj) {
 			const auto *tc = g_sel_obj->GetComponent<TransformComponent>();
@@ -139,13 +139,12 @@ void editor_update(camera *cam, const float dt) {
 	}
 }
 
-static void add_debug_sphere(struct RenderFrameContext *rfc, const mat4& mat, const vec4& color)
+static void add_debug_mesh(struct RenderFrameContext *rfc, RenderMesh* mesh, const mat4& mat, const vec4& color)
 {
-    RenderMesh *sphere = res_man_load_mesh("sphere");
     RenderList *frame_render_list = rfc->rl_;
     frame_render_list->ReservePackets(1);
     RenderPacket *rp = frame_render_list->AddPacket();
-    rp->mesh_ = *sphere;
+    rp->mesh_ = *mesh;
 	rp->m_ = mat;
 	rp->debug_color = color;
     rp->is_debug_pass = 1;
@@ -154,40 +153,38 @@ static void add_debug_sphere(struct RenderFrameContext *rfc, const mat4& mat, co
     rp->is_transparent_pass = 0;
 }
 
+static void add_debug_sphere_constant_size(struct RenderFrameContext *rfc, const vec3& pos, const vec4& color) {
+
+	const float oo_no_scale_distance = 1.0f / 100.0f;
+	const float cam_z = (rfc->view_ * vec4(pos, 1)).z;
+	const mat4 tr = mat4::translation(pos) * mat4::scale(vec3(cam_z * oo_no_scale_distance));
+	add_debug_mesh(rfc, res_man_load_mesh("sphere"), tr, color);
+}
+
+static void add_debug_mesh_constant_size(struct RenderFrameContext *rfc, RenderMesh* mesh, const vec3& pos, const vec4& color) {
+
+	const float oo_no_scale_distance = 1.0f / 100.0f;
+	const float cam_z = (rfc->view_ * vec4(pos, 1)).z;
+	const mat4 tr = mat4::translation(pos) * mat4::scale(vec3(cam_z * oo_no_scale_distance));
+	add_debug_mesh(rfc, mesh, tr, color);
+}
+
 
 void editor_render_update(struct RenderFrameContext *rfc)
 {
     RenderList *frame_render_list = rfc->rl_;
     frame_render_list->ReservePackets(4);
 
-    RenderMesh *sphere = res_man_load_mesh("sphere");
-    assert(sphere);
-    extern camera g_camera;
-
-    const vec3 screen_center = get_cursor_pos(&g_camera, 0.0f, 0.0f, 10.0f);
-	add_debug_sphere(
-		rfc, mat4::translation(screen_center) * mat4::scale(vec3(0.025f)),
-		vec4(1, 1, 1, 0.8f));
-
-	add_debug_sphere(
-		rfc, mat4::translation(drag_cur_mouse_world_pos) * mat4::scale(vec3(0.1f)),
-		vec4(1, 0, 0, 1.0f));
+    const vec3 screen_center = get_cursor_pos(&rfc->inv_view_, &rfc->inv_proj_, 0.0f, 0.0f, 10.0f);
+	add_debug_sphere_constant_size(rfc, screen_center, vec4(1, 1, 1, 0.8f));
+	add_debug_sphere_constant_size(rfc, drag_cur_mouse_world_pos, vec4(1, 0, 0, 1.0f));
 
     if(g_sel_obj) {
         auto* tc = g_sel_obj->GetComponent<TransformComponent>();
         if(tc) {
-
-			// draw axes at the center of a selected object
 			const vec3 pos = tc->GetPosition();
-			RenderPacket *rp = frame_render_list->AddPacket();
-            rp->mesh_ = *res_man_load_mesh("axes");
-            rp->m_ = mat4::translation(pos) * mat4::scale(vec3(1.0f));
-            rp->debug_color = vec4(1,1,1, 0.8f);
-            rp->is_debug_pass = 1;
-            rp->is_opaque_pass = 0;
-            rp->is_render_to_shadow = 0;
-            rp->is_transparent_pass = 0;
-        }
+			add_debug_mesh_constant_size(rfc, res_man_load_mesh("axes"), pos, vec4(1,1,1, 0.8f));
+		}
     }
 }
 
