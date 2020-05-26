@@ -344,7 +344,7 @@ public:
 
     void Update(const float dt) override {
 
-        float clamped_dt_sec = clamp(dt / 1000.0f, 0.0f, 0.1f);
+        float clamped_dt_sec = clamp(dt, 0.0f, 0.1f);
 
         num_particles_to_generate_ += rate_ * clamped_dt_sec;
         float num2gen = floor(num_particles_to_generate_);

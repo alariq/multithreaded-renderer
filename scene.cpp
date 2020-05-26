@@ -150,7 +150,7 @@ void scene_update(const camera *cam, const float dt) {
 
     for (; it != end; ++it) {
         GameObject *go = *it;
-        go->Update(dt * 0.001f);
+        go->Update(dt);
 
         // if object is frustum object.... and we wnt to update it
         if (0) {

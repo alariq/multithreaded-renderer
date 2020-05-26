@@ -146,7 +146,7 @@ void __stdcall Update(void)
     static uint64_t start_tick = timing::gettickcount();
 
     uint64_t end_tick = timing::gettickcount();
-    uint64_t dt = timing::ticks2ms(end_tick - start_tick);
+    float dt_sec = ((float)timing::ticks2ms(end_tick - start_tick))/1e3f;
 
     //printf("dt: %zd\n", dt);
 
@@ -165,13 +165,13 @@ void __stdcall Update(void)
 
 	if (!g_is_in_editor) {
 		// game update
-		UpdateCamera(dt*0.001f);
+		UpdateCamera(dt_sec);
 	} else {
-		editor_update(&g_camera, dt);
+		editor_update(&g_camera, dt_sec);
 	}
 
     if(g_update_simulation)
-        scene_update(&g_camera, dt);
+        scene_update(&g_camera, dt_sec);
 
 	g_obj_under_cursor = scene::kInvalidObjectId;
 
