@@ -4,6 +4,7 @@
 
 #include "engine/utils/gl_fbo.h"
 #include "utils/logging.h"
+#include "scene.h"
 
 bool ObjIdRenderer::Init(uint32_t width, uint32_t height)
 {
@@ -68,7 +69,7 @@ void ObjIdRenderer::Render(struct RenderFrameContext *rfc, GLuint scene_depth)
         const RenderPacket& rp = (*it);
         const RenderMesh& ro = rp.mesh_;
 
-        if(rp.is_debug_pass)
+        if(!rp.is_selection_pass)
             continue;
 
         mat4 wvp = vp * rp.m_;
@@ -78,6 +79,12 @@ void ObjIdRenderer::Render(struct RenderFrameContext *rfc, GLuint scene_depth)
         gos_SetRenderMaterialParameterFloat4(mat, "obj_id_", obj_id);
 
 		gos_ApplyRenderMaterial(mat);
+
+		// TODO: fix dirty hack
+		if(rp.id_ < scene::kFirstGameObjectId)
+			gos_SetRenderState(gos_State_ZCompare, 0);
+		else
+			gos_SetRenderState(gos_State_ZCompare, 1); // less equal, equal should be enough
 
         if (ro.ib_) {
             gos_RenderIndexedArray(ro.ib_, ro.vb_, ro.vdecl_);
@@ -93,6 +100,9 @@ void ObjIdRenderer::Render(struct RenderFrameContext *rfc, GLuint scene_depth)
 
 uint32_t ObjIdRenderer::Readback(int x, int y)
 {
+	if (x < 0 || y < 0 || x >= width_ || y >= height_)
+		return 0;
+
     glBindFramebuffer(GL_FRAMEBUFFER, obj_id_fbo_);
     glReadBuffer(GL_COLOR_ATTACHMENT0);
     glDrawBuffer(GL_NONE);
@@ -100,10 +110,9 @@ uint32_t ObjIdRenderer::Readback(int x, int y)
     bool status = checkFramebufferStatus();
     assert(status);
 
-    float obj_id;
-    glReadPixels(x, y, 1, 1, GL_RED, GL_FLOAT, (GLvoid*)&obj_id);
-
-    //log_info("x: %d y: %d -> obj_id: %d\n", x, y, (int)obj_id);
+    float obj_id = 0;
+	glReadPixels(x, y, 1, 1, GL_RED, GL_FLOAT, (GLvoid*)&obj_id);
+	//log_info("x: %d y: %d -> obj_id: %d\n", x, y, (int)obj_id);
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 

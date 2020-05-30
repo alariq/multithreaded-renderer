@@ -2,6 +2,7 @@
 
 #include "utils/vec.h"
 #include "utils/frustum.h"
+#include "scene.h"
 
 #include <cstdint>
 #include <algorithm>
@@ -30,16 +31,11 @@ class Component {
 };
 
 class TransformComponent: public Component {
-    public:
-    static const ComponentType type_ = ComponentType::kTransform;
-    private:
-
     vec3 scale_;
     vec3 rot_;
     vec3 pos_;
-
-    public:
-
+public:
+	static const ComponentType type_ = ComponentType::kTransform;
     TransformComponent(): scale_(1), rot_(0), pos_(0) {}
 
     virtual ComponentType GetType() const { return type_; }
@@ -92,7 +88,7 @@ public:
     }
 
 	GameObject() {
-		static std::atomic<GameObjectId> counter{0};
+		static std::atomic<GameObjectId> counter{scene::kFirstGameObjectId};
 		id_ = ++counter;
 	}
     virtual ~GameObject() {}

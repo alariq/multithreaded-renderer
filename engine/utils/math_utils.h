@@ -2,10 +2,18 @@
 
 #include "vec.h"
 
+// [s, e]
 inline float random(float s, float e) {
     float v = ((float)rand()) / (float)RAND_MAX;
     return s + (e - s) * v;
 }
+
+// [s, e)
+inline int random(int s, int e) {
+    int v = rand() % e;
+    return s + v;
+}
+
 
 inline vec3 random_vec(const vec3& s, const vec3& e) {
     return vec3(random(s.x, e.x), random(s.y, e.y), random(s.z, e.z));

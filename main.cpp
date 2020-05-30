@@ -184,6 +184,7 @@ void __stdcall Update(void)
     rfc->frame_number_ = GetCurrentFrame();
     rfc->rl_ = frame_render_list;
     rfc->csm_info_ = csm_info;
+	rfc->inv_view_ = g_camera.get_inv_view();
     rfc->view_ = g_camera.get_view();
     rfc->proj_ = g_camera.get_projection();
     rfc->inv_proj_ = g_camera.get_inv_projection();
@@ -472,8 +473,8 @@ void __stdcall Render(void)
 void GetGameOSEnvironment(const char* cmdline)
 {
     (void)cmdline;
-    Environment.screenWidth = SCREEN_W;
-    Environment.screenHeight = SCREEN_H;
+    Environment.screenWidth = (int)SCREEN_W;
+    Environment.screenHeight = (int)SCREEN_H;
 
     Environment.InitializeGameEngine = Init;
     Environment.DoGameLogic = Update;
