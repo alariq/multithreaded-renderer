@@ -167,7 +167,7 @@ struct vec4 {
 		w = 0.0f;
 	}
 
-	vec3 getXYZ() {
+	vec3 getXYZ() const {
 		return vec3(x,y,z);
 	}
 	//
@@ -480,6 +480,7 @@ struct mat4 {
 
 	static mat4 identity();
 	vec3 getTranslation() const { return vec3(elem[0][3], elem[1][3], elem[2][3]); }
+	vec4 getTranslationPoint() const { return vec4(elem[0][3], elem[1][3], elem[2][3], 1.0f); }
 	void setTranslation(const vec3& tr) { setCol3(vec4(tr.x, tr.y, tr.z, elem[3][3])); }
 };
 

@@ -23,11 +23,18 @@ uint32_t scene_get_object_id_under_cursor() {
 }
 
 GameObject* scene_get_object_by_id(GameObjectId id) {
+	if (id < scene::kFirstGameObjectId)
+		return nullptr;
+
     for (auto go: g_world_objects) {
 		if (go->GetId() == id)
 			return go;
     }
 	return nullptr;
+}
+
+const std::vector<PointLight>& scene_get_light_list() {
+	return g_light_list;
 }
 
 void initialize_scene(const struct camera *cam, struct RenderFrameContext *rfc) {
@@ -192,29 +199,13 @@ void scene_render_update(struct RenderFrameContext *rfc) {
             rp->is_render_to_shadow = 1;
             rp->is_transparent_pass = 0;
             rp->is_debug_pass = 0;
+            rp->is_selection_pass = 1;
 #if DO_BAD_THING_FOR_TEST
             rp->go_ = go;
 #endif
         }
     }
 
-    RenderMesh *sphere = res_man_load_mesh("sphere");
-    assert(sphere);
-    {
-        frame_render_list->ReservePackets(g_light_list.size());
-        // add lights to debug render pass
-        for (auto &l : g_light_list) {
-            RenderPacket *rp = frame_render_list->AddPacket();
-            rp->mesh_ = *sphere;
-            rp->m_ = l.transform_ * mat4::scale(vec3(0.1f));
-            rp->debug_color = vec4(l.color_.getXYZ(), 0.5f);
-			rp->id_ = scene::kInvalidObjectId;
-            rp->is_debug_pass = 1;
-            rp->is_opaque_pass = 0;
-            rp->is_render_to_shadow = 0;
-            rp->is_transparent_pass = 0;
-        }
-    }
 
     rfc->point_lights_ = g_light_list;
 }

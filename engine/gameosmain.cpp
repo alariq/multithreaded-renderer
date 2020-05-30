@@ -27,7 +27,7 @@ extern void gos_RenderUpdateDebugInput();
 extern bool gosExitGameOS();
 
 
-#define SIMULATE_MAIN_THREAD_WORK 1
+//#define SIMULATE_MAIN_THREAD_WORK 1
 
 
 static bool g_exit = false;
@@ -360,7 +360,7 @@ const char* getStringForSeverity(GLenum type)
 	default: return "(undefined)";
 	}
 }
-void GLAPIENTRY OpenGLDebugLog(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar* message, const GLvoid* userParam)
+void GLAPIENTRY OpenGLDebugLog(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei /*length*/, const GLchar* message, const GLvoid* userParam)
 {
     (void)userParam;
 	if (severity != GL_DEBUG_SEVERITY_NOTIFICATION && severity != GL_DEBUG_SEVERITY_LOW)
