@@ -11,6 +11,22 @@
 #include <vector>
 #include <cassert>
 
+enum class EditorOpMode {
+	kMove,
+	kRotate,
+	kScale
+};
+
+enum class GizmoMode {
+	kMove,
+	kRotate,
+	kScale
+};
+
+// TODOL move all variables in a single Editor state
+static EditorOpMode s_editor_mode = EditorOpMode::kMove;
+static GizmoMode s_gizmo_mode = GizmoMode::kMove;
+
 static GameObject* g_sel_obj = nullptr;
 void initialize_editor()
 {
@@ -40,6 +56,10 @@ static vec3 screen2world(const camera *cam, const vec2 screen_pos,
     return wpos;
 }
 
+static vec2 proj2screen(vec2 proj, float w, float h) {
+	return vec2((0.5f*proj.x + 0.5f)*w, (0.5f*(1.0f - proj.y) + 0.5f)*h);
+}
+
 // x,y = [-1,1] screen space range
 GameObject* select_object_under_cursor(const camera *cam, float x, float y) {
 
@@ -67,10 +87,14 @@ GameObject* select_object_under_cursor(const camera *cam, float x, float y) {
     return closest_obj;
 }
 
+// drag related variables
 static bool drag_started = false;
 static vec3 drag_start_mouse_world_pos;
-static vec3 drag_cur_mouse_world_pos;
+static vec2 drag_start_mouse_proj_pos;
 static vec3 drag_start_obj_pos;
+static vec3 drag_start_obj_scale;
+
+static vec3 drag_cur_mouse_world_pos;
 static float drag_obj_view_dist;
 static int drag_type;
 
@@ -95,6 +119,30 @@ static vec3 project_on_axis(const vec3 ray_dir, const vec3 ray_origin, int axis)
 	return int_dot * axes[axis];
 }
 
+static EditorOpMode undate_input_mode(const EditorOpMode ed_mode) {
+
+	 if(gos_GetKeyStatus(KEY_Q) == KEY_PRESSED)
+        return EditorOpMode::kMove;
+	 if(gos_GetKeyStatus(KEY_W) == KEY_PRESSED)
+        return EditorOpMode::kRotate;
+	 if(gos_GetKeyStatus(KEY_E) == KEY_PRESSED)
+        return EditorOpMode::kScale;
+
+	 return ed_mode;
+}
+
+static GizmoMode update_gizmo_mode(const EditorOpMode ed_mode) {
+
+	 if(EditorOpMode::kMove == ed_mode)
+        return GizmoMode::kMove;
+	 else if(EditorOpMode::kRotate == ed_mode)
+        return GizmoMode::kRotate;
+	 else if(EditorOpMode::kScale == ed_mode)
+        return GizmoMode::kScale;
+	 else
+        return GizmoMode::kMove;
+}
+
 void editor_update(camera *cam, const float /*dt*/) {
 
 	int XDelta, YDelta, WheelDelta;
@@ -102,6 +150,14 @@ void editor_update(camera *cam, const float /*dt*/) {
 	DWORD buttonsPressed;
 	gos_GetMouseInfo(&XPos, &YPos, &XDelta, &YDelta, &WheelDelta, &buttonsPressed);
 	vec2 cur_mouse_proj_pos = 2 * vec2(XPos, 1 - YPos) - 1;
+	const float screen_width = (float)Environment.drawableWidth;
+	const float screen_height = (float)Environment.drawableHeight;
+
+	if (gos_GetKeyStatus(KEY_ESCAPE) == KEY_RELEASED)
+		gos_TerminateApplication();
+
+	s_editor_mode = undate_input_mode(s_editor_mode);
+	s_gizmo_mode = update_gizmo_mode(s_editor_mode);
 
 	const uint32_t sel_id = scene_get_object_id_under_cursor();
 	GameObject *go_under_cursor = nullptr;
@@ -109,33 +165,32 @@ void editor_update(camera *cam, const float /*dt*/) {
 		go_under_cursor = scene_get_object_by_id(sel_id);
 	}
 
-	if (gos_GetKeyStatus(KEY_ESCAPE) == KEY_RELEASED)
-		gos_TerminateApplication();
-
 	if (gos_GetKeyStatus(KEY_LMOUSE) == KEY_PRESSED) {
 		// get at screen center
-		if(go_under_cursor)
+		if (go_under_cursor) {
 			g_sel_obj = go_under_cursor;
-
-		if (sel_id >= ReservedObjIds::kFirst && sel_id <= ReservedObjIds::kLast &&
-			g_sel_obj) {
+		}
+		else if (sel_id >= ReservedObjIds::kGizmoFirst && sel_id < ReservedObjIds::kGizmoLast) {
+			gosASSERT(g_sel_obj);
 			drag_type = sel_id;
 			const auto *tc = g_sel_obj->GetComponent<TransformComponent>();
 			if (tc) {
 				drag_start_obj_pos = tc->GetPosition();
+				drag_start_obj_scale = tc->GetScale();
 				mat4 vm = cam->get_view();
 				vec3 vp = (vm * vec4(drag_start_obj_pos, 1.0f)).getXYZ();
 				drag_obj_view_dist = vp.z;
+				drag_start_mouse_proj_pos = cur_mouse_proj_pos;
 				drag_start_mouse_world_pos =
 					screen2world(cam, cur_mouse_proj_pos, drag_obj_view_dist);
 
 				drag_started = true;
 			}
 		}
-		log_debug("mouse x:%f y:%f\n", XPos, YPos);
 	}
-	if (drag_started && gos_GetKeyStatus(KEY_LMOUSE) == KEY_HELD && g_sel_obj) {
 
+	if (drag_started && gos_GetKeyStatus(KEY_LMOUSE) == KEY_HELD) {
+		gosASSERT(g_sel_obj);
 		drag_cur_mouse_world_pos = screen2world(cam, cur_mouse_proj_pos, drag_obj_view_dist);
 
 		auto *tc = g_sel_obj->GetComponent<TransformComponent>();
@@ -150,6 +205,7 @@ void editor_update(camera *cam, const float /*dt*/) {
 				int axis = drag_type - ReservedObjIds::kGizmoMoveX;
 				vec3 pr_start = project_on_axis(ray_dir, drag_start_mouse_world_pos, axis);
 				vec3 pr_end = project_on_axis(ray_dir, drag_cur_mouse_world_pos, axis);
+				drag_move_marker_pos = pr_end;
 				vec3 upd_pos = drag_start_obj_pos + (pr_end - pr_start);
 				tc->SetPosition(upd_pos);
 				break;
@@ -167,6 +223,24 @@ void editor_update(camera *cam, const float /*dt*/) {
 				vec3 offset = start_pos - drag_start_obj_pos;
 				vec3 upd_pos = ray_plane_intersect(ray_dir, ray_origin, planes[plane_idx]);
 				tc->SetPosition(upd_pos - offset);
+				break;
+			}
+			case ReservedObjIds::kGizmoScaleX:
+			case ReservedObjIds::kGizmoScaleY:
+			case ReservedObjIds::kGizmoScaleZ:
+			case ReservedObjIds::kGizmoScaleXZ:
+			case ReservedObjIds::kGizmoScaleYX:
+			case ReservedObjIds::kGizmoScaleYZ:
+			{
+				const int axis_idx = drag_type - ReservedObjIds::kGizmoScaleX;
+				const vec3 axes[6] = { vec3(1,0,0), vec3(0,1,0), vec3(0,0,1), vec3(1,0,1), vec3(1,1,0), vec3(0,1,1) };
+				const vec2 screen_delta =
+					proj2screen(cur_mouse_proj_pos, screen_width, screen_height) -
+					proj2screen(drag_start_mouse_proj_pos, screen_width, screen_height);
+				// TODO: use distance to the object as an additional multiplier for better UX?
+				const float scale = screen_delta.x * 0.025f; 
+				const vec3 scale_axis = scale * axes[axis_idx] + vec3(1,1,1);
+				tc->SetScale(drag_start_obj_scale * scale_axis);
 				break;
 			}
 		}
@@ -224,23 +298,38 @@ static void add_debug_mesh_constant_size(struct RenderFrameContext *rfc, RenderM
 	add_debug_mesh(rfc, mesh, tr, color);
 }
 
-static void add_debug_axes_constant_size(struct RenderFrameContext *rfc, const vec3& pos) {
+static void add_debug_axes_constant_size(struct RenderFrameContext *rfc, const vec3& pos, const GizmoMode mode) {
 
 	RenderMesh* cube = res_man_load_mesh("cube");
 	const float no_scale_distance = 100.0f;
 	const float cam_z = (rfc->view_ * vec4(pos, 1)).z;
 	const float scaler = cam_z / no_scale_distance;
 
-	const mat4 tr_x = mat4::translation(pos) * mat4::scale(vec3(2.0f, 0.1f, 0.1f) * scaler) *
-					  mat4::translation(vec3(1.0f, 0.0f, 0.0f));
-	const mat4 tr_y = mat4::translation(pos) * mat4::scale(vec3(0.1f, 2.0f, 0.1f) * scaler) *
-					  mat4::translation(vec3(0.0f, 1.0f, 0.0f));
-	const mat4 tr_z = mat4::translation(pos) * mat4::scale(vec3(0.1f, 0.1f, 2.0f) * scaler) *
-					  mat4::translation(vec3(0.0f, 0.0f, 1.0f));
+	const mat4 tr_x = mat4::translation(pos) * mat4::translation(vec3(2.0f * scaler, 0.0f, 0.0f)) * mat4::scale(vec3(2.0f, 0.1f, 0.1f) * scaler);
+	const mat4 tr_y = mat4::translation(pos) * mat4::translation(vec3(0.0f, 2.0f* scaler, 0.0f)) * mat4::scale(vec3(0.1f, 2.0f, 0.1f) * scaler);
+	const mat4 tr_z = mat4::translation(pos) * mat4::translation(vec3(0.0f, 0.0f, 2.0f * scaler)) * mat4::scale(vec3(0.1f, 0.1f, 2.0f) * scaler);
 
-	add_debug_mesh(rfc, cube, tr_x, vec4(1.0f, 0.15f, 0.15f, 1.0f), ReservedObjIds::kGizmoMoveX);
-	add_debug_mesh(rfc, cube, tr_y, vec4(0.15f, 1.0f, 0.15f, 1.0f), ReservedObjIds::kGizmoMoveY);
-	add_debug_mesh(rfc, cube, tr_z, vec4(0.15f, 0.15f, 1.0f, 1.0f), ReservedObjIds::kGizmoMoveZ);
+	uint32_t axis_x_id = GizmoMode::kMove == mode ? ReservedObjIds::kGizmoMoveX : 0;
+	uint32_t axis_y_id = GizmoMode::kMove == mode ? ReservedObjIds::kGizmoMoveY : 0;
+	uint32_t axis_z_id = GizmoMode::kMove == mode ? ReservedObjIds::kGizmoMoveZ : 0;
+	add_debug_mesh(rfc, cube, tr_x, vec4(1.0f, 0.15f, 0.15f, 1.0f), axis_x_id);
+	add_debug_mesh(rfc, cube, tr_y, vec4(0.15f, 1.0f, 0.15f, 1.0f), axis_y_id);
+	add_debug_mesh(rfc, cube, tr_z, vec4(0.15f, 0.15f, 1.0f, 1.0f), axis_z_id);
+
+	if (GizmoMode::kScale == mode) {
+		const mat4 scale_cube_scale = mat4::scale(vec3(.3f, 0.3f, 0.3f) * scaler);
+		const mat4 tr_sx =
+			mat4::translation(pos) * mat4::translation(vec3(4.0f * scaler, 0.0f, 0.0f)) * scale_cube_scale;
+		const mat4 tr_sy =
+			mat4::translation(pos) * mat4::translation(vec3(0.0f, 4.0f * scaler, 0.0f)) * scale_cube_scale;
+		const mat4 tr_sz =
+			mat4::translation(pos) * mat4::translation(vec3(0.0f, 0.0f, 4.0f * scaler)) * scale_cube_scale;
+
+		add_debug_mesh(rfc, cube, tr_sx, vec4(1.0f, 0.15f, 0.15f, 1.0f), ReservedObjIds::kGizmoScaleX);
+		add_debug_mesh(rfc, cube, tr_sy, vec4(0.15f, 1.0f, 0.15f, 1.0f), ReservedObjIds::kGizmoScaleY);
+		add_debug_mesh(rfc, cube, tr_sz, vec4(0.15f, 0.15f, 1.0f, 1.0f), ReservedObjIds::kGizmoScaleZ);
+	}
+
 
 	const mat4 tr_xz = mat4::translation(pos) * mat4::scale(vec3(1.0f, 0.01f, 1.0f) * scaler) *
 					  mat4::translation(vec3(2.0f, 0.0f, 2.0f));
@@ -249,9 +338,14 @@ static void add_debug_axes_constant_size(struct RenderFrameContext *rfc, const v
 	const mat4 tr_yz = mat4::translation(pos) * mat4::scale(vec3(0.01f, 1.0f, 1.0f) * scaler) *
 					  mat4::translation(vec3(0.0f, 2.0f, 2.0f));
 
-	add_debug_mesh(rfc, cube, tr_xz, vec4(1.0f, 0.0f, 1.0f, .25f), ReservedObjIds::kGizmoMoveXZ);
-	add_debug_mesh(rfc, cube, tr_yx, vec4(1.0f, 1.0f, 0.0f, .25f), ReservedObjIds::kGizmoMoveYX);
-	add_debug_mesh(rfc, cube, tr_yz, vec4(0.0f, 1.0f, 1.0f, .25f), ReservedObjIds::kGizmoMoveYZ);
+	if (GizmoMode::kRotate != mode) {
+		uint32_t plane_xz_id = GizmoMode::kMove == mode ? ReservedObjIds::kGizmoMoveXZ : ReservedObjIds::kGizmoScaleXZ;
+		uint32_t plane_yx_id = GizmoMode::kMove == mode ? ReservedObjIds::kGizmoMoveYX : ReservedObjIds::kGizmoScaleYX;
+		uint32_t plane_yz_id = GizmoMode::kMove == mode ? ReservedObjIds::kGizmoMoveYZ : ReservedObjIds::kGizmoScaleYZ;
+		add_debug_mesh(rfc, cube, tr_xz, vec4(1.0f, 0.0f, 1.0f, .25f), plane_xz_id);
+		add_debug_mesh(rfc, cube, tr_yx, vec4(1.0f, 1.0f, 0.0f, .25f), plane_yx_id);
+		add_debug_mesh(rfc, cube, tr_yz, vec4(0.0f, 1.0f, 1.0f, .25f), plane_yz_id);
+	}
 }
 
 void editor_render_update(struct RenderFrameContext *rfc)
@@ -260,7 +354,7 @@ void editor_render_update(struct RenderFrameContext *rfc)
         auto* tc = g_sel_obj->GetComponent<TransformComponent>();
         if(tc) {
 			const vec3 pos = tc->GetPosition();
-			add_debug_axes_constant_size(rfc, pos);
+			add_debug_axes_constant_size(rfc, pos, s_gizmo_mode);
 		}
     }
 
