@@ -8,13 +8,25 @@
 namespace ReservedObjIds {
 	enum : uint32_t {
 		kFirst = 1,
-		kGizmoMoveX = kFirst,
+		kGizmoFirst = kFirst,
+		kGizmoMoveX = kGizmoFirst,
 		kGizmoMoveY,
 		kGizmoMoveZ,
+
 		kGizmoMoveXZ,
 		kGizmoMoveYX,
 		kGizmoMoveYZ,
-		kLast = kGizmoMoveYZ,
+
+		kGizmoScaleX,
+		kGizmoScaleY,
+		kGizmoScaleZ,
+
+		kGizmoScaleXZ,
+		kGizmoScaleYX,
+		kGizmoScaleYZ,
+		kGizmoLast,
+		// here can go other ids
+		kLast,
 	};
 }
 
@@ -23,7 +35,7 @@ typedef uint32_t GameObjectId;
 
 namespace scene {
 	constexpr uint32_t kInvalidObjectId = 0xffffffff;
-	constexpr uint32_t kFirstGameObjectId = ReservedObjIds::kLast + 1;
+	constexpr uint32_t kFirstGameObjectId = ReservedObjIds::kLast;
 }
 
 void initialize_scene(const struct camera* cam, struct RenderFrameContext* rfc);
