@@ -205,7 +205,6 @@ void editor_update(camera *cam, const float /*dt*/) {
 				int axis = drag_type - ReservedObjIds::kGizmoMoveX;
 				vec3 pr_start = project_on_axis(ray_dir, drag_start_mouse_world_pos, axis);
 				vec3 pr_end = project_on_axis(ray_dir, drag_cur_mouse_world_pos, axis);
-				drag_move_marker_pos = pr_end;
 				vec3 upd_pos = drag_start_obj_pos + (pr_end - pr_start);
 				tc->SetPosition(upd_pos);
 				break;
