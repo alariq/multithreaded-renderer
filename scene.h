@@ -24,6 +24,7 @@ namespace ReservedObjIds {
 		kGizmoScaleXZ,
 		kGizmoScaleYX,
 		kGizmoScaleYZ,
+		kGizmoScaleXYZ,
 		kGizmoLast,
 		// here can go other ids
 		kLast,

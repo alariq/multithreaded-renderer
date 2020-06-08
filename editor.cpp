@@ -230,9 +230,10 @@ void editor_update(camera *cam, const float /*dt*/) {
 			case ReservedObjIds::kGizmoScaleXZ:
 			case ReservedObjIds::kGizmoScaleYX:
 			case ReservedObjIds::kGizmoScaleYZ:
+			case ReservedObjIds::kGizmoScaleXYZ:
 			{
 				const int axis_idx = drag_type - ReservedObjIds::kGizmoScaleX;
-				const vec3 axes[6] = { vec3(1,0,0), vec3(0,1,0), vec3(0,0,1), vec3(1,0,1), vec3(1,1,0), vec3(0,1,1) };
+				const vec3 axes[7] = { vec3(1,0,0), vec3(0,1,0), vec3(0,0,1), vec3(1,0,1), vec3(1,1,0), vec3(0,1,1), vec3(1,1,1) };
 				const vec2 screen_delta =
 					proj2screen(cur_mouse_proj_pos, screen_width, screen_height) -
 					proj2screen(drag_start_mouse_proj_pos, screen_width, screen_height);
@@ -327,6 +328,10 @@ static void add_debug_axes_constant_size(struct RenderFrameContext *rfc, const v
 		add_debug_mesh(rfc, cube, tr_sx, vec4(1.0f, 0.15f, 0.15f, 1.0f), ReservedObjIds::kGizmoScaleX);
 		add_debug_mesh(rfc, cube, tr_sy, vec4(0.15f, 1.0f, 0.15f, 1.0f), ReservedObjIds::kGizmoScaleY);
 		add_debug_mesh(rfc, cube, tr_sz, vec4(0.15f, 0.15f, 1.0f, 1.0f), ReservedObjIds::kGizmoScaleZ);
+
+		const mat4 tr_sxyz =
+			mat4::translation(pos) * scale_cube_scale;
+		add_debug_mesh(rfc, cube, tr_sxyz, vec4(0.15f, 0.15f, 1.0f, 1.0f), ReservedObjIds::kGizmoScaleXYZ);
 	}
 
 
