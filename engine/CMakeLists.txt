@@ -39,6 +39,8 @@ set(SOURCES ${SOURCES}
     utils/math_utils.h
     utils/vec.cpp
     utils/vec.h
+    utils/quaternion.cpp
+    utils/quaternion.h
     utils/frustum.cpp
     utils/frustum.h
     utils/timing.cpp
