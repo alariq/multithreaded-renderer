@@ -19,7 +19,7 @@ struct SVDAdapter {
     ib_type *ib_ = nullptr;
     size_t vb_size_ = 0;
     size_t ib_size_ = 0;
-    int offset_ = 0;
+    size_t offset_ = 0;
 
     enum { kVertexSize = sizeof(SVD) };
 
@@ -55,11 +55,11 @@ struct SVDAdapter {
         return aabb;
     }
 
-    void set_offset(int offset) { offset_ = offset; }
+    void set_offset(size_t offset) { offset_ = offset; }
     void p(unsigned int i, vec3 p) { vb_[i+offset_].pos = p; }
     void n(unsigned int i, vec3 n) { vb_[i+offset_].normal = n; }
     void uv(unsigned int i, vec2 uv) { vb_[i+offset_].uv = uv; }
-    void i(unsigned int i, uint16_t idx) { ib_[i] = idx; }
+    void i(unsigned int i, ib_type idx) { ib_[i] = idx; }
 };
 
 template <typename MeshBuffer>
@@ -70,7 +70,7 @@ static RenderMesh *render_mesh_from_mesh_buffer(const MeshBuffer &mb,
     if (mb.ib_) {
         mesh->ib_ = gos_CreateBuffer(gosBUFFER_TYPE::INDEX,
                                      gosBUFFER_USAGE::STATIC_DRAW,
-                                     sizeof(typename MeshBuffer::ib_type), mb.ib_size_, mb.ib_);
+                                     sizeof(typename MeshBuffer::ib_type), (uint32_t)mb.ib_size_, mb.ib_);
     } else {
         mesh->ib_ = nullptr;
     }
@@ -78,7 +78,7 @@ static RenderMesh *render_mesh_from_mesh_buffer(const MeshBuffer &mb,
     assert(mb.vb_);
     mesh->vb_ =
         gos_CreateBuffer(gosBUFFER_TYPE::VERTEX, gosBUFFER_USAGE::STATIC_DRAW,
-                         mb.kVertexSize, mb.vb_size_, mb.vb_);
+                         mb.kVertexSize, (uint32_t)mb.vb_size_, mb.vb_);
 
     mesh->aabb_ = mb.get_aabb();
     return mesh;

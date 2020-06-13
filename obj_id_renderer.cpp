@@ -98,9 +98,9 @@ void ObjIdRenderer::Render(struct RenderFrameContext *rfc, GLuint scene_depth)
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
-uint32_t ObjIdRenderer::Readback(int x, int y)
+uint32_t ObjIdRenderer::Readback(uint32_t x, uint32_t y)
 {
-	if (x < 0 || y < 0 || x >= width_ || y >= height_)
+	if (x >= width_ || y >= height_)
 		return 0;
 
     glBindFramebuffer(GL_FRAMEBUFFER, obj_id_fbo_);

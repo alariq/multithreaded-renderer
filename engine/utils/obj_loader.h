@@ -51,7 +51,7 @@ void create_index_and_vertex_buffers(const ObjFile* obj, uint32_t** ib, uint32_t
 template <typename MeshBuffer>
 inline void create_index_and_vertex_buffers(const ObjFile* obj, MeshBuffer& mb) {
 
-    std::unordered_map<ObjVertexId, int32_t, obj_vertex_id_hash,
+    std::unordered_map<ObjVertexId, typename MeshBuffer::ib_type, obj_vertex_id_hash,
                        obj_vertex_id_comparator>
         vertex_map(50);
 
@@ -59,7 +59,7 @@ inline void create_index_and_vertex_buffers(const ObjFile* obj, MeshBuffer& mb) 
     const uint32_t num_indices = (uint32_t)obj->faces.size();
     mb.allocate_ib(num_indices);
 
-    for(size_t i=0; i < num_indices; ++i)
+    for(uint32_t i=0; i < num_indices; ++i)
     {
         auto it = vertex_map.find(obj->faces[i]);
         if(it == vertex_map.end())

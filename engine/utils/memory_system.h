@@ -142,7 +142,7 @@ class FixedBlockAllocator {
         Block* next_;
     };
 
-    struct FREE_LIST_HEAD_ALIGN FreeListHead {
+    struct /*FREE_LIST_HEAD_ALIGN */FreeListHead {
         Block* node_;
 #if THREAD_SAFE_LOCK_FREE
         uint64_t aba_;
@@ -343,8 +343,8 @@ void::FixedBlockAllocator<T>::CalculateStats(alloc::Stats* pStats) const
 template<typename T>
 void FixedBlockAllocator<T>::CalculateStatInfo(alloc::StatInfo& si) const 
 {
-    si.blockCount = block_count_;
-    si.allocationCount = block_count_;
+    si.blockCount = (uint32_t)block_count_;
+    si.allocationCount = (uint32_t)block_count_;
     si.unusedRangeCount = 0; // ?
 
     si.usedBytes = sizeof(T) * block_count_;

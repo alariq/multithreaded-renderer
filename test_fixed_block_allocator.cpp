@@ -18,7 +18,7 @@ struct SomeStruct {
     static void *s_allcator_backing_mem;
 
   public:
-    size_t member1;
+    uint32_t member1;
     int member2;
     int member3;
     int member4;
@@ -97,7 +97,7 @@ void mt_test(int num_threads) {
                 if (0 == (rand() % 10)) {
                     auto *o = new SomeStruct();
                     if(!o) continue;
-                    o->member1 = me->objlist_.size();
+                    o->member1 = (uint32_t)me->objlist_.size();
                     me->objlist_.push_back(o);
                     //printf("+");
                 } else {
@@ -184,7 +184,7 @@ void mt_test(int num_threads) {
             threads[i] = new threading::Thread(worker_B::run, name, new worker_B());
     }
 
-    timing::sleep(10e+9);
+    timing::sleep((uint64_t)10e+9);
     exit_mt_test = true;
 
     for(auto* thread: threads) {
