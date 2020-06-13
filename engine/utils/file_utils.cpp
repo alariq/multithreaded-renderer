@@ -21,9 +21,9 @@ uint64_t get_file_mod_time_ms(const char* fname)
     struct stat fi = {0};
     stat(fname, &fi);
 #if defined(PLATFORM_WINDOWS)
-	return fi.st_mtime * 1e+3;
+	return fi.st_mtime * 100;
 #else
-	return fi.st_mtim.tv_sec * 1e+3 + fi.st_mtim.tv_nsec / 1e+6;
+	return fi.st_mtim.tv_sec * 1000 + fi.st_mtim.tv_nsec / 1000000;
 #endif
 }
 

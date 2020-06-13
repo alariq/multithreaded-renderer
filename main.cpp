@@ -63,8 +63,10 @@ void __stdcall Init(void)
     test_fixed_block_allocator();
 #endif
 
-    g_camera.set_pos(vec3(0,15,0));
-    g_camera.set_projection(45, SCREEN_W, SCREEN_H, 0.1f, 1000.0f);
+	const vec3 init_cam_pos(0, 15, 0);
+
+    g_camera.set_pos(init_cam_pos);
+    g_camera.set_projection(45.0f, (int)SCREEN_W, (int)SCREEN_H, 0.1f, 1000.0f);
     g_camera.update(0.0f);
 
     vec3 light_dir = normalize(vec3(-1.0,-1.0,-1.0));
@@ -102,7 +104,7 @@ void __stdcall Deinit(void)
 void UpdateCamera(float dt)
 {
     static float moveSpeedK = 50.0f;
-    static float angularSpeedK = 0.25 * 3.1415f / 180.0f; // 0.25 degree per pixel
+    static float angularSpeedK = 0.25f * 3.1415f / 180.0f; // 0.25 degree per pixel
 
     g_camera.dx += gos_GetKeyStatus(KEY_D) ? dt*moveSpeedK : 0.0f;
     g_camera.dx -= gos_GetKeyStatus(KEY_A) ? dt*moveSpeedK : 0.0f;
@@ -336,8 +338,10 @@ void __stdcall Render(void)
         gos_AddRenderMaterial("directional_shadow");
         gos_AddRenderMaterial("particle");
 
-        g_deferred_renderer.Init(SCREEN_W, SCREEN_H);
-        g_obj_id_renderer.Init(SCREEN_W, SCREEN_H);
+		uint32_t w = (uint32_t)SCREEN_W;
+		uint32_t h = (uint32_t)SCREEN_H;
+        g_deferred_renderer.Init(w, h);
+        g_obj_id_renderer.Init(w, h);
 
         initialized = true;
 
@@ -450,8 +454,8 @@ void __stdcall Render(void)
 
 		// TODO: this stalls GPU, make is async through FBO
 		g_obj_under_cursor =
-			g_obj_id_renderer.Readback(Environment.drawableWidth * xpos,
-									   Environment.drawableHeight * (1 - ypos));
+			g_obj_id_renderer.Readback((uint32_t)(Environment.drawableWidth * xpos),
+									   (uint32_t)(Environment.drawableHeight * (1 - ypos)));
 	}
 
     g_deferred_renderer.Present(Environment.drawableWidth,
