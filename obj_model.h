@@ -1,6 +1,7 @@
 #pragma once
 
 #include "utils/vec.h"
+#include "utils/quaternion.h"
 #include "utils/frustum.h"
 #include "scene.h"
 
