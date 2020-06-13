@@ -131,6 +131,13 @@ static RenderMesh *CreateAxesRenderMesh() {
     return render_mesh_from_mesh_buffer(svd_adapter, get_svd_vdecl());
 }
 
+static RenderMesh *CreateTorusRenderMesh() {
+
+    SVDAdapter<> svd_adapter;
+    generate_torus(svd_adapter, 1.0f, 0.035f, 32, 32);
+    return render_mesh_from_mesh_buffer(svd_adapter, get_svd_vdecl());
+}
+
 void initialize_res_man() { 
 
     assert(!is_res_man_initialized);
@@ -158,6 +165,10 @@ void initialize_res_man() {
     def = CreateAxesRenderMesh();
     def->tex_id_ = def_tex;
     g_world_meshes.insert(std::make_pair("axes", def));
+
+    def = CreateTorusRenderMesh();
+    def->tex_id_ = def_tex;
+    g_world_meshes.insert(std::make_pair("torus", def));
 
     gos_AddRenderMaterial("coloured_quad");
     gos_AddRenderMaterial("textured_quad");
