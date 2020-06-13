@@ -89,6 +89,12 @@ void initialize_scene(const struct camera *cam, struct RenderFrameContext *rfc) 
     tc->SetScale(vec3(10, 10, 10));
     g_world_objects.push_back(go);
 
+    go = MeshObject::Create("torus");
+    tc = go->GetComponent<TransformComponent>();
+    tc->SetPosition(vec3(0, 30, 0));
+    tc->SetScale(vec3(10, 10, 10));
+    g_world_objects.push_back(go);
+
     camera loc_cam = *cam;
     loc_cam.set_projection(45, Environment.drawableWidth,
                            Environment.drawableHeight, 2.0f, 20.0f);

@@ -715,7 +715,6 @@ void generate_cube(MeshBuffer& mb, const vec3 scale, const vec3 offset)
     mb.p(35, x__), mb.uv(35, __), mb.n(35, -nz);
 }
 
-
 template <typename MeshBuffer>
 void generate_axes(MeshBuffer& mb)
 {
@@ -726,6 +725,119 @@ void generate_axes(MeshBuffer& mb)
     generate_cube(mb, vec3(0.1f,0.1f,1.0f), vec3(0.0f, 0.0f, 1.0f));
     mb.set_offset(mb.vb_size_);
     generate_cube(mb, vec3(0.15f), vec3(0.0f));
+}
+
+// generates torus in XY plane
+template <typename MeshBuffer>
+void generate_torus_no_uv(MeshBuffer &mb, float radius, float thickness,
+					unsigned int toroidal_sections, unsigned int poloidal_sections) {
+	gosASSERT(radius != 0 && thickness != 0 && toroidal_sections > 2 && poloidal_sections > 2);
+
+	const unsigned int num_tris = toroidal_sections * poloidal_sections * 2;
+	const unsigned int num_vert = (toroidal_sections + 1)* (poloidal_sections + 1);
+	mb.allocate_vb(num_vert);
+	mb.allocate_ib(num_tris * 3);
+
+	unsigned vb_offset = 0;
+	unsigned int section_index_start = 0;
+	for (unsigned int ts = 0; ts < toroidal_sections; ++ts) {
+		float phi = (ts/(float)toroidal_sections) * 2.0f * M_PI;
+		vec3 sec_center = vec3(radius * cos(phi), radius * sin(phi), 0.0f);
+		for (unsigned int ps = 0; ps < poloidal_sections; ++ps) {
+			float theta = (ps / (float)poloidal_sections) * 2.0f * M_PI;
+			vec3 p = sec_center + vec3(thickness * cos(theta) * cos(phi),
+									   thickness * cos(theta) * sin(phi), thickness * sin(theta));
+			mb.p(vb_offset, p);
+			mb.n(vb_offset, normalize(p - sec_center));
+			vb_offset++;
+		}
+	}
+
+    assert(vb_offset == (unsigned int)mb.vb_size_);
+
+	unsigned int idx = 0;
+	for (unsigned int ts = 0; ts < toroidal_sections; ++ts) {
+		unsigned int sec0_start = ts * poloidal_sections;
+		unsigned int sec1_start = ((ts + 1) % toroidal_sections) * poloidal_sections;
+		for (unsigned int ps = 0; ps < poloidal_sections; ++ps) {
+
+			unsigned int v0 = sec0_start + ps;
+			unsigned int v1 = sec0_start + (ps + 1) % poloidal_sections;
+			unsigned int v2 = sec1_start + ps;
+			unsigned int v3 = sec1_start + (ps + 1) % poloidal_sections;
+
+			// v1 +--------+ v3
+			// v0 +--------+ v2
+
+			mb.i(idx++, v0);
+			mb.i(idx++, v2);
+			mb.i(idx++, v1);
+
+			mb.i(idx++, v2);
+			mb.i(idx++, v3);
+			mb.i(idx++, v1);
+		}
+	}
+
+    assert(idx == (unsigned int)mb.ib_size_);
+}
+
+// generates torus in XY plane
+template <typename MeshBuffer>
+void generate_torus(MeshBuffer &mb, float radius, float thickness,
+					unsigned int toroidal_sections, unsigned int poloidal_sections) {
+	gosASSERT(radius != 0 && thickness != 0 && toroidal_sections > 2 && poloidal_sections > 2);
+
+	const unsigned int num_tris = toroidal_sections * poloidal_sections * 2;
+	// we add one vert which will have same position as 0 but different uv
+	// for correct uv handling (if we do not need uv we could just wrap around as in no_uv version
+	const unsigned int num_vert = (toroidal_sections + 1)* (poloidal_sections + 1);
+	mb.allocate_vb(num_vert);
+	mb.allocate_ib(num_tris * 3);
+
+	unsigned vb_offset = 0;
+	unsigned int section_index_start = 0;
+	for (unsigned int ts = 0; ts <= toroidal_sections; ++ts) {
+		float phi = (ts/(float)toroidal_sections) * 2.0f * M_PI;
+		vec3 sec_center = vec3(radius * cos(phi), radius * sin(phi), 0.0f);
+		for (unsigned int ps = 0; ps <= poloidal_sections; ++ps) {
+			float theta = (ps / (float)poloidal_sections) * 2.0f * M_PI;
+			vec3 p = sec_center + vec3(thickness * cos(theta) * cos(phi),
+									   thickness * cos(theta) * sin(phi), thickness * sin(theta));
+			mb.p(vb_offset, p);
+			mb.n(vb_offset, normalize(p - sec_center));
+			mb.uv(vb_offset, vec2(ts/(float)toroidal_sections, ps/(float)poloidal_sections));
+			vb_offset++;
+		}
+	}
+
+    assert(vb_offset == (unsigned int)mb.vb_size_);
+
+	unsigned int idx = 0;
+	for (unsigned int ts = 0; ts < toroidal_sections; ++ts) {
+		unsigned int sec0_start = ts * (poloidal_sections + 1);
+		unsigned int sec1_start = (ts + 1) * (poloidal_sections + 1);
+		for (unsigned int ps = 0; ps < poloidal_sections; ++ps) {
+
+			unsigned int v0 = sec0_start + ps;
+			unsigned int v1 = sec0_start + (ps + 1);
+			unsigned int v2 = sec1_start + ps;
+			unsigned int v3 = sec1_start + (ps + 1);
+
+			// v1 +--------+ v3
+			// v0 +--------+ v2
+
+			mb.i(idx++, v0);
+			mb.i(idx++, v2);
+			mb.i(idx++, v1);
+
+			mb.i(idx++, v2);
+			mb.i(idx++, v3);
+			mb.i(idx++, v1);
+		}
+	}
+
+    assert(idx == (unsigned int)mb.ib_size_);
 }
 
 #endif // __GL_UTILS_H__
