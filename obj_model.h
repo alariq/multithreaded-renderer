@@ -32,25 +32,26 @@ class Component {
 
 class TransformComponent: public Component {
     vec3 scale_;
-    vec3 rot_;
+    quaternion rot_;
     vec3 pos_;
 public:
 	static const ComponentType type_ = ComponentType::kTransform;
-    TransformComponent(): scale_(1), rot_(0), pos_(0) {}
+    TransformComponent(): scale_(1), rot_(quaternion::kIdentity), pos_(0) {}
 
     virtual ComponentType GetType() const { return type_; }
 
     mat4 GetTransform() const {
-        return translate(pos_) * rotateZXY4(rot_.x, rot_.y, rot_.z) *
+        return translate(pos_) * quat_to_mat4(rot_) *
                scale4(scale_.x, scale_.y, scale_.z);
     }
 
     vec3 GetPosition() const { return pos_; }
-    vec3 GetRotation() const { return rot_; }
+    quaternion GetRotation() const { return rot_; }
     vec3 GetScale() const { return scale_; }
 
     void SetPosition(const vec3& pos) { pos_ = pos; }
-    void SetRotation(const vec3& rot)  { rot_ = rot; }
+    void SetRotation(const vec3& rot)  { rot_ = euler_to_quat(rot.x, rot.y, rot.z); }
+    void SetRotation(const quaternion& q)  { rot_ = q; }
     void SetScale(const vec3& scale) { scale_ = scale; }
 };
 
