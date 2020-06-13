@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <vector>
 #include <cassert>
+#include <cfloat> // FLT_MAX
 
 enum class EditorOpMode {
 	kMove,

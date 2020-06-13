@@ -731,7 +731,7 @@ void generate_axes(MeshBuffer& mb)
 template <typename MeshBuffer>
 void generate_torus_no_uv(MeshBuffer &mb, float radius, float thickness,
 					unsigned int toroidal_sections, unsigned int poloidal_sections) {
-	gosASSERT(radius != 0 && thickness != 0 && toroidal_sections > 2 && poloidal_sections > 2);
+	assert(radius != 0 && thickness != 0 && toroidal_sections > 2 && poloidal_sections > 2);
 
 	const unsigned int num_tris = toroidal_sections * poloidal_sections * 2;
 	const unsigned int num_vert = (toroidal_sections + 1)* (poloidal_sections + 1);
@@ -786,7 +786,7 @@ void generate_torus_no_uv(MeshBuffer &mb, float radius, float thickness,
 template <typename MeshBuffer>
 void generate_torus(MeshBuffer &mb, float radius, float thickness,
 					unsigned int toroidal_sections, unsigned int poloidal_sections) {
-	gosASSERT(radius != 0 && thickness != 0 && toroidal_sections > 2 && poloidal_sections > 2);
+	assert(radius != 0 && thickness != 0 && toroidal_sections > 2 && poloidal_sections > 2);
 
 	const unsigned int num_tris = toroidal_sections * poloidal_sections * 2;
 	// we add one vert which will have same position as 0 but different uv
