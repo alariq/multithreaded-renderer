@@ -395,6 +395,10 @@ struct mat3 {
 
 	vec3 &getRow(const unsigned int index){ return *((vec3 *) elem[index]); }
 
+	vec3 getCol(int col) const {
+		return vec3(elem[0][col], elem[1][col], elem[2][col]);
+	}
+
 	operator const float *() const { return (const float *) elem; }
 };
 
@@ -461,6 +465,10 @@ struct mat4 {
 	}
 	void setRow(int idx, const vec4& row) {
 		elem[idx][0] = row.x; elem[idx][1] = row.y; elem[idx][2] = row.z; elem[idx][3] = row.w;
+	}
+
+	vec4 getCol(int col) const {
+		return vec4(elem[0][col], elem[1][col], elem[2][col], elem[3][col]);
 	}
 
 	vec4 getCol0() const {

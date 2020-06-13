@@ -17,6 +17,11 @@ namespace ReservedObjIds {
 		kGizmoMoveYX,
 		kGizmoMoveYZ,
 
+		kGizmoRotateX,
+		kGizmoRotateY,
+		kGizmoRotateZ,
+		kGizmoRotateXYZ,
+
 		kGizmoScaleX,
 		kGizmoScaleY,
 		kGizmoScaleZ,
