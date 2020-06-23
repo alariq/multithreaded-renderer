@@ -198,6 +198,199 @@ Gizmo g_gizmo;
 // TODOL move all variables in a single Editor state
 static EditorOpMode s_editor_mode = EditorOpMode::kMove;
 
+enum class EditorOpMode {
+	kMove,
+	kRotate,
+	kScale
+};
+
+enum class GizmoMode {
+	kMove,
+	kRotate,
+	kScale
+};
+
+static void add_debug_mesh(struct RenderFrameContext *rfc, RenderMesh *mesh, const mat4 &mat,
+						   const vec4 &color, uint32_t selection_id = 0) {
+    RenderList *frame_render_list = rfc->rl_;
+    frame_render_list->ReservePackets(1);
+    RenderPacket *rp = frame_render_list->AddPacket();
+    rp->mesh_ = *mesh;
+	rp->m_ = mat;
+	rp->id_ = selection_id;
+	rp->debug_color = color;
+
+    rp->is_debug_pass = 1;
+	rp->is_selection_pass = selection_id ? 1 : 0;
+
+    rp->is_opaque_pass = 0;
+    rp->is_render_to_shadow = 0;
+    rp->is_transparent_pass = 0;
+}
+
+static void add_debug_sphere_constant_size(struct RenderFrameContext *rfc, const vec3& pos, float scale, const vec4& color) {
+
+	const float oo_no_scale_distance = 1.0f / 100.0f;
+	const float cam_z = (rfc->view_ * vec4(pos, 1)).z;
+	const mat4 tr = mat4::translation(pos) * mat4::scale(scale * vec3(cam_z * oo_no_scale_distance));
+	add_debug_mesh(rfc, res_man_load_mesh("sphere"), tr, color);
+}
+#if 0
+static void add_debug_mesh_constant_size(struct RenderFrameContext *rfc, RenderMesh *mesh,
+										 const vec4 &color, const vec3 &pos,
+										 const vec3 &scale = vec3(1)) {
+
+	const float oo_no_scale_distance = 1.0f / 100.0f;
+	const float cam_z = (rfc->view_ * vec4(pos, 1)).z;
+	const mat4 tr = mat4::translation(pos) * mat4::scale(vec3(cam_z * oo_no_scale_distance) * scale);
+	add_debug_mesh(rfc, mesh, tr, color);
+}
+#endif
+static void add_debug_mesh_constant_size(struct RenderFrameContext *rfc, RenderMesh *mesh,
+										 const vec4 &color, const mat4 &tr_m,
+										 const vec3 &scale = vec3(1)) {
+
+	const float oo_no_scale_distance = 1.0f / 100.0f;
+	const float cam_z = (rfc->view_ * tr_m.getTranslationPoint()).z;
+	const mat4 tr = tr_m * mat4::scale(vec3(cam_z * oo_no_scale_distance) * scale);
+	add_debug_mesh(rfc, mesh, tr, color);
+}
+
+
+
+class Gizmo {
+	static const float kNoScaleDistance;
+	static const float kAxisLength;
+	static const float kRotSphereRadius;
+	static const float kScaleCubesScale;
+
+	GizmoMode mode_ = GizmoMode::kMove;
+	vec3 pos_ = vec3(0,0,0);
+	mat4 rot_ = mat4::identity();
+	bool bWorldSpace = false;
+
+  public:
+	// controlled object position
+	void set_position(const vec3 &pos) { pos_ = pos; }
+	// controlled object rotation
+	void set_rotation(const quaternion& q) { rot_ = quat_to_mat4(q); }
+	mat4 get_rotation() { return rot_; }
+	void set_world_space(bool ws) { bWorldSpace = ws; }
+	bool get_world_space() { return bWorldSpace; }
+	void update_mode(const EditorOpMode ed_mode) {
+		if (EditorOpMode::kMove == ed_mode)
+			mode_ = GizmoMode::kMove;
+		else if (EditorOpMode::kRotate == ed_mode)
+			mode_ = GizmoMode::kRotate;
+		else if (EditorOpMode::kScale == ed_mode)
+			mode_ = GizmoMode::kScale;
+		else
+			mode_ = GizmoMode::kMove;
+	}
+
+	float get_rotation_sphere_radius(const camera* cam) const {
+		return kRotSphereRadius * (cam->get_view() * vec4(pos_, 1.0f)).z / kNoScaleDistance;
+	}
+
+	void draw(struct RenderFrameContext* rfc) {
+		const vec3 pos = pos_;
+		GizmoMode mode = mode_;
+		const mat4 rot = bWorldSpace ? mat4::identity() : rot_;
+
+		RenderMesh *cube = res_man_load_mesh("cube");
+		const float cam_z = (rfc->view_ * vec4(pos, 1)).z;
+		const float scaler = cam_z / kNoScaleDistance;
+		const float al = kAxisLength;
+
+		const mat4 tr_x = mat4::translation(pos) * rot * mat4::translation(vec3(al * scaler, 0.0f, 0.0f)) * 
+						  mat4::scale(vec3(al, 0.1f, 0.1f) * scaler);
+		const mat4 tr_y = mat4::translation(pos) * rot * mat4::translation(vec3(0.0f, al *scaler, 0.0f)) * 
+						  mat4::scale(vec3(0.1f, al, 0.1f) * scaler);
+		const mat4 tr_z = mat4::translation(pos) * rot * mat4::translation(vec3(0.0f, 0.0f, al * scaler)) * 
+						  mat4::scale(vec3(0.1f, 0.1f, al) * scaler);
+
+		uint32_t axis_x_id = GizmoMode::kMove == mode ? ReservedObjIds::kGizmoMoveX : 0;
+		uint32_t axis_y_id = GizmoMode::kMove == mode ? ReservedObjIds::kGizmoMoveY : 0;
+		uint32_t axis_z_id = GizmoMode::kMove == mode ? ReservedObjIds::kGizmoMoveZ : 0;
+		add_debug_mesh(rfc, cube, tr_x, vec4(1.0f, 0.15f, 0.15f, 1.0f), axis_x_id);
+		add_debug_mesh(rfc, cube, tr_y, vec4(0.15f, 1.0f, 0.15f, 1.0f), axis_y_id);
+		add_debug_mesh(rfc, cube, tr_z, vec4(0.15f, 0.15f, 1.0f, 1.0f), axis_z_id);
+
+		if (GizmoMode::kScale == mode) {
+			const float cl = kScaleCubesScale;
+			const mat4 scale_cube_scale = mat4::scale(vec3(cl, cl, cl) * scaler);
+			const mat4 tr_sx =
+				mat4::translation(pos + vec3(2.0f * al * scaler, 0.0f, 0.0f)) * scale_cube_scale;
+			const mat4 tr_sy =
+				mat4::translation(pos + vec3(0.0f, 2.0f * al * scaler, 0.0f)) * scale_cube_scale;
+			const mat4 tr_sz =
+				mat4::translation(pos + vec3(0.0f, 0.0f, 2.0f * al * scaler)) * scale_cube_scale;
+
+			add_debug_mesh(rfc, cube, tr_sx, vec4(1.0f, 0.15f, 0.15f, 1.0f),
+						   ReservedObjIds::kGizmoScaleX);
+			add_debug_mesh(rfc, cube, tr_sy, vec4(0.15f, 1.0f, 0.15f, 1.0f),
+						   ReservedObjIds::kGizmoScaleY);
+			add_debug_mesh(rfc, cube, tr_sz, vec4(0.15f, 0.15f, 1.0f, 1.0f),
+						   ReservedObjIds::kGizmoScaleZ);
+
+			const mat4 tr_sxyz = mat4::translation(pos) * scale_cube_scale;
+			add_debug_mesh(rfc, cube, tr_sxyz, vec4(0.15f, 0.15f, 1.0f, 1.0f),
+						   ReservedObjIds::kGizmoScaleXYZ);
+		}
+
+		const mat4 tr_xz = mat4::translation(pos) * rot * mat4::scale(vec3(1.0f, 0.01f, 1.0f) * scaler) *
+						   mat4::translation(vec3(2.0f, 0.0f, 2.0f));
+		const mat4 tr_yx = mat4::translation(pos) * rot * mat4::scale(vec3(1.0f, 1.0f, 0.01f) * scaler) *
+						   mat4::translation(vec3(2.0f, 2.0f, 0.0f));
+		const mat4 tr_yz = mat4::translation(pos) * rot * mat4::scale(vec3(0.01f, 1.0f, 1.0f) * scaler) *
+						   mat4::translation(vec3(0.0f, 2.0f, 2.0f));
+
+		if (GizmoMode::kRotate != mode) {
+			uint32_t plane_xz_id = GizmoMode::kMove == mode ? ReservedObjIds::kGizmoMoveXZ
+															: ReservedObjIds::kGizmoScaleXZ;
+			uint32_t plane_yx_id = GizmoMode::kMove == mode ? ReservedObjIds::kGizmoMoveYX
+															: ReservedObjIds::kGizmoScaleYX;
+			uint32_t plane_yz_id = GizmoMode::kMove == mode ? ReservedObjIds::kGizmoMoveYZ
+															: ReservedObjIds::kGizmoScaleYZ;
+			add_debug_mesh(rfc, cube, tr_xz, vec4(1.0f, 0.0f, 1.0f, .25f), plane_xz_id);
+			add_debug_mesh(rfc, cube, tr_yx, vec4(1.0f, 1.0f, 0.0f, .25f), plane_yx_id);
+			add_debug_mesh(rfc, cube, tr_yz, vec4(0.0f, 1.0f, 1.0f, .25f), plane_yz_id);
+		} else {
+			RenderMesh *torus = res_man_load_mesh("torus");
+			RenderMesh *sphere = res_man_load_mesh("sphere");
+			const float sr = kRotSphereRadius;
+
+			const mat4 tr_rx = mat4::translation(pos) * mat4::rotationY(90 * M_PI / 180.0f) *
+							   mat4::scale(vec3(sr, sr, 0.01f) * scaler);
+			const mat4 tr_ry = mat4::translation(pos) * mat4::rotationX(90 * M_PI / 180.0f) *
+							   mat4::scale(vec3(sr, sr, 0.01f) * scaler);
+			const mat4 tr_rz =
+				mat4::translation(pos) * mat4::scale(vec3(sr, sr, 0.01f) * scaler);
+
+			const mat4 tr_s = mat4::translation(pos) * mat4::scale(vec3(sr, sr, sr) * scaler);
+			add_debug_mesh(rfc, sphere, tr_s, vec4(.5f, 0.5f, .5f, .8f),
+						   ReservedObjIds::kGizmoRotateXYZ);
+
+			add_debug_mesh(rfc, torus, tr_rx, vec4(1.0f, 0.f, 0.f, 1.0f),
+						   ReservedObjIds::kGizmoRotateX);
+			add_debug_mesh(rfc, torus, tr_ry, vec4(0.f, 1.0f, 0.f, 1.0f),
+						   ReservedObjIds::kGizmoRotateY);
+			add_debug_mesh(rfc, torus, tr_rz, vec4(0.f, 0.f, 1.0f, 1.0f),
+						   ReservedObjIds::kGizmoRotateZ);
+
+		}
+	}
+};
+
+const float Gizmo::kNoScaleDistance = 50.0f;
+const float Gizmo::kAxisLength = 2.0f;
+const float Gizmo::kRotSphereRadius = 3.0f;
+const float Gizmo::kScaleCubesScale = 0.15f;
+Gizmo g_gizmo;
+
+// TODOL move all variables in a single Editor state
+static EditorOpMode s_editor_mode = EditorOpMode::kMove;
+
 static GameObject* g_sel_obj = nullptr;
 void initialize_editor()
 {
@@ -285,7 +478,7 @@ static vec3 ray_sphere_intersect(const vec3 ray_dir, const vec3 ray_origin, cons
 	const vec3 p = ray_origin - sphere.xyz();
 	const vec3 d = ray_dir;
 	vec3 res;
-	// (dx*t+x0)^2 + (dy*t+y0)^2 + (dz*t+z0)^2 = r^2
+	// (dx*t+x0)^2 +ï¿½(dy*t+y0)^2 +ï¿½(dz*t+z0)^2 = r^2
 	float discriminant_sq = 4 * dot(d, p) * dot(d, p) - 4 * dot(d, d)*(dot(p, p) - r * r);
 	if (discriminant_sq < 0.0f) {
 		res = vec3(FLT_MAX, FLT_MAX, FLT_MAX);
@@ -303,20 +496,33 @@ static vec3 ray_sphere_intersect(const vec3 ray_dir, const vec3 ray_origin, cons
 	return res;
 }
 
-static vec3 project_on_axis(const vec3 ray_dir, const vec3 ray_origin, int axis) {
-	static const vec3 axes[3] = {vec3(1.0f, 0.0f, 0.0f), vec3(0.0f, 1.0f, 0.0f),
-								 vec3(0.0f, 0.0f, 1.0f)};
-
-	// for X or Y axis: intersect with xy plane at origin
-	// for Z axis: intersect with xy plane at origin
-	float t = axis == 2 ? -ray_origin.x / ray_dir.x : -ray_origin.z / ray_dir.z;
-	vec3 int_pt = ray_origin + t * ray_dir;
-	// project to x axis
-	float int_dot = dot(int_pt, axes[axis]);
-	return int_dot * axes[axis];
+// Building an Orthonormal Basis, Revisited
+// http://jcgt.org/published/0006/01/01/ 
+static void calculate_basis(const vec3 &n, vec3 &b1, vec3 &b2) {
+	if (n.z < 0.0f) {
+		const float a = 1.0f / (1.0f - n.z);
+		const float b = n.x * n.y * a;
+		b1 = vec3(1.0f - n.x * n.x * a, -b, n.x);
+		b2 = vec3(b, n.y * n.y * a - 1.0f, -n.y);
+	} else {
+		const float a = 1.0f / (1.0f + n.z);
+		const float b = -n.x * n.y * a;
+		b1 = vec3(1.0f - n.x * n.x * a, b, -n.x);
+		b2 = vec3(b, 1.0f - n.y * n.y * a, -n.y);
+	}
 }
 
-static EditorOpMode undate_input_mode(const EditorOpMode ed_mode) {
+// assume that axis passes through origin
+static vec3 project_on_vector(const vec3 ray_dir, const vec3 ray_origin, const vec3& axis) {
+	// get some plane (which our axis lies at) to intersect with
+	vec3 b1, b2;
+	calculate_basis(axis, b1, b2);
+	vec3 int_pt = ray_plane_intersect(ray_dir, ray_origin, vec4(b1, 0.0));
+	float int_dot = dot(int_pt, axis);
+	return int_dot * axis;
+}
+
+static EditorOpMode update_input_mode(const EditorOpMode ed_mode) {
 
 	 if(gos_GetKeyStatus(KEY_Q) == KEY_PRESSED)
         return EditorOpMode::kMove;
@@ -341,7 +547,10 @@ void editor_update(camera *cam, const float /*dt*/) {
 	if (gos_GetKeyStatus(KEY_ESCAPE) == KEY_RELEASED)
 		gos_TerminateApplication();
 
-	s_editor_mode = undate_input_mode(s_editor_mode);
+	if (gos_GetKeyStatus(KEY_1) == KEY_RELEASED)
+		g_gizmo.set_world_space(!g_gizmo.get_world_space());
+		
+	s_editor_mode = update_input_mode(s_editor_mode);
 	g_gizmo.update_mode(s_editor_mode);
 
 	const uint32_t sel_id = scene_get_object_id_under_cursor();
@@ -351,12 +560,13 @@ void editor_update(camera *cam, const float /*dt*/) {
 	}
 
 	if (gos_GetKeyStatus(KEY_LMOUSE) == KEY_PRESSED) {
-		// get at screen center
 		if (go_under_cursor) {
 			g_sel_obj = go_under_cursor;
 			const auto *tc = g_sel_obj->GetComponent<TransformComponent>();
-			if (tc)
+			if (tc) {
 				g_gizmo.set_position(tc->GetPosition());
+				g_gizmo.set_rotation(tc->GetRotation());
+			}
 		}
 		else if (sel_id >= ReservedObjIds::kGizmoFirst && sel_id < ReservedObjIds::kGizmoLast) {
 			gosASSERT(g_sel_obj);
@@ -392,9 +602,12 @@ void editor_update(camera *cam, const float /*dt*/) {
 			case ReservedObjIds::kGizmoMoveY:
 			case ReservedObjIds::kGizmoMoveZ:
 			{
-				int axis = drag_type - ReservedObjIds::kGizmoMoveX;
-				vec3 pr_start = project_on_axis(ray_dir, drag_start_mouse_world_pos, axis);
-				vec3 pr_end = project_on_axis(ray_dir, drag_cur_mouse_world_pos, axis);
+				const int axis_idx = drag_type - ReservedObjIds::kGizmoMoveX;
+				static const vec3 axes[3] = {vec3(1.0f, 0.0f, 0.0f), vec3(0.0f, 1.0f, 0.0f),
+											 vec3(0.0f, 0.0f, 1.0f)};
+				vec3 axis = (g_gizmo.get_rotation() * vec4(axes[axis_idx], 0.0f)).xyz();
+				vec3 pr_start = project_on_vector(ray_dir, drag_start_mouse_world_pos, axis);
+				vec3 pr_end = project_on_vector(ray_dir, drag_cur_mouse_world_pos, axis);
 				vec3 upd_pos = drag_start_obj_pos + (pr_end - pr_start);
 				tc->SetPosition(upd_pos);
 				break;

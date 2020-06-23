@@ -172,7 +172,8 @@ void __stdcall Update(void)
 		editor_update(&g_camera, dt_sec);
 	}
 
-	if (g_update_simulation) scene_update(&g_camera, dt_sec);
+    if(g_update_simulation)
+        scene_update(&g_camera, dt_sec);
 
 	g_obj_under_cursor = scene::kInvalidObjectId;
 
