@@ -81,9 +81,17 @@ class Gizmo {
 
 	GizmoMode mode_ = GizmoMode::kMove;
 	vec3 pos_ = vec3(0,0,0);
+	mat4 rot_ = mat4::identity();
+	bool bWorldSpace = false;
 
   public:
+	// controlled object position
 	void set_position(const vec3 &pos) { pos_ = pos; }
+	// controlled object rotation
+	void set_rotation(const quaternion& q) { rot_ = quat_to_mat4(q); }
+	mat4 get_rotation() { return rot_; }
+	void set_world_space(bool ws) { bWorldSpace = ws; }
+	bool get_world_space() { return bWorldSpace; }
 	void update_mode(const EditorOpMode ed_mode) {
 		if (EditorOpMode::kMove == ed_mode)
 			mode_ = GizmoMode::kMove;
@@ -102,17 +110,18 @@ class Gizmo {
 	void draw(struct RenderFrameContext* rfc) {
 		const vec3 pos = pos_;
 		GizmoMode mode = mode_;
+		const mat4 rot = bWorldSpace ? mat4::identity() : rot_;
 
 		RenderMesh *cube = res_man_load_mesh("cube");
 		const float cam_z = (rfc->view_ * vec4(pos, 1)).z;
 		const float scaler = cam_z / kNoScaleDistance;
 		const float al = kAxisLength;
 
-		const mat4 tr_x = mat4::translation(pos + vec3(al * scaler, 0.0f, 0.0f)) *
+		const mat4 tr_x = mat4::translation(pos) * rot * mat4::translation(vec3(al * scaler, 0.0f, 0.0f)) * 
 						  mat4::scale(vec3(al, 0.1f, 0.1f) * scaler);
-		const mat4 tr_y = mat4::translation(pos + vec3(0.0f, al *scaler, 0.0f)) *
+		const mat4 tr_y = mat4::translation(pos) * rot * mat4::translation(vec3(0.0f, al *scaler, 0.0f)) * 
 						  mat4::scale(vec3(0.1f, al, 0.1f) * scaler);
-		const mat4 tr_z = mat4::translation(pos + vec3(0.0f, 0.0f, al * scaler)) *
+		const mat4 tr_z = mat4::translation(pos) * rot * mat4::translation(vec3(0.0f, 0.0f, al * scaler)) * 
 						  mat4::scale(vec3(0.1f, 0.1f, al) * scaler);
 
 		uint32_t axis_x_id = GizmoMode::kMove == mode ? ReservedObjIds::kGizmoMoveX : 0;
@@ -144,11 +153,11 @@ class Gizmo {
 						   ReservedObjIds::kGizmoScaleXYZ);
 		}
 
-		const mat4 tr_xz = mat4::translation(pos) * mat4::scale(vec3(1.0f, 0.01f, 1.0f) * scaler) *
+		const mat4 tr_xz = mat4::translation(pos) * rot * mat4::scale(vec3(1.0f, 0.01f, 1.0f) * scaler) *
 						   mat4::translation(vec3(2.0f, 0.0f, 2.0f));
-		const mat4 tr_yx = mat4::translation(pos) * mat4::scale(vec3(1.0f, 1.0f, 0.01f) * scaler) *
+		const mat4 tr_yx = mat4::translation(pos) * rot * mat4::scale(vec3(1.0f, 1.0f, 0.01f) * scaler) *
 						   mat4::translation(vec3(2.0f, 2.0f, 0.0f));
-		const mat4 tr_yz = mat4::translation(pos) * mat4::scale(vec3(0.01f, 1.0f, 1.0f) * scaler) *
+		const mat4 tr_yz = mat4::translation(pos) * rot * mat4::scale(vec3(0.01f, 1.0f, 1.0f) * scaler) *
 						   mat4::translation(vec3(0.0f, 2.0f, 2.0f));
 
 		if (GizmoMode::kRotate != mode) {
@@ -284,7 +293,7 @@ static vec3 ray_sphere_intersect(const vec3 ray_dir, const vec3 ray_origin, cons
 	const vec3 p = ray_origin - sphere.xyz();
 	const vec3 d = ray_dir;
 	vec3 res;
-	// (dx*t+x0)^2 + (dy*t+y0)^2 + (dz*t+z0)^2 = r^2
+	// (dx*t+x0)^2 +ï¿½(dy*t+y0)^2 +ï¿½(dz*t+z0)^2 = r^2
 	float discriminant_sq = 4 * dot(d, p) * dot(d, p) - 4 * dot(d, d)*(dot(p, p) - r * r);
 	if (discriminant_sq < 0.0f) {
 		res = vec3(FLT_MAX, FLT_MAX, FLT_MAX);
@@ -302,20 +311,33 @@ static vec3 ray_sphere_intersect(const vec3 ray_dir, const vec3 ray_origin, cons
 	return res;
 }
 
-static vec3 project_on_axis(const vec3 ray_dir, const vec3 ray_origin, int axis) {
-	static const vec3 axes[3] = {vec3(1.0f, 0.0f, 0.0f), vec3(0.0f, 1.0f, 0.0f),
-								 vec3(0.0f, 0.0f, 1.0f)};
-
-	// for X or Y axis: intersect with xy plane at origin
-	// for Z axis: intersect with xy plane at origin
-	float t = axis == 2 ? -ray_origin.x / ray_dir.x : -ray_origin.z / ray_dir.z;
-	vec3 int_pt = ray_origin + t * ray_dir;
-	// project to x axis
-	float int_dot = dot(int_pt, axes[axis]);
-	return int_dot * axes[axis];
+// Building an Orthonormal Basis, Revisited
+// http://jcgt.org/published/0006/01/01/ 
+static void calculate_basis(const vec3 &n, vec3 &b1, vec3 &b2) {
+	if (n.z < 0.0f) {
+		const float a = 1.0f / (1.0f - n.z);
+		const float b = n.x * n.y * a;
+		b1 = vec3(1.0f - n.x * n.x * a, -b, n.x);
+		b2 = vec3(b, n.y * n.y * a - 1.0f, -n.y);
+	} else {
+		const float a = 1.0f / (1.0f + n.z);
+		const float b = -n.x * n.y * a;
+		b1 = vec3(1.0f - n.x * n.x * a, b, -n.x);
+		b2 = vec3(b, 1.0f - n.y * n.y * a, -n.y);
+	}
 }
 
-static EditorOpMode undate_input_mode(const EditorOpMode ed_mode) {
+// assume that axis passes through origin
+static vec3 project_on_vector(const vec3 ray_dir, const vec3 ray_origin, const vec3& axis) {
+	// get some plane (which our axis lies at) to intersect with
+	vec3 b1, b2;
+	calculate_basis(axis, b1, b2);
+	vec3 int_pt = ray_plane_intersect(ray_dir, ray_origin, vec4(b1, 0.0));
+	float int_dot = dot(int_pt, axis);
+	return int_dot * axis;
+}
+
+static EditorOpMode update_input_mode(const EditorOpMode ed_mode) {
 
 	 if(gos_GetKeyStatus(KEY_Q) == KEY_PRESSED)
         return EditorOpMode::kMove;
@@ -340,7 +362,10 @@ void editor_update(camera *cam, const float /*dt*/) {
 	if (gos_GetKeyStatus(KEY_ESCAPE) == KEY_RELEASED)
 		gos_TerminateApplication();
 
-	s_editor_mode = undate_input_mode(s_editor_mode);
+	if (gos_GetKeyStatus(KEY_1) == KEY_RELEASED)
+		g_gizmo.set_world_space(!g_gizmo.get_world_space());
+		
+	s_editor_mode = update_input_mode(s_editor_mode);
 	g_gizmo.update_mode(s_editor_mode);
 
 	const uint32_t sel_id = scene_get_object_id_under_cursor();
@@ -350,12 +375,13 @@ void editor_update(camera *cam, const float /*dt*/) {
 	}
 
 	if (gos_GetKeyStatus(KEY_LMOUSE) == KEY_PRESSED) {
-		// get at screen center
 		if (go_under_cursor) {
 			g_sel_obj = go_under_cursor;
 			const auto *tc = g_sel_obj->GetComponent<TransformComponent>();
-			if (tc)
+			if (tc) {
 				g_gizmo.set_position(tc->GetPosition());
+				g_gizmo.set_rotation(tc->GetRotation());
+			}
 		}
 		else if (sel_id >= ReservedObjIds::kGizmoFirst && sel_id < ReservedObjIds::kGizmoLast) {
 			gosASSERT(g_sel_obj);
@@ -391,9 +417,12 @@ void editor_update(camera *cam, const float /*dt*/) {
 			case ReservedObjIds::kGizmoMoveY:
 			case ReservedObjIds::kGizmoMoveZ:
 			{
-				int axis = drag_type - ReservedObjIds::kGizmoMoveX;
-				vec3 pr_start = project_on_axis(ray_dir, drag_start_mouse_world_pos, axis);
-				vec3 pr_end = project_on_axis(ray_dir, drag_cur_mouse_world_pos, axis);
+				const int axis_idx = drag_type - ReservedObjIds::kGizmoMoveX;
+				static const vec3 axes[3] = {vec3(1.0f, 0.0f, 0.0f), vec3(0.0f, 1.0f, 0.0f),
+											 vec3(0.0f, 0.0f, 1.0f)};
+				vec3 axis = (g_gizmo.get_rotation() * vec4(axes[axis_idx], 0.0f)).xyz();
+				vec3 pr_start = project_on_vector(ray_dir, drag_start_mouse_world_pos, axis);
+				vec3 pr_end = project_on_vector(ray_dir, drag_cur_mouse_world_pos, axis);
 				vec3 upd_pos = drag_start_obj_pos + (pr_end - pr_start);
 				tc->SetPosition(upd_pos);
 				break;
