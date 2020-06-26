@@ -419,7 +419,9 @@ void editor_update(camera *cam, const float /*dt*/) {
 				const int axis_idx = drag_type - ReservedObjIds::kGizmoMoveX;
 				static const vec3 axes[3] = {vec3(1.0f, 0.0f, 0.0f), vec3(0.0f, 1.0f, 0.0f),
 											 vec3(0.0f, 0.0f, 1.0f)};
-				vec3 axis = (g_gizmo.get_rotation() * vec4(axes[axis_idx], 0.0f)).xyz();
+				vec3 axis = axes[axis_idx];
+				if(!g_gizmo.get_world_space())
+					axis = (g_gizmo.get_rotation() * vec4(axis, 0.0f)).xyz();
 				vec3 pr_start = project_on_vector(ray_dir, drag_start_mouse_world_pos, axis);
 				vec3 pr_end = project_on_vector(ray_dir, drag_cur_mouse_world_pos, axis);
 				vec3 upd_pos = drag_start_obj_pos + (pr_end - pr_start);
