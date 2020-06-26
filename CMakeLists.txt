@@ -38,6 +38,9 @@ if(MSVC)
     # VS had a bug
     add_definitions(-D_ENABLE_EXTENDED_ALIGNED_STORAGE)
 
+    # to compile on newer Windows SDKs
+    add_definitions(-DWINDOWS_IGNORE_PACKING_MISMATCH)
+
 	add_definitions(-DPLATFORM_WINDOWS)
 	add_definitions(-D_CRT_SECURE_NO_WARNINGS)
 	message("Compiling on M$ Windows")
