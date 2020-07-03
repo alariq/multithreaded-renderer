@@ -38,6 +38,7 @@ static void add_debug_mesh(struct RenderFrameContext *rfc, RenderMesh *mesh, con
 
     rp->is_debug_pass = 1;
 	rp->is_selection_pass = selection_id ? 1 : 0;
+	rp->is_gizmo_pass = selection_id ? 1 : 0;
 
     rp->is_opaque_pass = 0;
     rp->is_render_to_shadow = 0;
@@ -310,6 +311,14 @@ static vec3 ray_sphere_intersect(const vec3 ray_dir, const vec3 ray_origin, cons
 	return res;
 }
 
+static vec4 transform_plane(const mat4& tr, const vec4& plane) {
+	vec3 old_normal = plane.xyz();
+	float old_dist = plane.w;
+	vec3 new_normal = (tr * vec4(old_normal, 0.0f)).xyz();
+	float new_dist = dot((tr * vec4(old_normal*old_dist, 1.0f)).xyz(), new_normal);
+	return vec4(new_normal, new_dist);
+}
+
 // Building an Orthonormal Basis, Revisited
 // http://jcgt.org/published/0006/01/01/ 
 static void calculate_basis(const vec3 &n, vec3 &b1, vec3 &b2) {
@@ -432,14 +441,19 @@ void editor_update(camera *cam, const float /*dt*/) {
 			case ReservedObjIds::kGizmoMoveYX:
 			case ReservedObjIds::kGizmoMoveYZ:
 			{
+				const int plane_idx = drag_type - ReservedObjIds::kGizmoMoveXZ;
 				vec3 cur_pos = tc->GetPosition(); // maybe start pos?
 				const vec4 planes[3] = {vec4(0.0f, 1.0f, 0.0f, cur_pos.y),
 										vec4(0.0f, 0.0f, 1.0f, cur_pos.z),
 										vec4(1.0f, 0.0f, 0.0f, cur_pos.x)};
-				const int plane_idx = drag_type - ReservedObjIds::kGizmoMoveXZ;
-				vec3 start_pos = ray_plane_intersect(ray_dir_start, ray_origin, planes[plane_idx]);
+				vec4 plane = planes[plane_idx];
+				if (!g_gizmo.get_world_space()) {
+					plane = transform_plane(g_gizmo.get_rotation(), plane);
+				}
+
+				vec3 start_pos = ray_plane_intersect(ray_dir_start, ray_origin, plane);
 				vec3 offset = start_pos - drag_start_obj_pos;
-				vec3 upd_pos = ray_plane_intersect(ray_dir, ray_origin, planes[plane_idx]);
+				vec3 upd_pos = ray_plane_intersect(ray_dir, ray_origin, plane);
 				tc->SetPosition(upd_pos - offset);
 				break;
 			}
