@@ -61,6 +61,7 @@ struct RenderPacket {
     uint32_t is_opaque_pass: 1;
     uint32_t is_debug_pass: 1;
     uint32_t is_selection_pass: 1;
+    uint32_t is_gizmo_pass: 1;
 };
 
 class NonCopyable {
@@ -97,7 +98,9 @@ public:
     RenderPacket* AddPacket() {
         //assert(packets_.size() + 1 <= packets_.capacity()); // just to ensure that we do not reallocate
         packets_.emplace_back(RenderPacket());
-        return &packets_[packets_.size()-1];
+		RenderPacket* p = &packets_[packets_.size()-1];
+		memset(p, sizeof(RenderPacket), 0);
+		return p;
     }
 
     RenderPacketList_t& GetRenderPackets() { return packets_; }

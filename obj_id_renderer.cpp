@@ -32,6 +32,30 @@ void ObjIdRenderer::Deinit()
     glDeleteFramebuffers(1, &obj_id_fbo_);
 }
 
+void draw_rp(HGOSRENDERMATERIAL mat, const mat4 &vp, const RenderPacket& rp) {
+	const RenderMesh &ro = rp.mesh_;
+	mat4 wvp = vp * rp.m_;
+	gos_SetRenderMaterialParameterMat4(mat, "wvp_", (const float *)wvp);
+	float obj_id[4] = {(float)rp.id_, 0.0f, 0.0f, 0.0f};
+	gos_SetRenderMaterialParameterFloat4(mat, "obj_id_", obj_id);
+
+	gos_ApplyRenderMaterial(mat);
+
+	// TODO: fix dirty hack
+	if (rp.id_ < scene::kFirstGameObjectId)
+		gos_SetRenderState(gos_State_ZCompare, 0);
+	else
+		gos_SetRenderState(gos_State_ZCompare, 1); // less equal, equal should be enough
+
+	if (ro.ib_) {
+		gos_RenderIndexedArray(ro.ib_, ro.vb_, ro.vdecl_);
+	} else if (ro.inst_vb_) {
+		gos_RenderArrayInstanced(ro.vb_, ro.inst_vb_, ro.num_instances, ro.vdecl_);
+	} else {
+		gos_RenderArray(ro.vb_, ro.vdecl_);
+	}
+}
+
 void ObjIdRenderer::Render(struct RenderFrameContext *rfc, GLuint scene_depth)
 {
     glBindFramebuffer(GL_FRAMEBUFFER, obj_id_fbo_);
@@ -64,37 +88,32 @@ void ObjIdRenderer::Render(struct RenderFrameContext *rfc, GLuint scene_depth)
     const RenderPacketList_t& rpl = rfc->rl_->GetRenderPackets();
     RenderPacketList_t::const_iterator it = rpl.begin();
     RenderPacketList_t::const_iterator end = rpl.end();
+
     for(;it!=end;++it)
     {
         const RenderPacket& rp = (*it);
-        const RenderMesh& ro = rp.mesh_;
-
-        if(!rp.is_selection_pass)
+        if(!rp.is_selection_pass || rp.is_gizmo_pass)
             continue;
 
-        mat4 wvp = vp * rp.m_;
+		draw_rp(mat, vp, rp);
+	}
 
-		gos_SetRenderMaterialParameterMat4(mat, "wvp_", (const float*)wvp);
-        float obj_id[4] = { (float)rp.id_, 0.0f, 0.0f, 0.0f }; 
-        gos_SetRenderMaterialParameterFloat4(mat, "obj_id_", obj_id);
+	// now draw all gizmo stuff back to front
+    std::vector<const RenderPacket*> tmp;
+	for (it = rpl.begin(); it != end; ++it) {
+		if ((*it).is_selection_pass && (*it).is_gizmo_pass) {
+			tmp.push_back(&(*it));
+		}
+	}
+	std::sort(tmp.begin(), tmp.end(),
+			  [&view = rfc->view_](const RenderPacket *a, const RenderPacket *b) {
+				  return (view * a->m_.getCol3()).z > (view * b->m_.getCol3()).z;
+			  });
 
-		gos_ApplyRenderMaterial(mat);
+	for (auto rp : tmp) {
+		draw_rp(mat, vp, *rp);
+	}
 
-		// TODO: fix dirty hack
-		if(rp.id_ < scene::kFirstGameObjectId)
-			gos_SetRenderState(gos_State_ZCompare, 0);
-		else
-			gos_SetRenderState(gos_State_ZCompare, 1); // less equal, equal should be enough
-
-        if (ro.ib_) {
-            gos_RenderIndexedArray(ro.ib_, ro.vb_, ro.vdecl_);
-        } else if (ro.inst_vb_) {
-            gos_RenderArrayInstanced(ro.vb_, ro.inst_vb_, ro.num_instances,
-                                     ro.vdecl_);
-        } else {
-            gos_RenderArray(ro.vb_, ro.vdecl_);
-        }
-    }
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
