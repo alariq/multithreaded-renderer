@@ -33,27 +33,30 @@ class Component {
 
 class TransformComponent: public Component {
     vec3 scale_;
+    vec3 wscale_;
     quaternion rot_;
     vec3 pos_;
 public:
 	static const ComponentType type_ = ComponentType::kTransform;
-    TransformComponent(): scale_(1), rot_(quaternion::kIdentity), pos_(0) {}
+    TransformComponent(): scale_(1), wscale_(1), rot_(quaternion::identity()), pos_(0) {}
 
     virtual ComponentType GetType() const { return type_; }
 
     mat4 GetTransform() const {
-        return translate(pos_) * quat_to_mat4(rot_) *
+        return translate(pos_) *scale4(wscale_.x, wscale_.y, wscale_.z)* quat_to_mat4(rot_) *
                scale4(scale_.x, scale_.y, scale_.z);
     }
 
     vec3 GetPosition() const { return pos_; }
     quaternion GetRotation() const { return rot_; }
     vec3 GetScale() const { return scale_; }
+    vec3 GetWorldScale() const { return wscale_; }
 
     void SetPosition(const vec3& pos) { pos_ = pos; }
     void SetRotation(const vec3& rot)  { rot_ = euler_to_quat(rot.x, rot.y, rot.z); }
     void SetRotation(const quaternion& q)  { rot_ = q; }
     void SetScale(const vec3& scale) { scale_ = scale; }
+    void SetWorldScale(const vec3& wscale) { wscale_ = wscale; }
 };
 
 typedef uint32_t GameObjectId;

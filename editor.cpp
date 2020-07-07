@@ -135,11 +135,11 @@ class Gizmo {
 			const float cl = kScaleCubesScale;
 			const mat4 scale_cube_scale = mat4::scale(vec3(cl, cl, cl) * scaler);
 			const mat4 tr_sx =
-				mat4::translation(pos + vec3(2.0f * al * scaler, 0.0f, 0.0f)) * scale_cube_scale;
+				mat4::translation(pos) * rot * mat4::translation(vec3(2.0f * al * scaler, 0.0f, 0.0f)) * scale_cube_scale ;
 			const mat4 tr_sy =
-				mat4::translation(pos + vec3(0.0f, 2.0f * al * scaler, 0.0f)) * scale_cube_scale;
+				mat4::translation(pos) * rot * mat4::translation(vec3(0.0f, 2.0f * al * scaler, 0.0f)) * scale_cube_scale ;
 			const mat4 tr_sz =
-				mat4::translation(pos + vec3(0.0f, 0.0f, 2.0f * al * scaler)) * scale_cube_scale;
+				mat4::translation(pos) * rot * mat4::translation(vec3(0.0f, 0.0f, 2.0f * al * scaler)) * scale_cube_scale ;
 
 			add_debug_mesh(rfc, cube, tr_sx, vec4(1.0f, 0.15f, 0.15f, 1.0f),
 						   ReservedObjIds::kGizmoScaleX);
@@ -273,6 +273,7 @@ static vec2 drag_start_mouse_proj_pos;
 static vec3 drag_start_obj_pos;
 static quaternion drag_start_obj_rot;
 static vec3 drag_start_obj_scale;
+static vec3 drag_start_obj_world_scale;
 
 static vec3 drag_cur_mouse_world_pos;
 static float drag_obj_view_dist;
@@ -399,6 +400,7 @@ void editor_update(camera *cam, const float /*dt*/) {
 				drag_start_obj_pos = tc->GetPosition();
 				drag_start_obj_rot = tc->GetRotation();
 				drag_start_obj_scale = tc->GetScale();
+				drag_start_obj_world_scale = tc->GetWorldScale();
 				mat4 vm = cam->get_view();
 				vec3 vp = (vm * vec4(drag_start_obj_pos, 1.0f)).getXYZ();
 				drag_obj_view_dist = vp.z;
@@ -468,7 +470,7 @@ void editor_update(camera *cam, const float /*dt*/) {
 										vec4(0.0f, 0.0f, 1.0f, cur_pos.z)};
 				vec3 start_pos = ray_plane_intersect(ray_dir_start, ray_origin, planes[plane_idx]);
 				vec3 upd_pos = ray_plane_intersect(ray_dir, ray_origin, planes[plane_idx]);
-				auto r = g_gizmo.get_rotation_sphere_radius(cam);
+				float r = g_gizmo.get_rotation_sphere_radius(cam);
 				drag_rotation_gizmo_helper_pos = normalize(upd_pos - cur_pos) * r + cur_pos;;
 				// calculate angle between 2 vectors
 				vec3 v0 = normalize(start_pos - drag_start_obj_pos);
@@ -490,7 +492,7 @@ void editor_update(camera *cam, const float /*dt*/) {
 			}
 			case ReservedObjIds::kGizmoRotateXYZ:
 			{
-				auto r = g_gizmo.get_rotation_sphere_radius(cam);
+				float r = g_gizmo.get_rotation_sphere_radius(cam);
 				vec4 sphere = vec4(drag_start_obj_pos, r);
 
 				vec3 start_pos = ray_sphere_intersect(ray_dir_start, ray_origin, sphere);
@@ -528,7 +530,16 @@ void editor_update(camera *cam, const float /*dt*/) {
 				// TODO: use distance to the object as an additional multiplier for better UX?
 				const float scale = screen_delta.x * 0.025f; 
 				const vec3 scale_axis = scale * axes[axis_idx] + vec3(1,1,1);
-				tc->SetScale(drag_start_obj_scale * scale_axis);
+
+				// for scaling in world space we would need to support skew, that means we will not have pure scale, rotate transform anymore
+				// could be handled by adding 4th matrix Sw so the wole stack will be: T * Sw * R * Sl,
+				// but I think it is a bit of an overkill, so no support for World Space scale at the moment
+				if (g_gizmo.get_world_space()) {
+					tc->SetWorldScale(drag_start_obj_world_scale * scale_axis);
+				}
+				else {
+					tc->SetScale(drag_start_obj_scale * scale_axis);
+				}
 				break;
 			}
 		}

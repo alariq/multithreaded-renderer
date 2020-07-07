@@ -1,8 +1,6 @@
 #include "quaternion.h"
 #include "vec.h"
 
-quaternion quaternion::kIdentity = quaternion(0,0,0,1);
-
 // http://en.wikipedia.org/wiki/Conversion_between_quaternions_and_Euler_angles
 // http://www.euclideanspace.com/maths/geometry/rotations/conversions/quaternionToEuler/
 
