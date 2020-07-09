@@ -175,12 +175,12 @@ class Gizmo {
 			RenderMesh *sphere = res_man_load_mesh("sphere");
 			const float sr = kRotSphereRadius;
 
-			const mat4 tr_rx = mat4::translation(pos) * mat4::rotationY(90 * M_PI / 180.0f) *
+			const mat4 tr_rx = mat4::translation(pos) * rot * mat4::rotationY(90 * M_PI / 180.0f) *
 							   mat4::scale(vec3(sr, sr, 0.01f) * scaler);
-			const mat4 tr_ry = mat4::translation(pos) * mat4::rotationX(90 * M_PI / 180.0f) *
+			const mat4 tr_ry = mat4::translation(pos) * rot * mat4::rotationX(90 * M_PI / 180.0f) *
 							   mat4::scale(vec3(sr, sr, 0.01f) * scaler);
 			const mat4 tr_rz =
-				mat4::translation(pos) * mat4::scale(vec3(sr, sr, 0.01f) * scaler);
+				mat4::translation(pos) * rot * mat4::scale(vec3(sr, sr, 0.01f) * scaler);
 
 			const mat4 tr_s = mat4::translation(pos) * mat4::scale(vec3(sr, sr, sr) * scaler);
 			add_debug_mesh(rfc, sphere, tr_s, vec4(.5f, 0.5f, .5f, .8f),
@@ -294,7 +294,7 @@ static vec3 ray_sphere_intersect(const vec3 ray_dir, const vec3 ray_origin, cons
 	const vec3 p = ray_origin - sphere.xyz();
 	const vec3 d = ray_dir;
 	vec3 res;
-	// (dx*t+x0)^2 +�(dy*t+y0)^2 +�(dz*t+z0)^2 = r^2
+	// (dx*t+x0)^2 +(dy*t+y0)^2 +(dz*t+z0)^2 = r^2
 	float discriminant_sq = 4 * dot(d, p) * dot(d, p) - 4 * dot(d, d)*(dot(p, p) - r * r);
 	if (discriminant_sq < 0.0f) {
 		res = vec3(FLT_MAX, FLT_MAX, FLT_MAX);
@@ -312,11 +312,11 @@ static vec3 ray_sphere_intersect(const vec3 ray_dir, const vec3 ray_origin, cons
 	return res;
 }
 
-static vec4 transform_plane(const mat4& tr, const vec4& plane) {
+// takes plane, rotates it and puts at point "pt"
+static vec4 transform_plane_around_point(const mat4& tr, const vec4& plane, vec3 pt) {
 	vec3 old_normal = plane.xyz();
-	float old_dist = plane.w;
 	vec3 new_normal = (tr * vec4(old_normal, 0.0f)).xyz();
-	float new_dist = dot((tr * vec4(old_normal*old_dist, 1.0f)).xyz(), new_normal);
+	float new_dist = dot(new_normal, pt);
 	return vec4(new_normal, new_dist);
 }
 
@@ -344,6 +344,10 @@ static vec3 project_on_vector(const vec3 ray_dir, const vec3 ray_origin, const v
 	vec3 int_pt = ray_plane_intersect(ray_dir, ray_origin, vec4(b1, 0.0));
 	float int_dot = dot(int_pt, axis);
 	return int_dot * axis;
+}
+
+static vec4 make_plane(const vec3& normal, const vec3& pt) {
+	return vec4(normal, dot(normal, pt));
 }
 
 static EditorOpMode update_input_mode(const EditorOpMode ed_mode) {
@@ -450,12 +454,14 @@ void editor_update(camera *cam, const float /*dt*/) {
 										vec4(1.0f, 0.0f, 0.0f, cur_pos.x)};
 				vec4 plane = planes[plane_idx];
 				if (!g_gizmo.get_world_space()) {
-					plane = transform_plane(g_gizmo.get_rotation(), plane);
+					plane = transform_plane_around_point(g_gizmo.get_rotation(), plane, cur_pos);
 				}
 
 				vec3 start_pos = ray_plane_intersect(ray_dir_start, ray_origin, plane);
 				vec3 offset = start_pos - drag_start_obj_pos;
 				vec3 upd_pos = ray_plane_intersect(ray_dir, ray_origin, plane);
+				drag_rotation_gizmo_helper_pos = upd_pos;
+
 				tc->SetPosition(upd_pos - offset);
 				break;
 			}
@@ -468,25 +474,30 @@ void editor_update(camera *cam, const float /*dt*/) {
 				const vec4 planes[3] = {vec4(1.0f, 0.0f, 0.0f, cur_pos.x),
 										vec4(0.0f, 1.0f, 0.0f, cur_pos.y),
 										vec4(0.0f, 0.0f, 1.0f, cur_pos.z)};
-				vec3 start_pos = ray_plane_intersect(ray_dir_start, ray_origin, planes[plane_idx]);
-				vec3 upd_pos = ray_plane_intersect(ray_dir, ray_origin, planes[plane_idx]);
+
+				mat3 rot_m = drag_start_obj_rot.to_mat3();
+				const vec4 plane = g_gizmo.get_world_space()
+									   ? planes[plane_idx]
+									   : make_plane(rot_m.getCol(plane_idx), cur_pos);
+
+				vec3 start_pos = ray_plane_intersect(ray_dir_start, ray_origin, plane);
+				vec3 upd_pos = ray_plane_intersect(ray_dir, ray_origin, plane);
 				float r = g_gizmo.get_rotation_sphere_radius(cam);
-				drag_rotation_gizmo_helper_pos = normalize(upd_pos - cur_pos) * r + cur_pos;;
+				drag_rotation_gizmo_helper_pos = normalize(upd_pos - cur_pos) * r + cur_pos;
 				// calculate angle between 2 vectors
 				vec3 v0 = normalize(start_pos - drag_start_obj_pos);
 				vec3 v1 = normalize(upd_pos - drag_start_obj_pos);
-				float angle = acosf(clamp(dot(v0, v1), -1.0f ,1.0f));
-
-				mat3 rot_m = drag_start_obj_rot.to_mat3();
+				float dp = clamp(dot(v0, v1), -1.0f, 1.0f);
+				float angle = acosf(dp);
 				
 				vec3 perp = cross(v1, v0);
-				bool b_world_space = true;
-				vec3 rot_axis = b_world_space ? planes[plane_idx].xyz() : rot_m.getCol(plane_idx);
+				vec3 rot_axis = plane.xyz();
 				float k = dot(perp, rot_axis) < 0.0f ? -1.0f : 1.0f;
 
 				quaternion add_rot = quaternion(rot_axis, angle * k);
 				quaternion upd_rot = drag_start_obj_rot * add_rot;
 				tc->SetRotation(upd_rot);
+				g_gizmo.set_rotation(upd_rot);
 
 				break;
 			}
@@ -510,6 +521,7 @@ void editor_update(camera *cam, const float /*dt*/) {
 				quaternion add_rot = quaternion(axis, angle);
 				quaternion upd_rot = drag_start_obj_rot * add_rot;
 				tc->SetRotation(upd_rot);
+				g_gizmo.set_rotation(upd_rot);
 
 				drag_rotation_gizmo_helper_pos = upd_pos;
 				break;
