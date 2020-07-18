@@ -5,6 +5,7 @@ dump/
 *.dll
 build/
 build-rel/
+build-x64/
 cmake-x64/
 cachegrind.*
 callgrind.*

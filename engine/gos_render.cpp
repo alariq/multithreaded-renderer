@@ -1,17 +1,25 @@
 #include "gos_render.h"
+#include "utils/logging.h"
 
 #ifdef PLATFORM_WINDOWS
 #include <windows.h>
 #endif
-#include <stdio.h>
-#include <assert.h>
 #include <SDL2/SDL.h>
 #include <GL/glew.h>
 #include <GL/gl.h>
-#include "utils/logging.h"
+
+// TODO: move to gos_render_vulkan.cpp or #if dwfined(WITH_VULKAN_SUPPORT)
+// or BETTER! move get_required_extensions() to vulkan rhi
+#include <SDL2/SDL_vulkan.h>
+#include <vulkan/vulkan.h>
+//
+#include <vector>
+#include <stdio.h>
+#include <assert.h>
 
 // FIXME: think how to make it better when different parts need window
 SDL_Window* g_sdl_window = NULL;
+
 
 namespace graphics {
 
@@ -26,10 +34,11 @@ struct RenderWindow {
     int height_;
 };
 
-struct RenderContext {
-   SDL_GLContext glcontext_;
-   RenderWindow* render_window_;
-};
+SDL_Window* get_platform_window(RenderWindowHandle rw_handle) {
+    RenderWindow* rw = (RenderWindow*)rw_handle;
+    assert(rw);
+	return rw->window_;
+}
 
 static void PrintRenderer(SDL_RendererInfo * info);
 
@@ -43,7 +52,7 @@ void set_verbose(bool is_verbose)
 }
 
 //==============================================================================
-RenderWindow* create_window(const char* pwinname, int width, int height)
+RenderWindow* create_window(const char* pwinname, int width, int height, unsigned int rhi_flags)
 {
 	int i, j, m, n;
 	SDL_DisplayMode fullscreen_mode;
@@ -207,7 +216,7 @@ RenderWindow* create_window(const char* pwinname, int width, int height)
 
     {
         window = SDL_CreateWindow(pwinname ? pwinname : "--", 
-                SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, width, height, SDL_WINDOW_OPENGL|SDL_WINDOW_ALLOW_HIGHDPI);
+                SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, width, height, rhi_flags|SDL_WINDOW_ALLOW_HIGHDPI);
 
         if (!window) {
             fprintf(stderr, "Couldn't create window: %s\n", SDL_GetError());
@@ -231,7 +240,7 @@ RenderWindow* create_window(const char* pwinname, int width, int height)
     rw->width_ = width;
     rw->height_ = height;
 
-    g_sdl_window = window;
+	g_sdl_window = window;
 
     return rw;
 }
@@ -242,141 +251,6 @@ void swap_window(RenderWindowHandle h)
     RenderWindow* rw = (RenderWindow*)h;
     assert(rw && rw->window_);
     SDL_GL_SwapWindow(rw->window_);
-}
-
-//==============================================================================
-RenderContextHandle init_render_context(RenderWindowHandle render_window)
-{
-    RenderWindow* rw = (RenderWindow*)render_window;
-    assert(rw && rw->window_);
-
-    SDL_GLContext glcontext = SDL_GL_CreateContext(rw->window_);
-    if (!glcontext ) {
-        fprintf(stderr, "SDL_GL_CreateContext(): %s\n", SDL_GetError());
-        return NULL;
-    }
-
-    if (SDL_GL_MakeCurrent(rw->window_, glcontext) < 0) {
-        SDL_GL_DeleteContext(glcontext);
-        return NULL;
-    } 
-
-    if (ENABLE_VSYNC) {
-        SDL_GL_SetSwapInterval(1);
-    } else {
-        SDL_GL_SetSwapInterval(0);
-    }
-
-    if(VERBOSE_RENDER) {
-        SDL_DisplayMode mode;
-        SDL_GetCurrentDisplayMode(0, &mode);
-        printf("Current Display Mode:\n");
-        printf("Screen BPP: %d\n", SDL_BITSPERPIXEL(mode.format));
-        printf("\n");
-        printf("Vendor     : %s\n", glGetString(GL_VENDOR));
-        printf("Renderer   : %s\n", glGetString(GL_RENDERER));
-        printf("Version    : %s\n", glGetString(GL_VERSION));
-        const GLubyte* exts = glGetString(GL_EXTENSIONS);
-        printf("Extensions : %s\n", exts);
-        printf("\n");
-
-        int value;
-        int status = 0;
-
-        /*
-           status = SDL_GL_GetAttribute(SDL_GL_RED_SIZE, &value);
-           if (!status) {
-           printf("SDL_GL_RED_SIZE: requested %d, got %d\n", 5, value);
-           } else {
-           printf("Failed to get SDL_GL_RED_SIZE: %s\n", SDL_GetError());
-           }
-           status = SDL_GL_GetAttribute(SDL_GL_GREEN_SIZE, &value);
-           if (!status) {
-           printf("SDL_GL_GREEN_SIZE: requested %d, got %d\n", 5, value);
-           } else {
-           printf("Failed to get SDL_GL_GREEN_SIZE: %s\n", SDL_GetError());
-           }
-           status = SDL_GL_GetAttribute(SDL_GL_BLUE_SIZE, &value);
-           if (!status) {
-           printf("SDL_GL_BLUE_SIZE: requested %d, got %d\n", 5, value);
-           } else {
-           printf("Failed to get SDL_GL_BLUE_SIZE: %s\n", SDL_GetError());
-           }
-           */
-        //status = SDL_GL_GetAttribute(SDL_GL_DEPTH_SIZE, &value);
-        //if (!status) {
-        //    printf("SDL_GL_DEPTH_SIZE: requested %d, got %d\n", 16, value);
-        //} else {
-        //    printf("Failed to get SDL_GL_DEPTH_SIZE: %s\n", SDL_GetError());
-        //}
-
-		/*
-        status = SDL_GL_GetAttribute(SDL_GL_MULTISAMPLEBUFFERS, &value);
-        if (!status) {
-            printf("SDL_GL_MULTISAMPLEBUFFERS: %d\n", value);
-        } else {
-            printf("Failed to get SDL_GL_MULTISAMPLEBUFFERS: %s\n",
-                    SDL_GetError());
-        }
-
-        status = SDL_GL_GetAttribute(SDL_GL_MULTISAMPLESAMPLES, &value);
-        if (!status) {
-            printf("SDL_GL_MULTISAMPLESAMPLES: %d\n", value);
-        } else {
-            printf("Failed to get SDL_GL_MULTISAMPLESAMPLES: %s\n",
-                    SDL_GetError());
-        }
-		*/
-        status = SDL_GL_GetAttribute(SDL_GL_ACCELERATED_VISUAL, &value);
-        if (!status) {
-            printf("SDL_GL_ACCELERATED_VISUAL: %d\n", value);
-        } else {
-            printf("Failed to get SDL_GL_ACCELERATED_VISUAL: %s\n",
-                    SDL_GetError());
-        }
-		
-        status = SDL_GL_GetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, &value);
-        if (!status) {
-            printf("SDL_GL_CONTEXT_MAJOR_VERSION: %d\n", value);
-        } else {
-            printf("Failed to get SDL_GL_CONTEXT_MAJOR_VERSION: %s\n", SDL_GetError());
-        }
-
-        status = SDL_GL_GetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, &value);
-        if (!status) {
-            printf("SDL_GL_CONTEXT_MINOR_VERSION: %d\n", value);
-        } else {
-            printf("Failed to get SDL_GL_CONTEXT_MINOR_VERSION: %s\n", SDL_GetError());
-        }
-    }
-
-    RenderContext* rc = new RenderContext();
-    rc->glcontext_ = glcontext;
-    rc->render_window_ = render_window;
-
-	return rc;
-}
-
-//==============================================================================
-void destroy_render_context(RenderContextHandle rc_handle)
-{
-    RenderContext* rc = (RenderContext*)rc_handle;
-    assert(rc);
-
-    SDL_GL_DeleteContext(rc->glcontext_);
-    delete rc;
-}
-
-//==============================================================================
-void make_current_context(RenderContextHandle ctx_h)
-{
-    RenderContext* rc = (RenderContext*)ctx_h;
-    assert(rc && rc->render_window_ && rc->glcontext_);
-
-    RenderWindow* rw = rc->render_window_;
-    assert(rw && rw->window_);
-
-    SDL_GL_MakeCurrent(rw->window_, rc->glcontext_);
 }
 
 //==============================================================================
@@ -448,15 +322,10 @@ bool is_mode_supported(int width, int height, int bpp) {
 }
 
 //==============================================================================
-int get_window_display_index(RenderContextHandle ctx_h)
+int get_window_display_index(RenderWindow* rw_handle)
 {
-    RenderContext* rc = (RenderContext*)ctx_h;
-    assert(rc);
-
-    RenderWindow* rw = rc->render_window_;
-    assert(rw && rw->window_);
-
-    return SDL_GetWindowDisplayIndex(rw->window_);
+    assert(rw_handle && rw_handle->window_);
+    return SDL_GetWindowDisplayIndex(rw_handle->window_);
 }
 
 //==============================================================================
@@ -518,13 +387,24 @@ void get_drawable_size(RenderWindowHandle rw_handle, int* width, int* height)
 }
 
 //==============================================================================
+bool get_required_extensions(RenderWindowHandle rw_handle, unsigned int* count, const char** names)
+{
+    RenderWindow* rw = (RenderWindow*)rw_handle;
+    assert(rw && count);
+	if (!SDL_Vulkan_GetInstanceExtensions(rw->window_, count, names)) {
+        log_error("SDL_Vulkan_GetInstanceExtensions failed: %s", SDL_GetError());
+		return false;
+	}
+	return true;
+}
+
+//==============================================================================
 void destroy_window(RenderWindowHandle rw_handle)
 {
     RenderWindow* rw = (RenderWindow*)rw_handle;
     SDL_DestroyWindow(rw->window_);
     delete rw;
-
-    g_sdl_window = NULL;
+	g_sdl_window = nullptr;
 }
 
 //==============================================================================

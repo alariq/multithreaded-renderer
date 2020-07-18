@@ -1,6 +1,11 @@
-cmake_minimum_required (VERSION 2.8)
+cmake_minimum_required (VERSION 3.12)
 cmake_policy(SET CMP0072 NEW) # cmake --help-policy CMP0072
 project(mt-renderer)
+
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake")
+set(SDL2_DIR "${CMAKE_PREFIX_PATH}/cmake")
+
+message("SDL2_DIR = ${SDL2_DIR}")
 
 include(CMakeToolsHelpers OPTIONAL)
 
@@ -43,6 +48,8 @@ if(MSVC)
 
 	add_definitions(-DPLATFORM_WINDOWS)
 	add_definitions(-D_CRT_SECURE_NO_WARNINGS)
+    add_definitions(-DVK_USE_PLATFORM_WIN32_KHR)
+    add_definitions(-DVK_PROTOTYPES)
 	message("Compiling on M$ Windows")
 endif()
 
@@ -60,11 +67,12 @@ get_filename_component(COM_PATH2 "./GameOS/gameos" ABSOLUTE)
 
 set(COMMON_INCLUDE_DIRS  ${COM_PATH1} ${COM_PATH2})
 
-include_directories(SDL2::SDL2)
 include_directories(${GLEW_INCLUDE})
+include_directories(${Vulkan_INDCLUDE_DIR})
 
 add_subdirectory("./engine" "./out/engine")
 add_subdirectory("./platform" "./out/platform")
+add_subdirectory("./rhi" "./out/rhi")
 
 set(SOURCES 
     "main.cpp"
@@ -82,6 +90,8 @@ set(SOURCES
     )
 
 #find_library(GLEW NAMES "GLEW" "glew32")
+#find_library(VULKAN NAMES "vulkan-1")
+find_package(Vulkan REQUIRED)
 
 find_package(OpenGL REQUIRED)
 
@@ -104,5 +114,5 @@ else()
 endif()
 
 add_executable(mt-renderer ${SOURCES})
-target_link_libraries(mt-renderer engine platform SDL2::SDL2 SDL2::SDL2main GLEW::GLEW ${ADDITIONAL_LIBS} OpenGL::GL)
+target_link_libraries(mt-renderer rhi_opengl rhi_vulkan engine platform SDL2::SDL2 SDL2::SDL2main GLEW::GLEW ${ADDITIONAL_LIBS} OpenGL::GL Vulkan::Vulkan)
 

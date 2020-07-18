@@ -7,6 +7,7 @@
 #include "utils/camera.h"
 #include "utils/math_utils.h"
 #include "utils/timing.h"
+#include "utils/logging.h"
 #include <list>
 
 typedef std::list<GameObject*> ObjList_t;
@@ -96,6 +97,7 @@ void initialize_scene(const struct camera *cam, struct RenderFrameContext *rfc) 
     g_world_objects.push_back(go);
 
     camera loc_cam = *cam;
+	log_info("cam: %f %f %f\n", loc_cam.pos_[0], loc_cam.pos_[0], loc_cam.pos_[0]);
     loc_cam.set_projection(45, Environment.drawableWidth,
                            Environment.drawableHeight, 2.0f, 20.0f);
     FrustumObject *fo = FrustumObject::Create(&loc_cam);

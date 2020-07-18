@@ -18,6 +18,7 @@ set(SOURCES ${SOURCES}
     gos_input.cpp
     gos_input.h
 
+    utils/macros.h
     utils/stream.cpp
     utils/stream.h
     utils/camera.cpp
@@ -64,6 +65,7 @@ set(SOURCES ${SOURCES}
 #include_directories("${SDL2_PREFIX}/include")
 
 include_directories(".")
+include_directories("..")
 include_directories("../platform/include")
 
 add_library(engine ${SOURCES})

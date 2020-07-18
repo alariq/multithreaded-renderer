@@ -1132,10 +1132,9 @@ class gosRenderer {
 	static const std::string s_Foreground;
 
     public:
-        gosRenderer(graphics::RenderContextHandle ctx_h, graphics::RenderWindowHandle win_h, int w, int h) {
+        gosRenderer(graphics::RenderWindowHandle win_h, int w, int h) {
             width_ = w;
             height_ = h;
-            ctx_h_ = ctx_h;
             win_h_ = win_h;
         }
 
@@ -1365,7 +1364,7 @@ class gosRenderer {
         bool getBreakOnDrawCall() { return break_on_draw_call_; }
         void setBreakDrawCall(uint32_t num) { break_draw_call_num_ = num; }
 
-        graphics::RenderContextHandle getRenderContextHandle() { return ctx_h_; }
+        graphics::RenderWindowHandle getRenderWindow() { return win_h_; }
 
         uint32_t getRenderState(gos_RenderState render_state) { return curStates_[render_state]; }
 
@@ -1384,7 +1383,6 @@ class gosRenderer {
         // render target size
         int width_;
         int height_;
-        graphics::RenderContextHandle ctx_h_;
         graphics::RenderWindowHandle win_h_;
 
         // fits vertices into viewport
@@ -2490,9 +2488,9 @@ void gosRenderer::flush()
 {
 }
 
-void gos_CreateRenderer(graphics::RenderContextHandle ctx_h, graphics::RenderWindowHandle win_h, int w, int h) {
+void gos_CreateRenderer(graphics::RenderWindowHandle win_h, int w, int h) {
 
-    g_gos_renderer = new gosRenderer(ctx_h, win_h, w, h);
+    g_gos_renderer = new gosRenderer(win_h, w, h);
     g_gos_renderer->init();
 }
 
@@ -3035,7 +3033,7 @@ int gos_GetWindowDisplayIndex()
 {   
     gosASSERT(g_gos_renderer);
     
-    return graphics::get_window_display_index(g_gos_renderer->getRenderContextHandle());
+    return graphics::get_window_display_index(g_gos_renderer->getRenderWindow());
 }
 
 int gos_GetNumDisplayModes(int DisplayIndex)

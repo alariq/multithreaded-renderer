@@ -1,5 +1,6 @@
 #include "gameos.hpp"
 #include "gos_render.h"
+#include "rhi/rhi.h"
 #include <stdio.h>
 #include <time.h>
 #include <queue>
@@ -17,7 +18,7 @@
 
 #include <signal.h>
 
-extern void gos_CreateRenderer(graphics::RenderContextHandle ctx_h, graphics::RenderWindowHandle win_h, int w, int h);
+extern void gos_CreateRenderer(graphics::RenderWindowHandle win_h, int w, int h);
 extern void gos_DestroyRenderer();
 extern void gos_RendererBeginFrame();
 extern void gos_RendererEndFrame();
@@ -39,7 +40,7 @@ bool g_debug_draw_calls = false;
 //
 ////////////////////////////////////////////////////////////////////////////////
 graphics::RenderWindowHandle g_win = 0;
-graphics::RenderContextHandle g_ctx = 0;
+rhi* g_rhi = nullptr;
 ////////////////////////////////////////////////////////////////////////////////
 
 
@@ -168,7 +169,8 @@ public:
     int exec() {
         {
             rmt_ScopedCPUSample(make_current_context, 0);
-            graphics::make_current_context(g_ctx);
+            //graphics::make_current_context(g_ctx);
+			g_rhi->make_current_context();
         }
 
         {
@@ -317,63 +319,9 @@ static void draw_screen( void )
 
 extern float frameRate;
 
+extern bool CreateRHI_OpenGL(rhi* backend);
+extern bool CreateRHI_Vulkan(rhi* backend);
 
-const char* getStringForType(GLenum type)
-{
-	switch (type)
-	{
-	case GL_DEBUG_TYPE_ERROR: return "DEBUG_TYPE_ERROR";
-	case GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR: return "DEBUG_TYPE_DEPRECATED_BEHAVIOR";
-	case GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR: return "DEBUG_TYPE_UNDEFINED_BEHAVIOR";
-	case GL_DEBUG_TYPE_PERFORMANCE: return "DEBUG_TYPE_PERFORMANCE";
-	case GL_DEBUG_TYPE_PORTABILITY: return "DEBUG_TYPE_PORTABILITY";
-	case GL_DEBUG_TYPE_MARKER: return "DEBUG_TYPE_MARKER";
-	case GL_DEBUG_TYPE_PUSH_GROUP: return "DEBUG_TYPE_PUSH_GROUP";
-	case GL_DEBUG_TYPE_POP_GROUP: return "DEBUG_TYPE_POP_GROUP";
-	case GL_DEBUG_TYPE_OTHER: return "DEBUG_TYPE_OTHER";
-	default: return "(undefined)";
-	}
-}
-
-const char* getStringForSource(GLenum type)
-{
-	switch (type)
-	{
-	case GL_DEBUG_SOURCE_API: return "DEBUG_SOURCE_API";
-	case GL_DEBUG_SOURCE_SHADER_COMPILER: return "DEBUG_SOURCE_SHADER_COMPILER";
-	case GL_DEBUG_SOURCE_WINDOW_SYSTEM: return "DEBUG_SOURCE_WINDOW_SYSTEM";
-	case GL_DEBUG_SOURCE_THIRD_PARTY: return "DEBUG_SOURCE_THIRD_PARTY";
-	case GL_DEBUG_SOURCE_APPLICATION: return "DEBUG_SOURCE_APPLICATION";
-	case GL_DEBUG_SOURCE_OTHER: return "DEBUG_SOURCE_OTHER";
-	default: return "(undefined)";
-	}
-}
-
-const char* getStringForSeverity(GLenum type)
-{
-	switch (type)
-	{
-	case GL_DEBUG_SEVERITY_HIGH: return "DEBUG_SEVERITY_HIGH";
-	case GL_DEBUG_SEVERITY_MEDIUM: return "DEBUG_SEVERITY_MEDIUM";
-	case GL_DEBUG_SEVERITY_LOW: return "DEBUG_SEVERITY_LOW";
-	case GL_DEBUG_SEVERITY_NOTIFICATION: return "DEBUG_SEVERITY_NOTIFICATION";
-	default: return "(undefined)";
-	}
-}
-void GLAPIENTRY OpenGLDebugLog(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei /*length*/, const GLchar* message, const GLvoid* userParam)
-{
-    (void)userParam;
-	if (severity != GL_DEBUG_SEVERITY_NOTIFICATION && severity != GL_DEBUG_SEVERITY_LOW)
-	{
-		printf("Type: %s; Source: %s; ID: %d; Severity : %s\n",
-			getStringForType(type),
-			getStringForSource(source),
-			id,
-			getStringForSeverity(severity)
-		);
-  		printf("Message : %s\n", message);
-	}
-}
 
 #ifndef DISABLE_GAMEOS_MAIN
 int main(int argc, char** argv)
@@ -419,69 +367,26 @@ int main(int argc, char** argv)
         SPEW(("Render", "[OK] STATUS\n"));
     }
 
-	g_win = graphics::create_window("mt-renderer", w, h);
+	g_rhi = new rhi();
+	CreateRHI_OpenGL(g_rhi);
+	//CreateRHI_Vulkan(g_rhi);
+
+	g_win = graphics::create_window("mt-renderer", w, h, g_rhi->get_window_flags());
 	if (!g_win)
 		return 1;
+
 
     class R_init_renderer: public R_job {
         int w_, h_;
     public:
         R_init_renderer(int w, int h):w_(w), h_(h) {}
         virtual int exec() {
-
-
-            g_ctx = graphics::init_render_context(g_win);
-            if(!g_ctx)
-                return 1;
-
-            graphics::make_current_context(g_ctx);
-
-            GLenum err = glewInit();
-            if (GLEW_OK != err)
-            {
-                SPEW(("GLEW", "Error: %s\n", glewGetErrorString(err)));
-                return 1;
-            }
-
-            glEnable(GL_DEBUG_OUTPUT);
-            glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
-            //glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 76, 1, "My debug group");
-            glDebugMessageControlARB(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, NULL, GL_TRUE);
-            glDebugMessageCallbackARB((GLDEBUGPROCARB)&OpenGLDebugLog, NULL);
-
-
-            SPEW(("GRAPHICS", "Status: Using GLEW %s\n", glewGetString(GLEW_VERSION)));
-            //if ((!GLEW_ARB_vertex_program || !GLEW_ARB_fragment_program))
-            //{
-            //   SPEW(("GRAPHICS", "No shader program support\n"));
-            //  return 1;
-            //}
-
-            if(!glewIsSupported("GL_VERSION_3_0")) {
-                SPEW(("GRAPHICS", "Minimum required OpenGL version is 3.0\n"));
-                return 1;
-            }
-
-            const char* glsl_version = (const char*)glGetString(GL_SHADING_LANGUAGE_VERSION);
-            SPEW(("GRAPHICS", "GLSL version supported: %s\n", glsl_version));
-
-            int glsl_maj = 0, glsl_min = 0;
-            sscanf(glsl_version, "%d.%d", &glsl_maj, &glsl_min);
-
-            if(glsl_maj < 3 || (glsl_maj==3 && glsl_min < 30) ) {
-                SPEW(("GRAPHICS", "Minimum required OpenGL version is 330 ES, current: %d.%d\n", glsl_maj, glsl_min));
-                return 1;
-            }
-
-            char version[16] = {0};
-            snprintf(version, sizeof(version), "%d%d", glsl_maj, glsl_min);
-            SPEW(("GRAPHICS", "Using %s shader version\n", version));
-
-            gos_CreateRenderer(g_ctx, g_win, w_, h_);
-
-            rmt_BindOpenGL();
-
-            return 0;
+			if (g_rhi->initialize_rhi(g_win)) {
+				gos_CreateRenderer(g_win, w_, h_);
+				rmt_BindOpenGL();
+				return 0;
+			}
+			return 1;
         }
 
         ~R_init_renderer() {}
@@ -630,7 +535,7 @@ int main(int argc, char** argv)
         int exec() {
             rmt_UnbindOpenGL();
             gos_DestroyRenderer();
-            graphics::destroy_render_context(g_ctx);
+            g_rhi->finalize_rhi();
             g_rendering = false;
             return 0;
         }

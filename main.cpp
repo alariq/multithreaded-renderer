@@ -25,6 +25,7 @@
 #include <unordered_map>
 
 
+
 extern int RendererGetNumBufferedFrames();
 extern int RendererGetCurrentFrame();
 extern int GetCurrentFrame();
@@ -62,6 +63,7 @@ void __stdcall Init(void)
 #if defined(DO_TESTS)
     test_fixed_block_allocator();
 #endif
+
 
 	const vec3 init_cam_pos(0, 15, 0);
 
