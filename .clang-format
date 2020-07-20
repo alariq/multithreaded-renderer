@@ -1,3 +1,4 @@
+# visit clangformat.com for interactive help with options
 ---
 Language:        Cpp
 # BasedOnStyle:  LLVM
@@ -50,7 +51,7 @@ BreakConstructorInitializersBeforeComma: false
 BreakConstructorInitializers: BeforeColon
 BreakAfterJavaFieldAnnotations: false
 BreakStringLiterals: true
-ColumnLimit:     100
+ColumnLimit:     90
 CommentPragmas:  '^ IWYU pragma:'
 CompactNamespaces: false
 ConstructorInitializerAllOnOneLineOrOnePerLine: false
