@@ -569,14 +569,6 @@ int main(int argc, char** argv)
             for(uint32_t i=0; i<num_draw_calls;++i) {
                 g_render_job_queue->push( new R_draw_job(std::string("DIP"), (rand()%2) + 1) );
             }
-#if 0
-            glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
-            if(render_frame_number == 10)
-            {
-                DWORD htexture = gos_NewTextureFromFile(gos_Texture_Detect, "data/textures/editortacmapsplashscreen.tga");
-                assert(htexture);
-            }
-#endif
 
             g_render_job_queue->push( new R_render() );
 
