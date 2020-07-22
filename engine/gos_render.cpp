@@ -8,7 +8,7 @@
 #include <GL/glew.h>
 #include <GL/gl.h>
 
-// TODO: move to gos_render_vulkan.cpp or #if dwfined(WITH_VULKAN_SUPPORT)
+// TODO: move to gos_render_vulkan.cpp or #if defined(WITH_VULKAN_SUPPORT)
 // or BETTER! move get_required_extensions() to vulkan rhi
 #include <SDL2/SDL_vulkan.h>
 #include <vulkan/vulkan.h>

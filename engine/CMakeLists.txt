@@ -13,6 +13,7 @@ set(SOURCES ${SOURCES}
     gameos_sound.cpp
     gos_render.cpp
     gos_render.h
+    gos_render_priv.h
     gos_font.cpp
     gos_font.h
     gos_input.cpp

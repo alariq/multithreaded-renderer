@@ -22,6 +22,7 @@ int                 get_window_display_index(RenderWindowHandle rw_handle);
 bool                get_desktop_display_mode(int display_index, int* width, int* height, int* bpp);
 int                 get_num_display_modes   (int display_index);
 bool                get_display_mode_by_index(int display_index, int mode_index, int* width, int* height, int* bpp);
+
 bool				get_required_extensions	(RenderWindowHandle rw_handle, unsigned int* count, const char** names);
 
 
