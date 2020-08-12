@@ -1,5 +1,7 @@
 #include "vulkan_rhi.h"
+#include "vulkan_device.h"
 #include "rhi.h"
+
 #include "gos_render.h"
 #include "gos_render_priv.h"
 #include "utils/logging.h"
@@ -11,65 +13,10 @@
 #include <cassert>
 #include <vector>
 #include <algorithm>
-//#include <optional> -std=17
+
+static VulkanDevice vk_dev;
 
 namespace rhi_vulkan {
-	struct QueueFamilies {
-		uint32_t graphics_ = 0xffffffff;
-		uint32_t compute_ = 0xffffffff;
-		uint32_t transfer_ = 0xffffffff;
-		uint32_t family_bits_ = 0;
-
-		uint32_t present_ = 0xffffffff;
-
-		bool has_graphics() {
-			return 0 != (family_bits_ & VK_QUEUE_GRAPHICS_BIT);
-		}
-
-		bool has_present() {
-			return 0xffffffff != present_;
-		}
-	};
-
-	struct SwapChainData {
-		VkSurfaceCapabilitiesKHR capabilities_;
-		std::vector<VkSurfaceFormatKHR> formats_;
-	    std::vector<VkPresentModeKHR> present_modes_;
-	};
-
-	struct SwapChain {
-		VkSwapchainKHR swap_chain_ = VK_NULL_HANDLE;
-		VkFormat format_ = VK_FORMAT_UNDEFINED;
-		VkExtent2D extent_{ 0, 0 };
-		std::vector<VkImage> images_;
-		std::vector<VkImageView> image_views_;
-	};
-}
-
-using SwapChainData = rhi_vulkan::SwapChainData;
-using SwapChain = rhi_vulkan::SwapChain;
-using QueueFamilies = rhi_vulkan::QueueFamilies;
-
-struct RHIVulkan {
-	// TODO: move from here to avoid accidentally using those in functions
-	// all parameter should be passed explicitly tho the functions
-	VkInstance instance_;
-	VkDebugUtilsMessengerEXT debug_messenger_;
-	VkPhysicalDevice phys_device_ = VK_NULL_HANDLE;
-	SwapChainData swap_chain_data_;
-	SwapChain swap_chain_;
-	QueueFamilies queue_families_;
-	VkDevice device_ = VK_NULL_HANDLE;
-	VkQueue graphics_queue_ = VK_NULL_HANDLE;
-	VkQueue present_queue_ = VK_NULL_HANDLE;
-	VkSurfaceKHR surface_;
-
-	VkAllocationCallbacks* pallocator_ = nullptr;
-};
-
-namespace rhi_vulkan {
-	
-	RHIVulkan rhi_;
 
 	static const char* const s_validation_layers[] = {
 		"VK_LAYER_KHRONOS_validation",
@@ -202,7 +149,8 @@ namespace rhi_vulkan {
 		}
 	}
 
-	bool create_instance(graphics::RenderWindowHandle rw_handle, VkInstance& instance) {
+	bool create_instance(graphics::RenderWindowHandle rw_handle, VkAllocationCallbacks *pallocator,
+						 VkInstance* instance, VkDebugUtilsMessengerEXT *debug_messenger) {
 
 		VkApplicationInfo application_info = {
 			VK_STRUCTURE_TYPE_APPLICATION_INFO,	// VkStructureType            sType
@@ -235,9 +183,15 @@ namespace rhi_vulkan {
 			instance_create_info.pNext = &msg_creation_info;
 		}
 
-		if (vkCreateInstance(&instance_create_info, rhi_.pallocator_, &instance) != VK_SUCCESS) {
+		if (vkCreateInstance(&instance_create_info, pallocator, instance) != VK_SUCCESS) {
 			log_error("Could not create Vulkan instance!\n");
 			return false;
+		}
+
+		if (s_enable_validation_layers &&
+			create_debug_utils_messenger_EXT(*instance, &msg_creation_info, pallocator,
+											 debug_messenger) != VK_SUCCESS) {
+			log_warning("Failed to set up debug messenger!\n");
 		}
 
 		return true;
@@ -294,7 +248,7 @@ namespace rhi_vulkan {
 			idx++;
 		}
 
-	    return indices;
+		return indices;
 	}
 
 	bool query_swapchain_data(VkPhysicalDevice phys_device, VkSurfaceKHR surface, SwapChainData& swap_chain) {
@@ -320,7 +274,6 @@ namespace rhi_vulkan {
 
 		return true;
 	}
-
 
 	bool is_device_suitable(VkPhysicalDevice device, VkPhysicalDeviceProperties props,
 							VkPhysicalDeviceFeatures features, VkSurfaceKHR surface) {
@@ -364,7 +317,7 @@ namespace rhi_vulkan {
 	}
 
 
-	bool create_logical_device(VkPhysicalDevice phys_device, QueueFamilies qf, VkDevice& device) {
+	bool create_logical_device(VkPhysicalDevice phys_device, QueueFamilies qf, VkAllocationCallbacks* pallocator, VkDevice* device) {
 
 		VkDeviceQueueCreateInfo qci[2] = {}; // graphics + present
 		uint32_t qf_indices[2] = { qf.graphics_, qf.present_ };
@@ -389,8 +342,22 @@ namespace rhi_vulkan {
 		device_create_info.enabledExtensionCount = 1;
 		device_create_info.ppEnabledExtensionNames = req_device_ext.data();
 	
-		if (vkCreateDevice(phys_device, &device_create_info, rhi_.pallocator_, &device) != VK_SUCCESS) {
+		if (vkCreateDevice(phys_device, &device_create_info, pallocator, device) != VK_SUCCESS) {
 			log_error("vkCreateDevice: Failed to create logical device!");
+			return false;
+		}
+		return true;
+	}
+
+	bool create_semaphore(VkDevice device, VkAllocationCallbacks* pallocator, VkSemaphore* semaphore) {
+		VkSemaphoreCreateInfo semaphore_create_info = {
+			VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO, // VkStructureType          sType
+			nullptr,								 // const void*              pNext
+			0										 // VkSemaphoreCreateFlags   flags
+		};
+
+		if (vkCreateSemaphore(device, &semaphore_create_info, pallocator, semaphore) != VK_SUCCESS) {
+			log_error("vkCreateSemaphore: failed\n");
 			return false;
 		}
 		return true;
@@ -425,7 +392,7 @@ namespace rhi_vulkan {
 
 		VkExtent2D extent = {1024, 768};
 		if (swap_chain_data.capabilities_.currentExtent.width != UINT32_MAX) {
-	        extent = swap_chain_data.capabilities_.currentExtent;
+			extent = swap_chain_data.capabilities_.currentExtent;
 		} else {
 			extent.width = (uint32_t)clamp(
 				extent.width, (float)swap_chain_data.capabilities_.minImageExtent.width,
@@ -438,6 +405,11 @@ namespace rhi_vulkan {
 		// +1 to avoid waiting fpr a driver 
 		uint32_t image_count = min(swap_chain_data.capabilities_.minImageCount + 1, swap_chain_data.capabilities_.maxImageCount);
 
+		VkImageUsageFlags usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+		if( swap_chain_data.capabilities_.supportedUsageFlags & VK_IMAGE_USAGE_TRANSFER_DST_BIT ) {
+            usage |= VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+        }
+
 		VkSwapchainCreateInfoKHR create_info{};
 		create_info.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
 		create_info.surface = surface;
@@ -446,7 +418,7 @@ namespace rhi_vulkan {
 		create_info.imageColorSpace = format.colorSpace;
 		create_info.imageExtent = extent;
 		create_info.imageArrayLayers = 1;
-		create_info.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+		create_info.imageUsage = usage;
 
 		uint32_t qf_indices[2] = { qfi.graphics_ , qfi.present_ };
 		if (qfi.graphics_ != qfi.present_) {
@@ -477,11 +449,11 @@ namespace rhi_vulkan {
 		uint32_t img_count;
 		vkGetSwapchainImagesKHR(device, swap_chain.swap_chain_, &img_count, nullptr);
 		swap_chain.images_.resize(img_count);
-		swap_chain.image_views_.resize(img_count);
-		vkGetSwapchainImagesKHR(device, swap_chain.swap_chain_, &img_count, swap_chain.images_.data());
+		std::vector<VkImage> vk_images(img_count);
+		vkGetSwapchainImagesKHR(device, swap_chain.swap_chain_, &img_count, vk_images.data());
 
 		int idx = 0;
-		for (auto img : swap_chain.images_) {
+		for (auto img : vk_images) {
 			VkImageViewCreateInfo ci{};
 			ci.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
 			ci.image = img;
@@ -497,16 +469,27 @@ namespace rhi_vulkan {
 			ci.subresourceRange.baseArrayLayer = 0;
 			ci.subresourceRange.layerCount = 1;
 
-			if (vkCreateImageView(device, &ci, pallocator, &swap_chain.image_views_[idx]) != VK_SUCCESS) {
+			if (vkCreateImageView(device, &ci, pallocator, &swap_chain.images_[idx].view_) != VK_SUCCESS) {
 				log_error("vkCreateImageView: failed to create image views!\n");
 				return false;
 			}
+			swap_chain.images_[idx].handle_ = img;
+			// swap chain images are created with this initial layout
+			swap_chain.images_[idx].layout_ = VK_IMAGE_LAYOUT_UNDEFINED;//  VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+			swap_chain.images_[idx].access_flags_ = VK_ACCESS_MEMORY_READ_BIT;
 			++idx;
 		}
 		return true;
 	}
+
+	VkAllocationCallbacks* create_allocator() {
+		return nullptr;
+	}
+	void destroy_allocator() { }
 	
 	bool initialize(graphics::RenderWindowHandle rw_handle) {
+
+		vk_dev.pallocator_ = create_allocator();
 
 		uint32_t extensionCount = 0;
 		vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, nullptr);
@@ -520,76 +503,42 @@ namespace rhi_vulkan {
 			log_info("%s : %d\n", ext.extensionName, ext.specVersion);
 		}
 
-		if (!create_instance(rw_handle, rhi_.instance_)) {
+		if (!create_instance(rw_handle, vk_dev.pallocator_, &vk_dev.instance_, &vk_dev.debug_messenger_)) {
 			return false;
 		}
 
-		VkApplicationInfo application_info = {
-			VK_STRUCTURE_TYPE_APPLICATION_INFO,	// VkStructureType            sType
-			nullptr,					// const void                *pNext
-			"mt-renderer",				// const char *pApplicationName
-			VK_MAKE_VERSION(1, 0, 0),	// uint32_t                   applicationVersion
-			"engine-001",				// const char                *pEngineName
-			VK_MAKE_VERSION(1, 0, 0),	// uint32_t                   engineVersion
-			VK_API_VERSION_1_2			// uint32_t                   apiVersion
-		};
-
-		const auto layers = get_validation_layers();
-		std::vector<const char*> ext;
-		if (!get_required_extensions(rw_handle, ext))
-			return false;
-
-		VkInstanceCreateInfo instance_create_info = {
-			VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO, // VkStructureType            sType
-			nullptr,								// const void*                pNext
-			0,										// VkInstanceCreateFlags      flags
-			&application_info,						// const VkApplicationInfo   *pApplicationInfo
-			(uint32_t)layers.size(), layers.data(),
-			(uint32_t)ext.size(), ext.data()
-		};
-
-		// in order to catch errors during instance creation / destruction
-		// because debug messenger is not available yet
-		auto msg_creation_info = setup_debug_messenger();
-		if (s_enable_validation_layers) {
-			instance_create_info.pNext = &msg_creation_info;
-		}
-
-		if (vkCreateInstance(&instance_create_info, rhi_.pallocator_, &rhi_.instance_) != VK_SUCCESS) {
-			log_error("Could not create Vulkan instance!\n");
+		if (!create_surface(rw_handle, vk_dev.instance_, vk_dev.surface_)) {
 			return false;
 		}
 
-		if (s_enable_validation_layers &&
-			create_debug_utils_messenger_EXT(rhi_.instance_, &msg_creation_info, rhi_.pallocator_,
-											 &rhi_.debug_messenger_) != VK_SUCCESS) {
-			log_warning("Failed to set up debug messenger!\n");
-		}
-
-		if (!create_surface(rw_handle, rhi_.instance_, rhi_.surface_)) {
-			return false;
-		}
-
-		if (!pick_phys_device(rhi_.instance_, rhi_.surface_, rhi_.phys_device_)) {
+		if (!pick_phys_device(vk_dev.instance_, vk_dev.surface_, vk_dev.phys_device_)) {
 			return false;
 		}
 		
-		if (!query_swapchain_data(rhi_.phys_device_, rhi_.surface_, rhi_.swap_chain_data_)) {
+		if (!query_swapchain_data(vk_dev.phys_device_, vk_dev.surface_, vk_dev.swap_chain_data_)) {
 			return false;
 		}
 
-		rhi_.queue_families_ = find_queue_families(rhi_.phys_device_, rhi_.surface_);
+		vk_dev.queue_families_ = find_queue_families(vk_dev.phys_device_, vk_dev.surface_);
 
-		if (!create_logical_device(rhi_.phys_device_, rhi_.queue_families_, rhi_.device_)) {
+		if (!create_logical_device(vk_dev.phys_device_, vk_dev.queue_families_, vk_dev.pallocator_, &vk_dev.device_)) {
 			return false;
 		}
 		
-		vkGetDeviceQueue(rhi_.device_, rhi_.queue_families_.graphics_, 0, &rhi_.graphics_queue_);
-		vkGetDeviceQueue(rhi_.device_, rhi_.queue_families_.present_, 0, &rhi_.present_queue_);
+		vkGetDeviceQueue(vk_dev.device_, vk_dev.queue_families_.graphics_, 0, &vk_dev.graphics_queue_);
+		vkGetDeviceQueue(vk_dev.device_, vk_dev.queue_families_.present_, 0, &vk_dev.present_queue_);
 
-		if (!create_swap_chain(rhi_.swap_chain_data_, rhi_.device_, rhi_.surface_, rhi_.queue_families_, rhi_.pallocator_, rhi_.swap_chain_)) {
+		if (!create_semaphore(vk_dev.device_, vk_dev.pallocator_, &vk_dev.img_avail_sem_) ||
+			!create_semaphore(vk_dev.device_, vk_dev.pallocator_, &vk_dev.rendering_finished_sem_)) {
 			return false;
 		}
+
+		if (!create_swap_chain(vk_dev.swap_chain_data_, vk_dev.device_, vk_dev.surface_,
+							   vk_dev.queue_families_, vk_dev.pallocator_, vk_dev.swap_chain_)) {
+			return false;
+		}
+
+		vk_dev.is_initialized_ = true;
 
 		return true;
 	}
@@ -603,24 +552,37 @@ namespace rhi_vulkan {
 
 	bool finalize() {
 
-		for (auto image_view: rhi_.swap_chain_.image_views_) {
-			vkDestroyImageView(rhi_.device_, image_view, rhi_.pallocator_);
+		for (auto img: vk_dev.swap_chain_.images_) {
+			vkDestroyImageView(vk_dev.device_, img.view_, vk_dev.pallocator_);
 		}
 
-		vkDestroySwapchainKHR(rhi_.device_, rhi_.swap_chain_.swap_chain_, rhi_.pallocator_);
+		vkDestroySwapchainKHR(vk_dev.device_, vk_dev.swap_chain_.swap_chain_, vk_dev.pallocator_);
 
-		vkDeviceWaitIdle(rhi_.device_);
-		vkDestroyDevice(rhi_.device_, rhi_.pallocator_);
+		vkDeviceWaitIdle(vk_dev.device_);
+		vkDestroyDevice(vk_dev.device_, vk_dev.pallocator_);
 
-		vkDestroySurfaceKHR(rhi_.instance_, rhi_.surface_, rhi_.pallocator_);
+		vkDestroySurfaceKHR(vk_dev.instance_, vk_dev.surface_, vk_dev.pallocator_);
 
 		if (s_enable_validation_layers) {
-			destroy_debug_utils_messenger_EXT(rhi_.instance_, rhi_.debug_messenger_, rhi_.pallocator_);
+			destroy_debug_utils_messenger_EXT(vk_dev.instance_, vk_dev.debug_messenger_, vk_dev.pallocator_);
 		}
-		vkDestroyInstance(rhi_.instance_, nullptr);
+		vkDestroyInstance(vk_dev.instance_, nullptr);
+		vk_dev.is_initialized_ = false;
 		return true;
 	}
+
+	IRHIDevice* create_device() {
+		assert(vk_dev.is_initialized_);
+		return new RHIDeviceVk(vk_dev);
+	}
+
+	void destroy_device(IRHIDevice* device) {
+		assert(device);
+		delete device;
+	}
+
 } // namespace rhi_vulkan
+
 
 bool CreateRHI_Vulkan(struct rhi* backend) {
     assert(backend);
@@ -628,5 +590,8 @@ bool CreateRHI_Vulkan(struct rhi* backend) {
     backend->finalize_rhi = rhi_vulkan::finalize;
     backend->make_current_context = rhi_vulkan::make_current_context;
     backend->get_window_flags = rhi_vulkan::get_window_flags;
+    backend->create_device = rhi_vulkan::create_device;
+    backend->destroy_device = rhi_vulkan::destroy_device;
+
     return true;
 }

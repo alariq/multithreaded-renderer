@@ -4,6 +4,8 @@ project(rhi_opengl)
 set(OPENGL_SOURCES ${OPENGL_SOURCES}
     opengl_rhi.cpp
     opengl_rhi.h
+    opengl_device.cpp
+    opengl_device.h
     )
 
 source_group("opengl" FILES ${OPENGL_SOURCES})

@@ -4,6 +4,8 @@ project(rhi_vulkan)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake")
 
 set(VULKAN_SOURCES ${VULKAN_SOURCES}
+    vulkan_device.cpp
+    vulkan_device.h
     vulkan_rhi.cpp
     vulkan_rhi.h
     )

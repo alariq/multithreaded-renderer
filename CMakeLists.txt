@@ -34,7 +34,7 @@ if(MSVC)
     # 4514 - unreferenced inline function has been removed
     # 4121 - alignment of a member was sensitive to packing
     # 4099 - type name first seen using 'struct' now seen using 'class'
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /std:c++14 /W4 /wd4514 /wd4121 /we4099")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /std:c++14 /W4 /wd4514 /wd4121 /we4099 /we4459")
     set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MTd")
 endif()
 
@@ -75,7 +75,7 @@ add_subdirectory("./platform" "./out/platform")
 add_subdirectory("./rhi" "./out/rhi")
 
 set(SOURCES 
-    "main.cpp"
+    "rhi_test.cpp"
     "shadow_renderer.cpp"
     "particle_system.cpp"
     "debug_renderer.cpp"

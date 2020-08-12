@@ -41,6 +41,7 @@ bool g_debug_draw_calls = false;
 ////////////////////////////////////////////////////////////////////////////////
 graphics::RenderWindowHandle g_win = 0;
 rhi* g_rhi = nullptr;
+IRHIDevice* g_rhi_device = nullptr;
 ////////////////////////////////////////////////////////////////////////////////
 
 
@@ -71,6 +72,8 @@ int RendererGetCurrentFrame() { return gRenderFrameNumber; }
 int GetCurrentFrame() { return gFrameNumber; }
 void SetRenderFrameContext(void* rfc) { assert(!IsRenderThread()); gRenderFrameContext = rfc; }
 void* GetRenderFrameContext() { assert(IsRenderThread()); return gRenderThreadRenderFrameContext; }
+
+IRHIDevice* rhi_get_device() { return g_rhi_device; }
 
 class R_job {
 public:
@@ -160,8 +163,6 @@ public:
     }
 };
 
-static void draw_screen();
-
 class R_render: public R_job {
 public:
     R_render() {};
@@ -172,10 +173,15 @@ public:
             //graphics::make_current_context(g_ctx);
 			g_rhi->make_current_context();
         }
-
         {
             rmt_ScopedCPUSample(draw_screen, 0);
-            draw_screen();
+			g_rhi_device->BeginFrame();
+			//gos_RendererBeginFrame();
+			Environment.UpdateRenderers();
+			//gos_RendererEndFrame();
+			g_rhi_device->Present();
+			g_rhi_device->EndFrame();
+
         }
         {
             rmt_ScopedCPUSample(swap_window, 0);
@@ -290,32 +296,6 @@ static void process_events( void ) {
     input::updateKeyboardState(&g_keyboard_info);
 }
 
-extern bool g_disable_quads;
-
-static void draw_screen( void )
-{
-    rmt_ScopedOpenGLSample(draw_screen);
-
-    g_disable_quads = false;
-    glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
-    glCullFace(GL_FRONT);
-    
-	const int viewport_w = Environment.drawableWidth;
-	const int viewport_h = Environment.drawableHeight;
-    glViewport(0, 0, viewport_w, viewport_h);
-    CHECK_GL_ERROR;
-
-    // TODO: reset all states to sane defaults!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    glDepthMask(GL_TRUE);
-    glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
-
-    gos_RendererBeginFrame();
-    Environment.UpdateRenderers();
-    gos_RendererEndFrame();
-
-    glUseProgram(0);
-    //CHECK_GL_ERROR;
-}
 
 extern float frameRate;
 
@@ -382,8 +362,8 @@ int main(int argc, char** argv)
         R_init_renderer(int w, int h):w_(w), h_(h) {}
         virtual int exec() {
 			if (g_rhi->initialize_rhi(g_win)) {
-				gos_CreateRenderer(g_win, w_, h_);
-				rmt_BindOpenGL();
+				g_rhi_device = g_rhi->create_device();
+				//gos_CreateRenderer(g_win, w_, h_);
 				return 0;
 			}
 			return 1;
@@ -464,7 +444,7 @@ int main(int argc, char** argv)
             class R_handle_events: public R_job {
                 public:
                     int exec() {
-                        gos_RendererHandleEvents();
+                        //gos_RendererHandleEvents();
                         return 0;
                     }
             };
@@ -472,7 +452,8 @@ int main(int argc, char** argv)
 
             const uint32_t num_draw_calls = (rand()%3) + 1;
             for(uint32_t i=0; i<num_draw_calls;++i) {
-                g_render_job_queue->push( new R_draw_job(std::string("DIP"), (rand()%2) + 1) );
+				uint32_t sleep_time = (rand() % 2) + 1;
+                g_render_job_queue->push( new R_draw_job(std::string("DIP"), sleep_time));
             }
 
             g_render_job_queue->push( new R_render() );
@@ -525,8 +506,7 @@ int main(int argc, char** argv)
         R_destroy_renderer() {}
         ~R_destroy_renderer() {}
         int exec() {
-            rmt_UnbindOpenGL();
-            gos_DestroyRenderer();
+            //gos_DestroyRenderer();
             g_rhi->finalize_rhi();
             g_rendering = false;
             return 0;

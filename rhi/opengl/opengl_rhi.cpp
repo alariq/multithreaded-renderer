@@ -1,10 +1,12 @@
 #include "opengl_rhi.h"
+#include "opengl_device.h"
 #include "rhi.h"
 #include "gos_render.h"
 #include "utils/logging.h"
 #include "gl/glew.h"
 #include "gameos.hpp"
 #include "SDL2/SDL.h"
+#include "Remotery/lib/Remotery.h"
 #include <cstdio>
 #include <cassert>
 
@@ -274,10 +276,24 @@ namespace rhi_opengl {
 		snprintf(version, sizeof(version), "%d%d", glsl_maj, glsl_min);
 		SPEW(("GRAPHICS", "Using %s shader version\n", version));
 
+		rmt_BindOpenGL();
+
 		return true;
 	}
 
-	bool finalize() { return false; }
+	bool finalize() { 
+        rmt_UnbindOpenGL();
+		return true;
+	}
+
+	IRHIDevice* create_device() {
+		return new RHIDeviceGL();
+	}
+
+	void destroy_device(IRHIDevice* device) {
+		assert(device);
+		delete device;
+	}
 
 } // namespace rhi_opengl
 
@@ -289,5 +305,7 @@ bool CreateRHI_OpenGL(rhi* backend) {
     backend->finalize_rhi = rhi_opengl::finalize;
 	backend->make_current_context = rhi_opengl::make_current_context;
     backend->get_window_flags = rhi_opengl::get_window_flags;
+    backend->create_device = rhi_opengl::create_device;
+    backend->destroy_device = rhi_opengl::destroy_device;
     return true;
 }
