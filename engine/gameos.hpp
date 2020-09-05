@@ -2618,6 +2618,7 @@ enum class gosBUFFER_TYPE {
 	VERTEX = 0,
 	INDEX,
 	UNIFORM,
+	STORAGE,
 	NUM_BUFFER_TYPES
 };
 
