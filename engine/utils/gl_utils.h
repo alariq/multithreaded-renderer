@@ -28,12 +28,12 @@ uint32_t getTexFormatPixelSize(TexFormat fmt);
 
 #define CHECK_GL_ERROR \
 { \
-   	GLenum err = glGetError();\
-	while(err != GL_NO_ERROR) \
+   	GLenum err_ = glGetError();\
+	while(err_ != GL_NO_ERROR) \
 	{ \
-		printf("OpenGL Error: %s\n", ogl_get_error_code_str(err)); \
+		printf("OpenGL Error: %s\n", ogl_get_error_code_str(err_)); \
 		printf("Location : %s : %d\n", __FILE__ , __LINE__); \
-   	    err = glGetError();\
+   	    err_ = glGetError();\
 	}\
 }
 

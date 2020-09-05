@@ -66,7 +66,7 @@ struct glsl_sampler
 struct glsl_shader
 {    
 
-    enum Shader_t { VERTEX = 0, FRAGMENT = 1, HULL = 2, DOMAINE = 3, GEOMERTY = 4, NUM_SHADER_TYPES }; // E on purpose
+    enum Shader_t { VERTEX = 0, FRAGMENT = 1, HULL = 2, DOMAINE = 3, GEOMERTY = 4, COMPUTE = 5, NUM_SHADER_TYPES }; // E on purpose
 
     GLenum type_;
     std::string fname_;
@@ -95,6 +95,7 @@ struct glsl_program {
 	glsl_shader* hsh_;
 	glsl_shader* dsh_;
 	glsl_shader* gsh_;
+	glsl_shader* csh_;
     char* prefix_;
 
     typedef std::map<std::string, glsl_uniform*> UniArr_t;
@@ -123,6 +124,7 @@ struct glsl_program {
    
     bool is_valid();
 
+    static glsl_program* makeComputeProgram(const char* name, const char* csh);
     static glsl_program* makeProgram(const char* name, const char* vsh, const char* fsh, const char* prefix = nullptr);
 	static glsl_program* makeProgram2(const char* name, const char* vp, const char* hp, const char* dp, const char* gp, const char* fp, int count = 0, const char** xfb_variables = 0, const char* prefix = nullptr);
 	static void deleteProgram(const char* name);
