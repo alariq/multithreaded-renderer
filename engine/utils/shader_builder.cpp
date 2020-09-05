@@ -107,7 +107,7 @@ bool get_program_error_status(GLuint program, GLenum status_type)
 
 GLenum get_gl_shader_type(glsl_shader::Shader_t type)
 {
-	static const  GLenum types[] =  {GL_VERTEX_SHADER, GL_FRAGMENT_SHADER,  GL_TESS_CONTROL_SHADER, GL_TESS_EVALUATION_SHADER, GL_GEOMETRY_SHADER };
+	static const  GLenum types[] =  {GL_VERTEX_SHADER, GL_FRAGMENT_SHADER,  GL_TESS_CONTROL_SHADER, GL_TESS_EVALUATION_SHADER, GL_GEOMETRY_SHADER, GL_COMPUTE_SHADER };
 	assert(type >=0  && type < sizeof(types)/sizeof(types[0]) );
 
 	return types[type];
@@ -521,6 +521,98 @@ void parse_uniform_blocks(GLuint pprogram, glsl_program::UniBlockArr_t* puniform
 	}
 
 	delete[] buf;
+}
+
+glsl_program* glsl_program::makeComputeProgram(const char* name, const char* cp)
+{
+	if(!uniformFuncs[0])
+        init_func_ptrs(uniformFuncs);
+
+    assert(name);
+
+    if(s_programs.count(name))
+    {
+        log_error("Program with this name (%s) already exists\n", name);
+        return 0;
+    }
+
+    glsl_shader* csh = glsl_shader::makeShader(glsl_shader::COMPUTE, cp);
+	if(!csh)
+		return 0;
+
+	glsl_shader* pipeline[] = { csh };
+
+    GLuint shp = glCreateProgram();
+
+	GLuint last_not_null = 0;
+	for(size_t i=0; i< sizeof(pipeline)/sizeof(pipeline[0]); ++i)
+	{
+		if(!pipeline[i]) continue;
+		last_not_null = pipeline[i]->shader_;
+
+		glAttachShader(shp, pipeline[i]->shader_);
+		if( GL_NO_ERROR != glGetError())
+		{
+	        glDeleteProgram(shp);
+			log_error("glAttachShader: error during attaching %s\n", pipeline[i]->fname_.c_str());
+			return 0;
+		}
+	}
+
+	GLenum err = glGetError();
+	if(err != GL_NO_ERROR)
+	{
+		log_error("Shader name: %s\n", name);
+		log_error("OpenGL Error: %s\n", ogl_get_error_code_str(err));
+	}
+
+	err = glGetError();
+	if(err != GL_NO_ERROR)
+	{
+		log_error("Shader name: %s\n", name);
+		log_error("OpenGL Error: %s\n", ogl_get_error_code_str(err));
+	}
+
+    glLinkProgram(shp);
+
+	err = glGetError();
+	if(err != GL_NO_ERROR)
+	{
+		log_error("Shader name: %s\n", name);
+		log_error("OpenGL Error: %s\n", ogl_get_error_code_str(err));
+	}
+
+	CHECK_GL_ERROR
+	if(get_program_error_status(shp, GL_LINK_STATUS))
+    {
+        glDeleteProgram(shp);
+        return 0;
+    }
+
+    glsl_program* pprogram = new glsl_program();
+    pprogram->shp_ = shp;
+    pprogram->vsh_ = 0;
+    pprogram->fsh_ = 0;
+    pprogram->hsh_ = 0;
+    pprogram->dsh_ = 0;
+    pprogram->gsh_ = 0;
+    pprogram->csh_ = csh;
+    pprogram->is_valid_ = true;
+
+	for(size_t i=0; i< sizeof(pipeline)/sizeof(pipeline[0]); ++i)
+	{
+		if(!pipeline[i]) continue;
+		glDetachShader(shp, pipeline[i]->shader_);
+	}
+
+    parse_uniforms(shp, &pprogram->uniforms_, &pprogram->samplers_);
+	parse_uniform_blocks(shp, &pprogram->uniform_blocks_);
+	
+	pprogram->last_load_time_ = timing::get_wall_time_ms();
+
+    s_programs.insert(std::make_pair(name, pprogram) );
+    return pprogram;
+
 }
 
 glsl_program* glsl_program::makeProgram2(const char* name, const char* vp, const char* hp, const char* dp, const char* gp, const char* fp, int count/* = 0*/, const char** xfb_variables/* = 0*/, const char* prefix/*=nullptr*/)
