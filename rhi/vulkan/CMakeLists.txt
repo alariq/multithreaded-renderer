@@ -8,6 +8,8 @@ set(VULKAN_SOURCES ${VULKAN_SOURCES}
     vulkan_device.h
     vulkan_rhi.cpp
     vulkan_rhi.h
+    vulkan_state.cpp
+    vulkan_state.h
     )
 source_group("vulkan" FILES ${VULKAN_SOURCES})
 

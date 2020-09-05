@@ -449,6 +449,7 @@ namespace rhi_vulkan {
 		uint32_t img_count;
 		vkGetSwapchainImagesKHR(device, swap_chain.swap_chain_, &img_count, nullptr);
 		swap_chain.images_.resize(img_count);
+		swap_chain.views_.resize(img_count);
 		std::vector<VkImage> vk_images(img_count);
 		vkGetSwapchainImagesKHR(device, swap_chain.swap_chain_, &img_count, vk_images.data());
 
@@ -469,14 +470,17 @@ namespace rhi_vulkan {
 			ci.subresourceRange.baseArrayLayer = 0;
 			ci.subresourceRange.layerCount = 1;
 
-			if (vkCreateImageView(device, &ci, pallocator, &swap_chain.images_[idx].view_) != VK_SUCCESS) {
+			VkImageView view;
+			if (vkCreateImageView(device, &ci, pallocator, &view) != VK_SUCCESS) {
 				log_error("vkCreateImageView: failed to create image views!\n");
 				return false;
 			}
-			swap_chain.images_[idx].handle_ = img;
+			swap_chain.images_[idx] = new ::RHIImageVk(img);
 			// swap chain images are created with this initial layout
-			swap_chain.images_[idx].layout_ = VK_IMAGE_LAYOUT_UNDEFINED;//  VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-			swap_chain.images_[idx].access_flags_ = VK_ACCESS_MEMORY_READ_BIT;
+			swap_chain.images_[idx]->vk_layout_ = VK_IMAGE_LAYOUT_UNDEFINED;//  VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+			swap_chain.images_[idx]->vk_access_flags_ = VK_ACCESS_MEMORY_READ_BIT;
+
+			swap_chain.views_[idx] = new ::RHIImageViewVk(view);
 			++idx;
 		}
 		return true;
@@ -551,9 +555,16 @@ namespace rhi_vulkan {
 	void make_current_context() {}
 
 	bool finalize() {
-
-		for (auto img: vk_dev.swap_chain_.images_) {
-			vkDestroyImageView(vk_dev.device_, img.view_, vk_dev.pallocator_);
+		{
+			// please forbid me... will change later
+			// make IRHIDevice::Destroy() ao that is object is passed we already know real device type
+			// => no conversions + no need for virtual Destroy() in every resource class
+			// can be just Destroy(VkDevice dev, VkAllocatorPointers pallocator)
+			// who knows... but maybe just make IRHIInastance and have IRHIDevice there
+			::RHIDeviceVk tmp(vk_dev);
+			for (::RHIImageViewVk* view : vk_dev.swap_chain_.views_) {
+				view->Destroy(&tmp);
+			}
 		}
 
 		vkDestroySwapchainKHR(vk_dev.device_, vk_dev.swap_chain_.swap_chain_, vk_dev.pallocator_);

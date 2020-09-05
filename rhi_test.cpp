@@ -165,6 +165,8 @@ void __stdcall Update(void)
 }
 
 IRHICmdBuf* g_cmdbuf[8] = { nullptr };
+IRHIRenderPass* g_main_pass = nullptr;
+std::vector<IRHIFrameBuffer*> g_main_fb;
 
 void __stdcall Render(void)
 {
@@ -176,6 +178,57 @@ void __stdcall Render(void)
 		for (int i = 0; i < countof(g_cmdbuf); ++i) {
 			g_cmdbuf[i] = device->CreateCommandBuffer(RHIQueueType::kPresentation);
 		}
+
+		RHIAttachmentDesc att_desc;
+		att_desc.format = device->GetSwapChainFormat();
+		att_desc.numSamples = 1;
+		att_desc.loadOp = RHIAttachmentLoadOp::kClear;
+		att_desc.storeOp = RHIAttachmentStoreOp::kStore;
+		att_desc.stencilLoadOp = RHIAttachmentLoadOp::kDoNotCare;
+		att_desc.stencilStoreOp = RHIAttachmentStoreOp::kDoNotCare;
+		att_desc.initialLayout = RHIImageLayout::kUndefined;
+		att_desc.finalLayout = RHIImageLayout::kPresent;
+
+		RHIAttachmentRef color_att_ref = { 0, RHIImageLayout::kColorOptimal };
+
+		RHISubpassDesc sp_desc;
+		sp_desc.bindPoint = RHIPipelineBindPoint::kGraphics;
+		sp_desc.colorAttachmentCount = 1;
+		sp_desc.colorAttachments = &color_att_ref;
+		sp_desc.depthStencilAttachmentCount = 0;
+		sp_desc.depthStencilAttachments = nullptr;
+		sp_desc.inputAttachmentCount = 0;
+		sp_desc.inputAttachments = nullptr;
+		sp_desc.preserveAttachmentCount = 0;
+		sp_desc.preserveAttachments = nullptr;
+
+		RHIRenderPassDesc rp_desc;
+		rp_desc.attachmentCount = 1;
+		rp_desc.attachmentDesc = &att_desc;
+		rp_desc.subpassCount = 1;
+		rp_desc.subpassDesc = &sp_desc;
+		rp_desc.dependencyCount = 0;
+		rp_desc.dependencies = nullptr;
+
+		g_main_pass = device->CreateRenderPass(&rp_desc);
+
+		g_main_fb.resize(device->GetSwapChainSize());
+		for (int i = 0; i < g_main_fb.size(); ++i) {
+			const IRHIImageView* view = device->GetSwapChainImageView(i);
+			const IRHIImage* image = device->GetSwapChainImage(i);
+
+			RHIFrameBufferDesc fb_desc;
+			fb_desc.attachmentCount = 1;
+			fb_desc.pAttachments = &view;
+			fb_desc.width_ = image->Width();
+			fb_desc.height_= image->Height();
+			fb_desc.layers_ = 1;
+			g_main_fb[i] = device->CreateFrameBuffer(&fb_desc, g_main_pass);
+		}
+
+
+		//TODO: add render thread destroy callback to destroy all render resources
+
 
         initialized = true;
     }
@@ -194,7 +247,7 @@ void __stdcall Render(void)
     rfc->commands_.clear();
 
 	IRHIDevice* device = rhi_get_device();
-	IRHIImage* fb = device->GetFrameBuffer();
+	IRHIImage* fb_image = device->GetCurrentSwapChainImage();
 
 	static int cur_idx = 0;
 	IRHICmdBuf* cb = g_cmdbuf[cur_idx];
@@ -202,9 +255,9 @@ void __stdcall Render(void)
 	static vec4 color = vec4(1, 0, 0, 0);
 
 	cb->Begin();
-	cb->Barrier_PresentToClear(fb);
-	cb->Clear(device->GetFrameBuffer(), color, (uint32_t)RHIImageAspect::kColor);
-	cb->Barrier_ClearToPresent(fb);
+	cb->Barrier_PresentToClear(fb_image);
+	cb->Clear(fb_image, color, (uint32_t)RHIImageAspectFlags::kColor);
+	cb->Barrier_ClearToPresent(fb_image);
 	cb->End();
 	device->Submit(cb, RHIQueueType::kPresentation);
 

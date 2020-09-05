@@ -5,6 +5,7 @@
 #include "utils/macros.h"
 #include <unordered_map>
 #include <cassert>
+#include <memory>
 
 ////////////////////////////////////////////////////////////////////////////////
 template <typename T> struct ResImplType;
@@ -18,14 +19,52 @@ typename ResImplType<R>::Type* ResourceCast(R* obj) {
 }
 ////////////////////////////////////////////////////////////////////////////////
 GLuint translate_image_aspect(uint32_t bits) {
-	GLuint rv = (bits & (uint32_t)RHIImageAspect::kColor) ? GL_COLOR_BUFFER_BIT: 0;
-	rv |= (bits & (uint32_t)RHIImageAspect::kDepth) ? GL_DEPTH_BUFFER_BIT: 0;
-	rv |= (bits & (uint32_t)RHIImageAspect::kStencil) ? GL_STENCIL_BUFFER_BIT: 0;
+	GLuint rv = (bits & (uint32_t)RHIImageAspectFlags::kColor) ? GL_COLOR_BUFFER_BIT: 0;
+	rv |= (bits & (uint32_t)RHIImageAspectFlags::kDepth) ? GL_DEPTH_BUFFER_BIT: 0;
+	rv |= (bits & (uint32_t)RHIImageAspectFlags::kStencil) ? GL_STENCIL_BUFFER_BIT: 0;
 	return rv;
 }
 
 ////////////// Image //////////////////////////////////////////////////
 
+
+////////////// Shader //////////////////////////////////////////////////
+void RHIShaderGL::Destroy(IRHIDevice* device) {
+	delete this;
+}
+
+RHIShaderGL *RHIShaderGL::Create(IRHIDevice *device, const uint32_t *pdata, uint32_t size,
+								 RHIShaderStageFlags stage) {
+	RHIShaderGL *shader = new RHIShaderGL();
+	shader->stage_ = stage;
+	return shader;
+}
+
+////////////// Pipeline Layout //////////////////////////////////////////////////
+void RHIPipelineLayoutGL::Destroy(IRHIDevice* device) {
+	delete this;
+}
+
+RHIPipelineLayoutGL *RHIPipelineLayoutGL::Create(IRHIDevice *device,
+												 IRHIDescriptorSetLayout *desc_set_layout,
+												 RHIShaderStageFlags stage) {
+	RHIPipelineLayoutGL *pl = new RHIPipelineLayoutGL();
+	return pl;
+}
+
+////////////// Graphics Pipeline //////////////////////////////////////////////////
+void RHIGraphicsPipelineGL::Destroy(IRHIDevice* device) {
+	delete this;
+}
+
+RHIGraphicsPipelineGL *RHIGraphicsPipelineGL::Create(
+		IRHIDevice *device, RHIShaderStage *shader_stage, uint32_t shader_stage_count,
+		RHIVertexInputState *vertex_input_state, RHIInputAssemblyState* input_assembly_state,
+		RHIViewportState* viewport_state, RHIRasterizationState *raster_state,
+		RHIMultisampleState* multisample_state, RHIColorBlendState* color_blend_state) {
+
+	return nullptr;
+}
 
 ////////////// Command buffer //////////////////////////////////////////////////
 
@@ -51,16 +90,34 @@ void RHICmdBufGL::Clear(IRHIImage* image_in, const vec4& color, uint32_t img_asp
 	
 }
 
-void RHICmdBufGL::Barrier_ClearToPresent(IRHIImage *image_in) {
+void RHICmdBufGL::Barrier_ClearToPresent(IRHIImage *) {
 }
-void RHICmdBufGL::Barrier_PresentToClear(IRHIImage *image_in) {
+void RHICmdBufGL::Barrier_PresentToClear(IRHIImage *) {
 }
 
 ////////////////RHI Device /////////////////////////////////////////////////////
 
+RHIDeviceGL::RHIDeviceGL() {
+	fb_ = std::make_unique<RHIImageGL>(0);
+	// TODO: set w/h/format
+	// need to pass window info here
+	fb_view_ = std::make_unique<RHIImageViewGL>(0);
+}
+
 RHIDeviceGL::~RHIDeviceGL() {
 }
 
+IRHIFrameBuffer* RHIDeviceGL::CreateFrameBuffer(const RHIFrameBufferDesc* , const IRHIRenderPass* ) {
+	return new RHIFrameBufferGL();
+}
+
+IRHIRenderPass* RHIDeviceGL::CreateRenderPass(const RHIRenderPassDesc* ) {
+	return new RHIRenderPassGL();
+}
+
+IRHIImageView* RHIDeviceGL::CreateImageView(const RHIImageViewDesc* ) {
+	return new RHIImageViewGL(0);
+}
 
 // should this be mobved to command buffer class / .cpp file and just pass Device as a parameter ?
 IRHICmdBuf* RHIDeviceGL::CreateCommandBuffer(RHIQueueType queue_type) {
@@ -74,12 +131,11 @@ bool RHIDeviceGL::BeginFrame() {
 
 	cur_frame_++;
 	between_begin_frame = true;
-	fb_.SetImage({ 0 });
 
 	return true;
 }
 
-bool RHIDeviceGL::Submit(IRHICmdBuf* cb_in, RHIQueueType queue_type) {
+bool RHIDeviceGL::Submit(IRHICmdBuf* cb_in, RHIQueueType ) {
 
 	RHICmdBufGL* cb = ResourceCast(cb_in);
 	(void)(cb);
