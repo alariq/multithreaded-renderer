@@ -252,9 +252,9 @@ struct RHIFrameBufferDesc {
     uint32_t                    width_;
     uint32_t                    height_;
     uint32_t                    layers_;
-	RHIFrameBufferDesc& width(uint32_t w) { width_ = w; }
-	RHIFrameBufferDesc& height(uint32_t h) { height_ = h; }
-	RHIFrameBufferDesc& layers(uint32_t l) { layers_ = l; }
+	RHIFrameBufferDesc& width(uint32_t w) { width_ = w; return *this; }
+	RHIFrameBufferDesc& height(uint32_t h) { height_ = h; return *this; }
+	RHIFrameBufferDesc& layers(uint32_t l) { layers_ = l; return *this; }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -453,37 +453,37 @@ public:
 	virtual void Barrier_ClearToPresent(IRHIImage* image) = 0;
 	virtual void Barrier_PresentToClear(IRHIImage* image) = 0;
 	virtual void Clear(IRHIImage* image_in, const vec4& color, uint32_t img_aspect_bits) = 0;
-	virtual ~IRHICmdBuf() = 0 {};
+	virtual ~IRHICmdBuf() = 0;
 };
 
 class IRHIRenderPass {
 public:
-	virtual ~IRHIRenderPass() = 0 {}
+	virtual ~IRHIRenderPass() = 0;
 };
 
 class IRHIFrameBuffer {
 public:
-	virtual ~IRHIFrameBuffer() = 0 {}
+	virtual ~IRHIFrameBuffer() = 0;
 };
 
 class IRHIShader {
 public:
-	virtual ~IRHIShader() = 0 {}
+	virtual ~IRHIShader() = 0;
 };
 
 class IRHIDescriptorSetLayout {
 public:
-	virtual ~IRHIDescriptorSetLayout() = 0 {}
+	virtual ~IRHIDescriptorSetLayout() = 0;
 };
 
 class IRHIPipelineLayout {
 public:
-	virtual ~IRHIPipelineLayout() = 0 {}
+	virtual ~IRHIPipelineLayout() = 0;
 };
 
 class IRHIGraphicsPipeline{
 public:
-	virtual ~IRHIGraphicsPipeline() = 0 {}
+	virtual ~IRHIGraphicsPipeline() = 0; 
 };
 
 
@@ -506,7 +506,7 @@ public:
 	virtual bool BeginFrame() = 0;
 	virtual bool Present() = 0;
 	virtual bool EndFrame() = 0;
-	virtual ~IRHIDevice() = 0 {};
+	virtual ~IRHIDevice() {};
 };
 
 struct rhi {

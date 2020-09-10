@@ -82,7 +82,7 @@ VkSampleCountFlagBits translate_num_samples(int num_samples) {
 	case 32:
 		return VK_SAMPLE_COUNT_32_BIT;
 	case 64:
-		VK_SAMPLE_COUNT_64_BIT;
+		return VK_SAMPLE_COUNT_64_BIT;
 	default:
 		assert(0 && "Incorrect sample cunt");
 		return VK_SAMPLE_COUNT_1_BIT;
@@ -777,7 +777,7 @@ IRHICmdBuf* RHIDeviceVk::CreateCommandBuffer(RHIQueueType queue_type) {
 	VkCommandBuffer cb;
 	if (vkAllocateCommandBuffers(dev_.device_, &cmd_buffer_allocate_info, &cb) != VK_SUCCESS) {
 		log_error("Could not allocate command buffers!\n");
-		return false;
+		return nullptr;
 	}
 
 	return new RHICmdBufVk(cb/*, qfi, cmd_pool*/);

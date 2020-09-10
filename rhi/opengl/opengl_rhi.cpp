@@ -3,7 +3,7 @@
 #include "rhi.h"
 #include "gos_render.h"
 #include "utils/logging.h"
-#include "gl/glew.h"
+#include "GL/glew.h"
 #include "gameos.hpp"
 #include "SDL2/SDL.h"
 #include "Remotery/lib/Remotery.h"

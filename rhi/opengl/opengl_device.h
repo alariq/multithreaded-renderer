@@ -1,7 +1,7 @@
 #pragma once 
 
 #include "rhi.h"
-#include "gl/glew.h"
+#include "GL/glew.h"
 #include "utils/vec.h"
 #include <cassert>
 #include <vector>

@@ -1,5 +1,5 @@
 #include "rhi.h"
-#include "gl/glew.h"
+#include "GL/glew.h"
 #include "opengl_device.h"
 #include "utils/logging.h"
 #include "utils/macros.h"
