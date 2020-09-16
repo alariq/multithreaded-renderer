@@ -114,5 +114,5 @@ else()
 endif()
 
 add_executable(mt-renderer ${SOURCES})
-target_link_libraries(mt-renderer rhi_opengl rhi_vulkan engine platform SDL2::SDL2 SDL2::SDL2main GLEW::GLEW ${ADDITIONAL_LIBS} OpenGL::GL Vulkan::Vulkan)
+target_link_libraries(mt-renderer engine rhi_opengl rhi_vulkan rhi platform SDL2::SDL2 SDL2::SDL2main GLEW::GLEW ${ADDITIONAL_LIBS} OpenGL::GL Vulkan::Vulkan)
 

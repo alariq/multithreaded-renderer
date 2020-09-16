@@ -349,7 +349,7 @@ int main(int argc, char** argv)
 
 	g_rhi = new rhi();
 	//CreateRHI_OpenGL(g_rhi);
-	CreateRHI_Vulkan(g_rhi);
+    CreateRHI_Vulkan(g_rhi);
 
 	g_win = graphics::create_window("mt-renderer", w, h, g_rhi->get_window_flags());
 	if (!g_win)

@@ -1,6 +1,7 @@
 #include "engine/utils/timing.h"
 #include "engine/utils/gl_utils.h"
 #include "engine/utils/math_utils.h"
+#include "engine/utils/file_utils.h"
 #include "engine/utils/camera.h"
 #include "engine/utils/frustum.h"
 #include "engine/utils/obj_loader.h"
@@ -134,10 +135,10 @@ void __stdcall Update(void)
     float dt_sec = ((float)timing::ticks2ms(end_tick - start_tick))/1e3f;
     start_tick = timing::gettickcount();
 
-    if(gos_GetKeyStatus(KEY_P) == KEY_PRESSED)
+    if(KEY_PRESSED == gos_GetKeyStatus(KEY_P))
         g_update_simulation = !g_update_simulation;
 
-	UpdateCamera(dt_sec);
+    UpdateCamera(dt_sec);
 
 	g_obj_under_cursor = scene::kInvalidObjectId;
 
@@ -167,6 +168,7 @@ void __stdcall Update(void)
 IRHICmdBuf* g_cmdbuf[8] = { nullptr };
 IRHIRenderPass* g_main_pass = nullptr;
 std::vector<IRHIFrameBuffer*> g_main_fb;
+IRHIGraphicsPipeline *tri_pipeline = nullptr;
 
 void __stdcall Render(void)
 {
@@ -175,8 +177,8 @@ void __stdcall Render(void)
     if(!initialized)
     {
 		IRHIDevice* device = rhi_get_device();
-		for (int i = 0; i < countof(g_cmdbuf); ++i) {
-			g_cmdbuf[i] = device->CreateCommandBuffer(RHIQueueType::kPresentation);
+		for (size_t i = 0; i < countof(g_cmdbuf); ++i) {
+			g_cmdbuf[i] = device->CreateCommandBuffer(RHIQueueType::kGraphics);
 		}
 
 		RHIAttachmentDesc att_desc;
@@ -213,8 +215,8 @@ void __stdcall Render(void)
 		g_main_pass = device->CreateRenderPass(&rp_desc);
 
 		g_main_fb.resize(device->GetSwapChainSize());
-		for (int i = 0; i < g_main_fb.size(); ++i) {
-			const IRHIImageView* view = device->GetSwapChainImageView(i);
+		for (size_t i = 0; i < g_main_fb.size(); ++i) {
+			IRHIImageView* view = device->GetSwapChainImageView(i);
 			const IRHIImage* image = device->GetSwapChainImage(i);
 
 			RHIFrameBufferDesc fb_desc;
@@ -225,11 +227,94 @@ void __stdcall Render(void)
 			fb_desc.layers_ = 1;
 			g_main_fb[i] = device->CreateFrameBuffer(&fb_desc, g_main_pass);
 		}
+        
+        size_t vs_size;
+        const uint32_t* vs = (uint32_t*)filesystem::loadfile("shaders/spir-v/spir-v.vert.spv.bin", &vs_size);
+        size_t ps_size;
+        const uint32_t* ps = (uint32_t*)filesystem::loadfile("shaders/spir-v/spir-v.frag.spv.bin", &ps_size);
+	    RHIShaderStage shader_stage[2];
+        shader_stage[0].module = device->CreateShader(RHIShaderStageFlags::kVertex, vs, vs_size);
+        shader_stage[0].pEntryPointName = "main";
+        shader_stage[0].stage = RHIShaderStageFlags::kVertex;
+        shader_stage[1].module = device->CreateShader(RHIShaderStageFlags::kFragment, ps, ps_size);
+        shader_stage[1].pEntryPointName = "main";
+        shader_stage[1].stage = RHIShaderStageFlags::kFragment;
 
+        RHIVertexInputState vi_state;
+        vi_state.vertexBindingDescCount = 0;
+        vi_state.pVertexBindingDesc = nullptr;
+        vi_state.vertexAttributeDescCount = 0;
+        vi_state.pVertexAttributeDesc = nullptr;
+
+        RHIInputAssemblyState ia_state;
+        ia_state.primitiveRestartEnable = false;
+        ia_state.topology = RHIPrimitiveTopology::kTriangleList;
+
+        RHIScissor scissors;
+        scissors.x = 0;
+        scissors.y = 0;
+        scissors.width = SCREEN_W;
+        scissors.height = SCREEN_H;
+
+        RHIViewport viewport;
+        viewport.x = viewport.y = 0;
+        viewport.width = SCREEN_W;
+        viewport.height = SCREEN_H;
+        viewport.minDepth = 0.0f;
+        viewport.maxDepth = 1.0f;
+
+        RHIViewportState viewport_state;
+        viewport_state.pScissors = &scissors;
+        viewport_state.pViewports = &viewport;
+        viewport_state.scissorCount = 1;
+        viewport_state.viewportCount = 1;
+
+        RHIRasterizationState raster_state;
+        raster_state.depthClampEnable = false;
+        raster_state.cullMode = RHICullModeFlags::kBack;
+        raster_state.depthBiasClamp = 0.0f;
+        raster_state.depthBiasConstantFactor = 0.0f;
+        raster_state.depthBiasEnable = false;
+        raster_state.depthBiasSlopeFactor = 0.0f;
+        raster_state.frontFace = RHIFrontFace::kCounterClockwise;
+        raster_state.lineWidth = 1.0f;
+        raster_state.polygonMode = RHIPolygonMode::kFill;
+        raster_state.rasterizerDiscardEnable = false;
+
+        RHIMultisampleState ms_state;
+        ms_state.alphaToCoverageEnable = false;
+        ms_state.alphaToOneEnable = false;
+        ms_state.minSampleShading = 0.0f;
+        ms_state.pSampleMask = nullptr;
+        ms_state.rasterizationSamples = 1;
+        ms_state.sampleShadingEnable = false;
+
+        RHIColorBlendAttachmentState blend_att_state;
+        blend_att_state.alphaBlendOp = RHIBlendOp::kAdd;
+        blend_att_state.colorBlendOp = RHIBlendOp::kAdd;
+        blend_att_state.blendEnable = false;
+		blend_att_state.colorWriteMask = (uint32_t)RHIColorComponentFlags::kR | (uint32_t)RHIColorComponentFlags::kG |
+										 (uint32_t)RHIColorComponentFlags::kB | (uint32_t)RHIColorComponentFlags::kA;
+        blend_att_state.srcColorBlendFactor = RHIBlendFactor::One;
+        blend_att_state.dstColorBlendFactor = RHIBlendFactor::Zero;
+        blend_att_state.srcAlphaBlendFactor = RHIBlendFactor::One;
+        blend_att_state.dstAlphaBlendFactor = RHIBlendFactor::Zero;
+
+		RHIColorBlendState blend_state = {
+            false,
+            RHILogicOp::kCopy,
+            1,
+            &blend_att_state,
+            {0,0,0,0}
+        };
+
+        IRHIPipelineLayout *pipeline_layout = device->CreatePipelineLayout(nullptr);
+
+		tri_pipeline = device->CreateGraphicsPipeline(
+			&shader_stage[0], countof(shader_stage), &vi_state, &ia_state, &viewport_state,
+			&raster_state, &ms_state, &blend_state, pipeline_layout, g_main_pass);
 
 		//TODO: add render thread destroy callback to destroy all render resources
-
-
         initialized = true;
     }
 
@@ -250,18 +335,33 @@ void __stdcall Render(void)
 	IRHIImage* fb_image = device->GetCurrentSwapChainImage();
 
 	static int cur_idx = 0;
+	static int cur_fb_idx = 0;
 	IRHICmdBuf* cb = g_cmdbuf[cur_idx];
+    IRHIFrameBuffer* cur_fb = g_main_fb[cur_fb_idx];
 
 	static vec4 color = vec4(1, 0, 0, 0);
 
 	cb->Begin();
-	cb->Barrier_PresentToClear(fb_image);
-	cb->Clear(fb_image, color, (uint32_t)RHIImageAspectFlags::kColor);
-	cb->Barrier_ClearToPresent(fb_image);
+    if(0) {
+	    cb->Barrier_PresentToClear(fb_image);
+    	cb->Clear(fb_image, color, (uint32_t)RHIImageAspectFlags::kColor);
+    	cb->Barrier_ClearToPresent(fb_image);
+    } else {
+	    //cb->Barrier_PresentToDraw(fb_image);
+        ivec4 render_area(0,0, fb_image->Width(), fb_image->Height());
+        RHIClearValue clear_value = { vec4(0,1,0, 0), 0.0f, 0 };
+        cb->BeginRenderPass(g_main_pass, cur_fb, &render_area, &clear_value, 1); 
+        cb->BindPipeline(RHIPipelineBindPoint::kGraphics, tri_pipeline);
+        cb->Draw(3, 1, 0, 0);
+        cb->EndRenderPass(g_main_pass, cur_fb);
+	    //cb->Barrier_DrawToPresent(fb_image);
+    }
 	cb->End();
-	device->Submit(cb, RHIQueueType::kPresentation);
+
+	device->Submit(cb, RHIQueueType::kGraphics);
 
 	cur_idx = (cur_idx + 1) % ((int)countof(g_cmdbuf));
+	cur_fb_idx = (cur_fb_idx + 1) % ((int)(g_main_fb.size()));
 
 	uint64_t ticks = timing::gettickcount();
     float sec = ((float)timing::ticks2ms(ticks))/1e3f;

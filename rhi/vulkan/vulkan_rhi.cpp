@@ -402,8 +402,10 @@ namespace rhi_vulkan {
 				(float)swap_chain_data.capabilities_.maxImageExtent.height);
 		}
 
-		// +1 to avoid waiting fpr a driver 
-		uint32_t image_count = min(swap_chain_data.capabilities_.minImageCount + 1, swap_chain_data.capabilities_.maxImageCount);
+		// on my Linux box maxImageCount is 0 for some reason :-/
+		uint32_t maxImgCount = max(swap_chain_data.capabilities_.maxImageCount, swap_chain_data.capabilities_.minImageCount);
+		// +1 to avoid waiting for a driver 
+		uint32_t image_count = min(swap_chain_data.capabilities_.minImageCount + 1, maxImgCount);
 
 		VkImageUsageFlags usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 		if( swap_chain_data.capabilities_.supportedUsageFlags & VK_IMAGE_USAGE_TRANSFER_DST_BIT ) {
@@ -475,12 +477,13 @@ namespace rhi_vulkan {
 				log_error("vkCreateImageView: failed to create image views!\n");
 				return false;
 			}
-			swap_chain.images_[idx] = new ::RHIImageVk(img);
+            RHIImageVk* image = new RHIImageVk(img, extent.width, extent.height);
+			swap_chain.images_[idx] = image;
 			// swap chain images are created with this initial layout
 			swap_chain.images_[idx]->vk_layout_ = VK_IMAGE_LAYOUT_UNDEFINED;//  VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 			swap_chain.images_[idx]->vk_access_flags_ = VK_ACCESS_MEMORY_READ_BIT;
 
-			swap_chain.views_[idx] = new ::RHIImageViewVk(view);
+			swap_chain.views_[idx] = new RHIImageViewVk(view, image);
 			++idx;
 		}
 		return true;

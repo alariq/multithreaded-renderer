@@ -11,6 +11,7 @@ source_group("rhi" FILES ${RHI_SOURCES})
 include_directories(".")
 include_directories("../engine")
 
+add_library(rhi ${RHI_SOURCES})
 
 add_subdirectory(opengl)
 add_subdirectory(vulkan)

@@ -18,7 +18,9 @@ find_path(VULKAN_INCLUDE "vulkan/vulkan.h")
 include_directories(${VULKAN_INCLUDE})
 include_directories(".")
 include_directories("../")
-include_directories("../../engine")
+include_directories("../../")
+include_directories("${CMAKE_SOURCE_DIR}/engine")
+include_directories("${CMAKE_SOURCE_DIR}/platform/include")
 
 
 add_library(rhi_vulkan ${VULKAN_SOURCES})

@@ -1,6 +1,10 @@
 #include "rhi.h"
-#include "gos_render.cpp"
 
-namespace rhi {
-}
+IRHIGraphicsPipeline::~IRHIGraphicsPipeline() {}
+IRHICmdBuf::~IRHICmdBuf() {}
+IRHIRenderPass::~IRHIRenderPass() {}
+IRHIFrameBuffer::~IRHIFrameBuffer() {}
+IRHIPipelineLayout::~IRHIPipelineLayout() {}
+IRHIShader::~IRHIShader() {}
+
 

@@ -10,4 +10,4 @@ cmake-x64/
 cachegrind.*
 callgrind.*
 tools/
-
+shaders/spir-v-compiled/

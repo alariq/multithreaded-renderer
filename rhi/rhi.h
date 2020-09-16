@@ -3,9 +3,13 @@
 #include "gos_render.h"
 #include "utils/vec.h"
 #include <stdint.h>
+#include <cassert>
 
 class IRHIImageView;
 class IRHIImage;
+class IRHIGraphicsPipeline;
+class IRHIRenderPass;
+class IRHIFrameBuffer;
 
 enum class RHIQueueType: uint32_t {
 	kUnknown = 0x0,
@@ -15,25 +19,31 @@ enum class RHIQueueType: uint32_t {
 };
 
 enum class RHIFormat: uint32_t {
-	kR8G8B8A8_UNORM = 0,
-	kR8G8B8A8_UINT = 1,
-	kR8G8B8A8_SRGB = 2,
+    kUNDEFINED = 0,
+	kR8G8B8A8_UNORM ,
+	kR8G8B8A8_UINT,
+	kR8G8B8A8_SRGB,
 
-	kR32_UINT = 3,
-    kR32_SINT = 4,
-	kR32_SFLOAT = 5,
+	kR32_UINT,
+    kR32_SINT,
+	kR32_SFLOAT,
 
-    kR32G32_UINT = 6,
-    kR32G32_SINT = 7,
-    kR32G32_SFLOAT = 8,
+    kR32G32_UINT,
+    kR32G32_SINT,
+    kR32G32_SFLOAT,
 
-    kR32G32B32_UINT = 9,
-    kR32G32B32_SINT = 10,
-    kR32G32B32_SFLOAT = 11,
+    kR32G32B32_UINT,
+    kR32G32B32_SINT,
+    kR32G32B32_SFLOAT,
 
-    kR32G32B32A32_UINT = 12,
-    kR32G32B32A32_SINT = 13,
-    kR32G32B32A32_SFLOAT = 14,
+    kR32G32B32A32_UINT,
+    kR32G32B32A32_SINT,
+    kR32G32B32A32_SFLOAT,
+
+    kB8G8R8A8_UNORM,
+    kB8G8R8A8_UINT,
+    kB8G8R8A8_SRGB,
+
 };
 
 enum class RHIPipelineStageFlags: uint32_t {
@@ -248,7 +258,7 @@ struct RHIImageViewDesc {
 ////////////////////////////////////////////////////////////////////////////////
 struct RHIFrameBufferDesc {
     uint32_t                    attachmentCount;
-    const IRHIImageView* const*	pAttachments;
+    IRHIImageView* const*	    pAttachments;
     uint32_t                    width_;
     uint32_t                    height_;
     uint32_t                    layers_;
@@ -406,7 +416,7 @@ struct RHIColorBlendAttachmentState {
     RHIBlendFactor            srcAlphaBlendFactor;
     RHIBlendFactor            dstAlphaBlendFactor;
     RHIBlendOp                alphaBlendOp;
-    RHIColorComponentFlags    colorWriteMask;
+    uint32_t                  colorWriteMask; // RHIColorComponentFlags    
 };
 
 struct RHIColorBlendState {
@@ -415,6 +425,12 @@ struct RHIColorBlendState {
 	uint32_t attachmentCount;
 	const RHIColorBlendAttachmentState *pAttachments;
 	float blendConstants[4];
+};
+
+struct RHIClearValue {
+    vec4 colour;
+    float depth;
+    uint32_t stencil;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -427,15 +443,16 @@ protected:
 public:
 	RHIFormat Format() const { return format_; }
 	uint32_t Width() const { return width_; }
-	uint32_t Height() const { return width_; }
+	uint32_t Height() const { return height_; }
 
 };
 
 class IRHIImageView {
 protected:
-	//...
-	IRHIImage* image_; // ? needed
+	IRHIImage* image_;
 public:
+    const IRHIImage* GetImage() const { assert(image_); return image_; }
+    IRHIImage* GetImage() { assert(image_); return image_; }
 };
 
 //
@@ -449,9 +466,19 @@ class IRHICmdBuf {
 public:
 
 	virtual bool Begin() = 0;
+	virtual bool BeginRenderPass(IRHIRenderPass *i_rp, IRHIFrameBuffer *i_fb, const ivec4 *render_area,
+					   const RHIClearValue *clear_values, uint32_t count) = 0;
+	virtual void BindPipeline(RHIPipelineBindPoint bind_point, IRHIGraphicsPipeline* pipeline) = 0;
+	virtual void Draw(uint32_t vertex_count, uint32_t instance_count, uint32_t first_vertex,
+					  uint32_t first_instance) = 0;
+
 	virtual bool End() = 0;
+	virtual void EndRenderPass(const IRHIRenderPass *i_rp, IRHIFrameBuffer *i_fb) = 0;
+
 	virtual void Barrier_ClearToPresent(IRHIImage* image) = 0;
 	virtual void Barrier_PresentToClear(IRHIImage* image) = 0;
+	virtual void Barrier_PresentToDraw(IRHIImage* image) = 0;
+	virtual void Barrier_DrawToPresent(IRHIImage* image) = 0;
 	virtual void Clear(IRHIImage* image_in, const vec4& color, uint32_t img_aspect_bits) = 0;
 	virtual ~IRHICmdBuf() = 0;
 };
@@ -487,19 +514,29 @@ public:
 };
 
 
-
 class IRHIDevice {
 public:
 
 	virtual IRHICmdBuf*			CreateCommandBuffer(RHIQueueType queue_type) = 0;
 	virtual IRHIRenderPass*		CreateRenderPass(const RHIRenderPassDesc* desc) = 0;
-	virtual IRHIFrameBuffer*	CreateFrameBuffer(const RHIFrameBufferDesc* desc, const IRHIRenderPass* rp_in) = 0;
+	virtual IRHIFrameBuffer*	CreateFrameBuffer(RHIFrameBufferDesc* desc, const IRHIRenderPass* rp_in) = 0;
 	virtual IRHIImageView*		CreateImageView(const RHIImageViewDesc* desc) = 0;
+
+    virtual IRHIGraphicsPipeline *CreateGraphicsPipeline(
+            const RHIShaderStage *shader_stage, uint32_t shader_stage_count,
+            const RHIVertexInputState *vertex_input_state,
+            const RHIInputAssemblyState *input_assembly_state, const RHIViewportState *viewport_state,
+            const RHIRasterizationState *raster_state, const RHIMultisampleState *multisample_state,
+            const RHIColorBlendState *color_blend_state, const IRHIPipelineLayout *i_pipleline_layout,
+            const IRHIRenderPass *i_render_pass) = 0;
+
+    virtual IRHIPipelineLayout* CreatePipelineLayout(IRHIDescriptorSetLayout* desc_set_layout) = 0;
+    virtual IRHIShader* CreateShader(RHIShaderStageFlags stage, const uint32_t *pdata, uint32_t size) = 0;
 
 	virtual RHIFormat				GetSwapChainFormat() = 0;
 	virtual uint32_t				GetSwapChainSize() = 0;
-	virtual const IRHIImageView*	GetSwapChainImageView(uint32_t index) = 0;
-	virtual const class IRHIImage*	GetSwapChainImage(uint32_t index) = 0;
+	virtual IRHIImageView*	        GetSwapChainImageView(uint32_t index) = 0;
+	virtual class IRHIImage*	    GetSwapChainImage(uint32_t index) = 0;
 	virtual IRHIImage*				GetCurrentSwapChainImage() = 0;
 
 	virtual bool Submit(IRHICmdBuf* cb, RHIQueueType queue_type) = 0;

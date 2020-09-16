@@ -5,6 +5,7 @@
 #include <unordered_map>
 #include <cassert>
 #include <memory>
+#include <vector>
 
 ////////////////////////////////////////////////////////////////////////////////
 template <typename T> struct ResImplType;
@@ -12,6 +13,8 @@ template<> struct ResImplType<IRHICmdBuf> { typedef RHICmdBufVk Type; };
 template<> struct ResImplType<IRHIImage> { typedef RHIImageVk Type; };
 template<> struct ResImplType<IRHIImageView> { typedef RHIImageViewVk Type; };
 template<> struct ResImplType<IRHIRenderPass> { typedef RHIRenderPassVk Type; };
+template<> struct ResImplType<IRHIFrameBuffer> { typedef RHIFrameBufferVk Type; };
+template<> struct ResImplType<IRHIGraphicsPipeline> { typedef RHIGraphicsPipelineVk Type; };
 template<> struct ResImplType<IRHIPipelineLayout> { typedef RHIPipelineLayoutVk Type; };
 template<> struct ResImplType<IRHIShader> { typedef RHIShaderVk Type; };
 
@@ -30,26 +33,42 @@ const typename ResImplType<R>::Type* ResourceCast(const R* obj) {
 
 VkFormat translate(RHIFormat fmt) {
 	static VkFormat formats[] = {
+        VK_FORMAT_UNDEFINED,
 		VK_FORMAT_R8G8B8A8_UNORM,	 VK_FORMAT_R8G8B8A8_UINT,	  VK_FORMAT_R8G8B8A8_SRGB,
 		VK_FORMAT_R32_UINT,			 VK_FORMAT_R32_SINT,		  VK_FORMAT_R32_SFLOAT,
 		VK_FORMAT_R32G32_UINT,		 VK_FORMAT_R32G32_SINT,		  VK_FORMAT_R32G32_SFLOAT,
 		VK_FORMAT_R32G32B32_UINT,	 VK_FORMAT_R32G32B32_SINT,	  VK_FORMAT_R32G32B32_SFLOAT,
 		VK_FORMAT_R32G32B32A32_UINT, VK_FORMAT_R32G32B32A32_SINT, VK_FORMAT_R32G32B32A32_SFLOAT,
+		VK_FORMAT_B8G8R8A8_UNORM,	 VK_FORMAT_B8G8R8A8_UINT,	  VK_FORMAT_B8G8R8A8_SRGB,
 	};
 	assert((uint32_t)fmt < countof(formats));
 	return formats[(uint32_t)fmt];
 }
 
 RHIFormat untranslate(VkFormat fmt) {
-	static RHIFormat formats[] = {
-		RHIFormat::kR8G8B8A8_UNORM,	 RHIFormat::kR8G8B8A8_UINT,	  RHIFormat::kR8G8B8A8_SRGB,
-		RHIFormat::kR32_UINT,			 RHIFormat::kR32_SINT,		  RHIFormat::kR32_SFLOAT,
-		RHIFormat::kR32G32_UINT,		 RHIFormat::kR32G32_SINT,		  RHIFormat::kR32G32_SFLOAT,
-		RHIFormat::kR32G32B32_UINT,	 RHIFormat::kR32G32B32_SINT,	  RHIFormat::kR32G32B32_SFLOAT,
-		RHIFormat::kR32G32B32A32_UINT, RHIFormat::kR32G32B32A32_SINT, RHIFormat::kR32G32B32A32_SFLOAT,
-	};
-	assert((uint32_t)fmt < countof(formats));
-	return formats[(uint32_t)fmt];
+    switch(fmt) {
+        case VK_FORMAT_R8G8B8A8_UNORM: return RHIFormat::kR8G8B8A8_UNORM;
+        case VK_FORMAT_R8G8B8A8_UINT:return RHIFormat::kR8G8B8A8_UINT;
+        case VK_FORMAT_R8G8B8A8_SRGB:return RHIFormat::kR8G8B8A8_SRGB;
+		case VK_FORMAT_R32_UINT: return RHIFormat::kR32_UINT;
+        case VK_FORMAT_R32_SINT: return RHIFormat::kR32_SINT;		 
+        case VK_FORMAT_R32_SFLOAT: return RHIFormat::kR32_SFLOAT;
+		case VK_FORMAT_R32G32_UINT:return RHIFormat::kR32G32_UINT;		 
+        case VK_FORMAT_R32G32_SINT:return RHIFormat::kR32G32_SINT;		  
+        case VK_FORMAT_R32G32_SFLOAT:return RHIFormat::kR32G32_SFLOAT;
+		case VK_FORMAT_R32G32B32_UINT:return RHIFormat::kR32G32B32_UINT;	 
+        case VK_FORMAT_R32G32B32_SINT:return RHIFormat::kR32G32B32_SINT;	  
+        case VK_FORMAT_R32G32B32_SFLOAT:return RHIFormat::kR32G32B32_SFLOAT;
+		case VK_FORMAT_R32G32B32A32_UINT:return RHIFormat::kR32G32B32A32_UINT; 
+        case VK_FORMAT_R32G32B32A32_SINT:return RHIFormat::kR32G32B32A32_SINT;
+        case VK_FORMAT_R32G32B32A32_SFLOAT:return RHIFormat::kR32G32B32A32_SFLOAT;
+		case VK_FORMAT_B8G8R8A8_UNORM:return RHIFormat::kB8G8R8A8_UNORM;	 
+        case VK_FORMAT_B8G8R8A8_UINT:return RHIFormat::kB8G8R8A8_UINT;	  
+        case VK_FORMAT_B8G8R8A8_SRGB:return RHIFormat::kB8G8R8A8_SRGB;
+        default:
+		    assert(0 && "Incorrect format");
+    		return RHIFormat::kUNDEFINED;
+    }
 }
 
 VkImageViewType translate(RHIImageViewType type) {
@@ -69,20 +88,13 @@ VkImageViewType translate(RHIImageViewType type) {
 
 VkSampleCountFlagBits translate_num_samples(int num_samples) {
 	switch (num_samples) {
-	case 1:
-		return VK_SAMPLE_COUNT_1_BIT;
-	case 2:
-		return VK_SAMPLE_COUNT_2_BIT;
-	case 4:
-		return VK_SAMPLE_COUNT_4_BIT;
-	case 8:
-		return VK_SAMPLE_COUNT_8_BIT;
-	case 16:
-		return VK_SAMPLE_COUNT_16_BIT;
-	case 32:
-		return VK_SAMPLE_COUNT_32_BIT;
-	case 64:
-		return VK_SAMPLE_COUNT_64_BIT;
+	case 1: return VK_SAMPLE_COUNT_1_BIT;
+	case 2: return VK_SAMPLE_COUNT_2_BIT;
+	case 4: return VK_SAMPLE_COUNT_4_BIT;
+	case 8: return VK_SAMPLE_COUNT_8_BIT;
+	case 16: return VK_SAMPLE_COUNT_16_BIT;
+	case 32: return VK_SAMPLE_COUNT_32_BIT;
+	case 64: return VK_SAMPLE_COUNT_64_BIT;
 	default:
 		assert(0 && "Incorrect sample cunt");
 		return VK_SAMPLE_COUNT_1_BIT;
@@ -237,7 +249,7 @@ VkPrimitiveTopology translate(RHIPrimitiveTopology prim_topology) {
 		assert(0 && "Invalid primitive topology!");
 		return VK_PRIMITIVE_TOPOLOGY_MAX_ENUM;
 	}
-}; 
+} 
 
 VkPolygonMode translate(RHIPolygonMode polygon_mode) {
 	switch (polygon_mode) {
@@ -298,16 +310,13 @@ VkBlendOp translate(RHIBlendOp blend_op) {
 	}
 }
 
-VkColorComponentFlags translate(RHIColorComponentFlags col_cmp_flags) {
-	switch (col_cmp_flags) {
-	case RHIColorComponentFlags::kR: return VK_BLEND_OP_ADD;
-	case RHIColorComponentFlags::kG: return VK_BLEND_OP_SUBTRACT;
-	case RHIColorComponentFlags::kB: return VK_BLEND_OP_REVERSE_SUBTRACT;
-	case RHIColorComponentFlags::kA: return VK_BLEND_OP_MIN;
-	default:
-		assert(0 && "Invalid color component flags!");
-		return VK_COLOR_COMPONENT_FLAG_BITS_MAX_ENUM;
-	}
+VkColorComponentFlags translate_color_comp(uint32_t col_cmp_flags) {
+    VkColorComponentFlags flags;
+    flags  = (col_cmp_flags & (uint32_t)RHIColorComponentFlags::kR) ? VK_COLOR_COMPONENT_R_BIT : 0;
+    flags |= (col_cmp_flags & (uint32_t)RHIColorComponentFlags::kG) ? VK_COLOR_COMPONENT_G_BIT : 0;
+    flags |= (col_cmp_flags & (uint32_t)RHIColorComponentFlags::kB) ? VK_COLOR_COMPONENT_B_BIT : 0;
+    flags |= (col_cmp_flags & (uint32_t)RHIColorComponentFlags::kA) ? VK_COLOR_COMPONENT_A_BIT : 0;
+    return flags;
 }
 
 VkLogicOp translate(RHILogicOp logic_op) {
@@ -455,7 +464,7 @@ RHIGraphicsPipelineVk *RHIGraphicsPipelineVk::Create(
 			0,
 			translate(shader_stage[i].stage),
 			ResourceCast(shader_stage[i].module)->Handle(),
-			"main",
+			shader_stage[i].pEntryPointName,
 			nullptr
 		};
 	}
@@ -532,12 +541,12 @@ RHIGraphicsPipelineVk *RHIGraphicsPipelineVk::Create(
 		raster_state->rasterizerDiscardEnable,
 		translate(raster_state->polygonMode),
 		translate(raster_state->cullMode),
-		VK_FRONT_FACE_COUNTER_CLOCKWISE, // VkFrontFace                                    frontFace
-		VK_FALSE, // VkBool32                                       depthBiasEnable
-		0.0f,	  // float                                          depthBiasConstantFactor
-		0.0f,	  // float                                          depthBiasClamp
-		0.0f,	  // float                                          depthBiasSlopeFactor
-		1.0f	  // float                                          lineWidth
+		translate(raster_state->frontFace),
+		raster_state->depthBiasEnable,
+        raster_state->depthBiasConstantFactor,
+        raster_state->depthBiasClamp,
+        raster_state->depthBiasSlopeFactor,
+        raster_state->lineWidth
     };
 
 	VkPipelineMultisampleStateCreateInfo multisample_state_create_info = {
@@ -564,7 +573,7 @@ RHIGraphicsPipelineVk *RHIGraphicsPipelineVk::Create(
 		state.srcAlphaBlendFactor = translate(cb_state->srcAlphaBlendFactor);
 		state.dstAlphaBlendFactor = translate(cb_state->dstAlphaBlendFactor);
 		state.alphaBlendOp = translate(cb_state->alphaBlendOp);
-		state.colorWriteMask = translate(cb_state->colorWriteMask);
+		state.colorWriteMask = translate_color_comp(cb_state->colorWriteMask);
 
 		arr_color_blend_attachment_state.push_back(state);
 	}
@@ -603,7 +612,7 @@ RHIGraphicsPipelineVk *RHIGraphicsPipelineVk::Create(
       nullptr,                                                      // const VkPipelineDepthStencilStateCreateInfo   *pDepthStencilState
       &color_blend_state_create_info,                               // const VkPipelineColorBlendStateCreateInfo     *pColorBlendState
       nullptr,                                                      // const VkPipelineDynamicStateCreateInfo        *pDynamicState
-      playout->Handle(),											// VkPipelineLayout                               layout
+      playout ? playout->Handle() : nullptr,                        // VkPipelineLayout                               layout
       render_pass->Handle(),                                        // VkRenderPass                                   renderPass
       0,                                                            // uint32_t                                       subpass
       VK_NULL_HANDLE,                                               // VkPipeline                                     basePipelineHandle
@@ -620,6 +629,10 @@ RHIGraphicsPipelineVk *RHIGraphicsPipelineVk::Create(
 	RHIGraphicsPipelineVk* vk_pipeline = new RHIGraphicsPipelineVk();
 	vk_pipeline->handle_ = pipeline;
 	return vk_pipeline;
+}
+
+IRHIShader* RHIDeviceVk::CreateShader(RHIShaderStageFlags stage, const uint32_t *pdata, uint32_t size) {
+    return RHIShaderVk::Create(this, pdata, size, stage);
 }
 
 ////////////// Command buffer //////////////////////////////////////////////////
@@ -689,6 +702,72 @@ bool RHICmdBufVk::End() {
 	return true;
 }
 
+void RHICmdBufVk::EndRenderPass(const IRHIRenderPass *i_rp, IRHIFrameBuffer *i_fb) {
+    assert(is_recording_);
+    vkCmdEndRenderPass(cb_);
+
+	const RHIRenderPassVk* rp = ResourceCast(i_rp);
+    RHIFrameBufferVk* fb = ResourceCast(i_fb);
+    auto& attachments = fb->GetAttachments();
+    uint32_t i=0;
+    for(auto att : attachments) {
+        RHIImageVk* img = ResourceCast(att->GetImage());
+        img->vk_layout_ = translate(rp->GetFinalLayout(i));
+        ++i;
+    }
+}
+
+bool RHICmdBufVk::BeginRenderPass(IRHIRenderPass *i_rp, IRHIFrameBuffer *i_fb, const ivec4 *render_area,
+						const RHIClearValue *clear_values, uint32_t count) {
+    assert(is_recording_);
+
+	const RHIRenderPassVk* rp = ResourceCast(i_rp);
+    const RHIFrameBufferVk* fb = ResourceCast(i_fb);
+
+    VkRect2D ra;
+    ra.offset.x = render_area->x;
+    ra.offset.y = render_area->y;
+    ra.extent.width = render_area->z;
+    ra.extent.height = render_area->w;
+
+    std::vector<VkClearValue> vk_clear_values(count);
+    for(uint32_t i=0; i<count; ++i) {
+        vk_clear_values[i].color.float32[0] = clear_values[i].colour.x;
+        vk_clear_values[i].color.float32[1] = clear_values[i].colour.y;
+        vk_clear_values[i].color.float32[2] = clear_values[i].colour.z;
+        vk_clear_values[i].color.float32[3] = clear_values[i].colour.w;
+        vk_clear_values[i].depthStencil.depth = clear_values[i].depth;
+        vk_clear_values[i].depthStencil.stencil = clear_values[i].stencil;
+    }
+
+    VkRenderPassBeginInfo render_pass_begin_info = {
+        VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+        nullptr,
+        rp->Handle(),
+        fb->Handle(),
+        ra,
+        (uint32_t)vk_clear_values.size(),
+        vk_clear_values.data()
+    };
+    vkCmdBeginRenderPass(cb_, &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE );
+
+    return true;
+}
+
+void RHICmdBufVk::BindPipeline(RHIPipelineBindPoint bind_point, IRHIGraphicsPipeline* i_pipeline) {
+    assert(is_recording_);
+    const RHIGraphicsPipelineVk* pipeline = ResourceCast(i_pipeline);
+
+    vkCmdBindPipeline(cb_, translate(bind_point), pipeline->Handle());
+}
+
+void RHICmdBufVk::Draw(uint32_t vertex_count, uint32_t instance_count, uint32_t first_vertex,
+					  uint32_t first_instance) {
+    assert(is_recording_);
+    vkCmdDraw(cb_, vertex_count, instance_count, first_vertex, first_instance);
+}
+
+
 void RHICmdBufVk::Clear(IRHIImage* image_in, const vec4& color, uint32_t img_aspect_bits) {
 	assert(is_recording_);
 	VkImageAspectFlags clear_bits = translate_image_aspect(img_aspect_bits);
@@ -719,8 +798,22 @@ void RHICmdBufVk::Barrier_ClearToPresent(IRHIImage *image_in) {
 void RHICmdBufVk::Barrier_PresentToClear(IRHIImage *image_in) {
 	RHIImageVk* image = ResourceCast(image_in);
 	Barrier(this, image, VK_PIPELINE_STAGE_TRANSFER_BIT,
-			VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_MEMORY_READ_BIT,
+			VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,
 			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+}
+
+void RHICmdBufVk::Barrier_PresentToDraw(IRHIImage *image_in) {
+	RHIImageVk* image = ResourceCast(image_in);
+	Barrier(this, image, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+			VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+}
+
+void RHICmdBufVk::Barrier_DrawToPresent(IRHIImage *image_in) {
+	RHIImageVk* image = ResourceCast(image_in);
+	Barrier(this, image, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+			VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, VK_ACCESS_MEMORY_READ_BIT,
+			VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 }
 
 ////////////////RHI Device /////////////////////////////////////////////////////
@@ -794,7 +887,7 @@ IRHIRenderPass* RHIDeviceVk::CreateRenderPass(const RHIRenderPassDesc* desc) {
 	std::vector<VkAttachmentReference> depth_stencil_ref_arr;
 	std::vector<VkSubpassDependency> dep_arr(desc->dependencyCount);
 
-
+	std::vector<RHIImageLayout> att_final_layouts(desc->attachmentCount);
 	RHIAttachmentDesc* att_desc = desc->attachmentDesc;
 	for (int i = 0; i < desc->attachmentCount; ++i) {
 		att_desc_arr[i].flags = 0;
@@ -806,6 +899,8 @@ IRHIRenderPass* RHIDeviceVk::CreateRenderPass(const RHIRenderPassDesc* desc) {
 		att_desc_arr[i].stencilStoreOp = translate(att_desc[i].stencilStoreOp);
 		att_desc_arr[i].initialLayout = translate(att_desc[i].initialLayout);
 		att_desc_arr[i].finalLayout = translate(att_desc[i].finalLayout);
+
+        att_final_layouts[i] = att_desc[i].finalLayout;
 	}
 
 	for (int i = 0; i < desc->subpassCount; ++i) {
@@ -868,14 +963,16 @@ IRHIRenderPass* RHIDeviceVk::CreateRenderPass(const RHIRenderPassDesc* desc) {
 		log_error("Could not create render pass!\n");
 		return nullptr;
 	}
-    return new RHIRenderPassVk(rp);;
+    return new RHIRenderPassVk(rp, att_final_layouts);
 }
 
-IRHIFrameBuffer* RHIDeviceVk::CreateFrameBuffer(const RHIFrameBufferDesc* desc, const IRHIRenderPass* rp_in) {
-	std::vector<VkImageView> img_views_arr(desc->attachmentCount);
+IRHIFrameBuffer* RHIDeviceVk::CreateFrameBuffer(RHIFrameBufferDesc* desc, const IRHIRenderPass* rp_in) {
+	std::vector<VkImageView> vk_img_views_arr(desc->attachmentCount);
+	std::vector<RHIImageViewVk*> img_views_arr(desc->attachmentCount);
 	for (uint32_t i = 0; i < desc->attachmentCount; ++i) {
-		const RHIImageViewVk* view = ResourceCast(desc->pAttachments[i]);
-		img_views_arr[i] = view->Handle();
+		RHIImageViewVk* view = ResourceCast(desc->pAttachments[i]);
+		vk_img_views_arr[i] = view->Handle();
+		img_views_arr[i] = view;
 	}
 
 	const RHIRenderPassVk* rp = ResourceCast(rp_in);
@@ -884,8 +981,8 @@ IRHIFrameBuffer* RHIDeviceVk::CreateFrameBuffer(const RHIFrameBufferDesc* desc, 
 									nullptr,
 									0,
 									rp->Handle(),
-									(uint32_t)img_views_arr.size(),
-									img_views_arr.data(),
+									(uint32_t)vk_img_views_arr.size(),
+									vk_img_views_arr.data(),
 									desc->width_,
 									desc->height_,
 									desc->layers_};
@@ -896,7 +993,7 @@ IRHIFrameBuffer* RHIDeviceVk::CreateFrameBuffer(const RHIFrameBufferDesc* desc, 
 		return nullptr;
 	}
 
-	return new RHIFrameBufferVk(fb);
+	return new RHIFrameBufferVk(fb, img_views_arr);
 }
 
 IRHIImageView* RHIDeviceVk::CreateImageView(const RHIImageViewDesc* desc) {
@@ -923,7 +1020,25 @@ IRHIImageView* RHIDeviceVk::CreateImageView(const RHIImageViewDesc* desc) {
 		log_error("vkCreateImageView: failed to create image views!\n");
 		return nullptr;
 	}
-	return new RHIImageViewVk(image_view);
+	return new RHIImageViewVk(image_view, image);
+}
+
+IRHIGraphicsPipeline *RHIDeviceVk::CreateGraphicsPipeline(
+	const RHIShaderStage *shader_stage, uint32_t shader_stage_count,
+	const RHIVertexInputState *vertex_input_state,
+	const RHIInputAssemblyState *input_assembly_state, const RHIViewportState *viewport_state,
+	const RHIRasterizationState *raster_state, const RHIMultisampleState *multisample_state,
+	const RHIColorBlendState *color_blend_state, const IRHIPipelineLayout *i_pipleline_layout,
+	const IRHIRenderPass *i_render_pass) {
+
+	return RHIGraphicsPipelineVk::Create(this, shader_stage, shader_stage_count, vertex_input_state,
+										 input_assembly_state, viewport_state, raster_state,
+										 multisample_state, color_blend_state, i_pipleline_layout,
+										 i_render_pass);
+}
+
+IRHIPipelineLayout* RHIDeviceVk::CreatePipelineLayout(IRHIDescriptorSetLayout* desc_set_layout) {
+    return RHIPipelineLayoutVk::Create(this, desc_set_layout);
 }
 
 bool RHIDeviceVk::BeginFrame() {
@@ -1015,11 +1130,11 @@ IRHIImage* RHIDeviceVk::GetCurrentSwapChainImage() {
 RHIFormat RHIDeviceVk::GetSwapChainFormat() {
 	return untranslate(dev_.swap_chain_.format_);
 }
-const IRHIImageView* RHIDeviceVk::GetSwapChainImageView(uint32_t index) {
+IRHIImageView* RHIDeviceVk::GetSwapChainImageView(uint32_t index) {
 	assert(index < GetSwapChainSize());
 	return dev_.swap_chain_.views_[index];
 }
-const IRHIImage* RHIDeviceVk::GetSwapChainImage(uint32_t index) {
+IRHIImage* RHIDeviceVk::GetSwapChainImage(uint32_t index) {
 	assert(index < GetSwapChainSize());
 	return dev_.swap_chain_.images_[index];
 }

@@ -14,6 +14,8 @@ uint64_t get_file_mod_time_ms(const char* filename);
 
 std::string get_path(const char* fname);
 
+const char* loadfile(const char* fname, size_t* out_size = nullptr);
+
 }
 
 #endif //__FILE_UTILS__

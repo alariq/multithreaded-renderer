@@ -30,13 +30,13 @@ HGOSVERTEXDECLARATION get_quad_vdecl();
 //#define DO_BAD_THING_FOR_TEST 1
 
 struct RenderMesh {
-    HGOSBUFFER				vb_;
-    HGOSBUFFER				ib_;
-    HGOSBUFFER				inst_vb_;
-    HGOSVERTEXDECLARATION	vdecl_;
-    HGOSRENDERMATERIAL      mat_;
-    uint32_t                num_instances;
-    uint32_t                tex_id_;
+    HGOSBUFFER				vb_ = 0;
+    HGOSBUFFER				ib_ = 0;
+    HGOSBUFFER				inst_vb_ = 0;
+    HGOSVERTEXDECLARATION	vdecl_ = 0;
+    HGOSRENDERMATERIAL      mat_ = 0;
+    uint32_t                num_instances = 0;
+    uint32_t                tex_id_ = 0;
     AABB                    aabb_;
 };
 
@@ -51,10 +51,10 @@ struct RenderPacket {
     RenderMesh mesh_;
     mat4 m_;
     vec4 debug_color;
-	uint32_t id_;
+	uint32_t id_ = 0;
     // material, other params
 #if DO_BAD_THING_FOR_TEST
-    class GameObject* go_;
+    class GameObject* go_ = nullptr;
 #endif
     uint32_t is_render_to_shadow: 1;
     uint32_t is_transparent_pass: 1;
@@ -62,6 +62,15 @@ struct RenderPacket {
     uint32_t is_debug_pass: 1;
     uint32_t is_selection_pass: 1;
     uint32_t is_gizmo_pass: 1;
+
+    RenderPacket()
+    :is_render_to_shadow(0)
+    ,is_transparent_pass(0)
+    ,is_opaque_pass(0)
+    ,is_debug_pass(0)
+    ,is_selection_pass(0)
+    ,is_gizmo_pass(0) 
+    {}
 };
 
 class NonCopyable {
@@ -99,8 +108,7 @@ public:
         //assert(packets_.size() + 1 <= packets_.capacity()); // just to ensure that we do not reallocate
         packets_.emplace_back(RenderPacket());
 		RenderPacket* p = &packets_[packets_.size()-1];
-		memset(p, sizeof(RenderPacket), 0);
-		return p;
+        return new(p) RenderPacket();
     }
 
     RenderPacketList_t& GetRenderPackets() { return packets_; }

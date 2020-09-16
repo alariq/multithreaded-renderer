@@ -73,9 +73,19 @@ bool RHICmdBufGL::Begin() {
 	return true;
 }
 
+bool RHICmdBufGL::BeginRenderPass(IRHIRenderPass *i_rp, IRHIFrameBuffer *i_fb, const ivec4 *render_area,
+						const RHIClearValue *clear_values, uint32_t count) {
+    assert(is_recording_);
+    return true;
+}
+
 bool RHICmdBufGL::End() {
 	is_recording_ = false;
 	return true;
+}
+
+void RHICmdBufGL::EndRenderPass(const IRHIRenderPass *i_rp, IRHIFrameBuffer *i_fb) {
+    assert(is_recording_);
 }
 
 void RHICmdBufGL::Clear(IRHIImage* image_in, const vec4& color, uint32_t img_aspect_bits) {
@@ -94,11 +104,18 @@ void RHICmdBufGL::Barrier_ClearToPresent(IRHIImage *) {
 }
 void RHICmdBufGL::Barrier_PresentToClear(IRHIImage *) {
 }
+void RHICmdBufGL::Barrier_PresentToDraw(IRHIImage *) {
+}
+void RHICmdBufGL::Barrier_DrawToPresent(IRHIImage* image) {
+}
+
+void RHICmdBufGL::BindPipeline(RHIPipelineBindPoint bind_point, IRHIGraphicsPipeline* pipeline) {
+}
 
 ////////////////RHI Device /////////////////////////////////////////////////////
 
 RHIDeviceGL::RHIDeviceGL() {
-	fb_ = std::make_unique<RHIImageGL>(0);
+	fb_ = std::make_unique<RHIImageGL>(0, 1024u, 768u);
 	// TODO: set w/h/format
 	// need to pass window info here
 	fb_view_ = std::make_unique<RHIImageViewGL>(0);
@@ -107,7 +124,7 @@ RHIDeviceGL::RHIDeviceGL() {
 RHIDeviceGL::~RHIDeviceGL() {
 }
 
-IRHIFrameBuffer* RHIDeviceGL::CreateFrameBuffer(const RHIFrameBufferDesc* , const IRHIRenderPass* ) {
+IRHIFrameBuffer* RHIDeviceGL::CreateFrameBuffer(RHIFrameBufferDesc* , const IRHIRenderPass* ) {
 	return new RHIFrameBufferGL();
 }
 
@@ -125,6 +142,24 @@ IRHICmdBuf* RHIDeviceGL::CreateCommandBuffer(RHIQueueType queue_type) {
 	assert(queue_type == RHIQueueType::kGraphics || queue_type == RHIQueueType::kPresentation);
 	return new RHICmdBufGL();
 
+}
+
+IRHIGraphicsPipeline *RHIDeviceGL::CreateGraphicsPipeline(
+            const RHIShaderStage *shader_stage, uint32_t shader_stage_count,
+            const RHIVertexInputState *vertex_input_state,
+            const RHIInputAssemblyState *input_assembly_state, const RHIViewportState *viewport_state,
+            const RHIRasterizationState *raster_state, const RHIMultisampleState *multisample_state,
+            const RHIColorBlendState *color_blend_state, const IRHIPipelineLayout *i_pipleline_layout,
+            const IRHIRenderPass *i_render_pass) {
+    return nullptr;
+}
+
+IRHIPipelineLayout* RHIDeviceGL::CreatePipelineLayout(IRHIDescriptorSetLayout* desc_set_layout) {
+    return nullptr;
+}
+
+IRHIShader* RHIDeviceGL::CreateShader(RHIShaderStageFlags stage, const uint32_t *pdata, uint32_t size) {
+    return nullptr;
 }
 
 bool RHIDeviceGL::BeginFrame() {

@@ -6,6 +6,8 @@
 #include "utils/logging.h"
 #include "scene.h"
 
+#include <algorithm> // sort
+
 bool ObjIdRenderer::Init(uint32_t width, uint32_t height)
 {
     glGenFramebuffers(1, &obj_id_fbo_);

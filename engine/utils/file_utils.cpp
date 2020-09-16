@@ -5,6 +5,10 @@
 #include <sys/stat.h>
 //#include <unistd.h>
 #include <string.h>
+#include <cassert>
+
+#include "stream.h"
+#include "logging.h"
 
 namespace filesystem {
 
@@ -36,6 +40,34 @@ std::string get_path(const char* fname)
         return std::string(fname, pathend - fname);
 }
 
+
+const char* loadfile(const char* fname, size_t* out_size/* = nullptr*/)
+{
+    assert(fname);
+    stream* pstream = stream::makeFileStream();
+    if(0 != pstream->open(fname,"rb"))
+    {
+        log_error("Can't open %s \n", fname);
+        delete pstream;
+        return 0;
+    }
+
+    pstream->seek(0, stream::S_END);
+    size_t size = pstream->tell();
+    pstream->seek(0, stream::S_SET);
+
+    char* pdata = new char[size + 1];
+    size_t rv = pstream->read(pdata, 1, size);
+    assert(rv==size);
+    pdata[size] = '\0';
+    if(out_size)
+        *out_size = size;
+
+    pstream->close();
+    delete pstream;
+
+    return pdata;
+}
 
 }
 

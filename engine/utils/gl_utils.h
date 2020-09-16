@@ -739,7 +739,6 @@ void generate_torus_no_uv(MeshBuffer &mb, float radius, float thickness,
 	mb.allocate_ib(num_tris * 3);
 
 	unsigned vb_offset = 0;
-	unsigned int section_index_start = 0;
 	for (unsigned int ts = 0; ts < toroidal_sections; ++ts) {
 		float phi = (ts/(float)toroidal_sections) * 2.0f * M_PI;
 		vec3 sec_center = vec3(radius * cos(phi), radius * sin(phi), 0.0f);
@@ -796,7 +795,6 @@ void generate_torus(MeshBuffer &mb, float radius, float thickness,
 	mb.allocate_ib(num_tris * 3);
 
 	unsigned vb_offset = 0;
-	unsigned int section_index_start = 0;
 	for (unsigned int ts = 0; ts <= toroidal_sections; ++ts) {
 		float phi = (ts/(float)toroidal_sections) * 2.0f * M_PI;
 		vec3 sec_center = vec3(radius * cos(phi), radius * sin(phi), 0.0f);

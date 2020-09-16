@@ -36,7 +36,10 @@ struct OpenGLDevice {
 class RHIImageGL : public IRHIImage {
 	GLuint handle_ = 0;
 public:
-	explicit RHIImageGL(GLuint id):handle_(id) {}
+  RHIImageGL(GLuint id, uint32_t width, uint32_t height) : handle_(id) {
+	  width_ = width;
+	  height_ = height;
+  }
 	GLuint Handle() { return handle_; }
 };
 
@@ -103,10 +106,21 @@ public:
 	// TODO: this is ugly, change when interface will settle down a bit
 	virtual void Barrier_ClearToPresent(IRHIImage* image) override;
 	virtual void Barrier_PresentToClear(IRHIImage* image) override;
+	virtual void Barrier_PresentToDraw(IRHIImage* image) override;
+	virtual void Barrier_DrawToPresent(IRHIImage* image) override;
 
 	virtual bool Begin() override;
+	virtual bool BeginRenderPass(IRHIRenderPass *i_rp, IRHIFrameBuffer *i_fb, const ivec4 *render_area,
+					   const RHIClearValue *clear_values, uint32_t count) override;
+
+	virtual void Draw(uint32_t vertex_count, uint32_t instance_count, uint32_t first_vertex,
+					  uint32_t first_instance) override;
+
 	virtual bool End() override;
+	virtual void EndRenderPass(const IRHIRenderPass *i_rp, IRHIFrameBuffer *i_fb) override;
 	virtual void Clear(IRHIImage* image_in, const vec4& color, uint32_t img_aspect_bits) override;
+	virtual void BindPipeline(RHIPipelineBindPoint bind_point, IRHIGraphicsPipeline* pipeline) override;
+
 	virtual ~RHICmdBufGL() {};
 
 };
@@ -129,14 +143,25 @@ public:
 
 	virtual RHIFormat GetSwapChainFormat() override { return fb_->Format(); }
 	virtual uint32_t GetSwapChainSize() override { return 1; }
-	virtual const IRHIImageView* GetSwapChainImageView(uint32_t ) override { return fb_view_.get(); };
-	virtual const IRHIImage* GetSwapChainImage(uint32_t ) override { return fb_.get(); }
+	virtual IRHIImageView* GetSwapChainImageView(uint32_t ) override { return fb_view_.get(); };
+	virtual IRHIImage* GetSwapChainImage(uint32_t ) override { return fb_.get(); }
 	virtual IRHIImage* GetCurrentSwapChainImage() override { assert(between_begin_frame); return fb_.get(); }
 
 	virtual IRHICmdBuf* CreateCommandBuffer(RHIQueueType queue_type) override;
 	virtual IRHIRenderPass* CreateRenderPass(const RHIRenderPassDesc* desc) override;
-	virtual IRHIFrameBuffer* CreateFrameBuffer(const RHIFrameBufferDesc* desc, const IRHIRenderPass* rp_in) override;
+	virtual IRHIFrameBuffer* CreateFrameBuffer(RHIFrameBufferDesc* desc, const IRHIRenderPass* rp_in) override;
 	virtual IRHIImageView* CreateImageView(const RHIImageViewDesc* desc) override;
+
+    virtual IRHIGraphicsPipeline *CreateGraphicsPipeline(
+            const RHIShaderStage *shader_stage, uint32_t shader_stage_count,
+            const RHIVertexInputState *vertex_input_state,
+            const RHIInputAssemblyState *input_assembly_state, const RHIViewportState *viewport_state,
+            const RHIRasterizationState *raster_state, const RHIMultisampleState *multisample_state,
+            const RHIColorBlendState *color_blend_state, const IRHIPipelineLayout *i_pipleline_layout,
+            const IRHIRenderPass *i_render_pass) override;
+
+    virtual IRHIPipelineLayout* CreatePipelineLayout(IRHIDescriptorSetLayout* desc_set_layout) override;
+    virtual IRHIShader* CreateShader(RHIShaderStageFlags stage, const uint32_t *pdata, uint32_t size) override;
 
 	virtual bool Submit(IRHICmdBuf* cb_in, RHIQueueType queue_type) override;
 	virtual bool BeginFrame() override;

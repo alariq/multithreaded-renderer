@@ -14,7 +14,9 @@ find_package(GLEW REQUIRED)
 
 include_directories(".")
 include_directories("../")
-include_directories("../../engine")
+include_directories("${CMAKE_SOURCE_DIR}/engine")
+include_directories("${CMAKE_SOURCE_DIR}/platform/include")
+include_directories(GLEW_INCLUDE_DIRS)
 
 add_library(rhi_opengl ${OPENGL_SOURCES})
 link_libraries(rhi_opengl)

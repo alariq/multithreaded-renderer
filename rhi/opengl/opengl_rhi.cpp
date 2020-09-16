@@ -10,11 +10,10 @@
 #include <cstdio>
 #include <cassert>
 
-static bool VERBOSE_VIDEO = true;
+//static bool VERBOSE_VIDEO = true;
 static bool VERBOSE_RENDER = true;
-static bool VERBOSE_MODES = true;
+//static bool VERBOSE_MODES = true;
 static bool ENABLE_VSYNC = true;
-static unsigned int RENDER_BACKEND = SDL_WINDOW_VULKAN; // SDL_WINDOW_OPENGL
 
 namespace graphics {
 	SDL_Window* get_platform_window(RenderWindowHandle rw_handle);
