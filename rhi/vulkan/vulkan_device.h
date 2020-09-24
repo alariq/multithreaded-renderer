@@ -3,6 +3,7 @@
 #include "rhi.h"
 #include "SDL2/SDL_vulkan.h"
 #include "vulkan/vulkan.h"
+#include "vulkan_rhi.h"
 #include <cassert>
 #include <vector>
 #include <unordered_map>
@@ -65,8 +66,10 @@ struct VulkanDevice {
 	//VkQueue compute_queue_ = VK_NULL_HANDLE;
 	VkQueue present_queue_ = VK_NULL_HANDLE;
 	VkSurfaceKHR surface_;
-	VkSemaphore img_avail_sem_;
-	VkSemaphore rendering_finished_sem_;
+    // TODO: this belongs to renderer
+	VkSemaphore img_avail_sem_[rhi_vulkan::kNumBufferedFrames];
+	VkSemaphore rendering_finished_sem_[rhi_vulkan::kNumBufferedFrames];
+    VkFence frame_fence_[rhi_vulkan::kNumBufferedFrames];
 
 	VkAllocationCallbacks *pallocator_ = nullptr;
 
@@ -157,6 +160,29 @@ public:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+class RHIBufferVk: public IRHIBuffer {
+    VkBuffer handle_;
+    VkDeviceMemory backing_mem_;
+    uint32_t buf_size_;
+    uint32_t usage_flags_;
+    uint32_t mem_flags_;
+
+    bool is_mapped_;
+    uint32_t mapped_offset_;
+    uint32_t mapped_size_;
+    uint32_t mapped_flags_;
+
+public:
+	static RHIBufferVk* Create(IRHIDevice* device, uint32_t size, uint32_t usage, uint32_t memprop, RHISharingMode sharing);
+	void Destroy(IRHIDevice *device);
+
+    void* Map(IRHIDevice* device, uint32_t offset, uint32_t size, uint32_t map_flags);
+    void Unmap(IRHIDevice* device);
+
+	VkBuffer Handle() const { return handle_; }
+};
+
+////////////////////////////////////////////////////////////////////////////////
 class RHICmdBufVk : public IRHICmdBuf {
 	VkCommandBuffer cb_;
 	bool is_recording_ = false;
@@ -175,6 +201,7 @@ public:
 					   const RHIClearValue *clear_values, uint32_t count) override;
 	virtual void Draw(uint32_t vertex_count, uint32_t instance_count, uint32_t first_vertex,
 					  uint32_t first_instance) override;
+    virtual void BindVertexBuffers(IRHIBuffer** i_vb, uint32_t first_binding, uint32_t count) override;
 	virtual bool End() override;
 	virtual void EndRenderPass(const IRHIRenderPass *i_rp, IRHIFrameBuffer *i_fb) override;
 	virtual void Clear(IRHIImage* image_in, const vec4& color, uint32_t img_aspect_bits) override;
@@ -238,6 +265,7 @@ public:
 	virtual IRHIRenderPass* CreateRenderPass(const RHIRenderPassDesc* desc) override;
 	virtual IRHIFrameBuffer* CreateFrameBuffer(RHIFrameBufferDesc* desc, const IRHIRenderPass* rp_in) override;
 	virtual IRHIImageView* CreateImageView(const RHIImageViewDesc* desc) override;
+	virtual IRHIBuffer* CreateBuffer(uint32_t size, uint32_t usage, uint32_t memprop, RHISharingMode sharing) override;
 
     virtual IRHIGraphicsPipeline *CreateGraphicsPipeline(
             const RHIShaderStage *shader_stage, uint32_t shader_stage_count,
@@ -256,11 +284,16 @@ public:
 	virtual class IRHIImage* GetSwapChainImage(uint32_t index) override;
 	virtual IRHIImage* GetCurrentSwapChainImage() override;
 
+    // TODO: this should belong to the renderer
+    virtual uint32_t GetNumBufferedFrames() override { return rhi_vulkan::kNumBufferedFrames; }
+    virtual uint32_t GetCurrentFrame() { return cur_frame_; }
+
 	virtual bool Submit(IRHICmdBuf* cb_in, RHIQueueType queue_type) override;
 	virtual bool BeginFrame() override;
 	virtual bool Present() override;
 	virtual bool EndFrame() override;
 
 	VkDevice Handle() const { return dev_.device_; }
+	VkPhysicalDevice PhysDeviceHandle() const { return dev_.phys_device_; }
 	VkAllocationCallbacks* Allocator() const { return dev_.pallocator_; }
 };

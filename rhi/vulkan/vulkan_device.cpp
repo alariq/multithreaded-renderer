@@ -6,6 +6,7 @@
 #include <cassert>
 #include <memory>
 #include <vector>
+#include <vulkan/vulkan_core.h>
 
 ////////////////////////////////////////////////////////////////////////////////
 template <typename T> struct ResImplType;
@@ -17,7 +18,7 @@ template<> struct ResImplType<IRHIFrameBuffer> { typedef RHIFrameBufferVk Type; 
 template<> struct ResImplType<IRHIGraphicsPipeline> { typedef RHIGraphicsPipelineVk Type; };
 template<> struct ResImplType<IRHIPipelineLayout> { typedef RHIPipelineLayoutVk Type; };
 template<> struct ResImplType<IRHIShader> { typedef RHIShaderVk Type; };
-
+template<> struct ResImplType<IRHIBuffer> { typedef RHIBufferVk Type; };
 template<> struct ResImplType<IRHIDevice> { typedef RHIDeviceVk Type; };
 
 template <typename R> 
@@ -186,15 +187,11 @@ VkAccessFlags translate(RHIAccessFlags access_flags) {
 	};
 }
 
-VkDependencyFlags translate(RHIDependencyFlags dep_flags) {
-	switch (dep_flags) {
-	case RHIDependencyFlags::kByRegion: return VK_DEPENDENCY_BY_REGION_BIT;
-	case RHIDependencyFlags::kDeviceGroup: return VK_DEPENDENCY_DEVICE_GROUP_BIT;
-	case RHIDependencyFlags::kViewLocal: return VK_DEPENDENCY_VIEW_LOCAL_BIT;
-	default:
-		assert(0 && "Invalid dependency flag!");
-		return VK_DEPENDENCY_BY_REGION_BIT;
-	}
+VkDependencyFlags translate_dependency_flags(uint32_t dep_flags) {
+	uint32_t vk_dep_flags = (dep_flags & (uint32_t)RHIDependencyFlags::kByRegion) ? VK_DEPENDENCY_BY_REGION_BIT : 0;
+	vk_dep_flags |= (dep_flags & (uint32_t)RHIDependencyFlags::kDeviceGroup)? VK_DEPENDENCY_DEVICE_GROUP_BIT: 0;
+	vk_dep_flags |= (dep_flags & (uint32_t)RHIDependencyFlags::kViewLocal) ? VK_DEPENDENCY_VIEW_LOCAL_BIT: 0;
+    return vk_dep_flags;
 };
 
 VkShaderStageFlagBits translate(RHIShaderStageFlags stage_flags) {
@@ -341,6 +338,35 @@ VkLogicOp translate(RHILogicOp logic_op) {
 		assert(0 && "Invalid logic op!");
 		return VK_LOGIC_OP_MAX_ENUM;
 	}
+}
+
+VkBufferUsageFlags translate_buffer_usage(uint32_t usage) {
+
+    VkBufferUsageFlags vk_usage = (usage & (uint32_t)RHIBufferUsageFlags::kTransferSrc) ? VK_BUFFER_USAGE_TRANSFER_SRC_BIT : 0;
+    vk_usage |= (usage & (uint32_t)RHIBufferUsageFlags::kTransferDst) ? VK_BUFFER_USAGE_TRANSFER_DST_BIT : 0;
+    vk_usage |= (usage & (uint32_t)RHIBufferUsageFlags::kUniformTexelBuffer) ? VK_BUFFER_USAGE_UNIFORM_TEXEL_BUFFER_BIT: 0;
+    vk_usage |= (usage & (uint32_t)RHIBufferUsageFlags::kStorageTexelBuffer) ? VK_BUFFER_USAGE_STORAGE_TEXEL_BUFFER_BIT: 0;
+    vk_usage |= (usage & (uint32_t)RHIBufferUsageFlags::kStorageBuffer) ? VK_BUFFER_USAGE_STORAGE_BUFFER_BIT: 0;
+    vk_usage |= (usage & (uint32_t)RHIBufferUsageFlags::kUniformBuffer) ? VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT: 0;
+    vk_usage |= (usage & (uint32_t)RHIBufferUsageFlags::kIndexBuffer) ? VK_BUFFER_USAGE_INDEX_BUFFER_BIT: 0;
+    vk_usage |= (usage & (uint32_t)RHIBufferUsageFlags::kVertexBuffer) ? VK_BUFFER_USAGE_VERTEX_BUFFER_BIT: 0;
+    return vk_usage;
+};
+
+VkSharingMode translate(RHISharingMode sharing_mode) {
+    return sharing_mode == RHISharingMode::kConcurrent ? VK_SHARING_MODE_CONCURRENT : VK_SHARING_MODE_EXCLUSIVE;
+}
+
+VkMemoryPropertyFlags translate_mem_prop(uint32_t memprop) {
+    VkMemoryPropertyFlags vk_flags = (memprop & RHIMemoryPropertyFlags::kDeviceLocal) ? VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT : 0;
+    vk_flags |= (memprop & RHIMemoryPropertyFlags::kHostVisible) ? VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT: 0;
+    vk_flags |= (memprop & RHIMemoryPropertyFlags::kHostCoherent) ? VK_MEMORY_PROPERTY_HOST_COHERENT_BIT : 0;
+    vk_flags |= (memprop & RHIMemoryPropertyFlags::kHostCached) ? VK_MEMORY_PROPERTY_HOST_CACHED_BIT : 0;
+    vk_flags |= (memprop & RHIMemoryPropertyFlags::kLazilyAllocated) ? VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT: 0;
+    vk_flags |= (memprop & RHIMemoryPropertyFlags::kProtectedBit) ? VK_MEMORY_PROPERTY_PROTECTED_BIT : 0;
+    vk_flags |= (memprop & RHIMemoryPropertyFlags::kDeviceCoherentAMD) ? VK_MEMORY_PROPERTY_DEVICE_COHERENT_BIT_AMD : 0;
+    vk_flags |= (memprop & RHIMemoryPropertyFlags::kDeviceUncachedAMD) ? VK_MEMORY_PROPERTY_DEVICE_UNCACHED_BIT_AMD : 0;
+    return vk_flags;
 }
 
 ////////////// Image //////////////////////////////////////////////////
@@ -631,6 +657,115 @@ RHIGraphicsPipelineVk *RHIGraphicsPipelineVk::Create(
 	return vk_pipeline;
 }
 
+
+////////////// Buffer //////////////////////////////////////////////////
+RHIBufferVk* RHIBufferVk::Create(IRHIDevice* device, uint32_t size, uint32_t usage, uint32_t memprop, RHISharingMode sharing) {
+    VkBufferCreateInfo buffer_create_info = {
+        VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,             // VkStructureType        sType
+        nullptr,                                          // const void            *pNext
+        0,                                                // VkBufferCreateFlags    flags
+        size,                                            // VkDeviceSize           size
+        translate_buffer_usage(usage),                // VkBufferUsageFlags     usage
+        translate(sharing),                        // VkSharingMode          sharingMode
+        0,                                                // uint32_t               queueFamilyIndexCount
+        nullptr                                           // const uint32_t        *pQueueFamilyIndices
+    };
+
+    VkBuffer vk_buffer;
+	RHIDeviceVk* dev = ResourceCast(device);
+    if( vkCreateBuffer(dev->Handle(), &buffer_create_info, dev->Allocator(), &vk_buffer) != VK_SUCCESS ) {
+        log_error("Could not create a vertex buffer!\n");
+        return nullptr;
+    }
+
+    VkMemoryRequirements buffer_memory_req;
+    vkGetBufferMemoryRequirements(dev->Handle(), vk_buffer, &buffer_memory_req);
+
+    // TODO: maybe store this in device itself?
+    VkPhysicalDeviceMemoryProperties memory_properties;
+    vkGetPhysicalDeviceMemoryProperties(dev->PhysDeviceHandle(), &memory_properties );
+
+    VkDeviceMemory vk_mem = VK_NULL_HANDLE;
+    VkMemoryPropertyFlags vk_memprop = translate_mem_prop(memprop);
+	for (uint32_t i = 0; i < memory_properties.memoryTypeCount; ++i) {
+		if ((buffer_memory_req.memoryTypeBits & (1 << i)) &&
+			(memory_properties.memoryTypes[i].propertyFlags & vk_memprop)) {
+
+			VkMemoryAllocateInfo mem_alloc_info = {
+				VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO, // VkStructureType sType
+				nullptr,						        // const void                            *pNext
+				buffer_memory_req.size,                 // VkDeviceSize allocationSize
+				i                                       // uint32_t                               memoryTypeIndex
+			};
+
+			if (vkAllocateMemory(dev->Handle(), &mem_alloc_info, dev->Allocator(), &vk_mem) == VK_SUCCESS) {
+				break;
+			}
+		}
+	}
+
+	if (!vk_mem) return nullptr;
+
+	if (vkBindBufferMemory(dev->Handle(), vk_buffer, vk_mem, 0) != VK_SUCCESS) {
+		log_error("Could not bind memory for a vertex buffer!\n");
+		return nullptr;
+	}
+
+	RHIBufferVk* buffer = new RHIBufferVk;
+    buffer->handle_ = vk_buffer;
+    buffer->backing_mem_ = vk_mem;
+    buffer->buf_size_ = size;
+    buffer->usage_flags_ = usage;
+    buffer->mem_flags_ = memprop;
+    buffer->is_mapped_ = false;
+
+    return buffer;
+}
+
+void RHIBufferVk::Destroy(IRHIDevice* device) {
+	RHIDeviceVk* dev = ResourceCast(device);
+	vkDestroyBuffer(dev->Handle(), handle_, dev->Allocator());
+    vkFreeMemory(dev->Handle(), backing_mem_, dev->Allocator());
+	delete this;
+}
+
+void *RHIBufferVk::Map(IRHIDevice* device, uint32_t offset, uint32_t size, uint32_t map_flags) {
+    assert(!is_mapped_);
+
+	RHIDeviceVk* dev = ResourceCast(device);
+	void *ptr;
+	if (vkMapMemory(dev->Handle(), backing_mem_, offset, size, map_flags, &ptr) != VK_SUCCESS) {
+		log_error("Could not map memory and upload data to a vertex buffer!\n");
+		return nullptr;
+	}
+
+    is_mapped_ = true;
+    mapped_offset_ = offset;
+    mapped_size_ = size;
+    mapped_flags_ = map_flags;
+
+    return ptr;
+}
+
+void RHIBufferVk::Unmap(IRHIDevice* device) {
+    assert(is_mapped_);
+
+	RHIDeviceVk* dev = ResourceCast(device);
+	
+    VkMappedMemoryRange flush_range = {
+      VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,            // VkStructureType        sType
+      nullptr,                                          // const void            *pNext
+      backing_mem_,                                     // VkDeviceMemory         memory
+      mapped_offset_,                                   // VkDeviceSize           offset
+      mapped_size_                                      // VkDeviceSize           size
+    };
+	vkFlushMappedMemoryRanges(dev->Handle(), 1, &flush_range);
+
+	vkUnmapMemory(dev->Handle(), backing_mem_);
+    is_mapped_ = false;
+}
+
+////////////////////////////////////////////////////////////////////////
 IRHIShader* RHIDeviceVk::CreateShader(RHIShaderStageFlags stage, const uint32_t *pdata, uint32_t size) {
     return RHIShaderVk::Create(this, pdata, size, stage);
 }
@@ -683,7 +818,7 @@ bool RHICmdBufVk::Begin() {
 	VkCommandBufferBeginInfo cmd_buffer_begin_info = {
 		VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO, // VkStructureType                        sType
 		nullptr,									 // const void                            *pNext
-		VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT, // VkCommandBufferUsageFlags flags
+		VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT, // VkCommandBufferUsageFlags flags
 		nullptr // const VkCommandBufferInheritanceInfo  *pInheritanceInfo
 	};
 
@@ -765,6 +900,17 @@ void RHICmdBufVk::Draw(uint32_t vertex_count, uint32_t instance_count, uint32_t 
 					  uint32_t first_instance) {
     assert(is_recording_);
     vkCmdDraw(cb_, vertex_count, instance_count, first_vertex, first_instance);
+}
+
+void RHICmdBufVk::BindVertexBuffers(IRHIBuffer** i_vb, uint32_t first_binding, uint32_t count) {
+    std::vector<VkBuffer> vbs(count); // :-(
+    std::vector<VkDeviceSize> offsets(count); // :-(
+    for(uint32_t i=0;i<count; ++i) {
+        RHIBufferVk* vb = ResourceCast(i_vb[i]);
+        vbs[i] = vb->Handle();
+        offsets[i] = 0;
+    }
+    vkCmdBindVertexBuffers(cb_, first_binding, count, vbs.data(), offsets.data());
 }
 
 
@@ -945,7 +1091,7 @@ IRHIRenderPass* RHIDeviceVk::CreateRenderPass(const RHIRenderPassDesc* desc) {
 		dep_arr[i].dstStageMask = translate(sp_dep.dstStageMask);
 		dep_arr[i].srcAccessMask = translate(sp_dep.srcAccessMask);
 		dep_arr[i].dstAccessMask = translate(sp_dep.dstAccessMask);
-		dep_arr[i].dependencyFlags = translate(sp_dep.dependencyFlags);
+		dep_arr[i].dependencyFlags = translate_dependency_flags(sp_dep.dependencyFlags);
 	}
 
 	VkRenderPassCreateInfo info = {VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
@@ -1041,9 +1187,25 @@ IRHIPipelineLayout* RHIDeviceVk::CreatePipelineLayout(IRHIDescriptorSetLayout* d
     return RHIPipelineLayoutVk::Create(this, desc_set_layout);
 }
 
+IRHIBuffer *RHIDeviceVk::CreateBuffer(uint32_t size, uint32_t usage, uint32_t memprop_flags,
+									  RHISharingMode sharing) {
+	return RHIBufferVk::Create(this, size, usage, memprop_flags, sharing);
+};
+
 bool RHIDeviceVk::BeginFrame() {
+	cur_frame_++;
+    uint32_t frame_res_idx = cur_frame_ % GetNumBufferedFrames();
+
+	if (vkWaitForFences(dev_.device_, 1, &dev_.frame_fence_[frame_res_idx], VK_FALSE, 1000000000) !=
+		VK_SUCCESS) {
+		log_error("Waiting for fence takes too long!\n");
+		return false;
+	}
+	vkResetFences(dev_.device_, 1, &dev_.frame_fence_[frame_res_idx]);
+
 	VkResult result = vkAcquireNextImageKHR(dev_.device_, dev_.swap_chain_.swap_chain_, UINT64_MAX,
-											dev_.img_avail_sem_, VK_NULL_HANDLE, &cur_swap_chain_img_idx_);
+											dev_.img_avail_sem_[frame_res_idx], VK_NULL_HANDLE,
+											&cur_swap_chain_img_idx_);
 	switch( result ) {
 		case VK_SUCCESS:
 		case VK_SUBOPTIMAL_KHR:
@@ -1056,44 +1218,42 @@ bool RHIDeviceVk::BeginFrame() {
 			return false;
 	}
 
-	// setup cur framebuffer pointer
-
-	cur_frame_++;
 	between_begin_frame = true;
-
-
 	return true;
 }
 
 bool RHIDeviceVk::Submit(IRHICmdBuf* cb_in, RHIQueueType queue_type) {
 
 	RHICmdBufVk* cb = ResourceCast(cb_in);
+    uint32_t frame_res_idx = cur_frame_ % GetNumBufferedFrames();
 
 	VkPipelineStageFlags wait_dst_stage_mask = VK_PIPELINE_STAGE_TRANSFER_BIT;
 	VkCommandBuffer cbs[] = { cb->Handle() };
 	VkSubmitInfo submit_info = {
 		VK_STRUCTURE_TYPE_SUBMIT_INFO, nullptr, 
-		1, &dev_.img_avail_sem_, 
+		1, &dev_.img_avail_sem_[frame_res_idx], 
 		&wait_dst_stage_mask, 
 		countof(cbs), cbs, 
-		1, &dev_.rendering_finished_sem_
+		1, &dev_.rendering_finished_sem_[frame_res_idx]
 	};
 
 	VkQueue queue = RHIQueueType::kGraphics == queue_type ? dev_.graphics_queue_ : dev_.present_queue_;
-	if (vkQueueSubmit(queue, 1, &submit_info, VK_NULL_HANDLE) != VK_SUCCESS) {
+	if (vkQueueSubmit(queue, 1, &submit_info, dev_.frame_fence_[frame_res_idx]) != VK_SUCCESS) {
 		log_error("vkQueueSubmit: failed\n");
 		return false;
 	}
+
 	return true;
 }
 
 bool RHIDeviceVk::Present() {
+    uint32_t frame_res_idx = cur_frame_ % GetNumBufferedFrames();
 
 	VkPresentInfoKHR present_info = {
 		VK_STRUCTURE_TYPE_PRESENT_INFO_KHR, // VkStructureType              sType
 		nullptr,							// const void                  *pNext
 		1,									// uint32_t                     waitSemaphoreCount
-		&dev_.rendering_finished_sem_,		// const VkSemaphore           *pWaitSemaphores
+		&dev_.rendering_finished_sem_[frame_res_idx],		// const VkSemaphore           *pWaitSemaphores
 		1,									// uint32_t                     swapchainCount
 		&dev_.swap_chain_.swap_chain_,		// const VkSwapchainKHR        *pSwapchains
 		&cur_swap_chain_img_idx_,			// const uint32_t              *pImageIndices

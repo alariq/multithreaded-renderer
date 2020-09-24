@@ -85,6 +85,30 @@ public:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+class RHIBufferGL : public IRHIBuffer {
+	GLuint handle_ = 0;
+
+    uint32_t buf_size_;
+    uint32_t usage_flags;
+    uint32_t mem_flags;
+
+    bool is_mapped_;
+    uint32_t mapped_offset_;
+    uint32_t mapped_size_;
+    uint32_t mapped_flags_;
+
+public:
+	explicit RHIBufferGL(GLuint id):handle_(id) {}
+	static RHIBufferGL* Create(IRHIDevice* device, uint32_t size, uint32_t usage, RHISharingMode sharing);
+	void Destroy(IRHIDevice *device);
+
+    void* Map(IRHIDevice* device, uint32_t offset, uint32_t size, uint32_t map_flags);
+    void Unmap(IRHIDevice* device);
+
+	GLuint Handle() { return handle_; }
+};
+
+////////////////////////////////////////////////////////////////////////////////
 class RHIGraphicsPipelineGL : public IRHIPipelineLayout {
 public:
 	void Destroy(IRHIDevice* device);
@@ -115,6 +139,8 @@ public:
 
 	virtual void Draw(uint32_t vertex_count, uint32_t instance_count, uint32_t first_vertex,
 					  uint32_t first_instance) override;
+
+    virtual void BindVertexBuffers(IRHIBuffer** i_vb, uint32_t first_binding, uint32_t count) override;
 
 	virtual bool End() override;
 	virtual void EndRenderPass(const IRHIRenderPass *i_rp, IRHIFrameBuffer *i_fb) override;
@@ -147,10 +173,14 @@ public:
 	virtual IRHIImage* GetSwapChainImage(uint32_t ) override { return fb_.get(); }
 	virtual IRHIImage* GetCurrentSwapChainImage() override { assert(between_begin_frame); return fb_.get(); }
 
+    virtual uint32_t GetNumBufferedFrames() override { return 1; }
+    virtual uint32_t GetCurrentFrame() { return cur_frame_; }
+
 	virtual IRHICmdBuf* CreateCommandBuffer(RHIQueueType queue_type) override;
 	virtual IRHIRenderPass* CreateRenderPass(const RHIRenderPassDesc* desc) override;
 	virtual IRHIFrameBuffer* CreateFrameBuffer(RHIFrameBufferDesc* desc, const IRHIRenderPass* rp_in) override;
 	virtual IRHIImageView* CreateImageView(const RHIImageViewDesc* desc) override;
+	virtual IRHIBuffer* CreateBuffer(uint32_t size, uint32_t usage, uint32_t memprop, RHISharingMode sharing) override;
 
     virtual IRHIGraphicsPipeline *CreateGraphicsPipeline(
             const RHIShaderStage *shader_stage, uint32_t shader_stage_count,

@@ -535,10 +535,27 @@ namespace rhi_vulkan {
 		vkGetDeviceQueue(vk_dev.device_, vk_dev.queue_families_.graphics_, 0, &vk_dev.graphics_queue_);
 		vkGetDeviceQueue(vk_dev.device_, vk_dev.queue_families_.present_, 0, &vk_dev.present_queue_);
 
-		if (!create_semaphore(vk_dev.device_, vk_dev.pallocator_, &vk_dev.img_avail_sem_) ||
-			!create_semaphore(vk_dev.device_, vk_dev.pallocator_, &vk_dev.rendering_finished_sem_)) {
-			return false;
+        // TODO: this belongs to renderer!
+		VkFenceCreateInfo fence_create_info = {
+			VK_STRUCTURE_TYPE_FENCE_CREATE_INFO, // VkStructureType                sType
+			nullptr,							 // const void                    *pNext
+			VK_FENCE_CREATE_SIGNALED_BIT		 // VkFenceCreateFlags             flags
+		};
+
+		for (uint32_t i = 0; i < rhi_vulkan::kNumBufferedFrames; ++i) {
+			if (!create_semaphore(vk_dev.device_, vk_dev.pallocator_, &vk_dev.img_avail_sem_[i]) ||
+				!create_semaphore(vk_dev.device_, vk_dev.pallocator_,
+								  &vk_dev.rendering_finished_sem_[i])) {
+				return false;
+			}
+
+			if (vkCreateFence(vk_dev.device_, &fence_create_info, nullptr,
+							  &vk_dev.frame_fence_[i]) != VK_SUCCESS) {
+				log_error("Could not create a fence!\n");
+				return false;
+			}
 		}
+        //
 
 		if (!create_swap_chain(vk_dev.swap_chain_data_, vk_dev.device_, vk_dev.surface_,
 							   vk_dev.queue_families_, vk_dev.pallocator_, vk_dev.swap_chain_)) {
@@ -571,6 +588,12 @@ namespace rhi_vulkan {
 		}
 
 		vkDestroySwapchainKHR(vk_dev.device_, vk_dev.swap_chain_.swap_chain_, vk_dev.pallocator_);
+
+        // TODO: this belongs to the renderer
+		for (uint32_t i = 0; i < rhi_vulkan::kNumBufferedFrames; ++i) {
+			vkDestroySemaphore(vk_dev.device_, vk_dev.img_avail_sem_[i], vk_dev.pallocator_);
+            vkDestroyFence(vk_dev.device_, vk_dev.frame_fence_[i], vk_dev.pallocator_);
+        }
 
 		vkDeviceWaitIdle(vk_dev.device_);
 		vkDestroyDevice(vk_dev.device_, vk_dev.pallocator_);

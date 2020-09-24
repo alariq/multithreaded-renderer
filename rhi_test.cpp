@@ -27,6 +27,7 @@
 #include <functional>
 #include <list>
 #include <unordered_map>
+#include <vulkan/vulkan_core.h>
 
 extern int RendererGetNumBufferedFrames();
 extern int RendererGetCurrentFrame();
@@ -44,6 +45,11 @@ uint32_t g_obj_under_cursor = scene::kInvalidObjectId;
 
 camera g_camera;
 camera g_shadow_camera;
+
+struct SimpleVertex {
+    vec4 pos;
+    vec4 color;
+};
 
 #define SCREEN_W 1280.0f
 #define SCREEN_H 900.0f
@@ -165,10 +171,12 @@ void __stdcall Update(void)
     timing::sleep(32000000ull);
 }
 
-IRHICmdBuf* g_cmdbuf[8] = { nullptr };
+IRHICmdBuf** g_cmdbuf;
 IRHIRenderPass* g_main_pass = nullptr;
 std::vector<IRHIFrameBuffer*> g_main_fb;
 IRHIGraphicsPipeline *tri_pipeline = nullptr;
+IRHIGraphicsPipeline *quad_pipeline = nullptr;
+IRHIBuffer* g_quad_vb = nullptr;
 
 void __stdcall Render(void)
 {
@@ -176,10 +184,34 @@ void __stdcall Render(void)
     // should this be a command added by Update to render thread?
     if(!initialized)
     {
+        RHIVertexInputBindingDesc vert_bindings_desc[] = {
+            {0, sizeof(SimpleVertex), RHIVertexInputRate::kVertex}
+        };
+
+        RHIVertexInputAttributeDesc va_desc[] = {
+            { 0, vert_bindings_desc[0].binding, RHIFormat::kR32G32B32A32_SFLOAT, offsetof(SimpleVertex, pos) },
+            { 1, vert_bindings_desc[0].binding, RHIFormat::kR32G32B32A32_SFLOAT, offsetof(SimpleVertex, color) }
+        };
+
 		IRHIDevice* device = rhi_get_device();
-		for (size_t i = 0; i < countof(g_cmdbuf); ++i) {
+        g_cmdbuf = new IRHICmdBuf*[device->GetNumBufferedFrames()];
+		for (size_t i = 0; i < device->GetNumBufferedFrames(); ++i) {
 			g_cmdbuf[i] = device->CreateCommandBuffer(RHIQueueType::kGraphics);
 		}
+
+        // Create Vertex Buffer
+		SimpleVertex vb[] = {{{-0.55f, -0.55f, 0.0f, 1.0f}, {1.0f, 0.0f, 0.0f, 0.0f}},
+							 {{-0.55f, 0.55f, 0.0f, 1.0f}, {0.0f, 1.0f, 0.0f, 0.0f}},
+							 {{0.55f, -0.55f, 0.0f, 1.0f}, {0.0f, 0.0f, 1.0f, 0.0f}},
+							 {{0.55f, 0.55f, 0.0f, 1.0f}, {0.45f, 0.45f, 0.45f, 0.0f}}};
+
+		g_quad_vb =
+			device->CreateBuffer(sizeof(vb), (uint32_t)RHIBufferUsageFlags::kVertexBuffer,
+								 RHIMemoryPropertyFlags::kHostVisible, RHISharingMode::kExclusive);
+        assert(g_quad_vb);
+        uint8_t* memptr = (uint8_t*)g_quad_vb->Map(device, 0, sizeof(vb), 0);
+        memcpy(memptr, vb, sizeof(vb));
+        g_quad_vb->Unmap(device);
 
 		RHIAttachmentDesc att_desc;
 		att_desc.format = device->GetSwapChainFormat();
@@ -204,13 +236,34 @@ void __stdcall Render(void)
 		sp_desc.preserveAttachmentCount = 0;
 		sp_desc.preserveAttachments = nullptr;
 
+        RHISubpassDependency sp_deps[] = {
+            {
+                kSubpassExternal,
+                0,
+                RHIPipelineStageFlags::kBottomOfPipe, 
+                RHIPipelineStageFlags::kColorAttachmentOutput, 
+                RHIAccessFlags::kMemoryRead,
+                RHIAccessFlags::kColorAttachmentWrite,
+                (uint32_t)RHIDependencyFlags::kByRegion
+            },
+            {
+                0,
+                kSubpassExternal,
+                RHIPipelineStageFlags::kColorAttachmentOutput, 
+                RHIPipelineStageFlags::kBottomOfPipe, 
+                RHIAccessFlags::kColorAttachmentWrite,
+                RHIAccessFlags::kMemoryRead,
+                (uint32_t)RHIDependencyFlags::kByRegion
+            },
+        };
+
 		RHIRenderPassDesc rp_desc;
 		rp_desc.attachmentCount = 1;
 		rp_desc.attachmentDesc = &att_desc;
 		rp_desc.subpassCount = 1;
 		rp_desc.subpassDesc = &sp_desc;
-		rp_desc.dependencyCount = 0;
-		rp_desc.dependencies = nullptr;
+		rp_desc.dependencyCount = countof(sp_deps);
+		rp_desc.dependencies = sp_deps;
 
 		g_main_pass = device->CreateRenderPass(&rp_desc);
 
@@ -229,26 +282,46 @@ void __stdcall Render(void)
 		}
         
         size_t vs_size;
-        const uint32_t* vs = (uint32_t*)filesystem::loadfile("shaders/spir-v/spir-v.vert.spv.bin", &vs_size);
+        const uint32_t* vs = (uint32_t*)filesystem::loadfile("shaders/spir-v-compiled/spir-v.vert.spv.bin", &vs_size);
         size_t ps_size;
-        const uint32_t* ps = (uint32_t*)filesystem::loadfile("shaders/spir-v/spir-v.frag.spv.bin", &ps_size);
-	    RHIShaderStage shader_stage[2];
-        shader_stage[0].module = device->CreateShader(RHIShaderStageFlags::kVertex, vs, vs_size);
-        shader_stage[0].pEntryPointName = "main";
-        shader_stage[0].stage = RHIShaderStageFlags::kVertex;
-        shader_stage[1].module = device->CreateShader(RHIShaderStageFlags::kFragment, ps, ps_size);
-        shader_stage[1].pEntryPointName = "main";
-        shader_stage[1].stage = RHIShaderStageFlags::kFragment;
+        const uint32_t* ps = (uint32_t*)filesystem::loadfile("shaders/spir-v-compiled/spir-v.frag.spv.bin", &ps_size);
+	    RHIShaderStage tri_shader_stage[2];
+        tri_shader_stage[0].module = device->CreateShader(RHIShaderStageFlags::kVertex, vs, vs_size);
+        tri_shader_stage[0].pEntryPointName = "main";
+        tri_shader_stage[0].stage = RHIShaderStageFlags::kVertex;
+        tri_shader_stage[1].module = device->CreateShader(RHIShaderStageFlags::kFragment, ps, ps_size);
+        tri_shader_stage[1].pEntryPointName = "main";
+        tri_shader_stage[1].stage = RHIShaderStageFlags::kFragment;
 
-        RHIVertexInputState vi_state;
-        vi_state.vertexBindingDescCount = 0;
-        vi_state.pVertexBindingDesc = nullptr;
-        vi_state.vertexAttributeDescCount = 0;
-        vi_state.pVertexAttributeDesc = nullptr;
+        vs = (uint32_t*)filesystem::loadfile("shaders/spir-v-compiled/spir-v-model.vert.spv.bin", &vs_size);
+        ps = (uint32_t*)filesystem::loadfile("shaders/spir-v-compiled/spir-v-model.frag.spv.bin", &ps_size);
+	    RHIShaderStage quad_shader_stage[2];
+        quad_shader_stage[0].module = device->CreateShader(RHIShaderStageFlags::kVertex, vs, vs_size);
+        quad_shader_stage[0].pEntryPointName = "main";
+        quad_shader_stage[0].stage = RHIShaderStageFlags::kVertex;
+        quad_shader_stage[1].module = device->CreateShader(RHIShaderStageFlags::kFragment, ps, ps_size);
+        quad_shader_stage[1].pEntryPointName = "main";
+        quad_shader_stage[1].stage = RHIShaderStageFlags::kFragment;
 
-        RHIInputAssemblyState ia_state;
-        ia_state.primitiveRestartEnable = false;
-        ia_state.topology = RHIPrimitiveTopology::kTriangleList;
+        RHIVertexInputState tri_vi_state;
+        tri_vi_state.vertexBindingDescCount = 0;
+        tri_vi_state.pVertexBindingDesc = nullptr;
+        tri_vi_state.vertexAttributeDescCount = 0;
+        tri_vi_state.pVertexAttributeDesc = nullptr;
+
+        RHIVertexInputState quad_vi_state;
+        quad_vi_state.vertexBindingDescCount = countof(vert_bindings_desc);
+        quad_vi_state.pVertexBindingDesc = vert_bindings_desc;
+        quad_vi_state.vertexAttributeDescCount = countof(va_desc);
+        quad_vi_state.pVertexAttributeDesc = va_desc;
+
+        RHIInputAssemblyState tri_ia_state;
+        tri_ia_state.primitiveRestartEnable = false;
+        tri_ia_state.topology = RHIPrimitiveTopology::kTriangleList;
+
+        RHIInputAssemblyState quad_ia_state;
+        quad_ia_state.primitiveRestartEnable = false;
+        quad_ia_state.topology = RHIPrimitiveTopology::kTriangleStrip;
 
         RHIScissor scissors;
         scissors.x = 0;
@@ -311,19 +384,23 @@ void __stdcall Render(void)
         IRHIPipelineLayout *pipeline_layout = device->CreatePipelineLayout(nullptr);
 
 		tri_pipeline = device->CreateGraphicsPipeline(
-			&shader_stage[0], countof(shader_stage), &vi_state, &ia_state, &viewport_state,
+			&tri_shader_stage[0], countof(tri_shader_stage), &tri_vi_state, &tri_ia_state, &viewport_state,
+			&raster_state, &ms_state, &blend_state, pipeline_layout, g_main_pass);
+
+		quad_pipeline = device->CreateGraphicsPipeline(
+			&quad_shader_stage[0], countof(quad_shader_stage), &quad_vi_state, &quad_ia_state, &viewport_state,
 			&raster_state, &ms_state, &blend_state, pipeline_layout, g_main_pass);
 
 		//TODO: add render thread destroy callback to destroy all render resources
         initialized = true;
     }
 
-    RenderFrameContext* rfc_nonconst_because_of_partiles = (RenderFrameContext*)GetRenderFrameContext();
-    assert(rfc_nonconst_because_of_partiles);
-    assert(rfc_nonconst_because_of_partiles->frame_number_ == RendererGetCurrentFrame());
+    RenderFrameContext* rfc_nonconst_because_of_particles = (RenderFrameContext*)GetRenderFrameContext();
+    assert(rfc_nonconst_because_of_particles);
+    assert(rfc_nonconst_because_of_particles->frame_number_ == RendererGetCurrentFrame());
 
     // add particle systems tasks to render list
-    RenderFrameContext* rfc = rfc_nonconst_because_of_partiles;
+    RenderFrameContext* rfc = rfc_nonconst_because_of_particles;
 	(void)rfc;
     // process all scheduled commands
     for(auto& cmd : rfc->commands_) {
@@ -351,8 +428,15 @@ void __stdcall Render(void)
         ivec4 render_area(0,0, fb_image->Width(), fb_image->Height());
         RHIClearValue clear_value = { vec4(0,1,0, 0), 0.0f, 0 };
         cb->BeginRenderPass(g_main_pass, cur_fb, &render_area, &clear_value, 1); 
+        
+        
         cb->BindPipeline(RHIPipelineBindPoint::kGraphics, tri_pipeline);
         cb->Draw(3, 1, 0, 0);
+        
+        cb->BindPipeline(RHIPipelineBindPoint::kGraphics, quad_pipeline);
+        cb->BindVertexBuffers(&g_quad_vb, 0, 1);
+        cb->Draw(4, 1, 0, 0);
+
         cb->EndRenderPass(g_main_pass, cur_fb);
 	    //cb->Barrier_DrawToPresent(fb_image);
     }
@@ -360,7 +444,7 @@ void __stdcall Render(void)
 
 	device->Submit(cb, RHIQueueType::kGraphics);
 
-	cur_idx = (cur_idx + 1) % ((int)countof(g_cmdbuf));
+	cur_idx = (cur_idx + 1) % ((int)device->GetNumBufferedFrames());
 	cur_fb_idx = (cur_fb_idx + 1) % ((int)(g_main_fb.size()));
 
 	uint64_t ticks = timing::gettickcount();

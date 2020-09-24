@@ -66,6 +66,29 @@ RHIGraphicsPipelineGL *RHIGraphicsPipelineGL::Create(
 	return nullptr;
 }
 
+////////////// Buffer //////////////////////////////////////////////////
+
+void RHIBufferGL::Destroy(IRHIDevice* device) {
+	delete this;
+}
+
+void *RHIBufferGL::Map(IRHIDevice* device, uint32_t offset, uint32_t size, uint32_t flags) {
+    assert(!is_mapped_);
+    assert(mem_flags & RHIMemoryPropertyFlags::kHostVisible);
+
+    is_mapped_ = true;
+    mapped_offset_ = offset;
+    mapped_size_ = size;
+    mapped_flags_ = flags;
+
+    return nullptr;
+}
+
+void RHIBufferGL::Unmap(IRHIDevice* device) {
+    assert(is_mapped_);
+    is_mapped_ = false;
+}
+
 ////////////// Command buffer //////////////////////////////////////////////////
 
 bool RHICmdBufGL::Begin() {
@@ -112,6 +135,9 @@ void RHICmdBufGL::Barrier_DrawToPresent(IRHIImage* image) {
 void RHICmdBufGL::BindPipeline(RHIPipelineBindPoint bind_point, IRHIGraphicsPipeline* pipeline) {
 }
 
+void RHICmdBufGL::BindVertexBuffers(IRHIBuffer** i_vb, uint32_t first_binding, uint32_t count) {
+}
+
 ////////////////RHI Device /////////////////////////////////////////////////////
 
 RHIDeviceGL::RHIDeviceGL() {
@@ -134,6 +160,10 @@ IRHIRenderPass* RHIDeviceGL::CreateRenderPass(const RHIRenderPassDesc* ) {
 
 IRHIImageView* RHIDeviceGL::CreateImageView(const RHIImageViewDesc* ) {
 	return new RHIImageViewGL(0);
+}
+
+IRHIBuffer* CreateBuffer(uint32_t size, uint32_t usage, uint32_t memprop, RHISharingMode sharing) {
+	return new RHIBufferGL(0);
 }
 
 // should this be mobved to command buffer class / .cpp file and just pass Device as a parameter ?

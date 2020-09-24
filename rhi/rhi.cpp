@@ -6,5 +6,6 @@ IRHIRenderPass::~IRHIRenderPass() {}
 IRHIFrameBuffer::~IRHIFrameBuffer() {}
 IRHIPipelineLayout::~IRHIPipelineLayout() {}
 IRHIShader::~IRHIShader() {}
+IRHIBuffer::~IRHIBuffer() {}
 
 

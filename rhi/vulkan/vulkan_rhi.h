@@ -9,4 +9,8 @@ namespace rhi_vulkan {
 
 	void make_current_context();
 	unsigned int get_window_flags(void);
+
+    enum {
+        kNumBufferedFrames = 3
+    };
 }

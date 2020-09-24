@@ -5,6 +5,7 @@
 #include <stdint.h>
 #include <cassert>
 
+class IRHIDevice;
 class IRHIImageView;
 class IRHIImage;
 class IRHIGraphicsPipeline;
@@ -86,7 +87,7 @@ enum class RHIAccessFlags: uint32_t {
 	kMemoryWrite = 0x00010000,
 };
 
-enum class RHIDependencyFlags {
+enum class RHIDependencyFlags: uint32_t {
     kByRegion = 0x00000001,
     kDeviceGroup = 0x00000004,
     kViewLocal = 0x00000002,
@@ -237,6 +238,38 @@ enum class RHIColorComponentFlags: uint32_t {
     kA = 0x00000008,
 };
 
+enum class RHIBufferUsageFlags: uint32_t {
+    kTransferSrc = 0x00000001,
+    kTransferDst = 0x00000002,
+    kUniformTexelBuffer = 0x00000004,
+    kStorageTexelBuffer = 0x00000008,
+    kUniformBuffer = 0x00000010,
+    kStorageBuffer = 0x00000020,
+    kIndexBuffer = 0x00000040,
+    kVertexBuffer = 0x00000080
+};
+
+// flags really should not be class
+enum RHIMemoryPropertyFlags: uint32_t {
+    kDeviceLocal = 0x00000001,
+    kHostVisible = 0x00000002,
+    kHostCoherent = 0x00000004,
+    kHostCached = 0x00000008,
+    kLazilyAllocated = 0x00000010,
+    kProtectedBit = 0x00000020,
+    kDeviceCoherentAMD = 0x00000040,
+    kDeviceUncachedAMD = 0x00000080,
+};
+
+enum class RHISharingMode: uint32_t {
+    kExclusive = 0,
+    kConcurrent = 1
+};
+
+enum : uint32_t {
+    kSubpassExternal = ~0U
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 struct RHIImageSubresourceRange {
     uint32_t			aspectMask;
@@ -313,7 +346,7 @@ struct RHISubpassDependency {
     RHIPipelineStageFlags dstStageMask;
     RHIAccessFlags   srcAccessMask;
     RHIAccessFlags  dstAccessMask;
-    RHIDependencyFlags	dependencyFlags;
+    uint32_t        dependencyFlags; // RHIDependencyFlags 
 };
 
 struct RHIRenderPassDesc {
@@ -472,6 +505,8 @@ public:
 	virtual void Draw(uint32_t vertex_count, uint32_t instance_count, uint32_t first_vertex,
 					  uint32_t first_instance) = 0;
 
+    virtual void BindVertexBuffers(class IRHIBuffer** i_vb, uint32_t first_binding, uint32_t count) = 0;
+
 	virtual bool End() = 0;
 	virtual void EndRenderPass(const IRHIRenderPass *i_rp, IRHIFrameBuffer *i_fb) = 0;
 
@@ -513,6 +548,15 @@ public:
 	virtual ~IRHIGraphicsPipeline() = 0; 
 };
 
+class IRHIBuffer {
+public:
+  virtual void Destroy(IRHIDevice *device) = 0;
+  virtual void *Map(IRHIDevice *device, uint32_t offset, uint32_t size, uint32_t map_flags) = 0;
+  virtual void Unmap(IRHIDevice *device) = 0;
+
+  virtual ~IRHIBuffer() = 0; 
+};
+
 
 class IRHIDevice {
 public:
@@ -521,6 +565,7 @@ public:
 	virtual IRHIRenderPass*		CreateRenderPass(const RHIRenderPassDesc* desc) = 0;
 	virtual IRHIFrameBuffer*	CreateFrameBuffer(RHIFrameBufferDesc* desc, const IRHIRenderPass* rp_in) = 0;
 	virtual IRHIImageView*		CreateImageView(const RHIImageViewDesc* desc) = 0;
+	virtual IRHIBuffer*		    CreateBuffer(uint32_t size, uint32_t usage, uint32_t memprop, RHISharingMode sharing) = 0;
 
     virtual IRHIGraphicsPipeline *CreateGraphicsPipeline(
             const RHIShaderStage *shader_stage, uint32_t shader_stage_count,
@@ -538,6 +583,8 @@ public:
 	virtual IRHIImageView*	        GetSwapChainImageView(uint32_t index) = 0;
 	virtual class IRHIImage*	    GetSwapChainImage(uint32_t index) = 0;
 	virtual IRHIImage*				GetCurrentSwapChainImage() = 0;
+
+    virtual uint32_t GetNumBufferedFrames() = 0;
 
 	virtual bool Submit(IRHICmdBuf* cb, RHIQueueType queue_type) = 0;
 	virtual bool BeginFrame() = 0;
