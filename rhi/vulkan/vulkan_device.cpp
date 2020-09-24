@@ -479,7 +479,7 @@ RHIGraphicsPipelineVk *RHIGraphicsPipelineVk::Create(
 
 	std::vector<VkVertexInputAttributeDescription> vertex_input_attributes(
 		vertex_input_state->vertexAttributeDescCount);
-	for (uint32_t i = 0; i < (uint32_t)vertex_input_bindings.size(); ++i) {
+	for (uint32_t i = 0; i < (uint32_t)vertex_input_attributes.size(); ++i) {
 		vertex_input_attributes[i].location = vertex_input_state->pVertexAttributeDesc[i].location;
 		vertex_input_attributes[i].binding = vertex_input_state->pVertexAttributeDesc[i].binding;
 		vertex_input_attributes[i].format = translate(vertex_input_state->pVertexAttributeDesc[i].format);
