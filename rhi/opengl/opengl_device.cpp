@@ -89,6 +89,23 @@ void RHIBufferGL::Unmap(IRHIDevice* device) {
     is_mapped_ = false;
 }
 
+/////////////////////// Fence //////////////////////////////////////////////////
+
+IRHIFence* RHIFenceGL::Create(IRHIDevice *device, bool create_signalled) {
+    return new RHIFenceGL();
+}
+
+/////////////////////// Event //////////////////////////////////////////////////
+
+IRHIEvent* RHIEventGL::Create(IRHIDevice *device) {
+    return new RHIEventGL();
+}
+
+void RHIEventGL::Destroy(IRHIDevice* device) {
+    delete this;
+}
+
+
 ////////////// Command buffer //////////////////////////////////////////////////
 
 bool RHICmdBufGL::Begin() {
@@ -111,6 +128,17 @@ void RHICmdBufGL::EndRenderPass(const IRHIRenderPass *i_rp, IRHIFrameBuffer *i_f
     assert(is_recording_);
 }
 
+void RHICmdBufGL::CopyBuffer(class IRHIBuffer *i_dst, uint32_t dst_offset, class IRHIBuffer *i_src,
+							uint32_t src_offset, uint32_t size) {
+    assert(0);
+}
+void RHICmdBufGL::SetEvent(IRHIEvent* i_event, RHIPipelineStageFlags stage) {
+    assert(0);
+}
+void RHICmdBufGL::ResetEvent(IRHIEvent* i_event, RHIPipelineStageFlags stage) {
+    assert(0);
+}
+
 void RHICmdBufGL::Clear(IRHIImage* image_in, const vec4& color, uint32_t img_aspect_bits) {
 	assert(is_recording_);
 	RHIImageGL* image = ResourceCast(image_in);
@@ -131,6 +159,12 @@ void RHICmdBufGL::Barrier_PresentToDraw(IRHIImage *) {
 }
 void RHICmdBufGL::Barrier_DrawToPresent(IRHIImage* image) {
 }
+
+void RHICmdBufGL::BufferBarrier(IRHIBuffer *i_buffer, RHIAccessFlags src_acc_flags,
+								RHIPipelineStageFlags src_stage, RHIAccessFlags dst_acc_fags,
+								RHIPipelineStageFlags dst_stage) {
+}
+
 
 void RHICmdBufGL::BindPipeline(RHIPipelineBindPoint bind_point, IRHIGraphicsPipeline* pipeline) {
 }
@@ -166,12 +200,15 @@ IRHIBuffer* CreateBuffer(uint32_t size, uint32_t usage, uint32_t memprop, RHISha
 	return new RHIBufferGL(0);
 }
 
+IRHIFence* CreateFence(IRHIDevice *device, bool create_signalled) {
+	return RHIFenceGL::Create(device, create_signalled);
+}
+
 // should this be mobved to command buffer class / .cpp file and just pass Device as a parameter ?
 IRHICmdBuf* RHIDeviceGL::CreateCommandBuffer(RHIQueueType queue_type) {
 
 	assert(queue_type == RHIQueueType::kGraphics || queue_type == RHIQueueType::kPresentation);
 	return new RHICmdBufGL();
-
 }
 
 IRHIGraphicsPipeline *RHIDeviceGL::CreateGraphicsPipeline(

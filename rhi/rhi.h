@@ -11,6 +11,7 @@ class IRHIImage;
 class IRHIGraphicsPipeline;
 class IRHIRenderPass;
 class IRHIFrameBuffer;
+class IRHIEvent;
 
 enum class RHIQueueType: uint32_t {
 	kUnknown = 0x0,
@@ -238,15 +239,15 @@ enum class RHIColorComponentFlags: uint32_t {
     kA = 0x00000008,
 };
 
-enum class RHIBufferUsageFlags: uint32_t {
-    kTransferSrc = 0x00000001,
-    kTransferDst = 0x00000002,
-    kUniformTexelBuffer = 0x00000004,
-    kStorageTexelBuffer = 0x00000008,
-    kUniformBuffer = 0x00000010,
-    kStorageBuffer = 0x00000020,
-    kIndexBuffer = 0x00000040,
-    kVertexBuffer = 0x00000080
+enum RHIBufferUsageFlags: uint32_t {
+    kTransferSrcBit = 0x00000001,
+    kTransferDstBit = 0x00000002,
+    kUniformTexelBufferBit = 0x00000004,
+    kStorageTexelBufferBit = 0x00000008,
+    kUniformBufferBit = 0x00000010,
+    kStorageBufferBit = 0x00000020,
+    kIndexBufferBit = 0x00000040,
+    kVertexBufferBit = 0x00000080
 };
 
 // flags really should not be class
@@ -507,8 +508,20 @@ public:
 
     virtual void BindVertexBuffers(class IRHIBuffer** i_vb, uint32_t first_binding, uint32_t count) = 0;
 
+	virtual void CopyBuffer(class IRHIBuffer *dst, uint32_t dst_offset, class IRHIBuffer *src,
+							uint32_t src_offset, uint32_t size) = 0;
+
+    virtual void SetEvent(IRHIEvent* event, RHIPipelineStageFlags stage) = 0;
+    virtual void ResetEvent(IRHIEvent* event, RHIPipelineStageFlags stage) = 0;
+    //TODO: implement
+    //virtual void WaitForEvent(IRHIEvent* event, ...) = 0;
+
 	virtual bool End() = 0;
 	virtual void EndRenderPass(const IRHIRenderPass *i_rp, IRHIFrameBuffer *i_fb) = 0;
+
+	virtual void BufferBarrier(IRHIBuffer *i_buffer, RHIAccessFlags src_acc_flags,
+					   RHIPipelineStageFlags src_stage, RHIAccessFlags dst_acc_fags,
+					   RHIPipelineStageFlags dst_stage) = 0;
 
 	virtual void Barrier_ClearToPresent(IRHIImage* image) = 0;
 	virtual void Barrier_PresentToClear(IRHIImage* image) = 0;
@@ -553,8 +566,27 @@ public:
   virtual void Destroy(IRHIDevice *device) = 0;
   virtual void *Map(IRHIDevice *device, uint32_t offset, uint32_t size, uint32_t map_flags) = 0;
   virtual void Unmap(IRHIDevice *device) = 0;
+  virtual uint32_t Size() const = 0;
 
   virtual ~IRHIBuffer() = 0; 
+};
+
+class IRHIFence {
+    public:
+        virtual void Reset(IRHIDevice *device) = 0;
+        virtual void Wait(IRHIDevice *device, uint64_t timeout) = 0;
+        virtual bool IsSignalled(IRHIDevice *device) = 0;
+        virtual void Destroy(IRHIDevice *device) = 0;
+        virtual ~IRHIFence() = 0; 
+};
+
+class IRHIEvent {
+    public:
+        virtual void Set(IRHIDevice *device) = 0;
+        virtual void Reset(IRHIDevice *device) = 0;
+        virtual bool IsSet(IRHIDevice *device) = 0;
+        virtual void Destroy(IRHIDevice *device) = 0;
+        virtual ~IRHIEvent() = 0; 
 };
 
 
@@ -566,6 +598,9 @@ public:
 	virtual IRHIFrameBuffer*	CreateFrameBuffer(RHIFrameBufferDesc* desc, const IRHIRenderPass* rp_in) = 0;
 	virtual IRHIImageView*		CreateImageView(const RHIImageViewDesc* desc) = 0;
 	virtual IRHIBuffer*		    CreateBuffer(uint32_t size, uint32_t usage, uint32_t memprop, RHISharingMode sharing) = 0;
+
+    virtual IRHIFence*          CreateFence(bool create_signalled) = 0;
+    virtual IRHIEvent*          CreateEvent() = 0;
 
     virtual IRHIGraphicsPipeline *CreateGraphicsPipeline(
             const RHIShaderStage *shader_stage, uint32_t shader_stage_count,

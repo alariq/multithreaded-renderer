@@ -8,8 +8,16 @@
 #include <vector>
 #include <vulkan/vulkan_core.h>
 
+#define VK_CHECK(x){\
+    VkResult r = (x);\
+    if(VK_SUCCESS != r) {\
+        log_error("%s, VKResult = %d", "Error calling: " #x, r);\
+    }\
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 template <typename T> struct ResImplType;
+template<> struct ResImplType<IRHIDevice> { typedef RHIDeviceVk Type; };
 template<> struct ResImplType<IRHICmdBuf> { typedef RHICmdBufVk Type; };
 template<> struct ResImplType<IRHIImage> { typedef RHIImageVk Type; };
 template<> struct ResImplType<IRHIImageView> { typedef RHIImageViewVk Type; };
@@ -19,7 +27,8 @@ template<> struct ResImplType<IRHIGraphicsPipeline> { typedef RHIGraphicsPipelin
 template<> struct ResImplType<IRHIPipelineLayout> { typedef RHIPipelineLayoutVk Type; };
 template<> struct ResImplType<IRHIShader> { typedef RHIShaderVk Type; };
 template<> struct ResImplType<IRHIBuffer> { typedef RHIBufferVk Type; };
-template<> struct ResImplType<IRHIDevice> { typedef RHIDeviceVk Type; };
+template<> struct ResImplType<IRHIFence> { typedef RHIFenceVk Type; };
+template<> struct ResImplType<IRHIEvent> { typedef RHIEventVk Type; };
 
 template <typename R> 
 typename ResImplType<R>::Type* ResourceCast(R* obj) {
@@ -342,14 +351,14 @@ VkLogicOp translate(RHILogicOp logic_op) {
 
 VkBufferUsageFlags translate_buffer_usage(uint32_t usage) {
 
-    VkBufferUsageFlags vk_usage = (usage & (uint32_t)RHIBufferUsageFlags::kTransferSrc) ? VK_BUFFER_USAGE_TRANSFER_SRC_BIT : 0;
-    vk_usage |= (usage & (uint32_t)RHIBufferUsageFlags::kTransferDst) ? VK_BUFFER_USAGE_TRANSFER_DST_BIT : 0;
-    vk_usage |= (usage & (uint32_t)RHIBufferUsageFlags::kUniformTexelBuffer) ? VK_BUFFER_USAGE_UNIFORM_TEXEL_BUFFER_BIT: 0;
-    vk_usage |= (usage & (uint32_t)RHIBufferUsageFlags::kStorageTexelBuffer) ? VK_BUFFER_USAGE_STORAGE_TEXEL_BUFFER_BIT: 0;
-    vk_usage |= (usage & (uint32_t)RHIBufferUsageFlags::kStorageBuffer) ? VK_BUFFER_USAGE_STORAGE_BUFFER_BIT: 0;
-    vk_usage |= (usage & (uint32_t)RHIBufferUsageFlags::kUniformBuffer) ? VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT: 0;
-    vk_usage |= (usage & (uint32_t)RHIBufferUsageFlags::kIndexBuffer) ? VK_BUFFER_USAGE_INDEX_BUFFER_BIT: 0;
-    vk_usage |= (usage & (uint32_t)RHIBufferUsageFlags::kVertexBuffer) ? VK_BUFFER_USAGE_VERTEX_BUFFER_BIT: 0;
+    VkBufferUsageFlags vk_usage = (usage & RHIBufferUsageFlags::kTransferSrcBit) ? VK_BUFFER_USAGE_TRANSFER_SRC_BIT : 0;
+    vk_usage |= (usage & RHIBufferUsageFlags::kTransferDstBit) ? VK_BUFFER_USAGE_TRANSFER_DST_BIT : 0;
+    vk_usage |= (usage & RHIBufferUsageFlags::kUniformTexelBufferBit) ? VK_BUFFER_USAGE_UNIFORM_TEXEL_BUFFER_BIT: 0;
+    vk_usage |= (usage & RHIBufferUsageFlags::kStorageTexelBufferBit) ? VK_BUFFER_USAGE_STORAGE_TEXEL_BUFFER_BIT: 0;
+    vk_usage |= (usage & RHIBufferUsageFlags::kStorageBufferBit) ? VK_BUFFER_USAGE_STORAGE_BUFFER_BIT: 0;
+    vk_usage |= (usage & RHIBufferUsageFlags::kUniformBufferBit) ? VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT: 0;
+    vk_usage |= (usage & RHIBufferUsageFlags::kIndexBufferBit) ? VK_BUFFER_USAGE_INDEX_BUFFER_BIT: 0;
+    vk_usage |= (usage & RHIBufferUsageFlags::kVertexBufferBit) ? VK_BUFFER_USAGE_VERTEX_BUFFER_BIT: 0;
     return vk_usage;
 };
 
@@ -770,6 +779,88 @@ IRHIShader* RHIDeviceVk::CreateShader(RHIShaderStageFlags stage, const uint32_t 
     return RHIShaderVk::Create(this, pdata, size, stage);
 }
 
+/////////////////////// Fence //////////////////////////////////////////////////
+void RHIFenceVk::Reset(IRHIDevice *device) {
+	RHIDeviceVk *dev = ResourceCast(device);
+    VK_CHECK(vkResetFences(dev->Handle(), 1, &handle_));
+}
+void RHIFenceVk::Wait(IRHIDevice *device, uint64_t timeout) {
+	RHIDeviceVk *dev = ResourceCast(device);
+    VK_CHECK(vkWaitForFences(dev->Handle(), 1, &handle_, false, timeout));
+}
+bool RHIFenceVk::IsSignalled(IRHIDevice *device) {
+	RHIDeviceVk *dev = ResourceCast(device);
+    VkResult status = vkGetFenceStatus(dev->Handle(), handle_);
+    return VK_SUCCESS == status;
+}
+void RHIFenceVk::Destroy(IRHIDevice *device) {
+	RHIDeviceVk *dev = ResourceCast(device);
+    vkDestroyFence(dev->Handle(), handle_, dev->Allocator());
+    delete this;
+}
+RHIFenceVk *RHIFenceVk::Create(IRHIDevice *device, bool create_signalled) {
+	VkFenceCreateInfo fence_create_info = {
+		VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,				 // VkStructureType                sType
+		nullptr,											 // const void                    *pNext
+		create_signalled ? VK_FENCE_CREATE_SIGNALED_BIT : 0u // VkFenceCreateFlags             flags
+	};
+
+	RHIDeviceVk *dev = ResourceCast(device);
+
+	VkFence vk_fence;
+	if (vkCreateFence(dev->Handle(), &fence_create_info, dev->Allocator(), &vk_fence) !=
+		VK_SUCCESS) {
+		log_error("Could not create a fence!\n");
+		return nullptr;
+	}
+
+	RHIFenceVk *fence = new RHIFenceVk();
+	fence->handle_ = vk_fence;
+	return fence;
+}
+
+/////////////////////// Event //////////////////////////////////////////////////
+void RHIEventVk::Set(IRHIDevice *device) {
+	RHIDeviceVk *dev = ResourceCast(device);
+    VK_CHECK(vkSetEvent(dev->Handle(), handle_));
+}
+void RHIEventVk::Reset(IRHIDevice *device) {
+	RHIDeviceVk *dev = ResourceCast(device);
+    VK_CHECK(vkResetEvent(dev->Handle(), handle_));
+}
+bool RHIEventVk::IsSet(IRHIDevice *device) {
+	RHIDeviceVk *dev = ResourceCast(device);
+    VkResult status = vkGetEventStatus(dev->Handle(), handle_);
+    return VK_EVENT_SET == status;
+}
+void RHIEventVk::Destroy(IRHIDevice *device) {
+	RHIDeviceVk *dev = ResourceCast(device);
+    vkDestroyEvent(dev->Handle(), handle_, dev->Allocator());
+    delete this;
+}
+
+RHIEventVk *RHIEventVk::Create(IRHIDevice *device) {
+	VkEventCreateInfo event_create_info = {
+		VK_STRUCTURE_TYPE_EVENT_CREATE_INFO,				 // VkStructureType                sType
+		nullptr,											 // const void                    *pNext
+		0                                                   // VkEventCreateFlags             flags
+	};
+
+	RHIDeviceVk *dev = ResourceCast(device);
+
+	VkEvent vk_event;
+	if (vkCreateEvent(dev->Handle(), &event_create_info, dev->Allocator(), &vk_event) !=
+		VK_SUCCESS) {
+		log_error("Could not create an event !\n");
+		return nullptr;
+	}
+
+	RHIEventVk *event = new RHIEventVk();
+	event->handle_ = vk_event;
+	return event;
+}
+
+
 ////////////// Command buffer //////////////////////////////////////////////////
 
 void Barrier(RHICmdBufVk *cb, RHIImageVk* image,
@@ -811,7 +902,25 @@ void Barrier(RHICmdBufVk *cb, RHIImageVk* image,
 
 }
 
+void RHICmdBufVk::BufferBarrier(IRHIBuffer *i_buffer, RHIAccessFlags src_acc_flags,
+								RHIPipelineStageFlags src_stage, RHIAccessFlags dst_acc_fags,
+								RHIPipelineStageFlags dst_stage) {
+	RHIBufferVk* buffer = ResourceCast(i_buffer);
 
+    VkBufferMemoryBarrier buffer_memory_barrier = {
+      VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,          // VkStructureType                        sType
+      nullptr,                                          // const void                            *pNext
+      translate(src_acc_flags),                       // VkAccessFlags                          srcAccessMask
+      translate(dst_acc_fags),              // VkAccessFlags                          dstAccessMask
+      VK_QUEUE_FAMILY_IGNORED,                          // uint32_t                               srcQueueFamilyIndex
+      VK_QUEUE_FAMILY_IGNORED,                          // uint32_t                               dstQueueFamilyIndex
+      buffer->Handle(),                       // VkBuffer                               buffer
+      0,                                                // VkDeviceSize                           offset
+      VK_WHOLE_SIZE                                     // VkDeviceSize                           size
+    };
+	vkCmdPipelineBarrier(cb_, translate(src_stage), translate(dst_stage), 0, 0, nullptr, 1,
+						 &buffer_memory_barrier, 0, nullptr);
+}
 
 bool RHICmdBufVk::Begin() {
 
@@ -913,6 +1022,31 @@ void RHICmdBufVk::BindVertexBuffers(IRHIBuffer** i_vb, uint32_t first_binding, u
     vkCmdBindVertexBuffers(cb_, first_binding, count, vbs.data(), offsets.data());
 }
 
+void RHICmdBufVk::CopyBuffer(class IRHIBuffer *i_dst, uint32_t dst_offset, class IRHIBuffer *i_src,
+							uint32_t src_offset, uint32_t size) {
+
+    VkBufferCopy buffer_copy_info = {
+      .srcOffset = src_offset,                                   // VkDeviceSize                           srcOffset
+      .dstOffset = dst_offset,                                                // VkDeviceSize                           dstOffset
+      .size = size                      // VkDeviceSize                           size
+    };
+
+    const RHIBufferVk* dst = ResourceCast(i_dst);
+    const RHIBufferVk* src = ResourceCast(i_src);
+    assert(dst->Size() >= dst_offset + size);
+    assert(src->Size() >= src_offset + size);
+
+    vkCmdCopyBuffer(cb_, src->Handle(), dst->Handle(), 1, &buffer_copy_info );
+}
+
+void RHICmdBufVk::SetEvent(IRHIEvent* i_event, RHIPipelineStageFlags stage) {
+    const RHIEventVk* event = ResourceCast(i_event); 
+    vkCmdSetEvent(cb_, event->Handle(), translate(stage));
+}
+void RHICmdBufVk::ResetEvent(IRHIEvent* i_event, RHIPipelineStageFlags stage) {
+    const RHIEventVk* event = ResourceCast(i_event); 
+    vkCmdResetEvent(cb_, event->Handle(), translate(stage));
+}
 
 void RHICmdBufVk::Clear(IRHIImage* image_in, const vec4& color, uint32_t img_aspect_bits) {
 	assert(is_recording_);
@@ -1190,6 +1324,14 @@ IRHIPipelineLayout* RHIDeviceVk::CreatePipelineLayout(IRHIDescriptorSetLayout* d
 IRHIBuffer *RHIDeviceVk::CreateBuffer(uint32_t size, uint32_t usage, uint32_t memprop_flags,
 									  RHISharingMode sharing) {
 	return RHIBufferVk::Create(this, size, usage, memprop_flags, sharing);
+};
+
+IRHIFence *RHIDeviceVk::CreateFence(bool create_signalled) {
+	return RHIFenceVk::Create(this, create_signalled);
+};
+
+IRHIEvent *RHIDeviceVk::CreateEvent() {
+	return RHIEventVk::Create(this);
 };
 
 bool RHIDeviceVk::BeginFrame() {

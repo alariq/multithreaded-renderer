@@ -21,6 +21,7 @@
 #include "obj_id_renderer.h"
 
 #include "Remotery/lib/Remotery.h"
+#include "utils/logging.h"
 #include <cstdlib>
 #include <cstddef>
 #include <string>
@@ -176,7 +177,9 @@ IRHIRenderPass* g_main_pass = nullptr;
 std::vector<IRHIFrameBuffer*> g_main_fb;
 IRHIGraphicsPipeline *tri_pipeline = nullptr;
 IRHIGraphicsPipeline *quad_pipeline = nullptr;
-IRHIBuffer* g_quad_vb = nullptr;
+IRHIBuffer* g_quad_gpu_vb = nullptr;
+IRHIBuffer* g_quad_staging_vb = nullptr;
+IRHIEvent* g_quad_vb_copy_event= nullptr;
 
 void __stdcall Render(void)
 {
@@ -205,13 +208,22 @@ void __stdcall Render(void)
 							 {{0.55f, -0.55f, 0.0f, 1.0f}, {0.0f, 0.0f, 1.0f, 0.0f}},
 							 {{0.55f, 0.55f, 0.0f, 1.0f}, {0.45f, 0.45f, 0.45f, 0.0f}}};
 
-		g_quad_vb =
-			device->CreateBuffer(sizeof(vb), (uint32_t)RHIBufferUsageFlags::kVertexBuffer,
+		g_quad_staging_vb =
+			device->CreateBuffer(sizeof(vb), RHIBufferUsageFlags::kTransferSrcBit,
 								 RHIMemoryPropertyFlags::kHostVisible, RHISharingMode::kExclusive);
-        assert(g_quad_vb);
-        uint8_t* memptr = (uint8_t*)g_quad_vb->Map(device, 0, sizeof(vb), 0);
+
+		g_quad_gpu_vb = device->CreateBuffer(
+			sizeof(vb),
+			RHIBufferUsageFlags::kVertexBufferBit | RHIBufferUsageFlags::kTransferDstBit,
+			RHIMemoryPropertyFlags::kDeviceLocal, RHISharingMode::kExclusive);
+
+		assert(g_quad_gpu_vb);
+        assert(g_quad_staging_vb);
+        uint8_t* memptr = (uint8_t*)g_quad_staging_vb->Map(device, 0, sizeof(vb), 0);
         memcpy(memptr, vb, sizeof(vb));
-        g_quad_vb->Unmap(device);
+        g_quad_staging_vb->Unmap(device);
+
+        g_quad_vb_copy_event = device->CreateEvent();
 
 		RHIAttachmentDesc att_desc;
 		att_desc.format = device->GetSwapChainFormat();
@@ -236,26 +248,21 @@ void __stdcall Render(void)
 		sp_desc.preserveAttachmentCount = 0;
 		sp_desc.preserveAttachments = nullptr;
 
-        RHISubpassDependency sp_deps[] = {
-            {
-                kSubpassExternal,
-                0,
-                RHIPipelineStageFlags::kBottomOfPipe, 
-                RHIPipelineStageFlags::kColorAttachmentOutput, 
-                RHIAccessFlags::kMemoryRead,
-                RHIAccessFlags::kColorAttachmentWrite,
-                (uint32_t)RHIDependencyFlags::kByRegion
-            },
-            {
-                0,
-                kSubpassExternal,
-                RHIPipelineStageFlags::kColorAttachmentOutput, 
-                RHIPipelineStageFlags::kBottomOfPipe, 
-                RHIAccessFlags::kColorAttachmentWrite,
-                RHIAccessFlags::kMemoryRead,
-                (uint32_t)RHIDependencyFlags::kByRegion
-            },
-        };
+		RHISubpassDependency sp_deps[] = {
+			{.srcSubpass = kSubpassExternal,
+			 .dstSubpass = 0,
+			 .srcStageMask = RHIPipelineStageFlags::kBottomOfPipe,
+			 .dstStageMask = RHIPipelineStageFlags::kColorAttachmentOutput,
+			 .srcAccessMask = RHIAccessFlags::kMemoryRead,
+			 .dstAccessMask = RHIAccessFlags::kColorAttachmentWrite,
+			 .dependencyFlags = (uint32_t)RHIDependencyFlags::kByRegion},
+			{.srcSubpass = 0,
+			 .dstSubpass = kSubpassExternal,
+			 .srcStageMask = RHIPipelineStageFlags::kColorAttachmentOutput,
+			 .dstStageMask = RHIPipelineStageFlags::kBottomOfPipe,
+			 .srcAccessMask = RHIAccessFlags::kColorAttachmentWrite,
+			 .dstAccessMask = RHIAccessFlags::kMemoryRead,
+			 .dependencyFlags = (uint32_t)RHIDependencyFlags::kByRegion}};
 
 		RHIRenderPassDesc rp_desc;
 		rp_desc.attachmentCount = 1;
@@ -425,18 +432,34 @@ void __stdcall Render(void)
     	cb->Barrier_ClearToPresent(fb_image);
     } else {
 	    //cb->Barrier_PresentToDraw(fb_image);
-        ivec4 render_area(0,0, fb_image->Width(), fb_image->Height());
+
+		if (!g_quad_vb_copy_event->IsSet(device)) {
+			static bool once = true;
+			assert(once);
+			cb->CopyBuffer(g_quad_gpu_vb, 0, g_quad_staging_vb, 0, g_quad_staging_vb->Size());
+			cb->BufferBarrier(
+				g_quad_gpu_vb, RHIAccessFlags::kTransferWrite, RHIPipelineStageFlags::kTransfer,
+				RHIAccessFlags::kVertexAttributeRead, RHIPipelineStageFlags::kVertexInput);
+			cb->SetEvent(g_quad_vb_copy_event, RHIPipelineStageFlags::kVertexInput);
+			once = !once;
+        }
+
+		ivec4 render_area(0,0, fb_image->Width(), fb_image->Height());
         RHIClearValue clear_value = { vec4(0,1,0, 0), 0.0f, 0 };
         cb->BeginRenderPass(g_main_pass, cur_fb, &render_area, &clear_value, 1); 
         
-        
         cb->BindPipeline(RHIPipelineBindPoint::kGraphics, tri_pipeline);
         cb->Draw(3, 1, 0, 0);
-        
-        cb->BindPipeline(RHIPipelineBindPoint::kGraphics, quad_pipeline);
-        cb->BindVertexBuffers(&g_quad_vb, 0, 1);
-        cb->Draw(4, 1, 0, 0);
 
+        // I think there is no need to wait as we schedule draw in the queue and all operations are sequential there
+        // only necessary if we want to do something on a host, but let it be here as an example
+        if(g_quad_vb_copy_event->IsSet(device)) {
+            cb->BindPipeline(RHIPipelineBindPoint::kGraphics, quad_pipeline);
+            cb->BindVertexBuffers(&g_quad_gpu_vb, 0, 1);
+            cb->Draw(4, 1, 0, 0);
+		} else {
+            log_debug("Waiting for copy to finish\n");
+        }
         cb->EndRenderPass(g_main_pass, cur_fb);
 	    //cb->Barrier_DrawToPresent(fb_image);
     }

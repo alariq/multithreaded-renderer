@@ -179,7 +179,42 @@ public:
     void* Map(IRHIDevice* device, uint32_t offset, uint32_t size, uint32_t map_flags);
     void Unmap(IRHIDevice* device);
 
+    uint32_t Size() const { return buf_size_; }
 	VkBuffer Handle() const { return handle_; }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+class RHIFenceVk : public IRHIFence {
+        VkFence handle_;
+
+        //TODO: add variables to cache the state
+
+        RHIFenceVk() = default;
+        ~RHIFenceVk() = default;
+    public:
+        virtual void Reset(IRHIDevice *device) override;
+        virtual void Wait(IRHIDevice *device, uint64_t timeout) override;
+        virtual bool IsSignalled(IRHIDevice *device) override;
+        virtual void Destroy(IRHIDevice *device) override;
+
+        VkFence Handle() const { return handle_; }
+
+        static RHIFenceVk* Create(IRHIDevice *device, bool create_signalled);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+class RHIEventVk: public IRHIEvent {
+        VkEvent handle_;
+    public:
+        // immediate set/reset by host
+        virtual void Set(IRHIDevice *device) override;
+        virtual void Reset(IRHIDevice *device) override;
+        virtual bool IsSet(IRHIDevice *device) override;
+        virtual void Destroy(IRHIDevice *device) override;
+
+        VkEvent Handle() const { return handle_; }
+
+        static RHIEventVk* Create(IRHIDevice *device);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -196,12 +231,23 @@ public:
 	virtual void Barrier_PresentToDraw(IRHIImage* image) override;
 	virtual void Barrier_DrawToPresent(IRHIImage* image) override;
 
+	virtual void BufferBarrier(IRHIBuffer *i_buffer, RHIAccessFlags src_acc_flags,
+							   RHIPipelineStageFlags src_stage, RHIAccessFlags dst_acc_fags,
+							   RHIPipelineStageFlags dst_stage) override;
+
 	virtual bool Begin() override;
 	virtual bool BeginRenderPass(IRHIRenderPass *i_rp, IRHIFrameBuffer *i_fb, const ivec4 *render_area,
 					   const RHIClearValue *clear_values, uint32_t count) override;
 	virtual void Draw(uint32_t vertex_count, uint32_t instance_count, uint32_t first_vertex,
 					  uint32_t first_instance) override;
     virtual void BindVertexBuffers(IRHIBuffer** i_vb, uint32_t first_binding, uint32_t count) override;
+
+	virtual void CopyBuffer(class IRHIBuffer *dst, uint32_t dst_offset, class IRHIBuffer *src,
+							uint32_t src_offset, uint32_t size) override;
+
+    virtual void SetEvent(IRHIEvent* event, RHIPipelineStageFlags stage) override;
+    virtual void ResetEvent(IRHIEvent* event, RHIPipelineStageFlags stage) override;
+
 	virtual bool End() override;
 	virtual void EndRenderPass(const IRHIRenderPass *i_rp, IRHIFrameBuffer *i_fb) override;
 	virtual void Clear(IRHIImage* image_in, const vec4& color, uint32_t img_aspect_bits) override;
@@ -266,6 +312,9 @@ public:
 	virtual IRHIFrameBuffer* CreateFrameBuffer(RHIFrameBufferDesc* desc, const IRHIRenderPass* rp_in) override;
 	virtual IRHIImageView* CreateImageView(const RHIImageViewDesc* desc) override;
 	virtual IRHIBuffer* CreateBuffer(uint32_t size, uint32_t usage, uint32_t memprop, RHISharingMode sharing) override;
+
+    virtual IRHIFence* CreateFence(bool create_signalled) override;
+    virtual IRHIEvent* CreateEvent() override;
 
     virtual IRHIGraphicsPipeline *CreateGraphicsPipeline(
             const RHIShaderStage *shader_stage, uint32_t shader_stage_count,

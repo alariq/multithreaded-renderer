@@ -100,12 +100,39 @@ class RHIBufferGL : public IRHIBuffer {
 public:
 	explicit RHIBufferGL(GLuint id):handle_(id) {}
 	static RHIBufferGL* Create(IRHIDevice* device, uint32_t size, uint32_t usage, RHISharingMode sharing);
-	void Destroy(IRHIDevice *device);
 
-    void* Map(IRHIDevice* device, uint32_t offset, uint32_t size, uint32_t map_flags);
-    void Unmap(IRHIDevice* device);
+	virtual void Destroy(IRHIDevice *device) override;
+    virtual void* Map(IRHIDevice* device, uint32_t offset, uint32_t size, uint32_t map_flags) override;
+    virtual void Unmap(IRHIDevice* device) override;
+    virtual uint32_t Size() const override { return buf_size_; }
 
-	GLuint Handle() { return handle_; }
+	GLuint Handle() const { return handle_; }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+class RHIFenceGL : public IRHIFence {
+        RHIFenceGL() = default;
+        virtual ~RHIFenceGL() = default;
+    public:
+        virtual void Reset(IRHIDevice *device) override {}
+        virtual void Wait(IRHIDevice *device, uint64_t timeout) override {}
+        virtual bool IsSignalled(IRHIDevice *device) override { return true; }
+        virtual void Destroy(IRHIDevice *device) override {}
+
+        static IRHIFence* Create(IRHIDevice *device, bool create_signalled);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+class RHIEventGL : public IRHIEvent {
+        RHIEventGL() = default;
+        virtual ~RHIEventGL() = default;
+    public:
+        virtual void Set(IRHIDevice *device) override {}
+        virtual void Reset(IRHIDevice *device) override {}
+        virtual bool IsSet(IRHIDevice *device) override { return true; }
+        virtual void Destroy(IRHIDevice *device) override;
+
+        static IRHIEvent* Create(IRHIDevice *device);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -133,6 +160,10 @@ public:
 	virtual void Barrier_PresentToDraw(IRHIImage* image) override;
 	virtual void Barrier_DrawToPresent(IRHIImage* image) override;
 
+	virtual void BufferBarrier(IRHIBuffer *i_buffer, RHIAccessFlags src_acc_flags,
+							   RHIPipelineStageFlags src_stage, RHIAccessFlags dst_acc_fags,
+							   RHIPipelineStageFlags dst_stage) override;
+
 	virtual bool Begin() override;
 	virtual bool BeginRenderPass(IRHIRenderPass *i_rp, IRHIFrameBuffer *i_fb, const ivec4 *render_area,
 					   const RHIClearValue *clear_values, uint32_t count) override;
@@ -141,6 +172,12 @@ public:
 					  uint32_t first_instance) override;
 
     virtual void BindVertexBuffers(IRHIBuffer** i_vb, uint32_t first_binding, uint32_t count) override;
+
+	virtual void CopyBuffer(class IRHIBuffer *dst, uint32_t dst_offset, class IRHIBuffer *src,
+							uint32_t src_offset, uint32_t size) override;
+
+    virtual void SetEvent(IRHIEvent* event, RHIPipelineStageFlags stage) override;
+    virtual void ResetEvent(IRHIEvent* event, RHIPipelineStageFlags stage) override;
 
 	virtual bool End() override;
 	virtual void EndRenderPass(const IRHIRenderPass *i_rp, IRHIFrameBuffer *i_fb) override;
@@ -181,6 +218,9 @@ public:
 	virtual IRHIFrameBuffer* CreateFrameBuffer(RHIFrameBufferDesc* desc, const IRHIRenderPass* rp_in) override;
 	virtual IRHIImageView* CreateImageView(const RHIImageViewDesc* desc) override;
 	virtual IRHIBuffer* CreateBuffer(uint32_t size, uint32_t usage, uint32_t memprop, RHISharingMode sharing) override;
+
+    virtual IRHIFence* CreateFence(bool create_signalled) override;
+    virtual IRHIEvent* CreateEvent() override;
 
     virtual IRHIGraphicsPipeline *CreateGraphicsPipeline(
             const RHIShaderStage *shader_stage, uint32_t shader_stage_count,
