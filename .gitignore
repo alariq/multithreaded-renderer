@@ -1,5 +1,6 @@
 .vscode/
 .clangd/
+.ccls-cache/
 dump/
 *.swp
 *.dll
