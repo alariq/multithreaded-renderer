@@ -3061,7 +3061,7 @@ GLenum getGLBufferType(gosBUFFER_TYPE type)
 		case gosBUFFER_TYPE::VERTEX: t = GL_ARRAY_BUFFER; break;
 		case gosBUFFER_TYPE::INDEX: t = GL_ELEMENT_ARRAY_BUFFER; break;
 		case gosBUFFER_TYPE::UNIFORM: t = GL_UNIFORM_BUFFER; break;
-
+		case gosBUFFER_TYPE::STORAGE: t = GL_SHADER_STORAGE_BUFFER; break;
 		default:
 			gosASSERT(0 && "unknows buffer type");
 	}
