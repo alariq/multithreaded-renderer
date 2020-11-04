@@ -4,6 +4,11 @@ project(mt-renderer)
 
 include(CMakeToolsHelpers OPTIONAL)
 
+# get FindSDL2 from here https://github.com/aminosbh/sdl2-cmake-modules
+# and put it into 3rdparty
+list(APPEND CMAKE_MODULE_PATH ${CMAKE_PREFIX_PATH}/cmake/sdl2)
+set(SDL2_PATH ${CMAKE_PREFIX_PATH})
+
 message("CMAKE library architecture: ${CMAKE_LIBRARY_ARCHITECTURE}")
 
 if("${CMAKE_SIZEOF_VOID_P}" EQUAL "8")
@@ -52,6 +57,7 @@ add_definitions(-DRMT_USE_OPENGL=1)
 
 find_path(GLEW_INCLUDE "GL/glew.h")
 
+# on Windows custom FindSDL2 is used so probably need to use SDL2main (as recommended, but it works with just "SDL2" as well just with a warning)
 find_package(SDL2 REQUIRED)
 find_package(GLEW REQUIRED)
 
@@ -104,5 +110,5 @@ else()
 endif()
 
 add_executable(mt-renderer ${SOURCES})
-target_link_libraries(mt-renderer engine platform SDL2::SDL2 SDL2::SDL2main GLEW::GLEW ${ADDITIONAL_LIBS} OpenGL::GL)
+target_link_libraries(mt-renderer engine platform SDL2::Main GLEW::GLEW ${ADDITIONAL_LIBS} OpenGL::GL)
 
