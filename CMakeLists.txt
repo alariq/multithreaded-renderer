@@ -85,6 +85,7 @@ set(SOURCES
     "obj_model.cpp"
     "res_man.cpp"
     "editor.cpp"
+    "sph.cpp"
     )
 
 #find_library(GLEW NAMES "GLEW" "glew32")
