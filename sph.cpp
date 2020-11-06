@@ -1,5 +1,7 @@
 #include "sph.h"
 #include <cmath>
+#include "obj_model.h"
+#include "res_man.h"
 
 // solver parameters
 const static vec2 G(0.f, 12000 * -9.8f); // external (gravitational) forces
@@ -107,5 +109,44 @@ void sph_update(SPHParticle2D *particles, int count, vec2 view_dim) {
 	ComputeDensityPressure(particles, count);
 	ComputeForces(particles, count);
 	Integrate(particles, count, view_dim);
+}
+
+SPHSceneObject* SPHSceneObject::Create(const vec2& view_dim, int num_particles, const vec3& pos) {
+    SPHSceneObject* o = new SPHSceneObject();
+    o->particles_ = new SPHParticle2D[num_particles];
+    o->num_particles_ = num_particles;
+    o->view_dim_ = view_dim;
+    o->AddComponent<TransformComponent>();
+
+    return o;
+}
+
+SPHSceneObject::~SPHSceneObject() {
+    DeinitRenderResources();
+    delete particles_;
+}
+
+void SPHSceneObject::Update(float /*dt*/) {
+    sph_update(particles_, num_particles_, view_dim_);
+}
+
+void SPHSceneObject::InitRenderResources() {
+    sphere_mesh_ = res_man_load_mesh("sphere");
+}
+
+void SPHSceneObject::DeinitRenderResources() {
+    delete sphere_mesh_;
+    sphere_mesh_ = nullptr;
+}
+
+void SPHSceneObject::AddRenderPackets(struct RenderFrameContext* rfc) {
+
+    RenderPacket* rp = rfc->rl_->AddPacket();
+    memset(rp, 0, sizeof(RenderPacket));
+    rp->id_ = GetId();
+    rp->is_opaque_pass = 1;
+    rp->is_selection_pass = 1;
+    rp->m_ = mat4::identity();
+    rp->mesh_ = *sphere_mesh_;
 }
 

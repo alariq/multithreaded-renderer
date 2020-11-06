@@ -1,5 +1,6 @@
 #include "scene.h"
 #include "particle_system.h"
+#include "sph.h"
 #include "res_man.h"
 #include "obj_model.h"
 #include "renderer.h"
@@ -103,6 +104,10 @@ void initialize_scene(const struct camera *cam, struct RenderFrameContext *rfc) 
 
     ParticleSystemObject *pso = ParticleSystemObject::Create();
     g_world_objects.push_back(pso);
+
+    SPHSceneObject* sph = SPHSceneObject::Create(vec2(5, 5), 100, vec3(0, 0, 0));
+    g_world_objects.push_back(sph);
+
 
     // make vilage
     const float rot[] = {0, 150, 30, 90, 55};
