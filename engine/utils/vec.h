@@ -130,7 +130,7 @@ bool operator != (const vec3 &u, const vec3 &v);
 struct vec4 {
 	float x, y, z, w;
 
-	vec4():x(0),y(0), z(0), w(0) {}
+	vec4() = default;
 	explicit vec4(const float iv){
 		x = y = z = w = iv;
 	}
@@ -416,7 +416,7 @@ mat3 operator ! (const mat3 &m);
 struct mat4 {
 	float elem[4][4];
 
-	mat4(){}
+	mat4() = default;
 	mat4(const float m00, const float m01, const float m02, const float m03,
 		const float m10, const float m11, const float m12, const float m13,
 		const float m20, const float m21, const float m22, const float m23,

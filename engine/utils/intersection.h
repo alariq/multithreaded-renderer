@@ -8,7 +8,7 @@ struct AABB {
     vec3 min_;
     vec3 max_;
 
-    AABB(){}
+    AABB() = default;
     AABB(const vec3 &pmin, const vec3 &pmax) : min_(pmin), max_(pmax) {}
 };
 

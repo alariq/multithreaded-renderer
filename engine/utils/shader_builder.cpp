@@ -544,11 +544,9 @@ glsl_program* glsl_program::makeComputeProgram(const char* name, const char* cp)
 
     GLuint shp = glCreateProgram();
 
-	GLuint last_not_null = 0;
 	for(size_t i=0; i< sizeof(pipeline)/sizeof(pipeline[0]); ++i)
 	{
 		if(!pipeline[i]) continue;
-		last_not_null = pipeline[i]->shader_;
 
 		glAttachShader(shp, pipeline[i]->shader_);
 		if( GL_NO_ERROR != glGetError())

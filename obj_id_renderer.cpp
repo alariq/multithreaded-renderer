@@ -5,6 +5,7 @@
 #include "engine/utils/gl_fbo.h"
 #include "utils/logging.h"
 #include "scene.h"
+#include <algorithm>
 
 bool ObjIdRenderer::Init(uint32_t width, uint32_t height)
 {

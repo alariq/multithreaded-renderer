@@ -99,7 +99,7 @@ public:
         //assert(packets_.size() + 1 <= packets_.capacity()); // just to ensure that we do not reallocate
         packets_.emplace_back(RenderPacket());
 		RenderPacket* p = &packets_[packets_.size()-1];
-		memset(p, sizeof(RenderPacket), 0);
+		memset(p, 0, sizeof(RenderPacket));
 		return p;
     }
 
