@@ -102,13 +102,13 @@ message("OpenGL library include: ${OPENGL_INCLUDE_DIR}")
 #if(NOT ${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
 if(NOT WIN32)
     # atomic to link atomic support for 128bit data
-	set(ADDITIONAL_LIBS dl pthread atomic)
+    set(ADDITIONAL_LIBS dl pthread atomic SDL2::SDL2 SDL2::SDL2main)
 	message("Not win32 system")
 else()
 	# winmm for timeGetTime, maybe switch to GetTickCount to remove this dependency
-	set(ADDITIONAL_LIBS winmm)
+    set(ADDITIONAL_LIBS winmm SDL2::Main)
 endif()
 
 add_executable(mt-renderer ${SOURCES})
-target_link_libraries(mt-renderer engine platform SDL2::Main GLEW::GLEW ${ADDITIONAL_LIBS} OpenGL::GL)
+target_link_libraries(mt-renderer engine platform GLEW::GLEW ${ADDITIONAL_LIBS} OpenGL::GL)
 
