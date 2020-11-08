@@ -106,6 +106,8 @@ void initialize_scene(const struct camera *cam, struct RenderFrameContext *rfc) 
     g_world_objects.push_back(pso);
 
     SPHSceneObject* sph = SPHSceneObject::Create(vec2(5, 5), 100, vec3(0, 0, 0));
+    sph->SetRadius(0.1f);
+    initialize_particle_positions(sph);
     g_world_objects.push_back(sph);
 
 
@@ -215,6 +217,9 @@ void scene_render_update(struct RenderFrameContext *rfc) {
             rp->go_ = go;
 #endif
         }
+
+        go->AddRenderPackets(frame_render_list);
+
     }
 
 

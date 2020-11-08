@@ -4,16 +4,16 @@
 #include "res_man.h"
 
 // solver parameters
-const static vec2 G(0.f, 12000 * -9.8f); // external (gravitational) forces
+const static vec2 G(0.f, 120 * -9.8f); // external (gravitational) forces
 const static float REST_DENS = 1000.f;	 // rest density
 const static float GAS_CONST = 2000.f;	 // const for equation of state
-const static float H = 16.f;			 // kernel radius
+const static float H = 0.2f;//16.f;			 // kernel radius
 const static float HSQ = H * H;			 // radius^2 for optimization
-const static float MASS = 65.f;			 // assume all particles have the same mass
+const static float MASS = .65f;//65.f;			 // assume all particles have the same mass
 const static float VISC = 250.f;		 // viscosity constant
 const static float DT = 0.0008f;		 // integration timestep
 
-// smoothing kernels defined in Müller and their gradients
+// smoothing kernels defined in Mï¿½ller and their gradients
 const static float POLY6 = 315.f / (65.f * M_PI * pow(H, 9.f));
 const static float SPIKY_GRAD = -45.f / (M_PI * pow(H, 6.f));
 const static float VISC_LAP = 45.f / (M_PI * pow(H, 6.f));
@@ -27,6 +27,7 @@ void ComputeDensityPressure(SPHParticle2D *particles, int count) {
 		SPHParticle2D &pi = particles[i];
 		pi.density = 0.f;
 		for (int j = 0; j < count; ++j) {
+
 			SPHParticle2D &pj = particles[j];
 			vec2 rij = pj.pos - pi.pos;
 			float r2 = lengthSqr(rij);
@@ -55,7 +56,7 @@ void ComputeForces(SPHParticle2D *particles, int count)
                 continue;
 
             vec2 rij = pj.pos - pi.pos;
-            float r = lengthSqr(rij);
+            float r = length(rij);
 
             if(r < H)
             {
@@ -139,14 +140,39 @@ void SPHSceneObject::DeinitRenderResources() {
     sphere_mesh_ = nullptr;
 }
 
-void SPHSceneObject::AddRenderPackets(struct RenderFrameContext* rfc) {
+void SPHSceneObject::AddRenderPackets(class RenderList* rl) const {
 
-    RenderPacket* rp = rfc->rl_->AddPacket();
-    memset(rp, 0, sizeof(RenderPacket));
-    rp->id_ = GetId();
-    rp->is_opaque_pass = 1;
-    rp->is_selection_pass = 1;
-    rp->m_ = mat4::identity();
-    rp->mesh_ = *sphere_mesh_;
+    for(int i=0; i<num_particles_; ++i) {
+        RenderPacket* rp = rl->AddPacket();
+        memset(rp, 0, sizeof(RenderPacket));
+        rp->id_ = GetId();
+        rp->is_opaque_pass = 1;
+        rp->is_selection_pass = 1;
+        rp->m_ = mat4::translation(vec3(particles_[i].pos.x, particles_[i].pos.y, 0.0f)) * mat4::scale(vec3(radius_));
+        rp->mesh_ = *sphere_mesh_;
+    }
 }
 
+
+void initialize_particle_positions(SPHSceneObject* o) {
+    SPHParticle2D*  particles = o->GetParticles();
+    const int count = o->GetParticlesCount();
+    const float radius = o->GetRadius();
+    vec2 offset = vec2(o->GetBounds().x*0.2f, o->GetBounds().y*0.1f);
+    int row_size = 20;
+    int column_size = (count + row_size - 1) / row_size; 
+    for(int y= 0; y<row_size; ++y) {
+        for(int x= 0; x<column_size; ++x) {
+            int idx = y*column_size + x;
+            if(idx >= count)
+                break;
+            SPHParticle2D& p = particles[idx];
+            float jitter = random(-0.02f, 0.02f);
+            p.pos = offset + vec2(x*2.1f*radius + jitter, y*2.1f*radius);
+            p.pressure = 0;
+            p.density = 0;
+            p.force = vec2(0,0);
+            p.vel = vec2(0,0);
+        }
+    }
+}
