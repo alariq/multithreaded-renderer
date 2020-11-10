@@ -219,7 +219,7 @@ void scene_render_update(struct RenderFrameContext *rfc) {
 #endif
         }
 
-        go->AddRenderPackets(frame_render_list);
+        go->AddRenderPackets(rfc);
 
     }
 

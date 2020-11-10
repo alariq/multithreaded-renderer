@@ -104,7 +104,10 @@ void Integrate(SPHParticle2D* particles, int count, vec2 view_dim)
         }
     }
 }
-    
+ 
+void sph_init_renderer() {
+    gos_AddRenderMaterial("deferred_sph");
+}
 
 void sph_update(SPHParticle2D *particles, int count, vec2 view_dim) {
 	ComputeDensityPressure(particles, count);
@@ -112,13 +115,35 @@ void sph_update(SPHParticle2D *particles, int count, vec2 view_dim) {
 	Integrate(particles, count, view_dim);
 }
 
+HGOSVERTEXDECLARATION get_sph_vdecl() {
+
+	static gosVERTEX_FORMAT_RECORD sph_vdecl[] = {
+		// SVD
+		{0, 3, false, sizeof(SVD), 0, gosVERTEX_ATTRIB_TYPE::FLOAT, 0},
+		{1, 2, false, sizeof(SVD), offsetof(SVD, uv), gosVERTEX_ATTRIB_TYPE::FLOAT, 0},
+		{2, 3, false, sizeof(SVD), offsetof(SVD, normal), gosVERTEX_ATTRIB_TYPE::FLOAT, 0},
+
+		// instance data: stream 1
+		{3, 2, false, sizeof(SPHInstVDecl), 0, gosVERTEX_ATTRIB_TYPE::FLOAT, 1},
+		{4, 2, false, sizeof(SPHInstVDecl), offsetof(SPHInstVDecl,vel), gosVERTEX_ATTRIB_TYPE::FLOAT, 1},
+		{5, 2, false, sizeof(SPHInstVDecl), offsetof(SPHInstVDecl,force), gosVERTEX_ATTRIB_TYPE::FLOAT, 1},
+		{6, 1, false, sizeof(SPHInstVDecl), offsetof(SPHInstVDecl,density), gosVERTEX_ATTRIB_TYPE::FLOAT, 1},
+		{7, 1, false, sizeof(SPHInstVDecl), offsetof(SPHInstVDecl,pressure), gosVERTEX_ATTRIB_TYPE::FLOAT, 1},
+	};
+
+    static auto vdecl = gos_CreateVertexDeclaration(
+        sph_vdecl, sizeof(sph_vdecl) / sizeof(gosVERTEX_FORMAT_RECORD));
+    return vdecl;
+}
+
 SPHSceneObject* SPHSceneObject::Create(const vec2& view_dim, int num_particles, const vec3& pos) {
     SPHSceneObject* o = new SPHSceneObject();
     o->particles_ = new SPHParticle2D[num_particles];
     o->num_particles_ = num_particles;
     o->view_dim_ = view_dim;
-    o->AddComponent<TransformComponent>();
-
+    auto tr = o->AddComponent<TransformComponent>();
+    tr->SetPosition(pos);
+    o->transform_ = tr;
     return o;
 }
 
@@ -127,32 +152,70 @@ SPHSceneObject::~SPHSceneObject() {
     delete particles_;
 }
 
-void SPHSceneObject::Update(float /*dt*/) {
-    sph_update(particles_, num_particles_, view_dim_);
-}
-
+extern int RendererGetNumBufferedFrames();
 void SPHSceneObject::InitRenderResources() {
-    sphere_mesh_ = res_man_load_mesh("sphere");
+	sphere_mesh_ = res_man_load_mesh("sphere");
+
+    int num_buffers = RendererGetNumBufferedFrames() + 1;
+    inst_vb_.resize(num_buffers);
+	for (int32_t i = 0; i < num_buffers; ++i) {
+		inst_vb_[i] =
+			gos_CreateBuffer(gosBUFFER_TYPE::VERTEX, gosBUFFER_USAGE::DYNAMIC_DRAW,
+							 sizeof(SPHInstVDecl), num_particles_, nullptr);
+	}
+
+    vdecl_ = get_sph_vdecl();
+    mat_ = gos_getRenderMaterial("deferred_sph");
 }
 
 void SPHSceneObject::DeinitRenderResources() {
     delete sphere_mesh_;
     sphere_mesh_ = nullptr;
-}
-
-void SPHSceneObject::AddRenderPackets(class RenderList* rl) const {
-
-    for(int i=0; i<num_particles_; ++i) {
-        RenderPacket* rp = rl->AddPacket();
-        memset(rp, 0, sizeof(RenderPacket));
-        rp->id_ = GetId();
-        rp->is_opaque_pass = 1;
-        rp->is_selection_pass = 1;
-        rp->m_ = mat4::translation(vec3(particles_[i].pos.x, particles_[i].pos.y, 0.0f)) * mat4::scale(vec3(radius_));
-        rp->mesh_ = *sphere_mesh_;
+    for (auto& buf : inst_vb_) {
+        gos_DestroyBuffer(buf);
     }
+    inst_vb_.clear();
+    gos_DestroyVertexDeclaration(vdecl_);
+    vdecl_ = nullptr;
 }
 
+void SPHSceneObject::Update(float /*dt*/) {
+
+    sph_update(particles_, num_particles_, view_dim_);
+
+   
+}
+
+void SPHSceneObject::AddRenderPackets(struct RenderFrameContext *rfc) const {
+
+	// update instancing buffer
+	cur_inst_vb_ = (cur_inst_vb_ + 1) % ((int)inst_vb_.size());
+
+	int num_particles = num_particles_;
+	HGOSBUFFER inst_vb = inst_vb_[cur_inst_vb_];
+	SPHParticle2D *particles = particles_;
+	ScheduleRenderCommand(rfc, [num_particles, inst_vb, particles]() {
+		const size_t bufsize = num_particles * sizeof(SPHParticle2D);
+		// TODO: think about typed buffer wrapper
+		SPHParticle2D *part_data =
+			(SPHParticle2D *)gos_MapBuffer(inst_vb, 0, bufsize, gosBUFFER_ACCESS::WRITE);
+		memcpy(part_data, particles, bufsize);
+		gos_UnmapBuffer(inst_vb);
+	});
+
+    class RenderList* rl = rfc->rl_;
+	RenderPacket *rp = rl->AddPacket();
+	memset(rp, 0, sizeof(RenderPacket));
+	rp->id_ = GetId();
+	rp->is_opaque_pass = 1;
+	rp->is_selection_pass = 1;
+    rp->m_ = transform_->GetTransform(); //mat4::scale(vec3(radius_));
+	rp->mesh_ = *sphere_mesh_;
+	rp->mesh_.mat_ = mat_;
+	rp->mesh_.inst_vb_ = inst_vb_[cur_inst_vb_];
+    rp->mesh_.vdecl_ = vdecl_;
+    rp->mesh_.num_instances = num_particles_;
+}
 
 void initialize_particle_positions(SPHSceneObject* o) {
     SPHParticle2D*  particles = o->GetParticles();

@@ -6,6 +6,7 @@
 #include "engine/utils/obj_loader.h"
 #include "engine/gameos.hpp"
 
+#include "sph.h"
 #include "scene.h"
 #include "editor.h"
 #include "res_man.h"
@@ -38,7 +39,7 @@ extern void test_fixed_block_allocator();
 
 bool g_is_in_editor = false;
 bool g_render_initialized_hack = false;
-bool g_update_simulation = true;
+bool g_update_simulation = false;
 uint32_t g_obj_under_cursor = scene::kInvalidObjectId;
 
 DWORD g_htexture = 0;
@@ -343,6 +344,7 @@ void __stdcall Render(void)
 
         gos_AddRenderMaterial("directional_shadow");
         gos_AddRenderMaterial("particle");
+        sph_init_renderer();
 
 		uint32_t w = (uint32_t)SCREEN_W;
 		uint32_t h = (uint32_t)SCREEN_H;

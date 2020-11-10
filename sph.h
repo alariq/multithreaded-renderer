@@ -11,6 +11,8 @@ struct SPHParticle2D {
 	float pressure;
 };
 
+typedef SPHParticle2D SPHInstVDecl ;
+
 void sph_update(SPHParticle2D *particles, int count, vec2 view_dim);
 
 class SPHSceneObject : public GameObject {
@@ -18,9 +20,14 @@ class SPHSceneObject : public GameObject {
     int num_particles_;
     vec2 view_dim_;
     float radius_;
+    // cached transform component
+    TransformComponent* transform_ = nullptr;
 
-    RenderMesh*         sphere_mesh_;
-    HGOSBUFFER			inst_vb_;
+    RenderMesh* sphere_mesh_ = nullptr; 
+    HGOSVERTEXDECLARATION vdecl_;
+    std::vector<HGOSBUFFER> inst_vb_;
+    mutable int cur_inst_vb_ = 0;
+
     HGOSRENDERMATERIAL  mat_;
 public:
     static SPHSceneObject* Create(const vec2& view_dim, int num_particles, const vec3& pos);
@@ -43,7 +50,8 @@ public:
     void DeinitRenderResources();
 
     // Renderable
-    virtual void AddRenderPackets(class RenderList* rl) const override;
+    virtual void AddRenderPackets(struct RenderFrameContext* rfc) const override;
 };
 
 void initialize_particle_positions(SPHSceneObject* o);
+void sph_init_renderer();

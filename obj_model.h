@@ -18,7 +18,7 @@ class ParticleSystem;
 class Renderable {
 public:
     virtual void InitRenderResources() = 0;
-    virtual void AddRenderPackets(class RenderList* rl) const {};
+    virtual void AddRenderPackets(struct RenderFrameContext* ) const {};
     virtual ~Renderable() {}
 };
 
