@@ -2266,6 +2266,7 @@ void __stdcall gos_RenderIndexedArray(HGOSBUFFER ib, HGOSBUFFER vb, HGOSVERTEXDE
 void __stdcall gos_RenderIndexedArray(HGOSBUFFER ib, HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl); //sebi
 void __stdcall gos_RenderArray(HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl); //sebi
 void __stdcall gos_RenderArrayInstanced(HGOSBUFFER vb, HGOSBUFFER instance_vb, uint32_t instance_count, HGOSVERTEXDECLARATION vdecl); //sebi
+void __stdcall gos_RenderIndexedInstanced(HGOSBUFFER ib, HGOSBUFFER vb, HGOSBUFFER instance_vb, uint32_t instance_count, HGOSVERTEXDECLARATION vdecl); //sebi
 
 
 void __stdcall gos_SetRenderViewport(uint32_t x, uint32_t y, uint32_t w, uint32_t h);

@@ -112,7 +112,7 @@ public:
 };
 
 GLenum getGLVertexAttribType(gosVERTEX_ATTRIB_TYPE type) {
-	GLenum t = -1;
+	GLenum t = (GLenum)-1;
 	switch (type)
 	{
 	case gosVERTEX_ATTRIB_TYPE::BYTE: return GL_BYTE;
@@ -155,7 +155,7 @@ public:
 	static void destroy(gosVertexDeclaration* vdecl)
 	{
 		delete[] vdecl->vf_;
-		vdecl->count_ = -1;
+		vdecl->count_ = (uint32_t)-1;
 		vdecl->vf_ = nullptr;
 		delete vdecl;
 	}
@@ -535,6 +535,7 @@ class gosMesh {
 		static void drawIndexed(HGOSBUFFER ib, HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl);
 		static void draw(HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl);
 		static void drawInstanced(HGOSBUFFER vb, HGOSBUFFER instance_vb, uint32_t instance_count, HGOSVERTEXDECLARATION vdecl);
+		static void drawIndexedInstanced(HGOSBUFFER ib, HGOSBUFFER vb, HGOSBUFFER instance_vb, uint32_t instance_count, HGOSVERTEXDECLARATION vdecl);
 
 		static const std::string s_tex1;
 		static const std::string s_tex2;
@@ -769,6 +770,33 @@ void gosMesh::drawInstanced(HGOSBUFFER vb, HGOSBUFFER instance_vb, uint32_t inst
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 
+void gosMesh::drawIndexedInstanced(HGOSBUFFER ib, HGOSBUFFER vb, HGOSBUFFER instance_vb, uint32_t instance_count, HGOSVERTEXDECLARATION vdecl)
+{
+    int index_size = ib->element_size_;
+	gosASSERT(index_size == 2 || index_size == 4);
+
+	if (ib->count_ == 0)
+		return;
+
+	CHECK_GL_ERROR;
+
+	vdecl->apply(vb, instance_vb);
+	CHECK_GL_ERROR;
+
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ib->buffer_);
+	CHECK_GL_ERROR;
+
+	GLenum pt = GL_TRIANGLES;
+	glDrawElementsInstanced(pt, ib->count_, index_size == 2 ? GL_UNSIGNED_SHORT : GL_UNSIGNED_INT, 0, instance_count);
+
+	vdecl->end();
+
+	//material->end();
+	glUseProgram(0);
+
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+}
+
 
 class gosTexture {
     public:
@@ -850,8 +878,9 @@ class gosTexture {
         uint32_t getTextureId() const { return tex_.id; }
         TexType getTextureType() const { return tex_.type_; }
 
-        BYTE* Lock(int mipl_level, bool is_read_only, int* pitch) {
+        BYTE* Lock(int mip_level, bool is_read_only, int* pitch) {
             gosASSERT(is_locked_ == false);
+            gosASSERT(mip_level == 0);
             is_locked_ = true;
             // TODO:
             gosASSERT(pitch);
@@ -1188,8 +1217,8 @@ class gosRenderer {
                 std::find_if(fontList_.begin(), fontList_.end(), eq);
             if(it != fontList_.end())
             {
-                gosFont* font = *it;
-                if(0 == gosFont::destroy(font))
+                gosFont* cur_font = *it;
+                if(0 == gosFont::destroy(cur_font))
                     fontList_.erase(it);
             }
         }
@@ -1349,6 +1378,7 @@ class gosRenderer {
 		void drawIndexedTris(HGOSBUFFER ib, HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl);
 		void drawTris(HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl);
 		void drawTrisInstanced(HGOSBUFFER vb, HGOSBUFFER instanced_vb, uint32_t instance_count, HGOSVERTEXDECLARATION vdecl);
+		void drawTrisIndexedInstanced(HGOSBUFFER ib, HGOSBUFFER vb, HGOSBUFFER instanced_vb, uint32_t instance_count, HGOSVERTEXDECLARATION vdecl);
         void drawText(const char* text);
 
         void beginFrame();
@@ -2242,6 +2272,16 @@ void gosRenderer::drawTrisInstanced(HGOSBUFFER vb, HGOSBUFFER instance_vb, uint3
     afterDrawCall();
 }
 
+void gosRenderer::drawTrisIndexedInstanced(HGOSBUFFER ib, HGOSBUFFER vb, HGOSBUFFER instance_vb, uint32_t instance_count, HGOSVERTEXDECLARATION vdecl)
+{
+    gosASSERT(ib);
+    gosASSERT(vb);
+    if(beforeDrawCall()) return;
+    applyRenderStates();
+	gosMesh::drawIndexedInstanced(ib, vb, instance_vb, instance_count, vdecl);
+    afterDrawCall();
+}
+
 static int get_next_break(const char* text) {
     const char* start = text;
     do {
@@ -2828,6 +2868,11 @@ void __stdcall gos_RenderArrayInstanced(HGOSBUFFER vb, HGOSBUFFER instance_vb, u
     g_gos_renderer->drawTrisInstanced(vb, instance_vb, instance_count, vdecl);
 }
 
+void __stdcall gos_RenderIndexedInstanced(HGOSBUFFER ib, HGOSBUFFER vb, HGOSBUFFER instance_vb, uint32_t instance_count, HGOSVERTEXDECLARATION vdecl)
+{
+    gosASSERT(g_gos_renderer);
+    g_gos_renderer->drawTrisIndexedInstanced(ib, vb, instance_vb, instance_count, vdecl);
+}
 
 void __stdcall gos_SetRenderState( gos_RenderState RenderState, int Value )
 {
