@@ -39,7 +39,8 @@ const std::vector<PointLight>& scene_get_light_list() {
 }
 
 void initialize_scene(const struct camera *cam, struct RenderFrameContext *rfc) {
-
+    (void)cam;
+#if 0
     const uint32_t NUM_OBJECTS = 3;
     for (uint32_t i = 0; i < NUM_OBJECTS; ++i) {
         MeshObject *go = MeshObject::Create("N");
@@ -77,13 +78,13 @@ void initialize_scene(const struct camera *cam, struct RenderFrameContext *rfc) 
     tc->SetPosition(vec3(0, 0, 0));
     tc->SetScale(vec3(4, 8, 4));
     g_world_objects.push_back(go);
-
-    go = MeshObject::Create("floor");
-    tc = go->GetComponent<TransformComponent>();
-    tc->SetPosition(vec3(0, 0, 0));
+#endif 
+    MeshObject* go = MeshObject::Create("floor");
+    auto* tc = go->GetComponent<TransformComponent>();
+    tc->SetPosition(vec3(0, -1, 0));
     tc->SetScale(vec3(50, 1, 50));
     g_world_objects.push_back(go);
-
+#if 0
     go = MeshObject::Create("axes");
     tc = go->GetComponent<TransformComponent>();
     tc->SetPosition(vec3(0, 20, 0));
@@ -104,13 +105,13 @@ void initialize_scene(const struct camera *cam, struct RenderFrameContext *rfc) 
 
     ParticleSystemObject *pso = ParticleSystemObject::Create();
     g_world_objects.push_back(pso);
-
-    SPHSceneObject* sph = SPHSceneObject::Create(vec2(5, 5), 100, vec3(0, 0, 0));
+#endif
+    SPHSceneObject* sph = SPHSceneObject::Create(vec2(5, 10), 500, vec3(0, 0, 0));
     sph->SetRadius(0.1f);
     initialize_particle_positions(sph);
     g_world_objects.push_back(sph);
 
-
+#if 0
     // make vilage
     const float rot[] = {0, 150, 30, 90, 55};
     const float scales[] = {0.1f, 0.07f, 0.12f, 0.08f, 0.1f};
@@ -124,7 +125,7 @@ void initialize_scene(const struct camera *cam, struct RenderFrameContext *rfc) 
         t->SetScale(vec3(scales[i]));
         g_world_objects.push_back(go);
     }
-
+#endif
     // create some point lights
     for (int i = 0; i < 100; ++i) {
         PointLight l;
