@@ -172,6 +172,8 @@ public:
         const RenderMesh& ro = rp.mesh_;
 
         HGOSRENDERMATERIAL mat = gos_getRenderMaterial("deferred");
+        if (ro.mat_)
+            mat = ro.mat_;
 
         DWORD texid = ro.tex_id_ ? ro.tex_id_ : missing_tex_; 
 
@@ -186,7 +188,11 @@ public:
 		gos_ApplyRenderMaterial(mat);
 
         if (ro.ib_) {
-            gos_RenderIndexedArray(ro.ib_, ro.vb_, ro.vdecl_);
+            if (ro.inst_vb_) {
+                gos_RenderIndexedInstanced(ro.ib_, ro.vb_, ro.inst_vb_, ro.num_instances, ro.vdecl_);
+            } else {
+                gos_RenderIndexedArray(ro.ib_, ro.vb_, ro.vdecl_);
+            }
         } else if(ro.inst_vb_) {
     		gos_RenderArrayInstanced(ro.vb_, ro.inst_vb_, ro.num_instances, ro.vdecl_);
         } else {
