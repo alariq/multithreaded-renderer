@@ -7,7 +7,6 @@
 #include <GL/gl.h>
 #include "gl_render_constants.h"
 
-GLuint createRenderTexture(int w, int h, int fmt, int int_fmt, int type, GLint min_filter, GLint mag_filter);
 GLuint createRenderTexture(uint32_t w, uint32_t h, int int_fmt, uint32_t levels);
 GLuint createRenderBuffer(int w, int h, int format = -1);
 GLuint createRenderBuffer(int w, int h, const  TexFormat format);

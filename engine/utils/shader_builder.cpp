@@ -278,7 +278,7 @@ bool load_shader(const char* fname, std::string& shader_source, std::vector<std:
 
 bool compile_shader(GLenum shader, const char** strings, size_t count)
 {
-    glShaderSource(shader, count, strings, 0);
+    glShaderSource(shader, (GLsizei)count, strings, 0);
     glCompileShader(shader);
 
 	GLenum err = glGetError();

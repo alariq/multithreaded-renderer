@@ -3,9 +3,11 @@
 
 #include <cassert>
 #include <cstdio>
+#include <limits>
 #include "utils/camera.h"
 #include "utils/shader_builder.h"
 #include "utils/render_constants.h"
+#include "utils/vec.h"
 
 #define BUFFER_OFFSET(bytes) ((GLubyte*) NULL + (bytes))
 
@@ -497,7 +499,7 @@ void  draw_mesh_ptn(bool b_wireframe, camera* pcam, glsl_program* pmat, glMesh<T
 }
 
 template<typename MeshBuffer>
-void subdivide(MeshBuffer& mb, int& vb_offset, int& ib_offset, vec3 a, vec3 b, vec3 c, int subdiv_count)
+void subdivide(MeshBuffer& mb, int& vb_offset, typename MeshBuffer::ib_type& ib_offset, vec3 a, vec3 b, vec3 c, int subdiv_count)
 {
     vec3 ab = normalize(lerp(a, b, 0.5f));
     vec3 bc = normalize(lerp(b, c, 0.5f));
@@ -616,7 +618,7 @@ void generate_sphere(MeshBuffer& mb, unsigned int subdiv_count)
     vec3 nc = normalize(vec3(c.x, c.y, c.z));
     vec3 nd = normalize(vec3(d.x, d.y, d.z));
 
-    int ib_offset = 0;
+    MeshBuffer::ib_type ib_offset = 0;
     int vb_offset = 0;
     subdivide(mb, vb_offset, ib_offset, nb, na, nc, subdiv_count);
     subdivide(mb, vb_offset, ib_offset, nb, nc, nd, subdiv_count);
@@ -755,6 +757,8 @@ void generate_torus_no_uv(MeshBuffer &mb, float radius, float thickness,
 
     assert(vb_offset == (unsigned int)mb.vb_size_);
 
+	typedef typename MeshBuffer::ib_type ib_t;
+
 	unsigned int idx = 0;
 	for (unsigned int ts = 0; ts < toroidal_sections; ++ts) {
 		unsigned int sec0_start = ts * poloidal_sections;
@@ -769,13 +773,16 @@ void generate_torus_no_uv(MeshBuffer &mb, float radius, float thickness,
 			// v1 +--------+ v3
 			// v0 +--------+ v2
 
-			mb.i(idx++, v0);
-			mb.i(idx++, v2);
-			mb.i(idx++, v1);
+			assert(v1 <= (std::numeric_limits<ib_t>::max)());
+			assert(v3 <= (std::numeric_limits<ib_t>::max)());
 
-			mb.i(idx++, v2);
-			mb.i(idx++, v3);
-			mb.i(idx++, v1);
+			mb.i(idx++, (ib_t)v0);
+			mb.i(idx++, (ib_t)v2);
+			mb.i(idx++, (ib_t)v1);
+
+			mb.i(idx++, (ib_t)v2);
+			mb.i(idx++, (ib_t)v3);
+			mb.i(idx++, (ib_t)v1);
 		}
 	}
 
@@ -796,7 +803,6 @@ void generate_torus(MeshBuffer &mb, float radius, float thickness,
 	mb.allocate_ib(num_tris * 3);
 
 	unsigned vb_offset = 0;
-	unsigned int section_index_start = 0;
 	for (unsigned int ts = 0; ts <= toroidal_sections; ++ts) {
 		float phi = (ts/(float)toroidal_sections) * 2.0f * M_PI;
 		vec3 sec_center = vec3(radius * cos(phi), radius * sin(phi), 0.0f);
@@ -813,6 +819,8 @@ void generate_torus(MeshBuffer &mb, float radius, float thickness,
 
     assert(vb_offset == (unsigned int)mb.vb_size_);
 
+	typedef typename MeshBuffer::ib_type ib_t;
+
 	unsigned int idx = 0;
 	for (unsigned int ts = 0; ts < toroidal_sections; ++ts) {
 		unsigned int sec0_start = ts * (poloidal_sections + 1);
@@ -827,13 +835,16 @@ void generate_torus(MeshBuffer &mb, float radius, float thickness,
 			// v1 +--------+ v3
 			// v0 +--------+ v2
 
-			mb.i(idx++, v0);
-			mb.i(idx++, v2);
-			mb.i(idx++, v1);
+			assert(v1 <= (std::numeric_limits<ib_t>::max)());
+			assert(v3 <= (std::numeric_limits<ib_t>::max)());
 
-			mb.i(idx++, v2);
-			mb.i(idx++, v3);
-			mb.i(idx++, v1);
+			mb.i(idx++, (ib_t)v0);
+			mb.i(idx++, (ib_t)v2);
+			mb.i(idx++, (ib_t)v1);
+
+			mb.i(idx++, (ib_t)v2);
+			mb.i(idx++, (ib_t)v3);
+			mb.i(idx++, (ib_t)v1);
 		}
 	}
 

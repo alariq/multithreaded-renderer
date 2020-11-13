@@ -239,7 +239,7 @@ class StandardEmitter: public ParticleEmitterInterface {
         }
     }
 
-    void assign(int i_to, size_t i_from)
+    void assign(size_t i_to, size_t i_from)
     {
         pos_[i_to] = pos_[i_from];
         dir_[i_to] = dir_[i_from];

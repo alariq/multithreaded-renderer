@@ -37,7 +37,7 @@ public:
     }
 
     int size() { 
-        return job_list_.size();
+        return (int)job_list_.size();
     }
 };
 

@@ -91,7 +91,7 @@ void __cdecl InternalFunctionSpew( const char* Group, const char* fmt, ... )
     va_end(ap);
 }
 
-int __stdcall ErrorHandler( int Flags, const char* Text )
+int __stdcall ErrorHandler( int /*Flags*/, const char* Text )
 {
     // TODO: additionally check flags to decide if enter debugger or not
     fputs(Text, stderr);

@@ -100,6 +100,7 @@ static FORMAT getFormatFromBpp(const unsigned int bpp) {
 		break;
 	}
     assert(0 && "getFormatFromBpp: unsupported bpp");
+	return FORMAT_RGBA8;
 }
 
 Image::Image(void)
@@ -346,14 +347,14 @@ bool Image::loadCompressedTGA(const TGAHeader* header, const unsigned char* mem,
 		len -= pixelSize + 1;
 		offset += pixelSize + 1;
 
-		mergeBytes(&(pixels[num_read_pixels]), &(p[1]), pixelSize);
+		mergeBytes(&(pixels[num_read_pixels]), &(p[1]), (int)pixelSize);
 		num_read_pixels++;
 
 		unsigned int  j = p[0] & 0x7f;
 		bool is_rle = p[0] & 0x80;
 		if (is_rle) {
 			for (unsigned int i = 0; i < j; i++) {
-				mergeBytes(&(pixels[num_read_pixels]), &(p[1]), pixelSize);
+				mergeBytes(&(pixels[num_read_pixels]), &(p[1]), (int)pixelSize);
 				num_read_pixels++;
 			}
 		}
@@ -366,7 +367,7 @@ bool Image::loadCompressedTGA(const TGAHeader* header, const unsigned char* mem,
 				len -= pixelSize;
 				offset += pixelSize;
 
-				mergeBytes(&(pixels[num_read_pixels]), p, pixelSize);
+				mergeBytes(&(pixels[num_read_pixels]), p, (int)pixelSize);
 				num_read_pixels++;
 			}
 		}

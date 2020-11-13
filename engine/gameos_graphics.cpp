@@ -1079,8 +1079,7 @@ bool gosTexture::createHardwareTexture() {
         return tex_.isValid();
     } else if(format_ == gos_Texture_RGBA8) {
         GLuint tex_id =
-            createRenderTexture(tex_.w, tex_.h, GL_RGBA, GL_RGBA8,
-                                GL_UNSIGNED_BYTE, GL_NEAREST, GL_NEAREST);
+            createRenderTexture(tex_.w, tex_.h, GL_RGBA8, 1);
         tex_.id = tex_id;
         tex_.fmt_ = TF_RGBA8;
         tex_.type_ = TT_2D;
