@@ -9,17 +9,65 @@ struct SPHParticle2D {
 	vec2 force;
 	float density;
 	float pressure;
+    float flags;
 };
 
 typedef SPHParticle2D SPHInstVDecl ;
 
 void sph_update(SPHParticle2D *particles, int count, vec2 view_dim);
 
+struct SPHGridCell {
+    // particles which fall into this cell
+    std::vector<int> part_indices_;
+    bool is_surface_;
+
+    bool hasParticles() { return 0 != part_indices_.size(); }
+    void addParticle(int part_index) { part_indices_.push_back(part_index); }
+};
+
+struct SPHGrid {
+    SPHGridCell* cells_;
+    int num_cells_;
+
+    ivec2 cell_dim_;
+    vec2 dim_;
+
+    SPHGridCell* at(int x, int y) {
+        assert(x >= 0 && x < cell_dim_.x);
+        assert(y >= 0 && y < cell_dim_.y);
+        return &cells_[x + y * cell_dim_.x];
+    }
+
+    bool isValidCell(int x, int y) {
+        if (x >= 0 && x < cell_dim_.x && y >= 0 && y < cell_dim_.y)
+            return true;
+        return false;
+    }
+
+    static SPHGrid* makeGrid(int sx, int sy, vec2 dim) {
+        SPHGrid* grid = new SPHGrid;
+        grid->dim_ = dim;
+        grid->num_cells_ = sx * sy;
+        grid->cell_dim_ = ivec2(sx, sy);
+        grid->cells_ = new SPHGridCell[grid->num_cells_];
+        return grid;
+    }
+
+    ~SPHGrid() {
+        delete[] cells_;
+    }
+};
+
+
+
 class SPHSceneObject : public GameObject {
     SPHParticle2D* particles_;
+    uint32_t* part_flags_;
+    int* part_indices_;
     int num_particles_;
     vec2 view_dim_;
     float radius_;
+    SPHGrid* grid_;
     // cached transform component
     TransformComponent* transform_ = nullptr;
 

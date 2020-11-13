@@ -11,6 +11,7 @@ layout(location=0) in PsIn {
     PREC vec2 force;
     PREC float density;
     PREC float pressure;
+    PREC float flags;
 } Input;
 
 
@@ -19,7 +20,7 @@ uniform mat4 wv_;
 
 void main(void)
 {
-	PREC vec4 albedo = texture(tex1, vec2(Input.texcoord.x, 1-Input.texcoord.y));
+	PREC vec4 albedo = texture(tex1, vec2(Input.texcoord.x, 1-Input.texcoord.y)) * Input.flags;
 
     g_buffer_albedo = albedo;
     PREC float scaler = 0.1;

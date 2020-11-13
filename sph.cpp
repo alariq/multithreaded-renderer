@@ -2,6 +2,7 @@
 #include <cmath>
 #include "obj_model.h"
 #include "res_man.h"
+#include "engine/gameos.hpp" // COUNTOF
 
 // solver parameters
 const static vec2 G(0.f, 120 * -9.8f); // external (gravitational) forces
@@ -104,7 +105,77 @@ void Integrate(SPHParticle2D* particles, int count, vec2 view_dim)
         }
     }
 }
- 
+
+// return cell index for a position
+int pos2cell_index(vec2 pos, const SPHGrid* grid) {
+    pos.x = clamp(pos.x, 0.0f, grid->dim_.x);
+    pos.y = clamp(pos.y, 0.0f, grid->dim_.y);
+
+    //vec2 cell_size = grid_dim / vec2(grid_sx, grid_sy);
+
+    vec2 pi = pos / grid->dim_;
+
+    // clamp because f 1.0f then id will be equal to cell_dim.x ( or y)
+    int ix = clamp((int)(pi.x * (float)grid->cell_dim_.x), 0.0f, (float)grid->cell_dim_.x - 1);
+    int iy = clamp((int)(pi.y * (float)grid->cell_dim_.y), 0.0f, (float)grid->cell_dim_.y - 1);
+
+	int idx = ix + iy * grid->cell_dim_.x;
+    assert(idx >= 0 && idx < grid->num_cells_);
+    return idx;
+}
+
+void identify_surface_vertices(SPHGrid* grid, SPHParticle2D* particles, int num_particles, int* part_indices, uint32_t* part_flags) {
+
+    // classify particles to cells and vice versa
+    for (int cell_idx = 0; cell_idx < grid->num_cells_; cell_idx++) {
+        grid->cells_[cell_idx].part_indices_.clear();
+    }
+
+    for (int i = 0; i < num_particles; ++i) {
+        SPHParticle2D& p = particles[i];
+
+        int cell_idx = pos2cell_index(p.pos, grid);
+        part_indices[i] = cell_idx;
+        grid->cells_[cell_idx].addParticle(i);
+    }
+
+    const int sx = grid->cell_dim_.x;
+    const int sy = grid->cell_dim_.y;
+    for (int y = 0; y < sy; ++y) {
+        for (int x = 0; x < sx; ++x) {
+            int cell_idx = x + y * sx;
+            SPHGridCell& cell = grid->cells_[cell_idx];
+            cell.is_surface_ = false;
+
+            if (!cell.hasParticles()) {
+                continue;
+            }
+
+			ivec2 neigh[] = {ivec2(+1, 0),	ivec2(-1, 0),  ivec2(0, +1),  ivec2(0, -1),
+							 ivec2(+1, +1), ivec2(+1, -1), ivec2(-1, +1), ivec2(-1, -1)};
+            
+            for (int n = 0; n < COUNTOF(neigh);++n) {
+                int nx = x + neigh[n].x;
+                int ny = y + neigh[n].y;
+
+                if (!grid->isValidCell(nx, ny) || !grid->at(nx, ny)->hasParticles()) {
+                    cell.is_surface_ = true;
+                    break;
+                }
+            }
+
+            if (!cell.is_surface_)
+                continue;
+
+            // this is surface cell, so mark all contained particles as surface particles
+            for (int part_idx : cell.part_indices_) {
+                assert(part_idx < num_particles && part_idx >= 0);
+                part_flags[part_idx] = 1;
+            }
+        }
+    }
+}
+
 void sph_init_renderer() {
     gos_AddRenderMaterial("deferred_sph");
 }
@@ -129,6 +200,7 @@ HGOSVERTEXDECLARATION get_sph_vdecl() {
 		{5, 2, false, sizeof(SPHInstVDecl), offsetof(SPHInstVDecl,force), gosVERTEX_ATTRIB_TYPE::FLOAT, 1},
 		{6, 1, false, sizeof(SPHInstVDecl), offsetof(SPHInstVDecl,density), gosVERTEX_ATTRIB_TYPE::FLOAT, 1},
 		{7, 1, false, sizeof(SPHInstVDecl), offsetof(SPHInstVDecl,pressure), gosVERTEX_ATTRIB_TYPE::FLOAT, 1},
+		{8, 1, false, sizeof(SPHInstVDecl), offsetof(SPHInstVDecl,flags), gosVERTEX_ATTRIB_TYPE::FLOAT, 1},
 	};
 
     static auto vdecl = gos_CreateVertexDeclaration(
@@ -138,9 +210,13 @@ HGOSVERTEXDECLARATION get_sph_vdecl() {
 
 SPHSceneObject* SPHSceneObject::Create(const vec2& view_dim, int num_particles, const vec3& pos) {
     SPHSceneObject* o = new SPHSceneObject();
-    o->particles_ = new SPHParticle2D[num_particles];
     o->num_particles_ = num_particles;
+    o->particles_ = new SPHParticle2D[num_particles];
+    o->part_indices_ = new int[num_particles];
+    o->part_flags_ = new uint32_t[num_particles];
     o->view_dim_ = view_dim;
+    o->grid_ = SPHGrid::makeGrid(20, 20, view_dim);
+
     auto tr = o->AddComponent<TransformComponent>();
     tr->SetPosition(pos);
     o->transform_ = tr;
@@ -149,7 +225,10 @@ SPHSceneObject* SPHSceneObject::Create(const vec2& view_dim, int num_particles, 
 
 SPHSceneObject::~SPHSceneObject() {
     DeinitRenderResources();
-    delete particles_;
+    delete[] particles_;
+    delete[] part_indices_;
+    delete[] part_flags_;
+    delete grid_;
 }
 
 extern int RendererGetNumBufferedFrames();
@@ -181,9 +260,16 @@ void SPHSceneObject::DeinitRenderResources() {
 
 void SPHSceneObject::Update(float /*dt*/) {
 
+    memset(part_flags_, 0, sizeof(int) * num_particles_);
+    memset(part_indices_, 0, sizeof(int) * num_particles_);
+    identify_surface_vertices(grid_, particles_, num_particles_, part_indices_, part_flags_);
+
     sph_update(particles_, num_particles_, view_dim_);
 
-   
+    for (int i = 0; i < num_particles_; ++i) {
+        SPHParticle2D& p = particles_[i];
+        p.flags = part_flags_[i] == 0 ? -1.0f : 1.0f;
+    }
 }
 
 void SPHSceneObject::AddRenderPackets(struct RenderFrameContext *rfc) const {
