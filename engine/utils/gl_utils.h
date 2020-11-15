@@ -618,7 +618,7 @@ void generate_sphere(MeshBuffer& mb, unsigned int subdiv_count)
     vec3 nc = normalize(vec3(c.x, c.y, c.z));
     vec3 nd = normalize(vec3(d.x, d.y, d.z));
 
-    MeshBuffer::ib_type ib_offset = 0;
+    typename MeshBuffer::ib_type ib_offset = 0;
     int vb_offset = 0;
     subdivide(mb, vb_offset, ib_offset, nb, na, nc, subdiv_count);
     subdivide(mb, vb_offset, ib_offset, nb, nc, nd, subdiv_count);
