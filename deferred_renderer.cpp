@@ -569,7 +569,7 @@ void DeferredRenderer::Present(int w, int h)
     gos_SetRenderState(gos_State_ZWrite, 1);
 
     HGOSRENDERMATERIAL mat = gos_getRenderMaterial("textured_quad");
-
+    gos_SetRenderMaterialParameterFloat4(mat, "scale_offset", vec4(1,1,0,0));
     gos_ApplyRenderMaterial(mat);
 
     RenderMesh* fs_quad = res_man_load_mesh("fs_quad");

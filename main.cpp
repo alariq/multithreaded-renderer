@@ -298,7 +298,7 @@ public:
     }
 };
 
-void render_fullscreen_quad(uint32_t tex_id)
+void render_quad(uint32_t tex_id, const vec4& scale_offset, HGOSRENDERMATERIAL mat_override)
 {
 	gos_SetRenderViewport(0, 0, Environment.drawableWidth, Environment.drawableHeight);
     glViewport(0, 0, (GLsizei)Environment.drawableWidth, (GLsizei)Environment.drawableHeight);
@@ -306,7 +306,7 @@ void render_fullscreen_quad(uint32_t tex_id)
     gos_SetRenderState(gos_State_Texture, tex_id);
     gos_SetRenderState(gos_State_Culling, gos_Cull_CW);
 
-    HGOSRENDERMATERIAL mat = gos_getRenderMaterial(tex_id ? "textured_quad" : "coloured_quad");
+    HGOSRENDERMATERIAL mat = mat_override ? mat_override : gos_getRenderMaterial(tex_id ? "textured_quad" : "coloured_quad");
 
     float colour[4] = {1.0f,1.0f,1.0f,1.0f};
     if(!tex_id)
@@ -314,11 +314,17 @@ void render_fullscreen_quad(uint32_t tex_id)
         gos_SetRenderMaterialParameterFloat4(mat, "colour", colour);
     }
 
+    gos_SetRenderMaterialParameterFloat4(mat, "scale_offset", scale_offset);
     gos_ApplyRenderMaterial(mat);
 
     RenderMesh* fs_quad = res_man_load_mesh("fs_quad");
     gos_RenderIndexedArray(fs_quad->ib_, fs_quad->vb_, fs_quad->vdecl_);
 
+}
+
+void render_fullscreen_quad(uint32_t tex_id)
+{
+    render_quad(tex_id, vec4(1,1,0,0), nullptr);
 }
 
 void __stdcall Render(void)
