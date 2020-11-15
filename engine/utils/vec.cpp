@@ -151,7 +151,12 @@ bool operator != (const vec2 &u, const vec2 &v){
 	return (u.x != v.x || u.y != v.y);
 }
 
+/* --------------------------------------------------------------------------------- */
+ivec2 operator + (const ivec2 &u, const ivec2 &v){
+	return ivec2(u.x + v.x, u.y + v.y);
+}
 
+/* --------------------------------------------------------------------------------- */
 void vec3::operator += (const vec3 &v){
 	x += v.x;
 	y += v.y;

@@ -218,6 +218,22 @@ vec4 operator / (const vec4 &v, const float s);
 bool operator == (const vec4 &u, const vec4 &v);
 bool operator != (const vec4 &u, const vec4 &v);
 
+struct ivec2 {
+	int x, y;
+
+	ivec2():x(0),y(0){}
+	ivec2(const int iv){
+		x = y = iv;
+	}
+	ivec2(const int ix, const int iy){
+		x = ix;
+		y = iy;
+	}
+	operator const int *() const { return &x;	}
+};
+
+ivec2 operator + (const ivec2 &u, const ivec2 &v);
+
 struct ivec3 {
 	int x, y, z;
 
