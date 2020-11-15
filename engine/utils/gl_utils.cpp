@@ -44,7 +44,7 @@ const GLint textureFormats[TF_COUNT] = {
     GL_RGB,
     GL_RGBA,
 
-    GL_R32F,
+    GL_RED,
     GL_RG,
     GL_RGB,
     GL_RGBA,

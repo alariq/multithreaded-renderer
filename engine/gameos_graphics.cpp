@@ -878,15 +878,15 @@ class gosTexture {
         uint32_t getTextureId() const { return tex_.id; }
         TexType getTextureType() const { return tex_.type_; }
 
-        BYTE* Lock(int mip_level, bool is_read_only, int* pitch) {
-            gosASSERT(is_locked_ == false);
-            gosASSERT(mip_level == 0);
-            is_locked_ = true;
-            // TODO:
-            gosASSERT(pitch);
-            *pitch = tex_.w;
+		BYTE *Lock(int mip_level, bool is_read_only, int *pitch) {
+			gosASSERT(is_locked_ == false);
+			gosASSERT(mip_level == 0);
+			is_locked_ = true;
+			// TODO:
+			gosASSERT(pitch);
+			*pitch = tex_.w;
 
-            gosASSERT(!plocked_area_);
+			gosASSERT(!plocked_area_);
 #if 0 
             glBindTexture(GL_TEXTURE_2D, tex_.id);
             GLint pack_row_length;
@@ -895,50 +895,54 @@ class gosTexture {
             glGetIntegerv(GL_PACK_ALIGNMENT, &pack_alignment);
             glBindTexture(GL_TEXTURE_2D, 0);
 #endif
-            // always return rgba8 formatted data
-            lock_type_read_only_ = is_read_only;
-            const uint32_t ts = tex_.w*tex_.h * getTexFormatPixelSize(TF_RGBA8);
-            plocked_area_ = new BYTE[ts];
-            getTextureData(tex_, 0, plocked_area_, TF_RGBA8);
-            for(int y=0;y<tex_.h;++y) {
-                for(int x=0;x<tex_.w;++x) {
-                    DWORD rgba = ((DWORD*)plocked_area_)[tex_.w*y + x];
-                    DWORD r = rgba&0xff;
-                    DWORD g = (rgba&0xff00)>>8;
-                    DWORD b = (rgba&0xff0000)>>16;
-                    DWORD a = (rgba&0xff000000)>>24;
-                    DWORD bgra = (a<<24) | (r<<16) | (g<<8) | b;
-                    ((DWORD*)plocked_area_)[tex_.w*y + x] = bgra;
-                }
-            }
-            return plocked_area_;
-        }
+			// always return rgba8 formatted data
+			lock_type_read_only_ = is_read_only;
+			const uint32_t ts = tex_.w * tex_.h * getTexFormatPixelSize(tex_.fmt_);
+			plocked_area_ = new BYTE[ts];
+			getTextureData(tex_, 0, plocked_area_, tex_.fmt_);
+			if (tex_.fmt_ == TF_RGBA8) {
+				for (int y = 0; y < tex_.h; ++y) {
+					for (int x = 0; x < tex_.w; ++x) {
+						DWORD rgba = ((DWORD *)plocked_area_)[tex_.w * y + x];
+						DWORD r = rgba & 0xff;
+						DWORD g = (rgba & 0xff00) >> 8;
+						DWORD b = (rgba & 0xff0000) >> 16;
+						DWORD a = (rgba & 0xff000000) >> 24;
+						DWORD bgra = (a << 24) | (r << 16) | (g << 8) | b;
+						((DWORD *)plocked_area_)[tex_.w * y + x] = bgra;
+					}
+				}
+			}
+			return plocked_area_;
+		}
 
-        void Unlock() {
-            gosASSERT(is_locked_ == true);
-        
-            if(!lock_type_read_only_) {
-                for(int y=0;y<tex_.h;++y) {
-                    for(int x=0;x<tex_.w;++x) {
-                        DWORD bgra = ((DWORD*)plocked_area_)[tex_.w*y + x];
-                        DWORD b = bgra&0xff;
-                        DWORD g = (bgra&0xff00)>>8;
-                        DWORD r = (bgra&0xff0000)>>16;
-                        DWORD a = (bgra&0xff000000)>>24;
-                        DWORD argb = (a<<24) | (b<<16) | (g<<8) | r;
-                        ((DWORD*)plocked_area_)[tex_.w*y + x] = argb;
-                    }
-                }
-                updateTexture(tex_, plocked_area_, TF_RGBA8);
-            }
+		void Unlock() {
+			gosASSERT(is_locked_ == true);
 
-            delete[] plocked_area_;
+			if (!lock_type_read_only_) {
+				if (this->tex_.fmt_ == TF_RGBA8) {
+					for (int y = 0; y < tex_.h; ++y) {
+						for (int x = 0; x < tex_.w; ++x) {
+							DWORD bgra = ((DWORD *)plocked_area_)[tex_.w * y + x];
+							DWORD b = bgra & 0xff;
+							DWORD g = (bgra & 0xff00) >> 8;
+							DWORD r = (bgra & 0xff0000) >> 16;
+							DWORD a = (bgra & 0xff000000) >> 24;
+							DWORD argb = (a << 24) | (b << 16) | (g << 8) | r;
+							((DWORD *)plocked_area_)[tex_.w * y + x] = argb;
+						}
+					}
+				}
+				updateTexture(tex_, plocked_area_, tex_.fmt_);
+			}
+
+			delete[] plocked_area_;
             plocked_area_ = NULL;
 
             is_locked_ = false;
-        }
+		}
 
-        void getTextureInfo(gosTextureInfo* texinfo) const {
+		void getTextureInfo(gosTextureInfo* texinfo) const {
             gosASSERT(texinfo);
             texinfo->width_ = tex_.w;
             texinfo->height_ = tex_.h;
@@ -1098,6 +1102,13 @@ bool gosTexture::createHardwareTexture() {
         tex_.fmt_ = TF_R32F;
         tex_.type_ = TT_2D;
         tex_.format = GL_R32F;
+        return tex_.isValid();
+    } else if(format_ == gos_Texture_R8) {
+        GLuint tex_id = createRenderTexture(tex_.w, tex_.h, GL_R8, 1);
+        tex_.id = tex_id;
+        tex_.fmt_ = TF_R8;
+        tex_.type_ = TT_2D;
+        tex_.format = GL_R8;
         return tex_.isValid();
     } 
     else {
