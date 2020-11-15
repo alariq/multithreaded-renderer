@@ -38,6 +38,12 @@ void ScheduleRenderCommand(RenderFrameContext *rfc, std::function<void(void)>&& 
     rfc->commands_.push_back(cmd);
 }
 
+void ScheduleDebugDrawCommand(RenderFrameContext *rfc, std::function<void(void)>&& cmd)
+{
+    assert(rfc);
+    rfc->debug_commands_.push_back(cmd);
+}
+
 HGOSVERTEXDECLARATION get_svd_vdecl() {
     static const gosVERTEX_FORMAT_RECORD simple_vdecl[] = {
         {0, 3, false, sizeof(SVD), 0, gosVERTEX_ATTRIB_TYPE::FLOAT, 0},

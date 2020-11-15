@@ -127,6 +127,7 @@ struct RenderFrameContext {
     int frame_number_;
     CSMInfo csm_info_;
     std::vector<std::function<void(void)>> commands_;
+    std::vector<std::function<void(void)>> debug_commands_;
 
     //TODO: for each view, setup its parameters, fbo, obj lists etc...
     mat4 view_;
@@ -141,3 +142,4 @@ struct RenderFrameContext {
 };
 
 void ScheduleRenderCommand(RenderFrameContext *rfc, std::function<void(void)>&& );
+void ScheduleDebugDrawCommand(RenderFrameContext *rfc, std::function<void(void)>&& );

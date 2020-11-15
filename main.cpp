@@ -439,10 +439,14 @@ void __stdcall Render(void)
     g_deferred_renderer.RenderPointLighting(rfc);
     bool downsampled_particles = true;
     g_deferred_renderer.RenderForward(
-        [&rpl, &view_mat, &proj_mat, downsampled_particles]() {
+        [&rpl, rfc, &view_mat, &proj_mat, downsampled_particles]() {
             if (!downsampled_particles)
                 RenderParticles(rpl, view_mat, proj_mat);
             RenderDebugObjects(rpl, view_mat, proj_mat);
+            for(auto& cmd : rfc->debug_commands_) {
+                cmd();
+            }
+            rfc->debug_commands_.clear();
         });
     if (downsampled_particles) {
         g_deferred_renderer.RenderDownsampledForward(
