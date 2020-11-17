@@ -138,7 +138,7 @@ struct glsl_program {
     bool needsReload();
 	
 private:
-    glsl_program():shp_(0), vsh_(0), fsh_(0), hsh_(0), dsh_(0), gsh_(0), is_valid_(false) {};
+    glsl_program():shp_(0), vsh_(0), fsh_(0), hsh_(0), dsh_(0), gsh_(0), csh_(0),is_valid_(false) {};
     ~glsl_program();
 
     static UNIFORM_FUNC uniformFuncs[15];
