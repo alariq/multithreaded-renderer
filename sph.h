@@ -76,7 +76,7 @@ struct SPHGrid {
     }
 
     vec2 getCellSize() const {
-        vec2 cell_count = vec2(cell_dim_.x, cell_dim_.y);
+        vec2 cell_count = vec2((float)cell_dim_.x, (float)cell_dim_.y);
         return dim_/cell_count;
     }
 
@@ -84,6 +84,7 @@ struct SPHGrid {
     ~SPHGrid();
 };
 
+int pos2cell_index(vec2 pos, const SPHGrid* grid);
 
 
 class SPHSceneObject : public GameObject {

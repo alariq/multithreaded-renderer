@@ -106,7 +106,7 @@ void initialize_scene(const struct camera *cam, struct RenderFrameContext *rfc) 
     ParticleSystemObject *pso = ParticleSystemObject::Create();
     g_world_objects.push_back(pso);
 #endif
-    SPHSceneObject* sph = SPHSceneObject::Create(vec2(4, 10), 500, vec3(0, 0, 0));
+    SPHSceneObject* sph = SPHSceneObject::Create(vec2(10, 10), 500, vec3(0, 0, 0));
     sph->SetRadius(0.1f);
     initialize_particle_positions(sph);
     g_world_objects.push_back(sph);

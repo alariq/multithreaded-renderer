@@ -4,6 +4,7 @@
 #include "res_man.h"
 #include "engine/gameos.hpp" // COUNTOF
 #include "utils/vec.h"
+#include <functional>
 
 // solver parameters
 const static vec2 G(0.f, 120 * -9.8f); // external (gravitational) forces
@@ -24,6 +25,35 @@ const static float VISC_LAP = 45.f / (M_PI * pow(H, 6.f));
 const static float EPS = H; // boundary epsilon
 const static float BOUND_DAMPING = -0.5f;
 
+
+
+void foreach_in_radius(float r, vec2 pos, SPHGrid* grid, SPHParticle2D* particles, int num_particles, std::function<void(const SPHParticle2D*)> func) {
+
+    (void)num_particles;
+
+    const int left_top = pos2cell_index(pos - vec2(r,r), grid);
+    const int right_bottom = pos2cell_index(pos + vec2(r,r), grid);
+    const float r_sq = r * r;
+    const ivec2 lt_coord = grid->getCellCoordFromCellIndex(left_top);
+    const ivec2 rb_coord = grid->getCellCoordFromCellIndex(right_bottom);
+
+    int n_start_x = max(lt_coord.x - 1, 0);
+    int n_end_x = min(rb_coord.x + 1, grid->cell_dim_.x - 1);
+
+    int n_start_y = max(lt_coord.y - 1, 0);
+	int n_end_y = min(rb_coord.y + 1, grid->cell_dim_.y - 1);
+
+	for (int ny = n_start_y; ny <= n_end_y; ++ny) {
+		for (int nx = n_start_x; nx <= n_end_x; ++nx) {
+            const SPHGridCell* cell = grid->at(nx, ny);
+            for (int pj_idx : cell->part_indices_) {
+                assert(pj_idx < num_particles);
+                func(&particles[pj_idx]);
+            }
+		}
+	}
+}
+
 void ComputeDensityPressure(SPHParticle2D *particles, int count) {
 	for (int i = 0; i < count; ++i) {
 		SPHParticle2D &pi = particles[i];
@@ -39,6 +69,23 @@ void ComputeDensityPressure(SPHParticle2D *particles, int count) {
 				pi.density += MASS * POLY6 * pow(HSQ - r2, 3.f);
 			}
 		}
+		pi.pressure = GAS_CONST * (pi.density - REST_DENS);
+	}
+}
+
+void ComputeDensityPressure_neigh(SPHParticle2D *particles, int count, SPHGrid *grid) {
+	for (int i = 0; i < count; ++i) {
+		SPHParticle2D &pi = particles[i];
+        pi.density = 0.0f;
+		foreach_in_radius(H, pi.pos, grid, particles, count, [&pi](const SPHParticle2D* pj) {
+			vec2 rij = pj->pos - pi.pos;
+			float r2 = lengthSqr(rij);
+
+			if (r2 < HSQ) {
+				// this computation is symmetric
+				pi.density += MASS * POLY6 * pow(HSQ - r2, 3.f);
+			}
+		});
 		pi.pressure = GAS_CONST * (pi.density - REST_DENS);
 	}
 }
@@ -72,6 +119,35 @@ void ComputeForces(SPHParticle2D *particles, int count)
         vec2 fgrav = G * pi.density;
         pi.force = fpress + fvisc + fgrav;
     }
+}
+
+void ComputeForces_neigh(SPHParticle2D *particles, int count, SPHGrid *grid) {
+	for (int i = 0; i < count; ++i) {
+		SPHParticle2D* pi = &particles[i];
+
+		vec2 fpress(0.f, 0.f);
+		vec2 fvisc(0.f, 0.f);
+
+		foreach_in_radius(H, pi->pos, grid, particles, count, [pi, &fpress, &fvisc](const SPHParticle2D* pj) {
+
+			if (pi == pj)
+                return;
+
+			vec2 rij = pj->pos - pi->pos;
+			float r = length(rij);
+
+			if (r < H) {
+				// compute pressure force contribution
+				fpress += -normalize(rij) * MASS * (pi->pressure + pj->pressure) /
+						  (2.f * pj->density) * SPIKY_GRAD * pow(H - r, 2.f);
+				// compute viscosity force contribution
+				fvisc +=
+					VISC * MASS * (pj->vel - pi->vel) / pj->density * VISC_LAP * (H - r);
+			}
+		});
+		vec2 fgrav = G * pi->density;
+		pi->force = fpress + fvisc + fgrav;
+	}
 }
 
 void Integrate(SPHParticle2D* particles, int count, vec2 view_dim)
@@ -125,7 +201,7 @@ int pos2cell_index(vec2 pos, const SPHGrid* grid) {
     return idx;
 }
 
-void identify_surface_cells(SPHGrid* grid, SPHParticle2D* particles, int num_particles, int* part_indices, uint32_t* part_flags) {
+void hash_particles(SPHGrid* grid, SPHParticle2D* particles, int num_particles, int* part_indices) {
 
     // classify particles to cells and vice versa
     for (int cell_idx = 0; cell_idx < grid->num_cells_; cell_idx++) {
@@ -139,6 +215,10 @@ void identify_surface_cells(SPHGrid* grid, SPHParticle2D* particles, int num_par
         part_indices[i] = cell_idx;
         grid->cells_[cell_idx].addParticle(i);
     }
+}
+
+void identify_surface_cells(SPHGrid* grid, int num_particles, uint32_t* part_flags) {
+    (void)num_particles;
 
     const int sx = grid->cell_dim_.x;
     const int sy = grid->cell_dim_.y;
@@ -180,7 +260,6 @@ void identify_surface_cells(SPHGrid* grid, SPHParticle2D* particles, int num_par
 // A completely parallel surface reconstruction method for particle-based fluids. Section 4.1
 void identify_surface_vertices(SPHGrid* grid, SPHParticle2D* particles, int num_particles, float radius, int* part_indices, uint32_t* part_flags) {
 
-
 	// check all cell in 3*radius
 	const float thresholdSqr = 3 * radius * 3 * radius;
     const vec2 cells_in_radius = grid->getCellSize() / (3.0f * radius);
@@ -200,11 +279,11 @@ void identify_surface_vertices(SPHGrid* grid, SPHParticle2D* particles, int num_
 
             // + 2 to compensate for the fact that we get cell coord (see vcoord) which tends to be
             // "leftier", so need to check more vertices on a right side
-			int n_start_x = clamp(vcoord.x - num_cells2check.x, 0, num_vert.x);	
-			int n_end_x = clamp(vcoord.x + num_cells2check.x + 2, 0, num_vert.x);
+			int n_start_x = clamp(vcoord.x - num_cells2check.x, 0, (float)num_vert.x);	
+			int n_end_x = clamp(vcoord.x + num_cells2check.x + 2, 0, (float)num_vert.x);
 
-			int n_start_y = clamp(vcoord.y - num_cells2check.y, 0, num_vert.y);	
-			int n_end_y = clamp(vcoord.y + num_cells2check.y + 2, 0, num_vert.y);
+			int n_start_y = clamp(vcoord.y - num_cells2check.y, 0, (float)num_vert.y);	
+			int n_end_y = clamp(vcoord.y + num_cells2check.y + 2, 0, (float)num_vert.y);
 
             vec2 npos = grid->getVertexPosFromVertexCoord(n_start_x, n_start_y);
             //varr[vcoord.x + vcoord.y * num_vert.x].is_surface_ = 255;
@@ -233,8 +312,9 @@ float k_func(float s_sq) {
 }
 
 // Animating Sand as a Fluid: 5  Surface Reconstruction from Particles
-void calc_sdf(SPHGrid *grid, SPHParticle2D *particles, int num_particles, float radius,
-			  int *part_indices, uint32_t *part_flags) {
+void calc_sdf(SPHGrid *grid, SPHParticle2D *particles, int num_particles, float radius) {
+
+    (void)num_particles;
 
 	SPHGridVertex *varr = grid->vertices_[grid->cur_vert_array_];
 	const int vsx = grid->cell_dim_.x + 1;
@@ -266,6 +346,7 @@ void calc_sdf(SPHGrid *grid, SPHParticle2D *particles, int num_particles, float 
 
 					SPHGridCell *cell = grid->at(nx, ny);
 					for (int part_idx : cell->part_indices_) {
+                        assert(part_idx < num_particles);
 						vec2 ppos = particles[part_idx].pos;
     
                         float dp_sq = lengthSqr(ppos - vpos);
@@ -290,11 +371,11 @@ void calc_sdf(SPHGrid *grid, SPHParticle2D *particles, int num_particles, float 
                 }
                 varr[vy * vsx + vx].value_ = phi;
 			}
-            printf("%.3f ", varr[vy * vsx + vx].value_);
+            //printf("%.3f ", varr[vy * vsx + vx].value_);
 		}
-        printf("\n");
+        //printf("\n");
 	}
-    printf("=========\n");
+    //printf("=========\n");
 }
 
 void sph_init_renderer() {
@@ -302,9 +383,11 @@ void sph_init_renderer() {
 	gos_AddRenderMaterial("sdf_visualize");
 }
 
-void sph_update(SPHParticle2D *particles, int count, vec2 view_dim) {
-	ComputeDensityPressure(particles, count);
-	ComputeForces(particles, count);
+void sph_update(SPHParticle2D *particles, int count, vec2 view_dim, SPHGrid* grid) {
+	ComputeDensityPressure_neigh(particles, count, grid);
+	//ComputeDensityPressure(particles, count);
+	ComputeForces_neigh(particles, count, grid);
+	//ComputeForces(particles, count);
 	Integrate(particles, count, view_dim);
 }
 
@@ -417,12 +500,13 @@ void SPHSceneObject::Update(float /*dt*/) {
 
     memset(part_flags_, 0, sizeof(int) * num_particles_);
     memset(part_indices_, 0, sizeof(int) * num_particles_);
-    identify_surface_cells(grid_, particles_, num_particles_, part_indices_, part_flags_);
+    hash_particles(grid_, particles_, num_particles_, part_indices_);
+    identify_surface_cells(grid_, num_particles_, part_flags_);
     identify_surface_vertices(grid_, particles_, num_particles_, radius_, part_indices_, part_flags_);
-    calc_sdf(grid_, particles_, num_particles_, radius_, part_indices_, part_flags_);
+    calc_sdf(grid_, particles_, num_particles_, radius_);
 
 
-    sph_update(particles_, num_particles_, view_dim_);
+    sph_update(particles_, num_particles_, view_dim_, grid_);
 
     for (int i = 0; i < num_particles_; ++i) {
         SPHParticle2D& p = particles_[i];
@@ -504,8 +588,8 @@ void initialize_particle_positions(SPHSceneObject* o) {
     SPHParticle2D*  particles = o->GetParticles();
     const int count = o->GetParticlesCount();
     const float radius = o->GetRadius();
-    vec2 offset = vec2(o->GetBounds().x*0.2f, 2.0*radius);
-    int row_size = o->GetBounds().x / (2.0f*radius);
+    vec2 offset = vec2(o->GetBounds().x*0.2f, 2.0f*radius);
+    int row_size = (int)(o->GetBounds().x / (2.0f*radius));
     int column_size = (count + row_size - 1) / row_size; 
     for(int y= 0; y<column_size; ++y) {
         for(int x= 0; x<row_size; ++x) {
