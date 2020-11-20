@@ -1,4 +1,5 @@
 #include "sph.h"
+#include "sph_kernels.h"
 #include <cmath>
 #include "obj_model.h"
 #include "res_man.h"
@@ -25,6 +26,32 @@ const static float VISC_LAP = 45.f / (M_PI * pow(H, 6.f));
 const static float EPS = H; // boundary epsilon
 const static float BOUND_DAMPING = -0.5f;
 
+
+struct SPHFluidModel {
+
+};
+
+struct Simulation {
+
+    float W_zero_;
+	float (*kernel_fptr_)(const vec3 &);
+	vec3 (*grad_kernel_fptr_)(const vec3& r);
+
+    void Setup() {
+        W_zero_ = CubicKernel::W_zero();
+        kernel_fptr_ = CubicKernel::W;
+    }
+
+    SPHFluidModel* fluid_model_;
+};
+
+struct TimeStep {
+
+    void calculateDensities(Simulation* sim) {
+        SPHFluidModel* fm = sim->fluid_model_;
+        (void)fm;
+    }
+};
 
 
 void foreach_in_radius(float r, vec2 pos, SPHGrid* grid, SPHParticle2D* particles, int num_particles, std::function<void(const SPHParticle2D*)> func) {
