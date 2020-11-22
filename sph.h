@@ -137,4 +137,4 @@ void sph_init_renderer();
 
 void foreach_in_radius(float r, vec2 pos, SPHGrid *grid, SPHParticle2D *particles,
 					   int num_particles,
-					   std::function<void(const SPHParticle2D *)> func);
+					   std::function<void(const SPHParticle2D *, int)> func);

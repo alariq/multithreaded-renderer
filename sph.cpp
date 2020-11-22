@@ -28,10 +28,30 @@ const static float BOUND_DAMPING = -0.5f;
 
 
 struct SPHFluidModel {
+    SPHGrid* grid_;
+    SPHParticle2D* particles_;
+    int num_particles_;
+    float radius_;
+    float density0_;
+    float volume_;
+    float support_radius_;
+};
+
+struct SPHSimData {
+    std::vector<float> kappa_;
+    std::vector<float> factor_;
+    std::vector<float> density_adv_;
 
 };
 
 struct Simulation {
+
+    const vec2 accel_ = vec2(0.0f, -9.81f);
+
+    float time_step_ = 0.005f;
+    float cfl_factor_ = 0.5f;
+    float min_cfl_timestep_ = 0.0001;
+    float max_cfl_timestep_ = 0.005;
 
     float W_zero_;
 	float (*kernel_fptr_)(const vec3 &);
@@ -42,19 +62,233 @@ struct Simulation {
         kernel_fptr_ = CubicKernel::W;
     }
 
+    float W(const vec3& v) const {
+        return kernel_fptr_(v);
+    }
+
+    float W(const vec2& v) const {
+        return kernel_fptr_(vec3(v.x, v.y, 0.0f));
+    }
+
+    vec2 gradW(const vec2& v) const {
+        vec3 grad = grad_kernel_fptr_(vec3(v.x, v.y, 0.0f));
+        return vec2(grad.x, grad.y);
+    }
+
+    vec3 gradW(const vec3& v) const {
+        return grad_kernel_fptr_(v);
+    }
+
+    void updateTimestep() {
+        SPHFluidModel* fm = fluid_model_;
+        float max_vel = 0.0f;
+		for (int i = 0; i < fm->num_particles_; ++i) {
+			SPHParticle2D &pi = fm->particles_[i];
+            float vel = lengthSqr(pi.vel + accel_*time_step_);
+            max_vel = max(max_vel, vel);
+        }
+        
+        float h = cfl_factor_ * (fm->radius_ * 2.0f) * sqrtf(max_vel);
+        h = clamp(h, min_cfl_timestep_, max_cfl_timestep_);
+        time_step_ = h;
+    }
+
     SPHFluidModel* fluid_model_;
+    SPHSimData* sim_data_;
 };
 
+// Divergence-Free SPH for Incompressible andViscous Fluids
 struct TimeStep {
 
-    void calculateDensities(Simulation* sim) {
-        SPHFluidModel* fm = sim->fluid_model_;
-        (void)fm;
+	const float eps_ = 1.0e-5;
+
+    int num_iterations_ = 0;
+    const int min_iterations_ = 2;
+    const int max_iterations_ = 100;
+    const float max_error_percent_ = 0.01f;
+
+	void calcDensities(Simulation *sim) {
+		SPHFluidModel *fm = sim->fluid_model_;
+		const int num_particles = fm->num_particles_;
+		SPHParticle2D *particles = fm->particles_;
+		SPHGrid *grid = fm->grid_;
+		const float support_radius = fm->support_radius_;
+
+		for (int i = 0; i < num_particles; ++i) {
+			SPHParticle2D &pi = particles[i];
+			pi.density = 0.0f;
+			foreach_in_radius(support_radius, pi.pos, grid, particles, num_particles,
+							  [&pi, fm, sim](const SPHParticle2D *pj, int) {
+								  pi.density += fm->volume_ * sim->W(pj->pos - pi.pos);
+							  });
+			// multiply by density because we use volume in the loop instead of a mass
+			pi.density *= fm->density0_;
+		}
+	}
+
+	void calcFactor(Simulation *sim) {
+		SPHFluidModel *fm = sim->fluid_model_;
+		const int num_particles = fm->num_particles_;
+		SPHParticle2D *particles = fm->particles_;
+		SPHGrid *grid = fm->grid_;
+		const float support_radius = fm->support_radius_;
+		SPHSimData *data = sim->sim_data_;
+
+		for (int i = 0; i < num_particles; ++i) {
+			SPHParticle2D &pi = particles[i];
+			float sum_of_grad_squares = 0.0f;
+			vec2 grad_sums = vec2(0, 0);
+			foreach_in_radius(support_radius, pi.pos, grid, particles, num_particles,
+							  [&pi, fm, sim, &grad_sums,
+							   &sum_of_grad_squares](const SPHParticle2D *pj, int) {
+								  vec2 grad_pj =
+									  -fm->volume_ * sim->gradW(pi.pos - pj->pos);
+								  grad_sums -= grad_pj;
+								  sum_of_grad_squares += lengthSqr(grad_pj);
+							  });
+
+			float alpha = lengthSqr(grad_sums) + sum_of_grad_squares;
+			if (alpha > eps_)
+				alpha = -1.0f / alpha;
+			else
+				alpha = 0.0f;
+			data->factor_[i] = alpha;
+		}
+	}
+#if 0
+    void clearAccel(Simulation* sim) {
+		SPHFluidModel *fm = sim->fluid_model_;
+		const int num_particles = fm->num_particles_;
+		SPHParticle2D *particles = fm->particles_;
+
+		for (int i = 0; i < num_particles; ++i) {
+			SPHParticle2D &pi = particles[i];
+        }
     }
+#endif
+
+    void calcNonPressureForces() {}
+
+	// clac "Rho star i" (3.3) more on this in "SPH Fluids in Computer Graphics" Markus
+	// Imsen (Ch 3.2) and his "Implicit Incompressible SPH" (Ch 2.1)
+	void calcDensityAdv(Simulation *sim) {
+		SPHFluidModel *fm = sim->fluid_model_;
+		const int num_particles = fm->num_particles_;
+		SPHParticle2D *particles = fm->particles_;
+		SPHGrid *grid = fm->grid_;
+		const float support_radius = fm->support_radius_;
+
+		for (int i = 0; i < num_particles; ++i) {
+			SPHParticle2D &pi = particles[i];
+			float delta = 0.0f;
+			foreach_in_radius(support_radius, pi.pos, grid, particles, num_particles,
+							  [&pi, fm, sim, &delta](const SPHParticle2D *pj, int) {
+								  delta +=
+									  fm->volume_ * dot((pi.vel - pj->vel),
+														sim->gradW(pi.pos - pj->pos));
+							  });
+            float density_adv = pi.density / fm->density0_ + sim->time_step_ * delta;
+            sim->sim_data_->density_adv_[i] = max(density_adv, 1.0f);
+		}
+
+	}
+
+    // returns average density error
+	float pressureSolveIter(Simulation *sim) {
+
+		SPHFluidModel *fm = sim->fluid_model_;
+		const int num_particles = fm->num_particles_;
+		SPHParticle2D *particles = fm->particles_;
+		SPHGrid *grid = fm->grid_;
+		const float support_radius = fm->support_radius_;
+		const float *factor = sim->sim_data_->factor_.data();
+		const float *density_adv = sim->sim_data_->density_adv_.data();
+		float eps = this->eps_;
+		const float h = sim->time_step_;
+        const float oo_h2 = 1.0f/(h*h);
+
+		for (int i = 0; i < num_particles; ++i) {
+			SPHParticle2D &pi = particles[i];
+			// Algorithm 3, see also Ch 3.3 eq. 12
+			float kappa_i = (density_adv[i] - 1.0f) * factor[i];
+
+			foreach_in_radius(support_radius, pi.pos, grid, particles, num_particles,
+							  [&pi, fm, sim, eps, h, oo_h2, kappa_i, factor,
+							   density_adv](const SPHParticle2D *pj, int j) {
+								  // float rel_dens0 = neighb_fluid_model_density0 /
+								  // density0;
+								  float rel_dens0 = 1.0f;
+								  float kappa_j =
+									  (density_adv[j] - rel_dens0) * factor[j];
+								  float k_sum = oo_h2*(kappa_i + kappa_j);
+								  if (fabs(k_sum) > eps) {
+									  vec2 grad_p_j =
+										  -fm->volume_ * sim->gradW(pi.pos - pj->pos);
+									  pi.vel -= h * k_sum * grad_p_j;
+								  }
+							  });
+		}
+
+        // now when we've udated velocities, update density advection
+	    calcDensityAdv(sim);
+        // move this into calcDensityAdv
+        float density_err = 0.0;
+		for (int i = 0; i < num_particles; ++i) {
+            density_err = (sim->sim_data_->density_adv_[i] - 1.0f) * fm->density0_;
+        }
+		return density_err / num_particles;
+	}
+
+	void pressureSolve(Simulation* sim) {
+
+        calcDensityAdv(sim);
+        num_iterations_ = 0;
+
+
+		SPHFluidModel *fm = sim->fluid_model_;
+        float density0 = fm->density0_;
+        bool check = false;
+        const float eta = (max_error_percent_ * 0.01f) * density0; 
+
+        while((!check || (num_iterations_ < min_iterations_)) && num_iterations_ < max_iterations_) {
+            check = true;
+            float avg_density_err = pressureSolveIter(sim);
+            check = check && (avg_density_err < eta);
+            num_iterations_++;
+        }       
+
+    }
+
+	void Tick(Simulation *sim) {
+
+		SPHFluidModel *fm = sim->fluid_model_;
+		const int num_particles = fm->num_particles_;
+		SPHParticle2D *particles = fm->particles_;
+
+		calcDensities(sim);
+		calcFactor(sim);
+
+        calcNonPressureForces();
+
+        sim->updateTimestep();
+        const float h = sim->time_step_;
+
+		for (int i = 0; i < num_particles; ++i) {
+			SPHParticle2D &pi = particles[i];
+            pi.vel += h * sim->accel_;
+        }
+
+        pressureSolve(sim);
+
+		for (int i = 0; i < num_particles; ++i) {
+			SPHParticle2D &pi = particles[i];
+            pi.pos += h * pi.vel;
+        }
+	}
+
 };
 
-
-void foreach_in_radius(float r, vec2 pos, SPHGrid* grid, SPHParticle2D* particles, int num_particles, std::function<void(const SPHParticle2D*)> func) {
+void foreach_in_radius(float r, vec2 pos, SPHGrid* grid, SPHParticle2D* particles, int num_particles, std::function<void(const SPHParticle2D*, int)> func) {
 
     (void)num_particles;
 
@@ -75,7 +309,8 @@ void foreach_in_radius(float r, vec2 pos, SPHGrid* grid, SPHParticle2D* particle
             const SPHGridCell* cell = grid->at(nx, ny);
             for (int pj_idx : cell->part_indices_) {
                 assert(pj_idx < num_particles);
-                func(&particles[pj_idx]);
+                if(lengthSqr(pos - particles[pj_idx].pos) <= r_sq)
+                    func(&particles[pj_idx], pj_idx);
             }
 		}
 	}
@@ -104,7 +339,7 @@ void ComputeDensityPressure_neigh(SPHParticle2D *particles, int count, SPHGrid *
 	for (int i = 0; i < count; ++i) {
 		SPHParticle2D &pi = particles[i];
         pi.density = 0.0f;
-		foreach_in_radius(H, pi.pos, grid, particles, count, [&pi](const SPHParticle2D* pj) {
+		foreach_in_radius(H, pi.pos, grid, particles, count, [&pi](const SPHParticle2D* pj, int) {
 			vec2 rij = pj->pos - pi.pos;
 			float r2 = lengthSqr(rij);
 
@@ -155,7 +390,7 @@ void ComputeForces_neigh(SPHParticle2D *particles, int count, SPHGrid *grid) {
 		vec2 fpress(0.f, 0.f);
 		vec2 fvisc(0.f, 0.f);
 
-		foreach_in_radius(H, pi->pos, grid, particles, count, [pi, &fpress, &fvisc](const SPHParticle2D* pj) {
+		foreach_in_radius(H, pi->pos, grid, particles, count, [pi, &fpress, &fvisc](const SPHParticle2D* pj, int) {
 
 			if (pi == pj)
                 return;
@@ -177,15 +412,7 @@ void ComputeForces_neigh(SPHParticle2D *particles, int count, SPHGrid *grid) {
 	}
 }
 
-void Integrate(SPHParticle2D* particles, int count, vec2 view_dim)
-{
-    for (int i = 0; i < count; ++i) {
-        SPHParticle2D& p = particles[i];
-
-        // forward Euler integration
-        p.vel += DT * p.force / p.density;
-        p.pos += DT * p.vel;
-
+void EnforceBoundaryConditions(SPHParticle2D& p, const vec2& view_dim) {
         // enforce boundary conditions
         if (p.pos.x - EPS < 0.0f)
         {
@@ -207,6 +434,17 @@ void Integrate(SPHParticle2D* particles, int count, vec2 view_dim)
             p.vel.y *= BOUND_DAMPING;
             p.pos.y = view_dim.y - EPS;
         }
+}
+
+void Integrate(SPHParticle2D* particles, int count, vec2 view_dim)
+{
+    for (int i = 0; i < count; ++i) {
+        SPHParticle2D& p = particles[i];
+
+        // forward Euler integration
+        p.vel += DT * p.force / p.density;
+        p.pos += DT * p.vel;
+        EnforceBoundaryConditions(p, view_dim);
     }
 }
 
