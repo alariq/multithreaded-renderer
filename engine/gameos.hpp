@@ -2189,6 +2189,18 @@ typedef struct
 } gos_VERTEX_3UV;
 
 //
+// Used to specify type of primitive being rendered in gos_RenderIndexedArray and gos_RenderVertexBuffer
+//
+typedef enum
+{
+	PRIMITIVE_POINTLIST=1,
+	PRIMITIVE_LINELIST=2,
+	PRIMITIVE_TRIANGLELIST=3,
+
+} gosPRIMITIVETYPE;
+
+
+//
 // Setup a viewport, must be called before drawing
 //
 // Defines the region of the monitor the 3D objects will be rendered too.
@@ -2262,11 +2274,11 @@ void __stdcall gos_RenderIndexedArray( gos_VERTEX_2UV* pVertexArray, DWORD Numbe
 void __stdcall gos_RenderIndexedArray( gos_VERTEX_3UV* pVertexArray, DWORD NumberVertices, WORD* lpwIndices, DWORD NumberIndices );
 
 
-void __stdcall gos_RenderIndexedArray(HGOSBUFFER ib, HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl, const float* mvp); //sebi
-void __stdcall gos_RenderIndexedArray(HGOSBUFFER ib, HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl); //sebi
-void __stdcall gos_RenderArray(HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl); //sebi
-void __stdcall gos_RenderArrayInstanced(HGOSBUFFER vb, HGOSBUFFER instance_vb, uint32_t instance_count, HGOSVERTEXDECLARATION vdecl); //sebi
-void __stdcall gos_RenderIndexedInstanced(HGOSBUFFER ib, HGOSBUFFER vb, HGOSBUFFER instance_vb, uint32_t instance_count, HGOSVERTEXDECLARATION vdecl); //sebi
+void __stdcall gos_RenderIndexedArray(HGOSBUFFER ib, HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl, const float* mvp, gosPRIMITIVETYPE pt); //sebi
+void __stdcall gos_RenderIndexedArray(HGOSBUFFER ib, HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl, gosPRIMITIVETYPE pt); //sebi
+void __stdcall gos_RenderArray(HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl, gosPRIMITIVETYPE pt); //sebi
+void __stdcall gos_RenderArrayInstanced(HGOSBUFFER vb, HGOSBUFFER instance_vb, uint32_t instance_count, HGOSVERTEXDECLARATION vdecl, gosPRIMITIVETYPE pt); //sebi
+void __stdcall gos_RenderIndexedInstanced(HGOSBUFFER ib, HGOSBUFFER vb, HGOSBUFFER instance_vb, uint32_t instance_count, HGOSVERTEXDECLARATION vdecl, gosPRIMITIVETYPE pt); //sebi
 
 
 void __stdcall gos_SetRenderViewport(uint32_t x, uint32_t y, uint32_t w, uint32_t h);
@@ -2503,17 +2515,6 @@ typedef enum
 
 } gosTRANSFORMTYPE;
 
-
-//
-// Used to specify type of primitive being rendered in gos_RenderIndexedArray and gos_RenderVertexBuffer
-//
-typedef enum
-{
-	PRIMITIVE_POINTLIST=1,
-	PRIMITIVE_LINELIST=2,
-	PRIMITIVE_TRIANGLELIST=3,
-
-} gosPRIMITIVETYPE;
 
 
 

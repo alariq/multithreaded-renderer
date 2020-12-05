@@ -80,6 +80,7 @@ static RenderMesh *render_mesh_from_mesh_buffer(const MeshBuffer &mb,
         gos_CreateBuffer(gosBUFFER_TYPE::VERTEX, gosBUFFER_USAGE::STATIC_DRAW,
                          mb.kVertexSize, (uint32_t)mb.vb_size_, mb.vb_);
 
+    mesh->prim_type_ = PRIMITIVE_TRIANGLELIST;
     mesh->aabb_ = mb.get_aabb();
     return mesh;
 }
@@ -115,6 +116,7 @@ static RenderMesh* CreateFSQuadRenderMesh() {
         gos_CreateBuffer(gosBUFFER_TYPE::VERTEX, gosBUFFER_USAGE::STATIC_DRAW,
                          sizeof(QVD), NUM_VERT, vb);
 
+    fs_quad->prim_type_ = PRIMITIVE_TRIANGLELIST;
     return fs_quad;
 }
 

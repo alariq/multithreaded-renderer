@@ -129,6 +129,24 @@ GLenum getGLVertexAttribType(gosVERTEX_ATTRIB_TYPE type) {
 	return t;
 };
 
+GLenum getGLPrimitiveType(gosPRIMITIVETYPE prim_type) {
+    GLenum pt = GL_TRIANGLES;
+    switch(prim_type) {
+        case PRIMITIVE_POINTLIST:
+            pt = GL_POINTS;
+            break;
+        case PRIMITIVE_LINELIST:
+            pt = GL_LINES;
+            break;
+        case PRIMITIVE_TRIANGLELIST:
+            pt = GL_TRIANGLES;
+            break;
+        default:
+            gosASSERT(0 && "Wrong primitive type");
+    }
+    return pt;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 class gosVertexDeclaration {
 	friend class gosRenderer;
@@ -531,11 +549,11 @@ class gosMesh {
         void draw(gosRenderMaterial* material) const;
         void drawIndexed(gosRenderMaterial* material) const;
 
-		static void drawIndexed(HGOSBUFFER ib, HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl, gosRenderMaterial* material);
-		static void drawIndexed(HGOSBUFFER ib, HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl);
-		static void draw(HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl);
-		static void drawInstanced(HGOSBUFFER vb, HGOSBUFFER instance_vb, uint32_t instance_count, HGOSVERTEXDECLARATION vdecl);
-		static void drawIndexedInstanced(HGOSBUFFER ib, HGOSBUFFER vb, HGOSBUFFER instance_vb, uint32_t instance_count, HGOSVERTEXDECLARATION vdecl);
+		static void drawIndexed(HGOSBUFFER ib, HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl, gosRenderMaterial* material, gosPRIMITIVETYPE pt);
+		static void drawIndexed(HGOSBUFFER ib, HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl, gosPRIMITIVETYPE pt);
+		static void draw(HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl, gosPRIMITIVETYPE pt);
+		static void drawInstanced(HGOSBUFFER vb, HGOSBUFFER instance_vb, uint32_t instance_count, HGOSVERTEXDECLARATION vdecl, gosPRIMITIVETYPE pt);
+		static void drawIndexedInstanced(HGOSBUFFER ib, HGOSBUFFER vb, HGOSBUFFER instance_vb, uint32_t instance_count, HGOSVERTEXDECLARATION vdecl, gosPRIMITIVETYPE pt);
 
 		static const std::string s_tex1;
 		static const std::string s_tex2;
@@ -593,21 +611,7 @@ void gosMesh::draw(gosRenderMaterial* material) const
     material->applyVertexDeclaration();
     CHECK_GL_ERROR;
 
-    GLenum pt = GL_TRIANGLES;
-    switch(prim_type_) {
-        case PRIMITIVE_POINTLIST:
-            pt = GL_POINTS;
-            break;
-        case PRIMITIVE_LINELIST:
-            pt = GL_LINES;
-            break;
-        case PRIMITIVE_TRIANGLELIST:
-            pt = GL_TRIANGLES;
-            break;
-        default:
-            gosASSERT(0 && "Wrong primitive type");
-    }
-
+    GLenum pt = getGLPrimitiveType(prim_type_);
     glDrawArrays(pt, 0, num_vertices_);
 
     material->endVertexDeclaration();
@@ -640,21 +644,7 @@ void gosMesh::drawIndexed(gosRenderMaterial* material) const
     material->applyVertexDeclaration();
     CHECK_GL_ERROR;
 
-    GLenum pt = GL_TRIANGLES;
-    switch(prim_type_) {
-        case PRIMITIVE_POINTLIST:
-            pt = GL_POINTS;
-            break;
-        case PRIMITIVE_LINELIST:
-            pt = GL_LINES;
-            break;
-        case PRIMITIVE_TRIANGLELIST:
-            pt = GL_TRIANGLES;
-            break;
-        default:
-            gosASSERT(0 && "Wrong primitive type");
-    }
-
+    GLenum pt = getGLPrimitiveType(prim_type_);
     glDrawElements(pt, num_indices_, getIndexSizeBytes()==2 ? GL_UNSIGNED_SHORT : GL_UNSIGNED_INT, NULL);
 
     material->endVertexDeclaration();
@@ -665,7 +655,7 @@ void gosMesh::drawIndexed(gosRenderMaterial* material) const
 
 }
 
-void gosMesh::drawIndexed(HGOSBUFFER ib, HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl, gosRenderMaterial* material)
+void gosMesh::drawIndexed(HGOSBUFFER ib, HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl, gosRenderMaterial* material, gosPRIMITIVETYPE pt)
 {
 	gosASSERT(material);
 
@@ -690,8 +680,8 @@ void gosMesh::drawIndexed(HGOSBUFFER ib, HGOSBUFFER vb, HGOSVERTEXDECLARATION vd
 	vdecl->apply();
 	CHECK_GL_ERROR;
 
-	GLenum pt = GL_TRIANGLES;
-	glDrawElements(pt, ib->count_, index_size == 2 ? GL_UNSIGNED_SHORT : GL_UNSIGNED_INT, NULL);
+    GLenum gl_prim_type = getGLPrimitiveType(pt);
+	glDrawElements(gl_prim_type, ib->count_, index_size == 2 ? GL_UNSIGNED_SHORT : GL_UNSIGNED_INT, NULL);
 
 	vdecl->end();
 	material->end();
@@ -701,7 +691,7 @@ void gosMesh::drawIndexed(HGOSBUFFER ib, HGOSBUFFER vb, HGOSVERTEXDECLARATION vd
 
 }
 
-void gosMesh::drawIndexed(HGOSBUFFER ib, HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl)
+void gosMesh::drawIndexed(HGOSBUFFER ib, HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl, gosPRIMITIVETYPE pt)
 {
 	int index_size = ib->element_size_;
 	gosASSERT(index_size == 2 || index_size == 4);
@@ -718,8 +708,8 @@ void gosMesh::drawIndexed(HGOSBUFFER ib, HGOSBUFFER vb, HGOSVERTEXDECLARATION vd
 	vdecl->apply();
 	CHECK_GL_ERROR;
 
-	GLenum pt = GL_TRIANGLES;
-	glDrawElements(pt, ib->count_, index_size == 2 ? GL_UNSIGNED_SHORT : GL_UNSIGNED_INT, NULL);
+    GLenum gl_prim_type = getGLPrimitiveType(pt);
+	glDrawElements(gl_prim_type, ib->count_, index_size == 2 ? GL_UNSIGNED_SHORT : GL_UNSIGNED_INT, NULL);
 
 	vdecl->end();
 
@@ -731,7 +721,7 @@ void gosMesh::drawIndexed(HGOSBUFFER ib, HGOSBUFFER vb, HGOSVERTEXDECLARATION vd
 
 }
 
-void gosMesh::draw(HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl)
+void gosMesh::draw(HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl, gosPRIMITIVETYPE pt)
 {
 	CHECK_GL_ERROR;
 
@@ -741,8 +731,8 @@ void gosMesh::draw(HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl)
 	vdecl->apply();
 	CHECK_GL_ERROR;
 
-	GLenum pt = GL_TRIANGLES;
-	glDrawArrays(pt, 0, vb->count_);
+    GLenum gl_prim_type = getGLPrimitiveType(pt);
+	glDrawArrays(gl_prim_type, 0, vb->count_);
 
 	vdecl->end();
 
@@ -752,15 +742,15 @@ void gosMesh::draw(HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl)
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 
-void gosMesh::drawInstanced(HGOSBUFFER vb, HGOSBUFFER instance_vb, uint32_t instance_count, HGOSVERTEXDECLARATION vdecl)
+void gosMesh::drawInstanced(HGOSBUFFER vb, HGOSBUFFER instance_vb, uint32_t instance_count, HGOSVERTEXDECLARATION vdecl, gosPRIMITIVETYPE pt)
 {
 	CHECK_GL_ERROR;
 
 	vdecl->apply(vb, instance_vb);
 	CHECK_GL_ERROR;
 
-	GLenum pt = GL_TRIANGLES;
-	glDrawArraysInstanced(pt, 0, vb->count_, instance_count);
+    GLenum gl_prim_type = getGLPrimitiveType(pt);
+	glDrawArraysInstanced(gl_prim_type, 0, vb->count_, instance_count);
 
 	vdecl->end();
 
@@ -770,7 +760,7 @@ void gosMesh::drawInstanced(HGOSBUFFER vb, HGOSBUFFER instance_vb, uint32_t inst
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 
-void gosMesh::drawIndexedInstanced(HGOSBUFFER ib, HGOSBUFFER vb, HGOSBUFFER instance_vb, uint32_t instance_count, HGOSVERTEXDECLARATION vdecl)
+void gosMesh::drawIndexedInstanced(HGOSBUFFER ib, HGOSBUFFER vb, HGOSBUFFER instance_vb, uint32_t instance_count, HGOSVERTEXDECLARATION vdecl, gosPRIMITIVETYPE pt)
 {
     int index_size = ib->element_size_;
 	gosASSERT(index_size == 2 || index_size == 4);
@@ -786,8 +776,8 @@ void gosMesh::drawIndexedInstanced(HGOSBUFFER ib, HGOSBUFFER vb, HGOSBUFFER inst
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ib->buffer_);
 	CHECK_GL_ERROR;
 
-	GLenum pt = GL_TRIANGLES;
-	glDrawElementsInstanced(pt, ib->count_, index_size == 2 ? GL_UNSIGNED_SHORT : GL_UNSIGNED_INT, 0, instance_count);
+    GLenum gl_prim_type = getGLPrimitiveType(pt);
+	glDrawElementsInstanced(gl_prim_type, ib->count_, index_size == 2 ? GL_UNSIGNED_SHORT : GL_UNSIGNED_INT, 0, instance_count);
 
 	vdecl->end();
 
@@ -1384,11 +1374,11 @@ class gosRenderer {
         void drawPoints(gos_VERTEX* vertices, int count);
         void drawTris(gos_VERTEX* vertices, int count);
         void drawIndexedTris(gos_VERTEX* vertices, int num_vertices, WORD* indices, int num_indices);
-		void drawIndexedTris(HGOSBUFFER ib, HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl, const float* mvp);
-		void drawIndexedTris(HGOSBUFFER ib, HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl);
-		void drawTris(HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl);
-		void drawTrisInstanced(HGOSBUFFER vb, HGOSBUFFER instanced_vb, uint32_t instance_count, HGOSVERTEXDECLARATION vdecl);
-		void drawTrisIndexedInstanced(HGOSBUFFER ib, HGOSBUFFER vb, HGOSBUFFER instanced_vb, uint32_t instance_count, HGOSVERTEXDECLARATION vdecl);
+		void drawIndexed(HGOSBUFFER ib, HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl, const float* mvp, gosPRIMITIVETYPE pt);
+		void drawIndexed(HGOSBUFFER ib, HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl, gosPRIMITIVETYPE pt);
+		void draw(HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl, gosPRIMITIVETYPE pt);
+		void drawInstanced(HGOSBUFFER vb, HGOSBUFFER instanced_vb, uint32_t instance_count, HGOSVERTEXDECLARATION vdecl, gosPRIMITIVETYPE pt);
+		void drawIndexedInstanced(HGOSBUFFER ib, HGOSBUFFER vb, HGOSBUFFER instanced_vb, uint32_t instance_count, HGOSVERTEXDECLARATION vdecl, gosPRIMITIVETYPE pt);
         void drawText(const char* text);
 
         void beginFrame();
@@ -2210,7 +2200,7 @@ void gosRenderer::drawIndexedTris(gos_VERTEX* vertices, int num_vertices, WORD* 
     afterDrawCall();
 }
 
-void gosRenderer::drawIndexedTris(HGOSBUFFER ib, HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl, const float* mvp)
+void gosRenderer::drawIndexed(HGOSBUFFER ib, HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl, const float* mvp, gosPRIMITIVETYPE pt)
 {
     gosASSERT(ib && vb && mvp);
     gosASSERT((ib->count_ % 3) == 0);
@@ -2236,12 +2226,12 @@ void gosRenderer::drawIndexedTris(HGOSBUFFER ib, HGOSBUFFER vb, HGOSVERTEXDECLAR
     mat->setTransform(transform);
     //mat->setFogColor(fog_color_);
 
-	gosMesh::drawIndexed(ib, vb, vdecl, mat);
+	gosMesh::drawIndexed(ib, vb, vdecl, mat, pt);
 
     afterDrawCall();
 }
 
-void gosRenderer::drawIndexedTris(HGOSBUFFER ib, HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl)
+void gosRenderer::drawIndexed(HGOSBUFFER ib, HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl, gosPRIMITIVETYPE pt)
 {
     gosASSERT(ib && vb);
     gosASSERT((ib->count_ % 3) == 0);
@@ -2255,12 +2245,12 @@ void gosRenderer::drawIndexedTris(HGOSBUFFER ib, HGOSBUFFER vb, HGOSVERTEXDECLAR
 	//mat->getShader()->setFloat4("vp", vp);
 	//mat->getShader()->setMat4("projection_", projection_);
 
-	gosMesh::drawIndexed(ib, vb, vdecl);
+	gosMesh::drawIndexed(ib, vb, vdecl, pt);
 
     afterDrawCall();
 }
 
-void gosRenderer::drawTris(HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl)
+void gosRenderer::draw(HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl, gosPRIMITIVETYPE pt)
 {
     gosASSERT(vb);
 
@@ -2268,27 +2258,27 @@ void gosRenderer::drawTris(HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl)
 
     applyRenderStates();
 	// maybe getCurMaterial->set.... to not set it from outer code?
-	gosMesh::draw(vb, vdecl);
+	gosMesh::draw(vb, vdecl, pt);
 
     afterDrawCall();
 }
 
-void gosRenderer::drawTrisInstanced(HGOSBUFFER vb, HGOSBUFFER instance_vb, uint32_t instance_count, HGOSVERTEXDECLARATION vdecl)
+void gosRenderer::drawInstanced(HGOSBUFFER vb, HGOSBUFFER instance_vb, uint32_t instance_count, HGOSVERTEXDECLARATION vdecl, gosPRIMITIVETYPE pt)
 {
     gosASSERT(vb);
     if(beforeDrawCall()) return;
     applyRenderStates();
-	gosMesh::drawInstanced(vb, instance_vb, instance_count, vdecl);
+	gosMesh::drawInstanced(vb, instance_vb, instance_count, vdecl, pt);
     afterDrawCall();
 }
 
-void gosRenderer::drawTrisIndexedInstanced(HGOSBUFFER ib, HGOSBUFFER vb, HGOSBUFFER instance_vb, uint32_t instance_count, HGOSVERTEXDECLARATION vdecl)
+void gosRenderer::drawIndexedInstanced(HGOSBUFFER ib, HGOSBUFFER vb, HGOSBUFFER instance_vb, uint32_t instance_count, HGOSVERTEXDECLARATION vdecl, gosPRIMITIVETYPE pt)
 {
     gosASSERT(ib);
     gosASSERT(vb);
     if(beforeDrawCall()) return;
     applyRenderStates();
-	gosMesh::drawIndexedInstanced(ib, vb, instance_vb, instance_count, vdecl);
+	gosMesh::drawIndexedInstanced(ib, vb, instance_vb, instance_count, vdecl, pt);
     afterDrawCall();
 }
 
@@ -2854,34 +2844,34 @@ void __stdcall gos_RenderIndexedArray( gos_VERTEX_2UV* pVertexArray, DWORD Numbe
    gosASSERT(0 && "not implemented");
 }
 
-void __stdcall gos_RenderIndexedArray(HGOSBUFFER ib, HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl, const float* mvp)
+void __stdcall gos_RenderIndexedArray(HGOSBUFFER ib, HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl, const float* mvp, gosPRIMITIVETYPE pt)
 {
     gosASSERT(g_gos_renderer);
-    g_gos_renderer->drawIndexedTris(ib, vb, vdecl, mvp);
+    g_gos_renderer->drawIndexed(ib, vb, vdecl, mvp, pt);
 }
 
-void __stdcall gos_RenderIndexedArray(HGOSBUFFER ib, HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl)
+void __stdcall gos_RenderIndexedArray(HGOSBUFFER ib, HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl, gosPRIMITIVETYPE pt)
 {
     gosASSERT(g_gos_renderer);
-    g_gos_renderer->drawIndexedTris(ib, vb, vdecl);
+    g_gos_renderer->drawIndexed(ib, vb, vdecl, pt);
 }
 
-void __stdcall gos_RenderArray(HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl)
+void __stdcall gos_RenderArray(HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl, gosPRIMITIVETYPE pt)
 {
     gosASSERT(g_gos_renderer);
-    g_gos_renderer->drawTris(vb, vdecl);
+    g_gos_renderer->draw(vb, vdecl, pt);
 }
 
-void __stdcall gos_RenderArrayInstanced(HGOSBUFFER vb, HGOSBUFFER instance_vb, uint32_t instance_count, HGOSVERTEXDECLARATION vdecl)
+void __stdcall gos_RenderArrayInstanced(HGOSBUFFER vb, HGOSBUFFER instance_vb, uint32_t instance_count, HGOSVERTEXDECLARATION vdecl, gosPRIMITIVETYPE pt)
 {
     gosASSERT(g_gos_renderer);
-    g_gos_renderer->drawTrisInstanced(vb, instance_vb, instance_count, vdecl);
+    g_gos_renderer->drawInstanced(vb, instance_vb, instance_count, vdecl, pt);
 }
 
-void __stdcall gos_RenderIndexedInstanced(HGOSBUFFER ib, HGOSBUFFER vb, HGOSBUFFER instance_vb, uint32_t instance_count, HGOSVERTEXDECLARATION vdecl)
+void __stdcall gos_RenderIndexedInstanced(HGOSBUFFER ib, HGOSBUFFER vb, HGOSBUFFER instance_vb, uint32_t instance_count, HGOSVERTEXDECLARATION vdecl, gosPRIMITIVETYPE pt)
 {
     gosASSERT(g_gos_renderer);
-    g_gos_renderer->drawTrisIndexedInstanced(ib, vb, instance_vb, instance_count, vdecl);
+    g_gos_renderer->drawIndexedInstanced(ib, vb, instance_vb, instance_count, vdecl, pt);
 }
 
 void __stdcall gos_SetRenderState( gos_RenderState RenderState, int Value )

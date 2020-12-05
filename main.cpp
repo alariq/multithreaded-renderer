@@ -289,11 +289,11 @@ public:
 		//mat->setTransform(*wvp_);
 
         if (ro.ib_) {
-            gos_RenderIndexedArray(ro.ib_, ro.vb_, ro.vdecl_);
+            gos_RenderIndexedArray(ro.ib_, ro.vb_, ro.vdecl_, ro.prim_type_);
         } else if(ro.inst_vb_) {
-    		gos_RenderArrayInstanced(ro.vb_, ro.inst_vb_, ro.num_instances, ro.vdecl_);
+    		gos_RenderArrayInstanced(ro.vb_, ro.inst_vb_, ro.num_instances, ro.vdecl_, ro.prim_type_);
         } else {
-    		gos_RenderArray(ro.vb_, ro.vdecl_);
+    		gos_RenderArray(ro.vb_, ro.vdecl_, ro.prim_type_);
         }
     }
 };
@@ -318,7 +318,7 @@ void render_quad(uint32_t tex_id, const vec4& scale_offset, HGOSRENDERMATERIAL m
     gos_ApplyRenderMaterial(mat);
 
     RenderMesh* fs_quad = res_man_load_mesh("fs_quad");
-    gos_RenderIndexedArray(fs_quad->ib_, fs_quad->vb_, fs_quad->vdecl_);
+    gos_RenderIndexedArray(fs_quad->ib_, fs_quad->vb_, fs_quad->vdecl_, fs_quad->prim_type_);
 
 }
 

@@ -189,14 +189,14 @@ public:
 
         if (ro.ib_) {
             if (ro.inst_vb_) {
-                gos_RenderIndexedInstanced(ro.ib_, ro.vb_, ro.inst_vb_, ro.num_instances, ro.vdecl_);
+                gos_RenderIndexedInstanced(ro.ib_, ro.vb_, ro.inst_vb_, ro.num_instances, ro.vdecl_, ro.prim_type_);
             } else {
-                gos_RenderIndexedArray(ro.ib_, ro.vb_, ro.vdecl_);
+                gos_RenderIndexedArray(ro.ib_, ro.vb_, ro.vdecl_, ro.prim_type_);
             }
         } else if(ro.inst_vb_) {
-    		gos_RenderArrayInstanced(ro.vb_, ro.inst_vb_, ro.num_instances, ro.vdecl_);
+    		gos_RenderArrayInstanced(ro.vb_, ro.inst_vb_, ro.num_instances, ro.vdecl_, ro.prim_type_);
         } else {
-    		gos_RenderArray(ro.vb_, ro.vdecl_);
+    		gos_RenderArray(ro.vb_, ro.vdecl_, ro.prim_type_);
         }
 
         gos_SetSamplerState(0, 0);
@@ -266,7 +266,7 @@ void DeferredRenderer::RenderDirectionalLighting(const struct RenderFrameContext
     gos_ApplyRenderMaterial(mat);
 
     RenderMesh* fs_quad = res_man_load_mesh("fs_quad");
-    gos_RenderIndexedArray(fs_quad->ib_, fs_quad->vb_, fs_quad->vdecl_);
+    gos_RenderIndexedArray(fs_quad->ib_, fs_quad->vb_, fs_quad->vdecl_, fs_quad->prim_type_);
 }
 
 void DeferredRenderer::RenderPointLighting(struct RenderFrameContext* rfc)
@@ -324,7 +324,7 @@ void DeferredRenderer::draw_point_lights(const struct RenderFrameContext* rfc, H
 
         gos_ApplyRenderMaterial(mat);
 
-        gos_RenderIndexedArray(sphere->ib_, sphere->vb_, sphere->vdecl_);
+        gos_RenderIndexedArray(sphere->ib_, sphere->vb_, sphere->vdecl_, sphere->prim_type_);
     }
 }
 
@@ -480,7 +480,7 @@ void DeferredRenderer::RenderDownsampledForward(std::function<void(void)> f, con
 
 		RenderMesh* fs_quad = res_man_load_mesh("fs_quad");
         gos_RenderIndexedArray(fs_quad->ib_, fs_quad->vb_,
-                               fs_quad->vdecl_);
+                               fs_quad->vdecl_, fs_quad->prim_type_);
         glDrawBuffer(GL_COLOR_ATTACHMENT0);
     }
 
@@ -549,7 +549,7 @@ void DeferredRenderer::RenderDownsampledForward(std::function<void(void)> f, con
     gos_ApplyRenderMaterial(mat);
 
     RenderMesh* fs_quad = res_man_load_mesh("fs_quad");
-    gos_RenderIndexedArray(fs_quad->ib_, fs_quad->vb_, fs_quad->vdecl_);
+    gos_RenderIndexedArray(fs_quad->ib_, fs_quad->vb_, fs_quad->vdecl_, fs_quad->prim_type_);
 }
 
 void DeferredRenderer::Present(int w, int h)
@@ -573,7 +573,7 @@ void DeferredRenderer::Present(int w, int h)
     gos_ApplyRenderMaterial(mat);
 
     RenderMesh* fs_quad = res_man_load_mesh("fs_quad");
-    gos_RenderIndexedArray(fs_quad->ib_, fs_quad->vb_, fs_quad->vdecl_);
+    gos_RenderIndexedArray(fs_quad->ib_, fs_quad->vb_, fs_quad->vdecl_, fs_quad->prim_type_);
 }
 
 

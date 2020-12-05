@@ -37,6 +37,7 @@ struct RenderMesh {
     HGOSRENDERMATERIAL      mat_;
     uint32_t                num_instances;
     uint32_t                tex_id_;
+    gosPRIMITIVETYPE        prim_type_;
     AABB                    aabb_;
 };
 

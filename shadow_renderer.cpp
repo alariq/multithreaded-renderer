@@ -272,9 +272,9 @@ mat4 ShadowRenderPass::Render(const struct CSMInfo *csm_info,
 
             gos_ApplyRenderMaterial(mat);
             if(ro.ib_)
-                gos_RenderIndexedArray(ro.ib_, ro.vb_, ro.vdecl_);
+                gos_RenderIndexedArray(ro.ib_, ro.vb_, ro.vdecl_, ro.prim_type_);
             else
-                gos_RenderArray(ro.vb_, ro.vdecl_);
+                gos_RenderArray(ro.vb_, ro.vdecl_, ro.prim_type_);
         }
     }
 
