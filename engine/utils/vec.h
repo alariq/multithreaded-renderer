@@ -234,6 +234,8 @@ struct ivec3 {
 	operator const int *() const { return &x;	}
 };
 
+ivec3 operator * (const ivec3 &u, const ivec3 &v);
+
 /** 4D integer vector */
 struct ivec4 {
 	int x, y, z, w;
@@ -251,6 +253,9 @@ struct ivec4 {
 	operator const int *() const { return &x;	}
 };
 
+vec2 abs(const vec2 v);
+vec3 abs(const vec3 v);
+vec4 abs(const vec4 v);
 
 float dot(const vec2 &u, const vec2 &v);
 float dot(const vec3 &u, const vec3 &v);
@@ -331,6 +336,14 @@ float length(const vec4 &v);
 float lengthSqr(const vec2 &v);
 float lengthSqr(const vec3 &v);
 float lengthSqr(const vec4 &v);
+
+vec2 floor(const vec2 &v);
+vec3 floor(const vec3 &v);
+vec4 floor(const vec4 &v);
+
+vec2 frac(const vec2 &v);
+vec3 frac(const vec3 &v);
+vec4 frac(const vec4 &v);
 
 /** Compute the distance between two nD vectors, where n is [2-4] */
 //#define distance(u, v) length((u) - (v))
