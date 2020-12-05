@@ -206,6 +206,7 @@ WINBASEAPI PVOID WINAPI VirtualAlloc(PVOID lpAddress, DWORD dwSize, DWORD flAllo
     else
     {
         assert(0 && "VirtualAlloc: unsupported allocation type");
+        return 0;
     }
 }
 
