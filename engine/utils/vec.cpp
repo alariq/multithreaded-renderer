@@ -156,6 +156,10 @@ ivec2 operator + (const ivec2 &u, const ivec2 &v){
 	return ivec2(u.x + v.x, u.y + v.y);
 }
 
+ivec3 operator * (const ivec3 &u, const ivec3 &v){
+	return ivec3(u.x * v.x, u.y * v.y, u.z * v.z);
+}
+
 /* --------------------------------------------------------------------------------- */
 void vec3::operator += (const vec3 &v){
 	x += v.x;
@@ -332,6 +336,18 @@ bool operator != (const vec4 &u, const vec4 &v){
 	return (u.x != v.x || u.y != v.y || u.z != v.z || u.w != v.w);
 }
 
+vec2 abs(const vec2 v) {
+    return vec2(fabsf(v.x), fabsf(v.y));
+}
+
+vec3 abs(const vec3 v) {
+    return vec3(fabsf(v.x), fabsf(v.y), fabsf(v.z));
+}
+
+vec4 abs(const vec4 v) {
+    return vec4(fabsf(v.x), fabsf(v.y), fabsf(v.z), fabsf(v.w));
+}
+
 float dot(const vec2 &u, const vec2 &v){
 	return u.x * v.x + u.y * v.y;
 }
@@ -452,6 +468,27 @@ float lengthSqr(const vec3 &v){
 }
 float lengthSqr(const vec4 &v){
 	return v.x * v.x + v.y * v.y + v.z * v.z + v.w * v.w;
+}
+
+vec2 floor(const vec2 &v){
+    return vec2(floor(v.x), floor(v.y));
+}
+
+vec3 floor(const vec3 &v){
+    return vec3(floor(v.x), floor(v.y), floor(v.z));
+}
+vec4 floor(const vec4 &v){
+    return vec4(floor(v.x), floor(v.y), floor(v.z), floor(v.w));
+}
+
+vec2 frac(const vec2 &v){
+    return vec2(v.x - floor(v.x), v.y - floor(v.y));
+}
+vec3 frac(const vec3 &v){
+    return vec3(v.x - floor(v.x), v.y - floor(v.y), v.z - floor(v.z));
+}
+vec4 frac(const vec4 &v){
+    return vec4(v.x - floor(v.x), v.y - floor(v.y), v.z - floor(v.z), v.w - floor(v.w));
 }
 
 vec3 cross(const vec3 &u, const vec3 &v){
