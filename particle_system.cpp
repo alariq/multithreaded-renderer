@@ -408,6 +408,7 @@ public:
         rp->mesh_.vb_ = get_quad_vb();
         rp->mesh_.tex_id_ = 0;
         rp->mesh_.vdecl_ = get_vdecl();
+        rp->mesh_.prim_type_ = PRIMITIVE_TRIANGLELIST;
         rp->mesh_.num_instances = (uint32_t)size_;
         rp->m_ = mat4::identity();
         rp->is_render_to_shadow = 0;
