@@ -2234,7 +2234,7 @@ void gosRenderer::drawIndexed(HGOSBUFFER ib, HGOSBUFFER vb, HGOSVERTEXDECLARATIO
 void gosRenderer::drawIndexed(HGOSBUFFER ib, HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl, gosPRIMITIVETYPE pt)
 {
     gosASSERT(ib && vb);
-    gosASSERT((ib->count_ % 3) == 0);
+    gosASSERT(ib->count_ > 0);
 
     if(beforeDrawCall()) return;
 
