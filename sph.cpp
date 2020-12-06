@@ -27,6 +27,8 @@ const static float EPS = H; // boundary epsilon
 const static float BOUND_DAMPING = -0.5f;
 
 
+void EnforceBoundaryConditions(struct SPHParticle2D& p, const vec3& view_dim);
+
 struct SPHFluidModel {
     SPHGrid* grid_;
     SPHParticle2D* particles_;
@@ -117,10 +119,10 @@ struct TimeStep {
 
 		for (int i = 0; i < num_particles; ++i) {
 			SPHParticle2D &pi = particles[i];
-			pi.density = 0.0f;
-			foreach_in_radius(support_radius, pi.pos, grid, particles, num_particles,
+			pi.density = fm->volume_ * sim->Wzero();
+			foreach_in_radius(support_radius, i, grid, particles, num_particles,
 							  [&pi, fm, sim](const SPHParticle2D *pj, int) {
-								  pi.density += fm->volume_ * sim->W(pj->pos - pi.pos);
+								  pi.density += fm->volume_ * sim->W(pi.pos - pj->pos);
 							  });
 			// multiply by density because we use volume in the loop instead of a mass
 			pi.density *= fm->density0_;
@@ -139,7 +141,7 @@ struct TimeStep {
 			SPHParticle2D &pi = particles[i];
 			float sum_of_grad_squares = 0.0f;
 			vec2 grad_sums = vec2(0, 0);
-			foreach_in_radius(support_radius, pi.pos, grid, particles, num_particles,
+			foreach_in_radius(support_radius, i, grid, particles, num_particles,
 							  [&pi, fm, sim, &grad_sums,
 							   &sum_of_grad_squares](const SPHParticle2D *pj, int) {
 								  vec2 grad_pj =
@@ -182,7 +184,7 @@ struct TimeStep {
 		for (int i = 0; i < num_particles; ++i) {
 			SPHParticle2D &pi = particles[i];
 			float delta = 0.0f;
-			foreach_in_radius(support_radius, pi.pos, grid, particles, num_particles,
+			foreach_in_radius(support_radius, i, grid, particles, num_particles,
 							  [&pi, fm, sim, &delta](const SPHParticle2D *pj, int) {
 								  delta +=
 									  fm->volume_ * dot((pi.vel - pj->vel),
@@ -213,7 +215,7 @@ struct TimeStep {
 			// Algorithm 3, see also Ch 3.3 eq. 12
 			float kappa_i = (density_adv[i] - 1.0f) * factor[i];
 
-			foreach_in_radius(support_radius, pi.pos, grid, particles, num_particles,
+			foreach_in_radius(support_radius, i, grid, particles, num_particles,
 							  [&pi, fm, sim, eps, h, oo_h2, kappa_i, factor,
 							   density_adv](const SPHParticle2D *pj, int j) {
 								  // float rel_dens0 = neighb_fluid_model_density0 /
@@ -235,7 +237,7 @@ struct TimeStep {
         // move this into calcDensityAdv
         float density_err = 0.0;
 		for (int i = 0; i < num_particles; ++i) {
-            density_err = (sim->sim_data_->density_adv_[i] - 1.0f) * fm->density0_;
+            density_err += (sim->sim_data_->density_adv_[i] - 1.0f) * fm->density0_;
         }
 		return density_err / num_particles;
 	}
@@ -284,35 +286,40 @@ struct TimeStep {
 		for (int i = 0; i < num_particles; ++i) {
 			SPHParticle2D &pi = particles[i];
             pi.pos += h * pi.vel;
+            //EnforceBoundaryConditions(pi, sim->boundary_model_->getBoundarySize());
         }
 	}
 
 };
 
-void foreach_in_radius(float r, vec2 pos, SPHGrid* grid, SPHParticle2D* particles, int num_particles, std::function<void(const SPHParticle2D*, int)> func) {
+// Does not include particle i itself!
+void foreach_in_radius(float r, int idx, SPHGrid *grid, SPHParticle2D *particles,
+					   int num_particles,
+					   std::function<void(const SPHParticle2D *, int)> func) {
 
-    (void)num_particles;
+	(void)num_particles;
+	const vec2 &pos = particles[idx].pos;
 
-    const int left_top = pos2cell_index(pos - vec2(r,r), grid);
-    const int right_bottom = pos2cell_index(pos + vec2(r,r), grid);
-    const float r_sq = r * r;
-    const ivec2 lt_coord = grid->getCellCoordFromCellIndex(left_top);
-    const ivec2 rb_coord = grid->getCellCoordFromCellIndex(right_bottom);
+	const int left_top = pos2cell_index(pos - vec2(r, r), grid);
+	const int right_bottom = pos2cell_index(pos + vec2(r, r), grid);
+	const float r_sq = r * r;
+	const ivec2 lt_coord = grid->getCellCoordFromCellIndex(left_top);
+	const ivec2 rb_coord = grid->getCellCoordFromCellIndex(right_bottom);
 
-    int n_start_x = max(lt_coord.x - 1, 0);
-    int n_end_x = min(rb_coord.x + 1, grid->cell_dim_.x - 1);
+	int n_start_x = max(lt_coord.x - 1, 0);
+	int n_end_x = min(rb_coord.x + 1, grid->cell_dim_.x - 1);
 
-    int n_start_y = max(lt_coord.y - 1, 0);
+	int n_start_y = max(lt_coord.y - 1, 0);
 	int n_end_y = min(rb_coord.y + 1, grid->cell_dim_.y - 1);
 
 	for (int ny = n_start_y; ny <= n_end_y; ++ny) {
 		for (int nx = n_start_x; nx <= n_end_x; ++nx) {
-            const SPHGridCell* cell = grid->at(nx, ny);
-            for (int pj_idx : cell->part_indices_) {
-                assert(pj_idx < num_particles);
-                if(lengthSqr(pos - particles[pj_idx].pos) <= r_sq)
-                    func(&particles[pj_idx], pj_idx);
-            }
+			const SPHGridCell *cell = grid->at(nx, ny);
+			for (int pj_idx : cell->part_indices_) {
+				assert(pj_idx < num_particles);
+				if (idx != pj_idx && lengthSqr(pos - particles[pj_idx].pos) <= r_sq)
+					func(&particles[pj_idx], pj_idx);
+			}
 		}
 	}
 }
@@ -339,8 +346,8 @@ void ComputeDensityPressure(SPHParticle2D *particles, int count) {
 void ComputeDensityPressure_neigh(SPHParticle2D *particles, int count, SPHGrid *grid) {
 	for (int i = 0; i < count; ++i) {
 		SPHParticle2D &pi = particles[i];
-        pi.density = 0.0f;
-		foreach_in_radius(H, pi.pos, grid, particles, count, [&pi](const SPHParticle2D* pj, int) {
+        pi.density = MASS * POLY6 * pow(HSQ, 3.f); // my own
+		foreach_in_radius(H, i, grid, particles, count, [&pi](const SPHParticle2D* pj, int) {
 			vec2 rij = pj->pos - pi.pos;
 			float r2 = lengthSqr(rij);
 
@@ -391,10 +398,7 @@ void ComputeForces_neigh(SPHParticle2D *particles, int count, SPHGrid *grid) {
 		vec2 fpress(0.f, 0.f);
 		vec2 fvisc(0.f, 0.f);
 
-		foreach_in_radius(H, pi->pos, grid, particles, count, [pi, &fpress, &fvisc](const SPHParticle2D* pj, int) {
-
-			if (pi == pj)
-                return;
+		foreach_in_radius(H, i, grid, particles, count, [pi, &fpress, &fvisc](const SPHParticle2D* pj, int) {
 
 			vec2 rij = pj->pos - pi->pos;
 			float r = length(rij);
@@ -413,7 +417,7 @@ void ComputeForces_neigh(SPHParticle2D *particles, int count, SPHGrid *grid) {
 	}
 }
 
-void EnforceBoundaryConditions(SPHParticle2D& p, const vec2& view_dim) {
+void EnforceBoundaryConditions(SPHParticle2D& p, const vec3& view_dim) {
         // enforce boundary conditions
         if (p.pos.x - EPS < 0.0f)
         {
@@ -445,7 +449,7 @@ void Integrate(SPHParticle2D* particles, int count, vec2 view_dim)
         // forward Euler integration
         p.vel += DT * p.force / p.density;
         p.pos += DT * p.vel;
-        EnforceBoundaryConditions(p, view_dim);
+        EnforceBoundaryConditions(p, vec3(view_dim.x, view_dim.y, 0.0f));
     }
 }
 
@@ -458,7 +462,7 @@ int pos2cell_index(vec2 pos, const SPHGrid* grid) {
 
     vec2 pi = pos / grid->dim_;
 
-    // clamp because f 1.0f then id will be equal to cell_dim.x ( or y)
+    // clamp because if pi.x = 1.0 then it will be equal to cell_dim.x ( or y)
     int ix = clamp((int)(pi.x * (float)grid->cell_dim_.x), 0.0f, (float)grid->cell_dim_.x - 1);
     int iy = clamp((int)(pi.y * (float)grid->cell_dim_.y), 0.0f, (float)grid->cell_dim_.y - 1);
 
