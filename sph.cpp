@@ -48,10 +48,10 @@ struct Simulation {
 
     const vec2 accel_ = vec2(0.0f, -9.81f);
 
-    float time_step_ = 0.005f;
+    float time_step_ = 0.016f;
     float cfl_factor_ = 0.5f;
     float min_cfl_timestep_ = 0.0001;
-    float max_cfl_timestep_ = 0.005;
+    float max_cfl_timestep_ = 0.016f;//0.005;
 
     float W_zero_;
 	float (*kernel_fptr_)(const vec3 &);
@@ -81,14 +81,15 @@ struct Simulation {
 
     void updateTimestep() {
         SPHFluidModel* fm = fluid_model_;
-        float max_vel = 0.0f;
+        float max_vel = 0.01f;
 		for (int i = 0; i < fm->num_particles_; ++i) {
 			SPHParticle2D &pi = fm->particles_[i];
             float vel = lengthSqr(pi.vel + accel_*time_step_);
             max_vel = max(max_vel, vel);
         }
         
-        float h = cfl_factor_ * (fm->radius_ * 2.0f) * sqrtf(max_vel);
+        float diameter = fm->radius_ * 2.0f;
+        float h = cfl_factor_ * diameter / sqrtf(max_vel);
         h = clamp(h, min_cfl_timestep_, max_cfl_timestep_);
         time_step_ = h;
     }
