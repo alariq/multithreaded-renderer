@@ -15,11 +15,11 @@ struct RenderMesh;
 struct camera;
 class ParticleSystem;
 
-class Renderable {
+class IRenderable {
 public:
     virtual void InitRenderResources() = 0;
     virtual void AddRenderPackets(struct RenderFrameContext* ) const {};
-    virtual ~Renderable() {}
+    virtual ~IRenderable() {}
 };
 
 enum class ComponentType {
@@ -61,7 +61,7 @@ public:
 };
 
 typedef uint32_t GameObjectId;
-class GameObject: public Renderable {
+class GameObject: public IRenderable {
     std::vector<Component*> components_;
 	GameObjectId id_;
 public:

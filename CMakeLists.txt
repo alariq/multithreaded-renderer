@@ -87,6 +87,9 @@ set(SOURCES
     "editor.cpp"
     "sph.cpp"
     "sph_kernels.h"
+    "sph_kernels.cpp"
+    "sph_boundary.h"
+    "sph_boundary.cpp"
     )
 
 #find_library(GLEW NAMES "GLEW" "glew32")

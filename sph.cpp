@@ -1,11 +1,13 @@
 #include "sph.h"
 #include "sph_kernels.h"
+#include "sph_boundary.h"
 #include <cmath>
 #include "obj_model.h"
 #include "res_man.h"
 #include "engine/gameos.hpp" // COUNTOF
 #include "utils/vec.h"
 #include <functional>
+#include <cfloat>
 
 // solver parameters
 const static vec2 G(0.f, 120 * -9.8f); // external (gravitational) forces
@@ -44,6 +46,18 @@ struct SPHSimData {
     std::vector<float> factor_;
     std::vector<float> density_adv_;
 
+    // from boundary (overkill because only a fraction of particles needs this dunring a simulation frame)
+    // use index into another array (resized on demand, or using fixed block allocator scheme)
+    std::vector<vec2> boundaryXj_;
+    std::vector<float> boundaryVolume_;
+
+	void allocate(size_t count) {
+		density_adv_.resize(count);
+		factor_.resize(count);
+		kappa_.resize(count);
+		boundaryXj_.resize(count);
+		boundaryVolume_.resize(count);
+	}
 };
 
 struct Simulation {
@@ -59,9 +73,19 @@ struct Simulation {
 	float (*kernel_fptr_)(const vec3 &);
 	vec3 (*grad_kernel_fptr_)(const vec3& r);
 
+    Simulation() {
+        kernel_fptr_ = CubicKernel2D::W;
+        grad_kernel_fptr_ = CubicKernel2D::gradW;
+    }
+
+    ~Simulation() {
+        delete boundary_model_;
+        delete fluid_model_;
+        delete sim_data_;
+    }
+
     void Setup() {
-        W_zero_ = CubicKernel::W_zero();
-        kernel_fptr_ = CubicKernel::W;
+        W_zero_ = CubicKernel2D::W_zero();
     }
 
     float W(const vec3& v) const {
@@ -81,6 +105,8 @@ struct Simulation {
         return grad_kernel_fptr_(v);
     }
 
+    float Wzero() { return W_zero_; }
+
     void updateTimestep() {
         SPHFluidModel* fm = fluid_model_;
         float max_vel = 0.01f;
@@ -97,6 +123,7 @@ struct Simulation {
     }
 
     SPHFluidModel* fluid_model_;
+    SPHBoundaryModel* boundary_model_;
     SPHSimData* sim_data_;
 };
 
@@ -109,6 +136,39 @@ struct TimeStep {
     const int min_iterations_ = 2;
     const int max_iterations_ = 100;
     const float max_error_percent_ = 0.01f;
+
+    // !NB: no world -> local point conversion yet
+	void calcVolumeAndBoundaryX(Simulation *sim) {
+		SPHFluidModel *fm = sim->fluid_model_;
+		SPHSimData *sim_data = sim->sim_data_;
+		const int num_particles = fm->num_particles_;
+		SPHParticle2D *particles = fm->particles_;
+		const float particle_radius = fm->radius_;
+		const float support_radius = fm->support_radius_;
+
+		for (int i = 0; i < num_particles; ++i) {
+			SPHParticle2D &pi = particles[i];
+			const float dist = sim->boundary_model_->getDistance2D(pi.pos);
+            const vec2 normal = sim->boundary_model_->getNormal2D(pi.pos);
+
+			sim_data->boundaryVolume_[i] = 0.0f;
+
+			if ((dist > 0.1 * particle_radius) && (dist < support_radius)) {
+				const float volume = sim->boundary_model_->getVolume2D(pi.pos);
+				if ((volume > 1e-5) && (volume != FLT_MAX)) {
+					sim_data->boundaryVolume_[i] = volume;
+					sim_data->boundaryXj_[i] = pi.pos - normal*dist;
+				}
+			} else if(dist <= 0.1*particle_radius) {
+                float d = -dist;
+				d = min(d, (0.25f / 0.005f) * particle_radius * sim->time_step_);
+                // bring back to boundary surface
+                pi.pos += d * normal;
+                // adapt velocity in normal direction
+				pi.vel += (0.05f - dot(pi.vel, normal)) * normal;
+			}
+		}
+	}
 
 	void calcDensities(Simulation *sim) {
 		SPHFluidModel *fm = sim->fluid_model_;
@@ -124,6 +184,16 @@ struct TimeStep {
 							  [&pi, fm, sim](const SPHParticle2D *pj, int) {
 								  pi.density += fm->volume_ * sim->W(pi.pos - pj->pos);
 							  });
+
+            // boundary
+            float Vj = sim->sim_data_->boundaryVolume_[i];
+            if( Vj > 0.0f) {
+                vec2 xj = sim->sim_data_->boundaryXj_[i];
+                vec2 d = pi.pos - xj;
+                float k = sim->W(d);
+                pi.density += Vj * k;
+            }
+
 			// multiply by density because we use volume in the loop instead of a mass
 			pi.density *= fm->density0_;
 		}
@@ -149,6 +219,14 @@ struct TimeStep {
 								  grad_sums -= grad_pj;
 								  sum_of_grad_squares += lengthSqr(grad_pj);
 							  });
+            // boundary
+            float Vj = sim->sim_data_->boundaryVolume_[i];
+            if( Vj > 0.0f) {
+				vec2 xj = sim->sim_data_->boundaryXj_[i];
+				vec2 grad_pj = -Vj * sim->gradW(pi.pos - xj);
+				grad_sums -= grad_pj;
+				//sum_of_grad_squares += lengthSqr(grad_pj);
+            }
 
 			float alpha = lengthSqr(grad_sums) + sum_of_grad_squares;
 			if (alpha > eps_)
@@ -190,6 +268,14 @@ struct TimeStep {
 									  fm->volume_ * dot((pi.vel - pj->vel),
 														sim->gradW(pi.pos - pj->pos));
 							  });
+            // boundary
+            float Vj = sim->sim_data_->boundaryVolume_[i];
+            if( Vj > 0.0f) {
+                const vec2 vj = vec2(0.0f, 0.0f);// only static boundaries for now
+                vec2 xj = sim->sim_data_->boundaryXj_[i];
+				delta += Vj * dot((pi.vel - vj), sim->gradW(pi.pos - xj));
+			}
+
             float density_adv = pi.density / fm->density0_ + sim->time_step_ * delta;
             sim->sim_data_->density_adv_[i] = max(density_adv, 1.0f);
 		}
@@ -230,6 +316,18 @@ struct TimeStep {
 									  pi.vel -= h * k_sum * grad_p_j;
 								  }
 							  });
+            // boundary
+			if (fabs(kappa_i*oo_h2) > TimeStep::eps_) {
+				float Vj = sim->sim_data_->boundaryVolume_[i];
+				if (Vj > 0.0f) {
+                        const vec2 xj = sim->sim_data_->boundaryXj_[i];
+						const vec2 grad_p_j = -Vj * sim->gradW(pi.pos - xj);
+						const vec2 vel_change = -sim->time_step_ * 1.0f * kappa_i * oo_h2 * grad_p_j;				// kj already contains inverse density
+						pi.vel += vel_change;
+					// static boundaries do not affected by force
+                    // in case of dynamic boundaries add force
+				}
+			}
 		}
 
         // now when we've udated velocities, update density advection
@@ -258,7 +356,9 @@ struct TimeStep {
             float avg_density_err = pressureSolveIter(sim);
             check = check && (avg_density_err < eta);
             num_iterations_++;
-        }       
+        }
+
+        printf("num iterations: %d\n", num_iterations_);
 
     }
 
@@ -268,6 +368,8 @@ struct TimeStep {
 		const int num_particles = fm->num_particles_;
 		SPHParticle2D *particles = fm->particles_;
 
+        calcVolumeAndBoundaryX(sim);
+
 		calcDensities(sim);
 		calcFactor(sim);
 
@@ -275,6 +377,7 @@ struct TimeStep {
 
         sim->updateTimestep();
         const float h = sim->time_step_;
+        printf("timestep h: %.4f\n", h);      
 
 		for (int i = 0; i < num_particles; ++i) {
 			SPHParticle2D &pi = particles[i];
@@ -653,12 +756,28 @@ void sph_init_renderer() {
 	gos_AddRenderMaterial("sdf_visualize");
 }
 
+TimeStep* g_timestep = 0;
+Simulation* g_sim = 0;
+void sph_init() {
+    g_timestep = new TimeStep();
+    g_sim = new Simulation();
+}
+
+void sph_deinit() {
+    delete g_sim;
+    delete g_timestep;
+    g_sim = nullptr;
+    g_timestep = nullptr;
+}
+
 void sph_update(SPHParticle2D *particles, int count, vec2 view_dim, SPHGrid* grid) {
+#if 0
 	ComputeDensityPressure_neigh(particles, count, grid);
-	//ComputeDensityPressure(particles, count);
 	ComputeForces_neigh(particles, count, grid);
-	//ComputeForces(particles, count);
 	Integrate(particles, count, view_dim);
+#else
+    g_timestep->Tick(g_sim);
+#endif
 }
 
 HGOSVERTEXDECLARATION get_sph_vdecl() {
@@ -721,11 +840,41 @@ SPHSceneObject* SPHSceneObject::Create(const vec2& view_dim, int num_particles, 
     o->part_flags_ = new uint32_t[num_particles];
     o->view_dim_ = view_dim;
     o->grid_ = SPHGrid::makeGrid(15, 15, view_dim);
-
+    o->radius_ = 0.1f;
     auto tr = o->AddComponent<TransformComponent>();
     tr->SetPosition(pos);
     o->transform_ = tr;
-    return o;
+
+    float support_radius = 4.0f * o->radius_;
+	CubicKernel::setRadius(support_radius);
+	CubicKernel2D::setRadius(support_radius);
+
+    SPHFluidModel* fm = new SPHFluidModel();
+    fm->density0_ = 1000;
+    fm->radius_ = o->radius_;
+    fm->support_radius_ = 4.0f * fm->radius_;
+    // slightly reduced square (cube for 3d)
+	fm->volume_ = //.6f/CubicKernel2D::W_zero();
+		(2.0f * fm->radius_) * (2.0f * fm->radius_) * 0.8f;
+	fm->particles_ = o->particles_;
+    fm->num_particles_ = num_particles;
+    fm->grid_ = o->grid_;
+
+    SPHSimData* sim_data = new SPHSimData();
+    sim_data->allocate(num_particles);
+
+    SPHBoundaryModel* bm = new SPHBoundaryModel();
+    float volume_map_cell_size = 0.1f;
+    ivec3 resolution = ivec3(o->view_dim_.x / volume_map_cell_size, o->view_dim_.y / volume_map_cell_size, 1);
+    bool b_is2d = true;
+    bm->Initialize(vec3(o->view_dim_.x, o->view_dim_.y, 10000.0f), fm->radius_, fm->support_radius_, resolution, b_is2d);
+
+    g_sim->boundary_model_ = bm;
+    g_sim->sim_data_ = sim_data;
+    g_sim->fluid_model_ = fm;
+    g_sim->Setup();
+
+	return o;
 }
 
 SPHSceneObject::~SPHSceneObject() {
@@ -753,6 +902,9 @@ void SPHSceneObject::InitRenderResources() {
     DWORD wh = ((grid_->cell_dim_.x + 1) << 16) | (grid_->cell_dim_.y + 1);
     surface_grid_tex_ = gos_NewEmptyTexture(gos_Texture_R8, "surface_grid" , wh);
     sdf_tex_ = gos_NewEmptyTexture(gos_Texture_R32F, "sdf" , wh);
+
+    g_sim->boundary_model_->InitializeRenderResources();
+
 }
 
 void SPHSceneObject::DeinitRenderResources() {
@@ -808,7 +960,7 @@ void SPHSceneObject::AddRenderPackets(struct RenderFrameContext *rfc) const {
 			(SPHParticle2D *)gos_MapBuffer(inst_vb, 0, bufsize, gosBUFFER_ACCESS::WRITE);
 		memcpy(part_data, particles, bufsize);
 		gos_UnmapBuffer(inst_vb);
-
+#if 0
         TEXTUREPTR texinfo;
         gos_LockTexture(surface_grid_tex, 0, false, &texinfo);
         //static_assert(sizeof(SPHGridVertex) == 1, "Sizes must be the same");
@@ -821,7 +973,7 @@ void SPHSceneObject::AddRenderPackets(struct RenderFrameContext *rfc) const {
             }
         }
         gos_UnLockTexture(surface_grid_tex);
-#if 1 
+
         gos_LockTexture(sdf_tex, 0, false, &texinfo);
         for(int y=0; y<tex_wh.y;++y) {
             float* row = (float*)texinfo.pTexture + y*texinfo.Pitch;
@@ -832,12 +984,18 @@ void SPHSceneObject::AddRenderPackets(struct RenderFrameContext *rfc) const {
         }
         gos_UnLockTexture(sdf_tex);
 #endif
+        g_sim->boundary_model_->UpdateTexturesByData();
+
 	});
 
     HGOSRENDERMATERIAL sdf_material = sdf_mat_;
 	ScheduleDebugDrawCommand(rfc, [surface_grid_tex, sdf_tex, sdf_material]() {
-		render_quad(surface_grid_tex, vec4(0.25f, 0.25f, -0.5f, 0.5f), nullptr);
-		render_quad(sdf_tex, vec4(0.25f, 0.25f, 0.25f, 0.5f), sdf_material);
+		//render_quad(surface_grid_tex, vec4(0.25f, 0.25f, -0.5f, 0.5f), nullptr);
+		//render_quad(sdf_tex, vec4(0.25f, 0.25f, 0.25f, 0.5f), sdf_material);
+
+		render_quad(g_sim->boundary_model_->getVolumeTexture(), vec4(0.25f, 0.25f, -0.5f, 0.5f), sdf_material);
+		//render_quad(g_sim->boundary_model_->getNormalTexture(), vec4(0.25f, 0.25f, -0.5f, 0.5f), sdf_material);
+		render_quad(g_sim->boundary_model_->getDistanceTexture(), vec4(0.25f, 0.25f, 0.25f, 0.5f), sdf_material);
 	});
 
 	class RenderList* rl = rfc->rl_;
@@ -852,14 +1010,21 @@ void SPHSceneObject::AddRenderPackets(struct RenderFrameContext *rfc) const {
 	rp->mesh_.inst_vb_ = inst_vb_[cur_inst_vb_];
     rp->mesh_.vdecl_ = vdecl_;
     rp->mesh_.num_instances = num_particles_;
+
+	rp = rl->AddPacket();
+	memset(rp, 0, sizeof(RenderPacket));
+    rp->mesh_ = *g_sim->boundary_model_->getBoundaryMesh();
+    rp->m_ = transform_->GetTransform();
+	rp->is_debug_pass = 1;
+	rp->debug_color = vec4(1,0,0,1);
 }
 
 void initialize_particle_positions(SPHSceneObject* o) {
     SPHParticle2D*  particles = o->GetParticles();
     const int count = o->GetParticlesCount();
     const float radius = o->GetRadius();
-    vec2 offset = vec2(o->GetBounds().x*0.2f, 2.0f*radius);
-    int row_size = (int)(o->GetBounds().x / (2.0f*radius));
+    vec2 offset = vec2(1.9f*radius, 4.0f*radius);
+    int row_size = (int)(sqrtf(count) + 0.5f);////(int)(o->GetBounds().x / (2.0f*radius));
     int column_size = (count + row_size - 1) / row_size; 
     for(int y= 0; y<column_size; ++y) {
         for(int x= 0; x<row_size; ++x) {
@@ -868,11 +1033,15 @@ void initialize_particle_positions(SPHSceneObject* o) {
                 break;
             SPHParticle2D& p = particles[idx];
             float jitter = random(-0.02f, 0.02f);
-            p.pos = offset + vec2(x*2.1f*radius + jitter, y*2.1f*radius);
+            p.pos = offset + vec2(x*2.2f*radius + jitter, y*2.2f*radius);
             p.pressure = 0;
             p.density = 0;
             p.force = vec2(0,0);
-            p.vel = vec2(0,0);
+            if(idx==0)
+                p.vel = vec2(0.0f, 0.0f);
+            else
+                p.vel = vec2(0.0f, 0.0f);
+
         }
     }
 }

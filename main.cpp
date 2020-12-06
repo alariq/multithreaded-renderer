@@ -85,10 +85,14 @@ void __stdcall Init(void)
     g_shadow_camera.set_ortho_projection(-30, 30, 30, -30, 0.1f, 200.0f);
     g_shadow_camera.set_view(shadow_view);
 
+    sph_init();
+
 }
 
 void __stdcall Deinit(void)
 {
+    sph_deinit();
+
     g_obj_id_renderer.Deinit();
 
     DeleteRenderLists();

@@ -14,6 +14,8 @@ struct SPHParticle2D {
 
 typedef SPHParticle2D SPHInstVDecl ;
 
+void sph_init();
+void sph_deinit();
 void sph_update(SPHParticle2D *particles, int count, vec2 view_dim);
 
 struct SPHGridCell {
@@ -117,7 +119,6 @@ public:
     virtual RenderMesh* GetMesh() const override { return nullptr; }
     virtual ~SPHSceneObject();
 
-	void SetRadius(float r) { radius_ = r; }
 	float GetRadius() { return radius_; }
 
     const vec2& GetBounds() { return view_dim_; }
@@ -128,7 +129,7 @@ public:
     virtual void InitRenderResources() override;
     void DeinitRenderResources();
 
-    // Renderable
+    // IRenderable
     virtual void AddRenderPackets(struct RenderFrameContext* rfc) const override;
 };
 
