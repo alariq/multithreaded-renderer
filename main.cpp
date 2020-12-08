@@ -40,6 +40,7 @@ extern void test_fixed_block_allocator();
 bool g_is_in_editor = false;
 bool g_render_initialized_hack = false;
 bool g_update_simulation = false;
+bool g_update_simulation_step_by_step = true;
 uint32_t g_obj_under_cursor = scene::kInvalidObjectId;
 
 DWORD g_htexture = 0;
@@ -159,8 +160,11 @@ void __stdcall Update(void)
 
     start_tick = timing::gettickcount();
 
-    if(gos_GetKeyStatus(KEY_P) == KEY_PRESSED)
+    if(gos_GetKeyStatus(KEY_SPACE) == KEY_PRESSED)
         g_update_simulation = !g_update_simulation;
+
+    if(gos_GetKeyStatus(KEY_F1) == KEY_PRESSED)
+        g_update_simulation_step_by_step = !g_update_simulation_step_by_step;
 
     if(gos_GetKeyStatus(KEY_TAB) == KEY_PRESSED)
     {
@@ -177,8 +181,12 @@ void __stdcall Update(void)
 		editor_update(&g_camera, dt_sec);
 	}
 
-	if (g_update_simulation)
+    if (g_update_simulation) {
         scene_update(&g_camera, dt_sec);
+        if (g_update_simulation_step_by_step) {
+            g_update_simulation = false;
+        }
+    }
 
 	g_obj_under_cursor = scene::kInvalidObjectId;
 
