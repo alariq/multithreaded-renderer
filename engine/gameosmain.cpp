@@ -237,17 +237,28 @@ static void handle_key_down( SDL_Keysym* keysym ) {
 static void process_events( void ) {
 
     beginUpdateMouseState(&g_mouse_info);
-
     SDL_Event event;
-    while( SDL_PollEvent( &event ) ) {
 
-        if(g_focus_lost) {
-            if(event.type != SDL_WINDOWEVENT_FOCUS_GAINED) {
-                continue;
-            } else {
+    // if we out of focus, only look for focus gain and then kill all events to not get
+	// sporadic mouse movement event
+    if (g_focus_lost) {
+        while (SDL_PollEvent(&event)) {
+			if (event.type == SDL_WINDOWEVENT &&
+				event.window.event == SDL_WINDOWEVENT_FOCUS_GAINED) {
+                SPEW(("INPUT", "Focus gained\n"));
                 g_focus_lost = false;
+                SDL_PumpEvents();
+                SDL_FlushEvents(SDL_FIRSTEVENT, SDL_LASTEVENT);
+                break;
+            }
+            else {
+                continue;
             }
         }
+        return;
+    }
+
+    while( SDL_PollEvent( &event ) ) {
 
         switch( event.type ) {
         case SDL_KEYDOWN:
@@ -259,21 +270,38 @@ static void process_events( void ) {
         case SDL_QUIT:
             g_exit = true;
             break;
-		case SDL_WINDOWEVENT_RESIZED:
-			{
-				float w = (float)event.window.data1;
-				float h = (float)event.window.data2;
-				glViewport(0, 0, (GLsizei)w, (GLsizei)h);
+        case SDL_WINDOWEVENT:
+        {
+            switch (event.window.event) {
+            case SDL_WINDOWEVENT_LEAVE:
+                SPEW(("INPUT", "Mouse left\n"));
+                break;
+            case SDL_WINDOWEVENT_ENTER:
+                SPEW(("INPUT", "Mouse returned\n"));
+                break;
+            case SDL_WINDOWEVENT_RESIZED:
+            {
+                float w = (float)event.window.data1;
+                float h = (float)event.window.data2;
+                glViewport(0, 0, (GLsizei)w, (GLsizei)h);
                 SPEW(("INPUT", "resize event: w: %f h:%f\n", w, h));
+                break;
+            }
+            case SDL_WINDOWEVENT_FOCUS_LOST:
+                SPEW(("INPUT", "Focus lost\n"));
+                g_focus_lost = true;
+                break;
+            case SDL_WINDOWEVENT_CLOSE:
+                event.type = SDL_QUIT;
+                SDL_PushEvent(&event);
+                break;
 			}
-			break;
-        case SDL_WINDOWEVENT_FOCUS_LOST:
-            g_focus_lost = true;
             break;
+        }
         case SDL_MOUSEMOTION:
-            input::handleMouseMotion(&event, &g_mouse_info); 
-            //printf("dx: %.3f dy: %.3f\n", g_mouse_info.rel_x_, g_mouse_info.rel_y_);
-            break;
+            input::handleMouseMotion(&event, &g_mouse_info);
+			//printf("dx: %.3f dy: %.3f\n", g_mouse_info.rel_x_, g_mouse_info.rel_y_);
+			break;
         case SDL_MOUSEBUTTONDOWN:
         case SDL_MOUSEBUTTONUP:
             //input::handleMouseButton(&event, &g_mouse_info);
@@ -283,8 +311,8 @@ static void process_events( void ) {
             break;
         }
     }
-    
-        input::updateMouseState(&g_mouse_info);
+
+    input::updateMouseState(&g_mouse_info);
     input::updateKeyboardState(&g_keyboard_info);
 }
 
