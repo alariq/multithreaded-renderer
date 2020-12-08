@@ -844,6 +844,7 @@ SPHSceneObject* SPHSceneObject::Create(const vec2& view_dim, int num_particles, 
     auto tr = o->AddComponent<TransformComponent>();
     tr->SetPosition(pos);
     o->transform_ = tr;
+    o->b_initalized_rendering_resources = false;
 
     float support_radius = 4.0f * o->radius_;
 	CubicKernel::setRadius(support_radius);
@@ -905,9 +906,13 @@ void SPHSceneObject::InitRenderResources() {
 
     g_sim->boundary_model_->InitializeRenderResources();
 
+    b_initalized_rendering_resources = true;
+
 }
 
 void SPHSceneObject::DeinitRenderResources() {
+    b_initalized_rendering_resources = false;
+
     delete sphere_mesh_;
     sphere_mesh_ = nullptr;
     for (auto& buf : inst_vb_) {
@@ -939,6 +944,9 @@ void SPHSceneObject::Update(float /*dt*/) {
 extern void render_quad(uint32_t tex_id, const vec4& scale_offset, HGOSRENDERMATERIAL pmat);
 
 void SPHSceneObject::AddRenderPackets(struct RenderFrameContext *rfc) const {
+
+    if (!b_initalized_rendering_resources)
+        return;
 
 	// update instancing buffer
 	cur_inst_vb_ = (cur_inst_vb_ + 1) % ((int)inst_vb_.size());

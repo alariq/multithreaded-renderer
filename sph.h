@@ -2,6 +2,7 @@
 
 #include "obj_model.h"
 #include "utils/vec.h"
+#include <atomic>
 
 struct SPHParticle2D {
 	vec2 pos;
@@ -109,6 +110,8 @@ class SPHSceneObject : public GameObject {
     HGOSRENDERMATERIAL  sdf_mat_;
     DWORD surface_grid_tex_;
     DWORD sdf_tex_;
+
+    std::atomic_bool b_initalized_rendering_resources;
 
 public:
     static SPHSceneObject* Create(const vec2& view_dim, int num_particles, const vec3& pos);
