@@ -342,11 +342,14 @@ vec2 SPHBoundaryModel::getNormal2D(const vec2& pos) const {
     vec2 dpx = vec2(0.01f, 0.0f);
     vec2 dpy = vec2(0.0f, 0.01f);
 
-	float dx = (sdBox2D(pos + dpx - center.xy(), side_length.xy()) -
-				sdBox2D(pos - center.xy(), side_length.xy()));
+    float x2 = sdBox2D(pos + dpx - center.xy(), side_length.xy());
+    float x1 = sdBox2D(pos - center.xy(), side_length.xy());
+    float dx = (x2 - x1);
 
-	float dy = (sdBox2D(pos + dpy - center.xy(), side_length.xy()) -
-				sdBox2D(pos - center.xy(), side_length.xy()));
+    float y2 = sdBox2D(pos + dpy - center.xy(), side_length.xy());
+    float y1 = sdBox2D(pos - center.xy(), side_length.xy());
+    float dy = y2 - y1;
+
 #else
     const float h = 0.01f*min(cell_size_.x, cell_size_.y);
 	auto get_distance = [this](const int idx) -> float { return d(idx); };
@@ -357,8 +360,11 @@ vec2 SPHBoundaryModel::getNormal2D(const vec2& pos) const {
 			   interpolate_value_xy(vec3(pos.x, pos.y - h, 0.0f), get_distance);
 
 #endif
+    
+    // it may be that dx=0 and dy=0, for cube it may be when we are close to the diagonal line
+    // so in this case return normalize(vec2(1,1));
     if(fabsf(dx) < eps && fabsf(dy) < eps)
-        return vec2(0.0f);
+        return normalize(vec2(1.0f, 1.0f));
 
     vec2 normal = vec2(-dx, -dy);
     return normalize(normal);
