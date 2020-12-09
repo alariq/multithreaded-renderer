@@ -30,7 +30,7 @@ int SPHBoundaryModel::pos2idx(vec3 p) {
     p.y = clamp(p.y, 0.0f, 1.0f - eps);
     p.z = clamp(p.z, 0.0f, 1.0f - eps);
 
-    ivec3 i = ivec3(p.x, p.y, p.z) * res_;
+    ivec3 i = ivec3((int)p.x, (int)p.y, (int)p.z) * res_;
     assert(i.x >= 0 && i.x < res_.x);
     assert(i.y >= 0 && i.y < res_.y);
     assert(i.z >= 0 && i.z < res_.z);
@@ -48,7 +48,7 @@ vec3 SPHBoundaryModel::idx2pos(ivec3 idx) {
 
     vec3 p = vec3((float)idx.x, (float)idx.y, (float)idx.z);
     p += vec3(0.5f);
-    p /= vec3(res_.x, res_.y, max(1.0f, res_.z - 1.0f));
+    p /= vec3((float)res_.x, (float)res_.y, max(1.0f, (float)res_.z - 1.0f));
     return p * (domain_max_ - domain_min_) + domain_min_;
 }
 
@@ -119,7 +119,7 @@ float SPHBoundaryModel::interpolate_value_xy(const vec3& pos, std::function<floa
     p.y = clamp(p.y, 0.0f, 1.0f);
     p.z = clamp(p.z, 0.0f, 1.0f);
 
-    p *= vec3(res_.x, res_.y, res_.z);
+    p *= vec3((float)res_.x, (float)res_.y, (float)res_.z);
     ivec3 s = wrapi(floor(p - 0.5f));
     ivec3 e = wrapi(floor(p - 0.5f) + 1.0f);
 
@@ -147,9 +147,9 @@ float SPHBoundaryModel::interpolate_value_xy_old(const vec3& pos, std::function<
     p.y = clamp(p.y, 0.0f, 1.0f);
     p.z = clamp(p.z, 0.0f, 1.0f);
 
-    p *= vec3(res_.x - 1, res_.y - 1, res_.z - 1);
+    p *= vec3((float)(res_.x - 1), (float)(res_.y - 1), (float)(res_.z - 1));
     vec3 k = vec3(p.x - floorf(p.x), p.y - floorf(p.y), p.z - floorf(p.z));
-    ivec3 s = ivec3(p.x, p.y, p.z);
+    ivec3 s = ivec3((int)p.x, (int)p.y, (int)p.z);
 	ivec3 e = ivec3(min(s.x + 1, res_.x - 1), min(s.y + 1, res_.y - 1), s.z);
 
 	int i00 = (s.x) + ((s.y) + s.z * res_.y) * res_.x;
@@ -234,7 +234,7 @@ bool SPHBoundaryModel::Initialize(vec3 cube, float particle_radius, float suppor
     position_ = vec3(0,0,0);
     rotation_ = identity3();
     res_ = resolution;
-    cell_size_ = (domain_max_ - domain_min_) / vec3(res_.x, res_.y, res_.z);
+    cell_size_ = (domain_max_ - domain_min_) / vec3((float)res_.x, (float)res_.y, (float)res_.z);
     const int bufsize = resolution.x * resolution.y * resolution.z;
     distance_.resize(bufsize);
     volume_.resize(bufsize);

@@ -74,8 +74,8 @@ class CubicKernel2D {
 		const float pi = static_cast<float>(M_PI);
 
 		const float h2 = m_radius * m_radius;
-		m_k = 40.0 / (7.0 * (pi * h2));
-		m_l = 240.0 / (7.0 * (pi * h2));
+		m_k = 40.0f / (7.0f * (pi * h2));
+		m_l = 240.0f / (7.0f * (pi * h2));
 
 		m_W_zero = W(vec3(0));
 	}
@@ -84,15 +84,13 @@ class CubicKernel2D {
 	static float W(const float r) {
 		float res = 0.0;
 		const float q = r / m_radius;
-		if (q <= 1.0) {
-			if (q <= 0.5) {
+		if (q <= 1.0f) {
+			if (q <= 0.5f) {
 				const float q2 = q * q;
 				const float q3 = q2 * q;
-				res = m_k * (static_cast<float>(6.0) * q3 - static_cast<float>(6.0) * q2 +
-							 static_cast<float>(1.0));
+				res = m_k * (6.0f * q3 - 6.0f * q2 + 1.0f);
 			} else {
-				res =
-					m_k * (static_cast<float>(2.0) * pow(static_cast<float>(1.0) - q, 3));
+				res = m_k * (2.0f * powf(1.0f - q, 3));
 			}
 		}
 		return res;
