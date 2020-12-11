@@ -435,17 +435,17 @@ void foreach_in_radius(float r, int idx, SPHGrid *grid, SPHParticle2D *particles
 	(void)num_particles;
 	const vec2 &pos = particles[idx].pos;
 
-	const int left_top = pos2cell_index(pos - vec2(r, r), grid);
-	const int right_bottom = pos2cell_index(pos + vec2(r, r), grid);
+	const int left_top = grid->pos2idx(pos - vec2(r, r));
+	const int right_bottom = grid->pos2idx(pos + vec2(r, r));
 	const float r_sq = r * r;
 	const ivec2 lt_coord = grid->getCellCoordFromCellIndex(left_top);
 	const ivec2 rb_coord = grid->getCellCoordFromCellIndex(right_bottom);
 
 	int n_start_x = max(lt_coord.x - 1, 0);
-	int n_end_x = min(rb_coord.x + 1, grid->cell_dim_.x - 1);
+	int n_end_x = min(rb_coord.x + 1, grid->res_.x - 1);
 
 	int n_start_y = max(lt_coord.y - 1, 0);
-	int n_end_y = min(rb_coord.y + 1, grid->cell_dim_.y - 1);
+	int n_end_y = min(rb_coord.y + 1, grid->res_.y - 1);
 
 	for (int ny = n_start_y; ny <= n_end_y; ++ny) {
 		for (int nx = n_start_x; nx <= n_end_x; ++nx) {
@@ -588,24 +588,6 @@ void Integrate(SPHParticle2D* particles, int count, vec2 view_dim)
     }
 }
 
-// return cell index for a position
-int pos2cell_index(vec2 pos, const SPHGrid* grid) {
-    pos.x = clamp(pos.x, 0.0f, grid->dim_.x);
-    pos.y = clamp(pos.y, 0.0f, grid->dim_.y);
-
-    //vec2 cell_size = grid_dim / vec2(grid_sx, grid_sy);
-
-    vec2 pi = pos / grid->dim_;
-
-    // clamp because if pi.x = 1.0 then it will be equal to cell_dim.x ( or y)
-    int ix = clamp((int)(pi.x * (float)grid->cell_dim_.x), 0.0f, (float)grid->cell_dim_.x - 1);
-    int iy = clamp((int)(pi.y * (float)grid->cell_dim_.y), 0.0f, (float)grid->cell_dim_.y - 1);
-
-	int idx = ix + iy * grid->cell_dim_.x;
-    assert(idx >= 0 && idx < grid->num_cells_);
-    return idx;
-}
-
 void hash_particles(SPHGrid* grid, SPHParticle2D* particles, int num_particles, int* part_indices) {
 
     // classify particles to cells and vice versa
@@ -616,7 +598,7 @@ void hash_particles(SPHGrid* grid, SPHParticle2D* particles, int num_particles, 
     for (int i = 0; i < num_particles; ++i) {
         SPHParticle2D& p = particles[i];
 
-        int cell_idx = pos2cell_index(p.pos, grid);
+        int cell_idx = grid->pos2idx(p.pos);
         part_indices[i] = cell_idx;
         grid->cells_[cell_idx].addParticle(i);
     }
@@ -625,8 +607,8 @@ void hash_particles(SPHGrid* grid, SPHParticle2D* particles, int num_particles, 
 void identify_surface_cells(SPHGrid* grid, int num_particles, uint32_t* part_flags) {
     (void)num_particles;
 
-    const int sx = grid->cell_dim_.x;
-    const int sy = grid->cell_dim_.y;
+    const int sx = grid->res_.x;
+    const int sy = grid->res_.y;
     for (int y = 0; y < sy; ++y) {
         for (int x = 0; x < sx; ++x) {
             int cell_idx = x + y * sx;
@@ -690,7 +672,7 @@ void identify_surface_vertices(SPHGrid* grid, SPHParticle2D* particles, int num_
 			int n_start_y = clamp(vcoord.y - num_cells2check.y, 0, (float)num_vert.y);	
 			int n_end_y = clamp(vcoord.y + num_cells2check.y + 2, 0, (float)num_vert.y);
 
-            vec2 npos = grid->getVertexPosFromVertexCoord(n_start_x, n_start_y);
+            vec2 npos = grid->idx2pos(n_start_x, n_start_y);
             //varr[vcoord.x + vcoord.y * num_vert.x].is_surface_ = 255;
 
 #if 1
@@ -722,8 +704,8 @@ void calc_sdf(SPHGrid *grid, SPHParticle2D *particles, int num_particles, float 
     (void)num_particles;
 
 	SPHGridVertex *varr = grid->vertices_[grid->cur_vert_array_];
-	const int vsx = grid->cell_dim_.x + 1;
-	const int vsy = grid->cell_dim_.y + 1;
+	const int vsx = grid->res_.x;
+	const int vsy = grid->res_.y;
 
     const float Rsq = 3.0f * radius * 3.0f * radius;
 
@@ -733,7 +715,7 @@ void calc_sdf(SPHGrid *grid, SPHParticle2D *particles, int num_particles, float 
 
 			if (vertex.is_surface_) {
 
-                vec2 vpos = grid->getVertexPosFromVertexCoord(vx, vy);
+                vec2 vpos = grid->idx2pos(vx, vy);
 
                 float r_avg = 0;
                 vec2 x_avg = vec2(0, 0);
@@ -838,12 +820,13 @@ extern int RendererGetNumBufferedFrames();
 
 SPHGrid *SPHGrid::makeGrid(int sx, int sy, vec2 dim) {
 	SPHGrid *grid = new SPHGrid;
-	grid->dim_ = dim;
+    grid->domain_min_ = vec2(0, 0);
+    grid->domain_max_ = dim;
 	grid->num_cells_ = sx * sy;
-	grid->cell_dim_ = ivec2(sx, sy);
+	grid->res_ = ivec2(sx, sy);
 	grid->cells_ = new SPHGridCell[grid->num_cells_];
 
-	grid->num_vertices_ = (sx + 1) * (sy + 1);
+	grid->num_vertices_ = sx * sy;
     const int num_vert_arrays = RendererGetNumBufferedFrames() + 1;
     grid->vertices_ = new SPHGridVertex*[num_vert_arrays];
     grid->num_vert_arrays_ = num_vert_arrays;
@@ -871,7 +854,7 @@ SPHSceneObject* SPHSceneObject::Create(const vec2& view_dim, int num_particles, 
     o->part_indices_ = new int[num_particles];
     o->part_flags_ = new uint32_t[num_particles];
     o->view_dim_ = view_dim;
-    o->grid_ = SPHGrid::makeGrid(15, 15, view_dim);
+    o->grid_ = SPHGrid::makeGrid(64, 64, view_dim);
     o->radius_ = 0.1f;
     auto tr = o->AddComponent<TransformComponent>();
     tr->SetPosition(pos);
@@ -932,7 +915,7 @@ void SPHSceneObject::InitRenderResources() {
     vdecl_ = get_sph_vdecl();
 	mat_ = gos_getRenderMaterial("deferred_sph");
 	sdf_mat_ = gos_getRenderMaterial("sdf_visualize");
-    DWORD wh = ((grid_->cell_dim_.x + 1) << 16) | (grid_->cell_dim_.y + 1);
+    DWORD wh = ((grid_->res_.x) << 16) | (grid_->res_.y);
     surface_grid_tex_ = gos_NewEmptyTexture(gos_Texture_R8, "surface_grid" , wh);
     sdf_tex_ = gos_NewEmptyTexture(gos_Texture_R32F, "sdf" , wh);
 
@@ -991,7 +974,7 @@ void SPHSceneObject::AddRenderPackets(struct RenderFrameContext *rfc) const {
 	grid_->cur_vert_array_ = (grid_->cur_vert_array_ + 1) % (grid_->num_vert_arrays_);
     DWORD surface_grid_tex = surface_grid_tex_;
     DWORD sdf_tex = sdf_tex_;
-    ivec2 tex_wh = grid_->cell_dim_ + ivec2(1,1);
+    ivec2 tex_wh = grid_->res_;
 
 	ScheduleRenderCommand(rfc, [num_particles, inst_vb, particles, grid_verts, surface_grid_tex, sdf_tex, tex_wh]() {
 		const size_t bufsize = num_particles * sizeof(SPHParticle2D);
@@ -1000,8 +983,9 @@ void SPHSceneObject::AddRenderPackets(struct RenderFrameContext *rfc) const {
 			(SPHParticle2D *)gos_MapBuffer(inst_vb, 0, bufsize, gosBUFFER_ACCESS::WRITE);
 		memcpy(part_data, particles, bufsize);
 		gos_UnmapBuffer(inst_vb);
-#if 0
+
         TEXTUREPTR texinfo;
+#if 0
         gos_LockTexture(surface_grid_tex, 0, false, &texinfo);
         //static_assert(sizeof(SPHGridVertex) == 1, "Sizes must be the same");
         for(int y=0; y<tex_wh.y;++y) {
@@ -1013,7 +997,7 @@ void SPHSceneObject::AddRenderPackets(struct RenderFrameContext *rfc) const {
             }
         }
         gos_UnLockTexture(surface_grid_tex);
-
+#endif
         gos_LockTexture(sdf_tex, 0, false, &texinfo);
         for(int y=0; y<tex_wh.y;++y) {
             float* row = (float*)texinfo.pTexture + y*texinfo.Pitch;
@@ -1023,7 +1007,7 @@ void SPHSceneObject::AddRenderPackets(struct RenderFrameContext *rfc) const {
             }
         }
         gos_UnLockTexture(sdf_tex);
-#endif
+
         g_sim->boundary_model_->UpdateTexturesByData();
 
 	});
@@ -1031,9 +1015,9 @@ void SPHSceneObject::AddRenderPackets(struct RenderFrameContext *rfc) const {
     HGOSRENDERMATERIAL sdf_material = sdf_mat_;
 	ScheduleDebugDrawCommand(rfc, [surface_grid_tex, sdf_tex, sdf_material]() {
 		//render_quad(surface_grid_tex, vec4(0.25f, 0.25f, -0.5f, 0.5f), nullptr);
-		//render_quad(sdf_tex, vec4(0.25f, 0.25f, 0.25f, 0.5f), sdf_material);
+		render_quad(sdf_tex, vec4(0.25f, 0.25f, -0.5f, 0.5f), sdf_material);
 
-		render_quad(g_sim->boundary_model_->getVolumeTexture(), vec4(0.25f, 0.25f, -0.5f, 0.5f), sdf_material);
+		//render_quad(g_sim->boundary_model_->getVolumeTexture(), vec4(0.25f, 0.25f, -0.5f, 0.5f), sdf_material);
 		//render_quad(g_sim->boundary_model_->getNormalTexture(), vec4(0.25f, 0.25f, -0.5f, 0.5f), sdf_material);
 		render_quad(g_sim->boundary_model_->getDistanceTexture(), vec4(0.25f, 0.25f, 0.25f, 0.5f), sdf_material);
 	});
@@ -1063,7 +1047,7 @@ void initialize_particle_positions(SPHSceneObject* o) {
     SPHParticle2D*  particles = o->GetParticles();
     const int count = o->GetParticlesCount();
     const float radius = o->GetRadius();
-    vec2 offset = vec2(1.9f*radius, 4.0f*radius);
+    vec2 offset = vec2(.2f, 4.0f*radius);
     int row_size = (int)(sqrtf(count) + 0.5f);////(int)(o->GetBounds().x / (2.0f*radius));
     int column_size = (count + row_size - 1) / row_size; 
     for(int y= 0; y<column_size; ++y) {
@@ -1072,8 +1056,8 @@ void initialize_particle_positions(SPHSceneObject* o) {
             if(idx >= count)
                 break;
             SPHParticle2D& p = particles[idx];
-            float jitter = random(-0.02f, 0.02f);
-            p.pos = offset + vec2(x*2.2f*radius + jitter, y*2.2f*radius);
+            float jitter = 0;// random(-0.01f, 0.01f);
+            p.pos = offset + vec2(x*2.0f*radius + jitter, y*2.0f*radius);
             p.pressure = 0;
             p.density = 0;
             p.force = vec2(0,0);

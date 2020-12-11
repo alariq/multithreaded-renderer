@@ -46,45 +46,61 @@ struct SPHGrid {
     int cur_vert_array_;
     int num_vertices_;
 
-    ivec2 cell_dim_;
-    vec2 dim_;
+    ivec2 res_;
+    vec2 domain_max_;
+    vec2 domain_min_;
 
     SPHGridCell* at(int x, int y) {
-        assert(x >= 0 && x < cell_dim_.x);
-        assert(y >= 0 && y < cell_dim_.y);
-        return &cells_[x + y * cell_dim_.x];
+        assert(x >= 0 && x < res_.x);
+        assert(y >= 0 && y < res_.y);
+        return &cells_[x + y * res_.x];
     }
 
     bool isValidCell(int x, int y) const {
-        if (x >= 0 && x < cell_dim_.x && y >= 0 && y < cell_dim_.y)
+        if (x >= 0 && x < res_.x && y >= 0 && y < res_.y)
             return true;
         return false;
     }
 
+    // linearIndex()
     ivec2 getCellCoordFromCellIndex(int idx) const  {
-		ivec2 coord = ivec2(idx % cell_dim_.x, idx / cell_dim_.y);
+		ivec2 coord = ivec2(idx % res_.x, idx / res_.y);
         return coord;
 	}
 
+#if 0
     ivec2 getVetexCoordFromVertexIndex(int idx) const  {
-		ivec2 coord = ivec2(idx % (cell_dim_.x + 1), idx / (cell_dim_.y + 1));
+		ivec2 coord = ivec2(idx % (res_.x + 1), idx / (res_.y + 1));
         return coord;
 	}
 
     vec2 getVertexPosFromVertexCoord(int x, int y) const {
-		vec2 normalized = vec2((float)x / ((float)cell_dim_.x + 1.0f),
-							   (float)y / ((float)cell_dim_.y + 1.0f));
-		return normalized * dim_;
+		vec2 normalized = vec2((float)x / ((float)res_.x + 1.0f),
+							   (float)y / ((float)res_.y + 1.0f));
+		return normalized * (domain_max_ - domain_min_);
     }
+#endif
 
     ivec2 getNumVertices() const {
-        return ivec2(cell_dim_.x+1, cell_dim_.y+1);
+        return ivec2(res_.x, res_.y);
     }
 
     vec2 getCellSize() const {
-        vec2 cell_count = vec2((float)cell_dim_.x, (float)cell_dim_.y);
-        return dim_/cell_count;
+        vec2 cell_count = vec2((float)res_.x, (float)res_.y);
+        return (domain_max_-domain_min_)/cell_count;
     }
+
+    int pos2idx(const vec2 &pos) const {
+		return ::pos2idx(vec3(pos.x, pos.y, 0.0f), ivec3(res_.x, res_.y, 1),
+						 vec3(domain_min_.x, domain_min_.y, 0.0f),
+						 vec3(domain_max_.x, domain_max_.y, 1.0f));
+	}
+
+	vec2 idx2pos(int x, int y) const {
+		return ::idx2pos(ivec3(x, y, 0), ivec3(res_.x, res_.y, 1),
+						 vec3(domain_min_.x, domain_min_.y, 0.0f),
+						 vec3(domain_max_.x, domain_max_.y, 1.0f)).xy();
+	}
 
     static SPHGrid* makeGrid(int sx, int sy, vec2 dim);
     ~SPHGrid();
