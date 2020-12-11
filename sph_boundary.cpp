@@ -8,7 +8,7 @@
 #include <cassert>
 #include <cfloat>
 
-static const float eps = 10.0f*FLT_MIN;
+static const float eps = 1.0e+31F*FLT_MIN;
 
 float sdBox(vec3 p, vec3 b)
 {
@@ -30,7 +30,10 @@ int SPHBoundaryModel::pos2idx(vec3 p) {
     p.y = clamp(p.y, 0.0f, 1.0f - eps);
     p.z = clamp(p.z, 0.0f, 1.0f - eps);
 
-    ivec3 i = ivec3((int)p.x, (int)p.y, (int)p.z) * res_;
+
+    vec3 fres = vec3(res_.x, res_.y, res_.z);
+    vec3 fi = fres * p;
+    ivec3 i = ivec3((int)fi.x, (int)fi.y, (int)fi.z);
     assert(i.x >= 0 && i.x < res_.x);
     assert(i.y >= 0 && i.y < res_.y);
     assert(i.z >= 0 && i.z < res_.z);
