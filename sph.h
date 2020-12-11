@@ -19,6 +19,9 @@ void sph_init();
 void sph_deinit();
 void sph_update(SPHParticle2D *particles, int count, vec2 view_dim);
 
+int pos2idx(const vec3& pos, const ivec3& res, const vec3& domain_min, const vec3& domain_max);
+vec3 idx2pos(const ivec3& idx, const ivec3 res, const vec3 domain_min, const vec3& domain_max);
+
 struct SPHGridCell {
     // particles which fall into this cell
     std::vector<int> part_indices_;

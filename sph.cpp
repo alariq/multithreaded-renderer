@@ -28,6 +28,38 @@ const static float VISC_LAP = 45.f / (M_PI * pow(H, 6.f));
 const static float EPS = H; // boundary epsilon
 const static float BOUND_DAMPING = -0.5f;
 
+int pos2idx(const vec3& pos, const ivec3& res, const vec3& domain_min, const vec3& domain_max)
+{
+    static const float my_eps = 1.0e+31F*FLT_MIN;
+
+    vec3 p = (pos - domain_min) / (domain_max - domain_min) ;
+    // -eps to avoid getting index which equals to resolution
+    p.x = clamp(p.x, 0.0f, 1.0f - my_eps);
+    p.y = clamp(p.y, 0.0f, 1.0f - my_eps);
+    p.z = clamp(p.z, 0.0f, 1.0f - my_eps);
+
+    vec3 fres = vec3(res.x, res.y, res.z);
+    vec3 fi = fres * p;
+    ivec3 i = ivec3((int)fi.x, (int)fi.y, (int)fi.z);
+    assert(i.x >= 0 && i.x < res.x);
+    assert(i.y >= 0 && i.y < res.y);
+    assert(i.z >= 0 && i.z < res.z);
+
+	int idx = i.x + (i.y + i.z * res.y) * res.x;
+    assert(idx >= 0 && idx < res.x*res.y*res.z);
+    return idx;
+}
+
+vec3 idx2pos(const ivec3& idx, const ivec3 res, const vec3 domain_min, const vec3& domain_max) {
+    assert(idx.x >= 0 && idx.x < res.x);
+    assert(idx.y >= 0 && idx.y < res.y);
+    assert(idx.z >= 0 && idx.z < res.z);
+
+    vec3 p = vec3((float)idx.x, (float)idx.y, (float)idx.z);
+    p += vec3(0.5f);
+    p /= vec3((float)res.x, (float)res.y, max(1.0f, (float)res.z - 1.0f));
+    return p * (domain_max - domain_min) + domain_min;
+}
 
 void EnforceBoundaryConditions(struct SPHParticle2D& p, const vec3& view_dim);
 
