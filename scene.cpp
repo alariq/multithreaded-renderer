@@ -78,13 +78,13 @@ void initialize_scene(const struct camera *cam, struct RenderFrameContext *rfc) 
     tc->SetPosition(vec3(0, 0, 0));
     tc->SetScale(vec3(4, 8, 4));
     g_world_objects.push_back(go);
-#endif 
+
     MeshObject* go = MeshObject::Create("floor");
     auto* tc = go->GetComponent<TransformComponent>();
     tc->SetPosition(vec3(0, -1, 0));
     tc->SetScale(vec3(50, 1, 50));
     g_world_objects.push_back(go);
-#if 0
+
     go = MeshObject::Create("axes");
     tc = go->GetComponent<TransformComponent>();
     tc->SetPosition(vec3(0, 20, 0));
