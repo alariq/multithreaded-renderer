@@ -35,6 +35,7 @@ struct SPHGridVertex {
     uint8_t is_surface_; 
     // signed distance function value 
     float value_;
+    vec2 pos_avg;
 };
 
 struct SPHGrid {

@@ -7,6 +7,11 @@ uniform sampler2D tex;
 in PREC vec2 o_pos;
 in PREC vec2 o_uv;
 
+
+#define SDF
+//#define EIGEN
+
+
 void main(void)
 {
 	PREC vec4 c = texture2D(tex, o_uv).rgba;
@@ -19,8 +24,17 @@ void main(void)
     
     
     // volume, dist
-    PREC float v = abs(c.x);
-    PREC vec3 color = v.xxx;
+    PREC float v = c.x;//abs(c.x);
+    
+    //PREC vec3 color = v == 9999.0 ? vec3(1,0,0) : (v<0.0 ? vec3(0,v,0) : vec3(0,0,v) );
+#if defined(SDF)
+    v = c.x==9999.0f ? 1.0 : c.x;
+    v = abs(v)<0.036 ? v : 1;
+    v = pow(1.0-abs(v), 32.0);
+    PREC vec3 color  = v.xxx;
+#elif defined(EIGEN)
+    PREC vec3 color  = v == 9999.0 ? vec3(0) : abs(50*v.xxx);
+#endif
 
 	// normal
     //PREC vec3 color = vec3(c.zy, 0);
