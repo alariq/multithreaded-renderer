@@ -459,6 +459,7 @@ void __stdcall Render(void)
                 cmd();
             }
             rfc->debug_commands_.clear();
+            gos_RenderDebugPrimitives(view_mat, proj_mat);
         });
     if (downsampled_particles) {
         g_deferred_renderer.RenderDownsampledForward(

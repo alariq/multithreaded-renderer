@@ -482,12 +482,14 @@ class gosRenderMaterial {
 const std::string gosRenderMaterial::s_mvp = std::string("mvp");
 const std::string gosRenderMaterial::s_fog_color = std::string("fog_color");
 
-class gosMesh {
+template <typename VERTEX_T>
+class gosMeshT {
     public:
         typedef WORD INDEX_TYPE;
+        typedef VERTEX_T VERTEX_TYPE;
 
-        static gosMesh* makeMesh(gosPRIMITIVETYPE prim_type, int vertex_capacity, int index_capacity = 0) {
-            GLuint vb = makeBuffer(GL_ARRAY_BUFFER, 0, sizeof(gos_VERTEX)*vertex_capacity, GL_DYNAMIC_DRAW);
+        static gosMeshT<VERTEX_T>* makeMesh(gosPRIMITIVETYPE prim_type, int vertex_capacity, int index_capacity = 0) {
+            GLuint vb = makeBuffer(GL_ARRAY_BUFFER, 0, sizeof(VERTEX_T)*vertex_capacity, GL_DYNAMIC_DRAW);
             if(!vb)
                 return NULL;
 
@@ -498,15 +500,52 @@ class gosMesh {
                     return NULL;
             }
 
-            gosMesh* mesh = new gosMesh(prim_type, vertex_capacity, index_capacity);
+            gosMeshT<VERTEX_T>* mesh = new gosMeshT<VERTEX_T>(prim_type, vertex_capacity, index_capacity);
             mesh->vb_ = vb;
             mesh->ib_ = ib;
-            mesh->pvertex_data_ = new gos_VERTEX[vertex_capacity];
+            mesh->pvertex_data_ = new VERTEX_T[vertex_capacity];
             mesh->pindex_data_ = new INDEX_TYPE[index_capacity];
             return mesh;
         }
 
-        static void destroy(gosMesh* pmesh) {
+        bool resize(int new_vertex_capacity, int new_index_capacity) {
+            if(vertex_capacity_ < new_vertex_capacity) {
+                VERTEX_T* vdata = new VERTEX_T[new_vertex_capacity];
+                memcpy(vdata, pvertex_data_, vertex_capacity_);
+                delete[] pvertex_data_;
+                pvertex_data_ = vdata;
+                vertex_capacity_ = new_index_capacity;
+
+                glDeleteBuffers(1, &vb_);
+                vb_ = makeBuffer(GL_ARRAY_BUFFER, 0, sizeof(VERTEX_T)*vertex_capacity_, GL_DYNAMIC_DRAW);
+                if(!vb_)
+                    return false;
+            }
+
+            if(index_capacity_ >= new_index_capacity) {
+                INDEX_TYPE* idata = new INDEX_TYPE[new_index_capacity];
+                memcpy(idata, pindex_data_, index_capacity_);
+                delete pindex_data_;
+                pindex_data_ = idata;
+                index_capacity_ = new_index_capacity;
+
+                glDeleteBuffers(1, &vb_);
+                ib_ = makeBuffer(GL_ELEMENT_ARRAY_BUFFER, 0, sizeof(INDEX_TYPE)*index_capacity_, GL_DYNAMIC_DRAW);
+                if(!ib_)
+                    return false;
+            }
+
+            return true;
+        }
+
+        void updateBufferData() {
+            if(vb_)
+                updateBuffer(vb_, GL_ARRAY_BUFFER, pvertex_data_, num_vertices_*sizeof(VERTEX_T), GL_DYNAMIC_DRAW);
+            if(ib_)
+                updateBuffer(ib_, GL_ELEMENT_ARRAY_BUFFER, pindex_data_, num_indices_*sizeof(INDEX_TYPE), GL_DYNAMIC_DRAW);
+        }
+
+        static void destroy(gosMeshT<VERTEX_T>* pmesh) {
 
             gosASSERT(pmesh);
 
@@ -517,29 +556,39 @@ class gosMesh {
             glDeleteBuffers(sizeof(b)/sizeof(b[0]), b);
         }
 
-        bool addVertices(gos_VERTEX* vertices, int count) {
-            if(num_vertices_ + count <= vertex_capacity_) {
-                memcpy(pvertex_data_ + num_vertices_, vertices, sizeof(gos_VERTEX)*count);
-                num_vertices_ += count;
-                return true;
+        int addVertices(VERTEX_T* vertices, int count) {
+            if(num_vertices_ + count > vertex_capacity_) {
+                if(!resize(max(2*vertex_capacity_, vertex_capacity_ + count), index_capacity_)) {
+                    return -1;
+                }
             }
-            return false;
+
+            gosASSERT(num_vertices_ + count <= vertex_capacity_);
+
+            memcpy(pvertex_data_ + num_vertices_, vertices, sizeof(VERTEX_T)*count);
+            num_vertices_ += count;
+            return num_vertices_ - count;
         }
 
-        bool addIndices(INDEX_TYPE* indices, int count) {
-            if(num_indices_ + count <= index_capacity_) {
-                memcpy(pindex_data_ + num_indices_, indices, sizeof(INDEX_TYPE)*count);
-                num_indices_ += count;
-                return true;
+        int addIndices(INDEX_TYPE* indices, int count) {
+            if(num_indices_ + count > index_capacity_) {
+                if(!resize(max(2*index_capacity_, index_capacity_ + count), index_capacity_)) {
+                    return -1;
+                }
             }
-            return false;
+
+            gosASSERT(num_indices_ + count <= index_capacity_);
+
+            memcpy(pindex_data_ + num_indices_, indices, sizeof(INDEX_TYPE)*count);
+            num_indices_ += count;
+            return num_indices_ - count;
         }
 
         int getVertexCapacity() const { return vertex_capacity_; }
         int getIndexCapacity() const { return index_capacity_; }
         int getNumVertices() const { return num_vertices_; }
         int getNumIndices() const { return num_indices_; }
-        const gos_VERTEX* getVertices() const { return pvertex_data_; }
+        const VERTEX_T* getVertices() const { return pvertex_data_; }
         const WORD* getIndices() const { return pindex_data_; }
 
         int getIndexSizeBytes() const { return sizeof(INDEX_TYPE); }
@@ -547,11 +596,12 @@ class gosMesh {
         void rewind() { num_vertices_ = 0; num_indices_ = 0; }
 
         void draw(gosRenderMaterial* material) const;
+        void draw(HGOSVERTEXDECLARATION vdecl, gosPRIMITIVETYPE override_pt, int first/* = 0*/, int count/* = 0*/);
         void drawIndexed(gosRenderMaterial* material) const;
 
 		static void drawIndexed(HGOSBUFFER ib, HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl, gosRenderMaterial* material, gosPRIMITIVETYPE pt);
 		static void drawIndexed(HGOSBUFFER ib, HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl, gosPRIMITIVETYPE pt);
-		static void draw(HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl, gosPRIMITIVETYPE pt);
+		static void draw(HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl, gosPRIMITIVETYPE pt, int first = 0, int count = -1);
 		static void drawInstanced(HGOSBUFFER vb, HGOSBUFFER instance_vb, uint32_t instance_count, HGOSVERTEXDECLARATION vdecl, gosPRIMITIVETYPE pt);
 		static void drawIndexedInstanced(HGOSBUFFER ib, HGOSBUFFER vb, HGOSBUFFER instance_vb, uint32_t instance_count, HGOSVERTEXDECLARATION vdecl, gosPRIMITIVETYPE pt);
 
@@ -561,7 +611,7 @@ class gosMesh {
 
     private:
 
-        gosMesh(gosPRIMITIVETYPE prim_type, int vertex_capacity, int index_capacity)
+        gosMeshT(gosPRIMITIVETYPE prim_type, int vertex_capacity, int index_capacity)
             : vertex_capacity_(vertex_capacity)
             , index_capacity_(index_capacity)
             , num_vertices_(0)
@@ -578,7 +628,7 @@ class gosMesh {
         int index_capacity_;
         int num_vertices_;
         int num_indices_;
-        gos_VERTEX* pvertex_data_;
+        VERTEX_T* pvertex_data_;
         INDEX_TYPE* pindex_data_;
         gosPRIMITIVETYPE prim_type_;
 
@@ -586,18 +636,24 @@ class gosMesh {
         GLuint ib_;
 };
 
-const std::string gosMesh::s_tex1 = std::string("tex1");
-const std::string gosMesh::s_tex2 = std::string("tex2");
-const std::string gosMesh::s_tex3 = std::string("tex3");
+typedef gosMeshT<gos_VERTEX> gosMesh; 
 
-void gosMesh::draw(gosRenderMaterial* material) const
+template<typename VERTEX_T>
+const std::string gosMeshT<VERTEX_T>::s_tex1 = std::string("tex1");
+template<typename VERTEX_T>
+const std::string gosMeshT<VERTEX_T>::s_tex2 = std::string("tex2");
+template<typename VERTEX_T>
+const std::string gosMeshT<VERTEX_T>::s_tex3 = std::string("tex3");
+
+template<typename VERTEX_T>
+void gosMeshT<VERTEX_T>::draw(gosRenderMaterial* material) const
 {
     gosASSERT(material);
 
     if(num_vertices_ == 0)
         return;
 
-    updateBuffer(vb_, GL_ARRAY_BUFFER, pvertex_data_, num_vertices_*sizeof(gos_VERTEX));
+    updateBuffer(vb_, GL_ARRAY_BUFFER, pvertex_data_, num_vertices_*sizeof(VERTEX_T));
 
     material->apply();
 
@@ -621,14 +677,15 @@ void gosMesh::draw(gosRenderMaterial* material) const
 
 }
 
-void gosMesh::drawIndexed(gosRenderMaterial* material) const
+template<typename VERTEX_T>
+void gosMeshT<VERTEX_T>::drawIndexed(gosRenderMaterial* material) const
 {
     gosASSERT(material);
 
     if(num_vertices_ == 0)
         return;
 
-    updateBuffer(vb_, GL_ARRAY_BUFFER, pvertex_data_, num_vertices_*sizeof(gos_VERTEX), GL_DYNAMIC_DRAW);
+    updateBuffer(vb_, GL_ARRAY_BUFFER, pvertex_data_, num_vertices_*sizeof(VERTEX_T), GL_DYNAMIC_DRAW);
     updateBuffer(ib_, GL_ELEMENT_ARRAY_BUFFER, pindex_data_, num_indices_*sizeof(INDEX_TYPE), GL_DYNAMIC_DRAW);
 
     material->apply();
@@ -655,7 +712,8 @@ void gosMesh::drawIndexed(gosRenderMaterial* material) const
 
 }
 
-void gosMesh::drawIndexed(HGOSBUFFER ib, HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl, gosRenderMaterial* material, gosPRIMITIVETYPE pt)
+template<typename VERTEX_T>
+void gosMeshT<VERTEX_T>::drawIndexed(HGOSBUFFER ib, HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl, gosRenderMaterial* material, gosPRIMITIVETYPE pt)
 {
 	gosASSERT(material);
 
@@ -691,7 +749,8 @@ void gosMesh::drawIndexed(HGOSBUFFER ib, HGOSBUFFER vb, HGOSVERTEXDECLARATION vd
 
 }
 
-void gosMesh::drawIndexed(HGOSBUFFER ib, HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl, gosPRIMITIVETYPE pt)
+template<typename VERTEX_T>
+void gosMeshT<VERTEX_T>::drawIndexed(HGOSBUFFER ib, HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl, gosPRIMITIVETYPE pt)
 {
 	int index_size = ib->element_size_;
 	gosASSERT(index_size == 2 || index_size == 4);
@@ -721,9 +780,32 @@ void gosMesh::drawIndexed(HGOSBUFFER ib, HGOSBUFFER vb, HGOSVERTEXDECLARATION vd
 
 }
 
-void gosMesh::draw(HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl, gosPRIMITIVETYPE pt)
+template<typename VERTEX_T>
+void gosMeshT<VERTEX_T>::draw(HGOSVERTEXDECLARATION vdecl, gosPRIMITIVETYPE override_pt, int first, int count)
 {
 	CHECK_GL_ERROR;
+
+    gosASSERT(first>=0 && count>=0 && first + count <= (int)num_vertices_);
+
+	glBindBuffer(GL_ARRAY_BUFFER, vb_);
+	CHECK_GL_ERROR;
+
+    vdecl->apply();
+
+    GLenum gl_prim_type = getGLPrimitiveType(override_pt==PRIMITIVE_COUNT ? prim_type_ : override_pt);
+	glDrawArrays(gl_prim_type, first, count);
+
+    vdecl->end();
+
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+}
+
+template<typename VERTEX_T>
+void gosMeshT<VERTEX_T>::draw(HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl, gosPRIMITIVETYPE pt, int first/* = 0*/, int count/* = -1*/)
+{
+	CHECK_GL_ERROR;
+
+    gosASSERT(first>=0 && (count>=0 || count==-1) && first + count <= (int)vb->count_);
 
 	glBindBuffer(GL_ARRAY_BUFFER, vb->buffer_);
 	CHECK_GL_ERROR;
@@ -732,7 +814,7 @@ void gosMesh::draw(HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl, gosPRIMITIVETYPE 
 	CHECK_GL_ERROR;
 
     GLenum gl_prim_type = getGLPrimitiveType(pt);
-	glDrawArrays(gl_prim_type, 0, vb->count_);
+	glDrawArrays(gl_prim_type, first, count == -1 ? vb->count_ : count);
 
 	vdecl->end();
 
@@ -742,7 +824,8 @@ void gosMesh::draw(HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl, gosPRIMITIVETYPE 
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 
-void gosMesh::drawInstanced(HGOSBUFFER vb, HGOSBUFFER instance_vb, uint32_t instance_count, HGOSVERTEXDECLARATION vdecl, gosPRIMITIVETYPE pt)
+template<typename VERTEX_T>
+void gosMeshT<VERTEX_T>::drawInstanced(HGOSBUFFER vb, HGOSBUFFER instance_vb, uint32_t instance_count, HGOSVERTEXDECLARATION vdecl, gosPRIMITIVETYPE pt)
 {
 	CHECK_GL_ERROR;
 
@@ -760,7 +843,8 @@ void gosMesh::drawInstanced(HGOSBUFFER vb, HGOSBUFFER instance_vb, uint32_t inst
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 
-void gosMesh::drawIndexedInstanced(HGOSBUFFER ib, HGOSBUFFER vb, HGOSBUFFER instance_vb, uint32_t instance_count, HGOSVERTEXDECLARATION vdecl, gosPRIMITIVETYPE pt)
+template<typename VERTEX_T>
+void gosMeshT<VERTEX_T>::drawIndexedInstanced(HGOSBUFFER ib, HGOSBUFFER vb, HGOSBUFFER instance_vb, uint32_t instance_count, HGOSVERTEXDECLARATION vdecl, gosPRIMITIVETYPE pt)
 {
     int index_size = ib->element_size_;
 	gosASSERT(index_size == 2 || index_size == 4);
@@ -1151,6 +1235,32 @@ class gosFont {
         uint32_t ref_count_;
 };
 
+////////////////////////////////////////////////////////////////////////////////
+struct gosDebugDrawCall {
+    int vb_start_idx_;
+    int num_vertices_;
+    gosPRIMITIVETYPE prim_type_;
+    vec4 colour_;
+    mat4 transform;
+
+    struct VDecl {
+        vec3 pos;
+        uint32_t colour;
+    };
+};
+
+HGOSVERTEXDECLARATION get_debug_vdecl() {
+    using VDecl = gosDebugDrawCall::VDecl;
+    static const gosVERTEX_FORMAT_RECORD debug_vdecl[] = {
+        {0, 3, false, sizeof(VDecl), 0, gosVERTEX_ATTRIB_TYPE::FLOAT, 0},
+        {1, 4, false, sizeof(VDecl), offsetof(VDecl, colour), gosVERTEX_ATTRIB_TYPE::UNSIGNED_BYTE, 0},
+    };
+
+    static auto vdecl = gos_CreateVertexDeclaration(
+        debug_vdecl, sizeof(debug_vdecl) / sizeof(gosVERTEX_FORMAT_RECORD));
+    return vdecl;
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 class gosRenderer {
@@ -1381,6 +1491,9 @@ class gosRenderer {
 		void drawIndexedInstanced(HGOSBUFFER ib, HGOSBUFFER vb, HGOSBUFFER instanced_vb, uint32_t instance_count, HGOSVERTEXDECLARATION vdecl, gosPRIMITIVETYPE pt);
         void drawText(const char* text);
 
+        void addDebugLine(const vec3& start, const vec3& end, const vec4& colour, const mat4* transform = nullptr);
+        void drawDebugPrimitives(const mat4& view, const mat4& projection);
+
         void beginFrame();
         void endFrame();
 
@@ -1498,6 +1611,11 @@ class gosRenderer {
         bool break_on_draw_call_;
         uint32_t break_draw_call_num_;
 
+        gosMeshT<gosDebugDrawCall::VDecl>* debug_vertex_data_;
+        gosRenderMaterial* debug_material_;
+        std::vector<gosDebugDrawCall> debug_draw_calls_opaque_;
+        std::vector<gosDebugDrawCall> debug_draw_calls_transparent_;
+
 };
 
 const std::string gosRenderer::s_Foreground = std::string("Foreground");
@@ -1534,6 +1652,12 @@ void gosRenderer::init() {
     text_ = gosMesh::makeMesh(PRIMITIVE_TRIANGLELIST, 4024 * 6);
     gosASSERT(text_);
 
+    {
+        gos_AddRenderMaterial("debug_prims");
+        debug_material_ = gos_getRenderMaterial("debug_prims");
+        debug_vertex_data_ = gosMeshT<gosDebugDrawCall::VDecl>::makeMesh(PRIMITIVE_COUNT, 1024*10);
+        gosASSERT(debug_vertex_data_);
+    }
 
     const char* shader_list[] = {"gos_vertex", "gos_tex_vertex", "gos_text", "gos_vertex_lighted", "gos_tex_vertex_lighted", "simple"};
     gosRenderMaterial** shader_ptr_list[] = { &basic_material_, &basic_tex_material_, &text_material_, &basic_lighted_material_, &basic_tex_lighted_material_, &simple_material_};
@@ -1592,6 +1716,8 @@ void gosRenderer::init() {
 }
 
 void gosRenderer::destroy() {
+
+    gosMeshT<gosDebugDrawCall::VDecl>::destroy(debug_vertex_data_);
 
     gosMesh::destroy(quads_);
     gosMesh::destroy(tris_);
@@ -1920,6 +2046,8 @@ void gosRenderer::beginFrame()
     glFrontFace(GL_CCW);
     glBindVertexArray(gVAO);
     num_draw_calls_ = 0;
+
+    debug_vertex_data_->rewind();
 }
 
 void gosRenderer::endFrame()
@@ -2280,6 +2408,59 @@ void gosRenderer::drawIndexedInstanced(HGOSBUFFER ib, HGOSBUFFER vb, HGOSBUFFER 
     applyRenderStates();
 	gosMesh::drawIndexedInstanced(ib, vb, instance_vb, instance_count, vdecl, pt);
     afterDrawCall();
+}
+
+void gosRenderer::addDebugLine(const vec3& start, const vec3& end, const vec4& colour, const mat4* prim_transform) {
+
+	gosDebugDrawCall::VDecl v[2] = {{start, vec4_to_uint32(colour)},
+									{end, vec4_to_uint32(colour)}};
+
+    int vidx = debug_vertex_data_->addVertices(v, COUNTOF(v));
+    gosDebugDrawCall ddc = {
+        .vb_start_idx_ = vidx,
+        .num_vertices_ = COUNTOF(v),
+        .prim_type_ = PRIMITIVE_LINELIST,
+        .colour_ = colour,
+        .transform = prim_transform ? *prim_transform : mat4::identity(),
+    };
+
+    if(colour.w>=1.0f)
+        debug_draw_calls_opaque_.push_back(ddc);
+    else
+        debug_draw_calls_transparent_.push_back(ddc);
+}
+
+void gosRenderer::drawDebugPrimitives(const mat4& view, const mat4& projection) {
+
+    debug_vertex_data_->updateBufferData();
+    HGOSRENDERMATERIAL mat = debug_material_;
+    CHECK_GL_ERROR;
+
+    gos_SetRenderState(gos_State_Culling, gos_Cull_None);
+    gos_SetRenderState(gos_State_ZCompare, 0);
+    gos_SetRenderState(gos_State_AlphaMode, gos_Alpha_OneZero);
+    gos_SetRenderState(gos_State_ZWrite, 1);
+
+    mat4 vp = projection * view;
+    for(const gosDebugDrawCall& ddc: debug_draw_calls_opaque_) {
+
+        mat4 wvp = vp * ddc.transform;
+        gos_SetRenderMaterialParameterMat4(mat, "wvp_", (const float*)wvp);
+        gos_SetRenderMaterialParameterFloat4(mat, "colour_", (const float*)ddc.colour_);
+
+        gos_ApplyRenderMaterial(mat);
+
+        if(beforeDrawCall())
+            continue;
+
+        applyRenderStates();
+		debug_vertex_data_->draw(get_debug_vdecl(), ddc.prim_type_, ddc.vb_start_idx_, ddc.num_vertices_);
+        afterDrawCall();
+	}
+
+    glUseProgram(0);
+
+    debug_vertex_data_->rewind();
 }
 
 static int get_next_break(const char* text) {
@@ -2690,6 +2871,15 @@ void _stdcall gos_DrawTriangles(gos_VERTEX* Vertices, int NumVertices)
 {
     gosASSERT(g_gos_renderer);
     g_gos_renderer->drawTris(Vertices, NumVertices);
+}
+
+void _stdcall gos_AddLine(const vec3& start, const vec3& end, const vec4& colour, const mat4* transform/* =0*/) {
+    gosASSERT(g_gos_renderer);
+    g_gos_renderer->addDebugLine(start, end, colour, transform);
+}
+void _stdcall gos_RenderDebugPrimitives(const mat4& view_mat, const mat4& proj_mat) {
+    gosASSERT(g_gos_renderer);
+    g_gos_renderer->drawDebugPrimitives(view_mat, proj_mat);
 }
 
 void __stdcall gos_GetViewport( float* pViewportMulX, float* pViewportMulY, float* pViewportAddX, float* pViewportAddY )
