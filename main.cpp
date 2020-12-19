@@ -449,6 +449,7 @@ void __stdcall Render(void)
             if (!downsampled_particles)
                 RenderParticles(rpl, view_mat, proj_mat);
             RenderDebugObjects(rpl, view_mat, proj_mat);
+            gos_RenderDebugPrimitives(view_mat, proj_mat);
         });
     if (downsampled_particles) {
         g_deferred_renderer.RenderDownsampledForward(

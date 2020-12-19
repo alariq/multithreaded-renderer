@@ -2193,9 +2193,10 @@ typedef struct
 //
 typedef enum
 {
-	PRIMITIVE_POINTLIST=1,
-	PRIMITIVE_LINELIST=2,
-	PRIMITIVE_TRIANGLELIST=3,
+	PRIMITIVE_POINTLIST=0,
+	PRIMITIVE_LINELIST=1,
+	PRIMITIVE_TRIANGLELIST=2,
+	PRIMITIVE_COUNT=3,
 
 } gosPRIMITIVETYPE;
 
@@ -2239,7 +2240,8 @@ void __stdcall gos_DrawPoints( gos_VERTEX* Vertices, int NumVertices );
 //  (you must set the texture to 0 if you want to disable texture mapping on the points)
 //
 void __stdcall gos_DrawLines( gos_VERTEX* Vertices, int NumVertices );
-
+void __stdcall gos_AddLine(const vec3& start, const vec3& end, const vec4& color, const mat4* transform = 0);
+void __stdcall gos_RenderDebugPrimitives(const mat4& view_mat, const mat4& proj_mat);
 //
 // Draw triangles, pass a pointer to an array of gos_VERTEX's - every three vertices is a new triangle
 //
