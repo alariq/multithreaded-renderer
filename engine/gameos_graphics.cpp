@@ -1708,7 +1708,7 @@ void gosRenderer::init() {
     break_draw_call_num_ = 0;
 
     // add fake texture so that no one will get 0 index, as it is invalid in this game
-    DWORD tex_id = gos_NewEmptyTexture( gos_Texture_Solid, "DEBUG_this_is_not_a_real_texture_debug_it!", 1);
+    DWORD tex_id = gos_NewEmptyTexture( gos_Texture_Solid, "DEBUG_this_is_not_a_real_texture_debug_it!", 1,1);
     (void)tex_id;
     gosASSERT(tex_id == INVALID_TEXTURE_ID);
 
@@ -2935,16 +2935,9 @@ DWORD __stdcall gos_NewRenderTarget( gos_TextureFormat Format, const char* Name,
     return g_gos_renderer->addTexture(ptex);
 }
 
-DWORD __stdcall gos_NewEmptyTexture( gos_TextureFormat Format, const char* Name, DWORD HeightWidth, DWORD Hints/*=0*/, gos_RebuildFunction pFunc/*=0*/, void *pInstance/*=0*/)
+DWORD __stdcall gos_NewEmptyTexture( gos_TextureFormat Format, const char* Name, uint32_t Width, uint32_t Height)
 {
-    int w = HeightWidth;
-    int h = HeightWidth;
-    if(HeightWidth&0xffff0000)
-    {
-        h = HeightWidth >> 16;
-        w = HeightWidth & 0xffff;
-    }
-    gosTexture* ptex = new gosTexture(Format, Hints, w, h, Name);
+    gosTexture* ptex = new gosTexture(Format, 0, Width, Height, Name);
 
     if(!ptex->createHardwareTexture()) {
         STOP(("Failed to create texture\n"));
