@@ -2241,6 +2241,8 @@ void __stdcall gos_DrawPoints( gos_VERTEX* Vertices, int NumVertices );
 //
 void __stdcall gos_DrawLines( gos_VERTEX* Vertices, int NumVertices );
 void __stdcall gos_AddLine(const vec3& start, const vec3& end, const vec4& color, const mat4* transform = 0);
+void __stdcall gos_AddPoints(const vec3* pos, uint32_t count, const vec4& color, const mat4* transform = 0);
+
 void __stdcall gos_RenderDebugPrimitives(const mat4& view_mat, const mat4& proj_mat);
 //
 // Draw triangles, pass a pointer to an array of gos_VERTEX's - every three vertices is a new triangle
