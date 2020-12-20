@@ -2893,7 +2893,7 @@ DWORD __stdcall gos_NewTextureFromMemory( gos_TextureFormat Format, const char* 
 // For square textures, place the width in HeightWidth
 // For Rectangular textures, use RECT_TEX(width,height) to pack the width and height values
 //
-DWORD __stdcall gos_NewEmptyTexture( gos_TextureFormat Format, const char* Name, DWORD HeightWidth, DWORD Hints=0, gos_RebuildFunction pFunc=0, void *pInstance=0 );
+DWORD __stdcall gos_NewEmptyTexture( gos_TextureFormat Format, const char* Name, uint32_t Width, uint32_t Height);
 
 DWORD __stdcall gos_NewRenderTarget( gos_TextureFormat Format, const char* Name, DWORD HeightWidth, DWORD Hints=0, gos_RebuildFunction pFunc=0, void *pInstance=0 );
 
