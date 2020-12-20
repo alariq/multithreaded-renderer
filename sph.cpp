@@ -49,7 +49,7 @@ int pos2idx(const vec3& pos, const ivec3& res, const vec3& domain_min, const vec
     assert(idx >= 0 && idx < res.x*res.y*res.z);
     return idx;
 }
-
+// for the case when values are stored at the cell centers (i.e. as in textyres)
 vec3 idx2pos(const ivec3& idx, const ivec3 res, const vec3 domain_min, const vec3& domain_max) {
     assert(idx.x >= 0 && idx.x < res.x);
     assert(idx.y >= 0 && idx.y < res.y);
@@ -58,6 +58,19 @@ vec3 idx2pos(const ivec3& idx, const ivec3 res, const vec3 domain_min, const vec
     vec3 p = vec3((float)idx.x, (float)idx.y, (float)idx.z);
     p += vec3(0.5f);
     p /= vec3((float)res.x, (float)res.y, max(1.0f, (float)res.z - 1.0f));
+    return p * (domain_max - domain_min) + domain_min;
+}
+
+// for the case when values are stored at the cell corners (i.e. grid of vertices)
+// [0, res-1] -> [domain_min, domain_max]
+vec3 vtx2pos(const ivec3& idx, const ivec3 res, const vec3 domain_min, const vec3& domain_max) {
+    assert(idx.x >= 0 && idx.x < res.x);
+    assert(idx.y >= 0 && idx.y < res.y);
+    assert(idx.z >= 0 && idx.z < res.z);
+
+    vec3 p = vec3((float)idx.x, (float)idx.y, (float)idx.z);
+    //p += vec3(0.5f);
+    p /= vec3((float)res.x - 1, (float)res.y - 1, max(1.0f, (float)res.z - 1.0f));
     return p * (domain_max - domain_min) + domain_min;
 }
 
@@ -704,8 +717,8 @@ void calc_sdf(SPHGrid *grid, SPHParticle2D *particles, int num_particles, float 
     (void)num_particles;
 
 	SPHGridVertex *varr = grid->vertices_[grid->cur_vert_array_];
-	const int vsx = grid->res_.x;
-	const int vsy = grid->res_.y;
+	const int vsx = grid->vertexDimX();
+	const int vsy = grid->vertexDimY();
 
     const float oo_Rsq = 1.0f / (3.0f * radius * 3.0f * radius);
     vec2 search_range = vec2(3.0f * radius) / grid->getCellSize();
@@ -718,7 +731,7 @@ void calc_sdf(SPHGrid *grid, SPHParticle2D *particles, int num_particles, float 
 
 			if (vertex.is_surface_) {
 
-                vec2 vpos = grid->idx2pos(vx, vy);
+                vec2 vpos = grid->vtx2pos(vx, vy);
 
                 float r_avg = 0;
                 vec2 x_avg = vec2(0, 0);
@@ -804,7 +817,7 @@ void calc_sdf(SPHGrid *grid, SPHParticle2D *particles, int num_particles, float 
 
             float f = e_max < t_low ? 1.0f : gamma*gamma*gamma - 3.0f*gamma*gamma + 3.0f*gamma;
 
-            vec2 vpos = grid->idx2pos(vx, vy);
+            vec2 vpos = grid->vtx2pos(vx, vy);
 			float phi = length(vpos - x_avg) - radius * f;
 			vertex.value_ = phi; 
 		}
@@ -873,17 +886,19 @@ SPHGrid *SPHGrid::makeGrid(int sx, int sy, vec2 dim) {
 	grid->res_ = ivec2(sx, sy);
 	grid->cells_ = new SPHGridCell[grid->num_cells_];
 
-	grid->num_vertices_ = (sx) * (sy);
+    uint32_t vsx = grid->vertexDimX();
+    uint32_t vsy = grid->vertexDimY();
+	grid->num_vertices_ = vsx*vsy;
     const int num_vert_arrays = RendererGetNumBufferedFrames() + 1;
     grid->vertices_ = new SPHGridVertex*[num_vert_arrays];
     grid->num_vert_arrays_ = num_vert_arrays;
     grid->cur_vert_array_ = 0;
     for(int i = 0;i<num_vert_arrays;++i) {
 	    grid->vertices_[i] = new SPHGridVertex[grid->num_vertices_];
-        for(int y=0;y<sy;++y) {
-            for(int x=0;x<sx;++x) {
-                grid->vertices_[i][y*sx + x].pos_avg = grid->idx2pos(x,y);
-            }
+        for(uint32_t y=0;y<vsy;++y) {
+            for(uint32_t x=0;x<vsx;++x) {
+				grid->vertices_[i][y * vsx + x].pos_avg = grid->vtx2pos(x, y);
+			}
         }
     }
 
@@ -974,7 +989,7 @@ void SPHSceneObject::InitRenderResources() {
 	mat_ = gos_getRenderMaterial("deferred_sph");
 	sdf_mat_ = gos_getRenderMaterial("sdf_visualize");
     surface_grid_tex_ = gos_NewEmptyTexture(gos_Texture_R8, "surface_grid", grid_->res_.x, grid_->res_.y);
-    sdf_tex_ = gos_NewEmptyTexture(gos_Texture_R32F, "sdf" , grid_->res_.x, grid_->res_.y);
+    sdf_tex_ = gos_NewEmptyTexture(gos_Texture_R32F, "sdf" , grid_->vertexDimX(), grid_->vertexDimY());
 
     g_sim->boundary_model_->InitializeRenderResources();
 
@@ -1034,9 +1049,11 @@ void SPHSceneObject::AddRenderPackets(struct RenderFrameContext *rfc) const {
 	grid_->cur_vert_array_ = (grid_->cur_vert_array_ + 1) % (grid_->num_vert_arrays_);
     DWORD surface_grid_tex = surface_grid_tex_;
     DWORD sdf_tex = sdf_tex_;
-    ivec2 tex_wh = grid_->res_;
+    uint32_t vsx = grid_->vertexDimX();
+    uint32_t vsy = grid_->vertexDimY();
+    SPHGrid* grid = grid_;
 
-	ScheduleRenderCommand(rfc, [num_particles, inst_vb, particles, grid_verts, surface_grid_tex, sdf_tex, tex_wh]() {
+	ScheduleRenderCommand(rfc, [num_particles, inst_vb, particles, grid_verts, grid, surface_grid_tex, sdf_tex, vsx, vsy]() {
 		const size_t bufsize = num_particles * sizeof(SPHParticle2D);
 		// TODO: think about typed buffer wrapper
 		SPHParticle2D *part_data =
@@ -1057,12 +1074,34 @@ void SPHSceneObject::AddRenderPackets(struct RenderFrameContext *rfc) const {
             }
         }
         gos_UnLockTexture(surface_grid_tex);
-#endif
+#endif 
+     
+        vec3* vpos = new vec3[vsx*vsy];
+        int offset = 0;
+        for(uint32_t y=0;y<vsy;++y) {
+            for(uint32_t x=0;x<vsx;++x) {
+                vec2 p = grid->vtx2pos(x, y);
+                if(grid_verts[x + y*vsx].value_ >0.0f)
+    				vpos[offset++] = vec3(p.x, p.y, 0);
+			}
+        }
+        gos_AddPoints(vpos, offset, vec4(1,1,0,1));
+        int start = offset;
+        for(uint32_t y=0;y<vsy;++y) {
+            for(uint32_t x=0;x<vsx;++x) {
+                vec2 p = grid->vtx2pos(x, y);
+                if(grid_verts[x + y*vsx].value_ <= 0.0f)
+    				vpos[offset++] = vec3(p.x, p.y, 0);
+			}
+        }
+        gos_AddPoints(vpos+start, vsx*vsy - start, vec4(0,0,1,1));
+        delete[] vpos;
+    
         gos_LockTexture(sdf_tex, 0, false, &texinfo);
-        for(int y=0; y<tex_wh.y;++y) {
+        for(uint32_t y=0; y<vsy;++y) {
             float* row = (float*)texinfo.pTexture + y*texinfo.Pitch;
-            SPHGridVertex* src_row = grid_verts + y*tex_wh.y;
-            for(int x=0;x<tex_wh.x;++x) {
+            SPHGridVertex* src_row = grid_verts + y*vsy;
+            for(uint32_t x=0;x<vsx;++x) {
                 row[x] = src_row[x].value_;
             }
         }

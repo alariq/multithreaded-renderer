@@ -21,6 +21,7 @@ void sph_update(SPHParticle2D *particles, int count, vec2 view_dim);
 
 int pos2idx(const vec3& pos, const ivec3& res, const vec3& domain_min, const vec3& domain_max);
 vec3 idx2pos(const ivec3& idx, const ivec3 res, const vec3 domain_min, const vec3& domain_max);
+vec3 vtx2pos(const ivec3& idx, const ivec3 res, const vec3 domain_min, const vec3& domain_max);
 
 struct SPHGridCell {
     // particles which fall into this cell
@@ -86,6 +87,9 @@ struct SPHGrid {
         return ivec2(res_.x, res_.y);
     }
 
+    int vertexDimX() { return res_.x + 1; }
+    int vertexDimY() { return res_.y + 1; }
+
     vec2 getCellSize() const {
         vec2 cell_count = vec2((float)res_.x, (float)res_.y);
         return (domain_max_-domain_min_)/cell_count;
@@ -102,6 +106,13 @@ struct SPHGrid {
 						 vec3(domain_min_.x, domain_min_.y, 0.0f),
 						 vec3(domain_max_.x, domain_max_.y, 1.0f)).xy();
 	}
+
+	vec2 vtx2pos(int x, int y) const {
+		return ::vtx2pos(ivec3(x, y, 0), ivec3(res_.x+1, res_.y+1, 1),
+						 vec3(domain_min_.x, domain_min_.y, 0.0f),
+						 vec3(domain_max_.x, domain_max_.y, 1.0f)).xy();
+	}
+
 
     static SPHGrid* makeGrid(int sx, int sy, vec2 dim);
     ~SPHGrid();
