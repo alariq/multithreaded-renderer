@@ -1492,6 +1492,7 @@ class gosRenderer {
         void drawText(const char* text);
 
         void addDebugLine(const vec3& start, const vec3& end, const vec4& colour, const mat4* transform = nullptr);
+        void addDebugPoints(const vec3* pos, uint32_t count, const vec4& colour, const mat4* transform = nullptr);
         void drawDebugPrimitives(const mat4& view, const mat4& projection);
 
         void beginFrame();
@@ -2048,6 +2049,8 @@ void gosRenderer::beginFrame()
     num_draw_calls_ = 0;
 
     debug_vertex_data_->rewind();
+    debug_draw_calls_opaque_.clear();
+    debug_draw_calls_transparent_.clear();
 }
 
 void gosRenderer::endFrame()
@@ -2430,6 +2433,31 @@ void gosRenderer::addDebugLine(const vec3& start, const vec3& end, const vec4& c
         debug_draw_calls_transparent_.push_back(ddc);
 }
 
+void gosRenderer::addDebugPoints(const vec3* pos, uint32_t count, const vec4& colour, const mat4* prim_transform) {
+
+	gosDebugDrawCall::VDecl* vertices = new gosDebugDrawCall::VDecl[count];
+    for(uint32_t i=0; i<count; ++i) {
+        vertices[i].pos = pos[i];
+        vertices[i].colour = vec4_to_uint32(colour);
+    }
+
+    int vidx = debug_vertex_data_->addVertices(vertices, count);
+    gosDebugDrawCall ddc = {
+        .vb_start_idx_ = vidx,
+        .num_vertices_ = (int)count,
+        .prim_type_ = PRIMITIVE_POINTLIST,
+        .colour_ = colour,
+        .transform = prim_transform ? *prim_transform : mat4::identity(),
+    };
+
+    if(colour.w>=1.0f)
+        debug_draw_calls_opaque_.push_back(ddc);
+    else
+        debug_draw_calls_transparent_.push_back(ddc);
+
+    delete[] vertices;
+}
+
 void gosRenderer::drawDebugPrimitives(const mat4& view, const mat4& projection) {
 
     debug_vertex_data_->updateBufferData();
@@ -2461,6 +2489,8 @@ void gosRenderer::drawDebugPrimitives(const mat4& view, const mat4& projection) 
     glUseProgram(0);
 
     debug_vertex_data_->rewind();
+    debug_draw_calls_opaque_.clear();
+    debug_draw_calls_transparent_.clear();
 }
 
 static int get_next_break(const char* text) {
@@ -2877,6 +2907,12 @@ void _stdcall gos_AddLine(const vec3& start, const vec3& end, const vec4& colour
     gosASSERT(g_gos_renderer);
     g_gos_renderer->addDebugLine(start, end, colour, transform);
 }
+
+void __stdcall gos_AddPoints(const vec3* pos, uint32_t count, const vec4& colour, const mat4* transform/* = 0*/) {
+    gosASSERT(g_gos_renderer);
+    g_gos_renderer->addDebugPoints(pos, count, colour, transform);
+}
+
 void _stdcall gos_RenderDebugPrimitives(const mat4& view_mat, const mat4& proj_mat) {
     gosASSERT(g_gos_renderer);
     g_gos_renderer->drawDebugPrimitives(view_mat, proj_mat);
