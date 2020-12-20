@@ -873,7 +873,7 @@ SPHGrid *SPHGrid::makeGrid(int sx, int sy, vec2 dim) {
 	grid->res_ = ivec2(sx, sy);
 	grid->cells_ = new SPHGridCell[grid->num_cells_];
 
-	grid->num_vertices_ = sx * sy;
+	grid->num_vertices_ = (sx) * (sy);
     const int num_vert_arrays = RendererGetNumBufferedFrames() + 1;
     grid->vertices_ = new SPHGridVertex*[num_vert_arrays];
     grid->num_vert_arrays_ = num_vert_arrays;
@@ -973,9 +973,8 @@ void SPHSceneObject::InitRenderResources() {
     vdecl_ = get_sph_vdecl();
 	mat_ = gos_getRenderMaterial("deferred_sph");
 	sdf_mat_ = gos_getRenderMaterial("sdf_visualize");
-    DWORD wh = ((grid_->res_.x) << 16) | (grid_->res_.y);
-    surface_grid_tex_ = gos_NewEmptyTexture(gos_Texture_R8, "surface_grid" , wh);
-    sdf_tex_ = gos_NewEmptyTexture(gos_Texture_R32F, "sdf" , wh);
+    surface_grid_tex_ = gos_NewEmptyTexture(gos_Texture_R8, "surface_grid", grid_->res_.x, grid_->res_.y);
+    sdf_tex_ = gos_NewEmptyTexture(gos_Texture_R32F, "sdf" , grid_->res_.x, grid_->res_.y);
 
     g_sim->boundary_model_->InitializeRenderResources();
 

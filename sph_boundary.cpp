@@ -375,10 +375,9 @@ vec2 SPHBoundaryModel::getNormal2D(const vec2& pos) const {
 
 void SPHBoundaryModel::InitializeRenderResources() {
 
-    DWORD wh = (res_.x << 16) | res_.y;
-    volume_tex_ = gos_NewEmptyTexture(gos_Texture_R32F, "volume", wh);
-	distance_tex_ = gos_NewEmptyTexture(gos_Texture_R32F, "distance", wh);
-	normal_tex_ = gos_NewEmptyTexture(gos_Texture_RGBA8, "normal", wh);
+    volume_tex_ = gos_NewEmptyTexture(gos_Texture_R32F, "volume", res_.x, res_.y);
+	distance_tex_ = gos_NewEmptyTexture(gos_Texture_R32F, "distance", res_.x, res_.y);
+	normal_tex_ = gos_NewEmptyTexture(gos_Texture_RGBA8, "normal", res_.x, res_.y);
 
 	//
 	constexpr const size_t NUM_VERT = 8;
