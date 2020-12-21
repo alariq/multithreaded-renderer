@@ -2419,13 +2419,12 @@ void gosRenderer::addDebugLine(const vec3& start, const vec3& end, const vec4& c
 									{end, vec4_to_uint32(colour)}};
 
     int vidx = debug_vertex_data_->addVertices(v, COUNTOF(v));
-    gosDebugDrawCall ddc = {
-        .vb_start_idx_ = vidx,
-        .num_vertices_ = COUNTOF(v),
-        .prim_type_ = PRIMITIVE_LINELIST,
-        .colour_ = colour,
-        .transform = prim_transform ? *prim_transform : mat4::identity(),
-    };
+    gosDebugDrawCall ddc;
+    ddc.vb_start_idx_ = vidx;
+	ddc.num_vertices_ = COUNTOF(v);
+	ddc.prim_type_ = PRIMITIVE_LINELIST;
+	ddc.colour_ = colour;
+	ddc.transform = prim_transform ? *prim_transform : mat4::identity();
 
     if(colour.w>=1.0f)
         debug_draw_calls_opaque_.push_back(ddc);
@@ -2442,13 +2441,12 @@ void gosRenderer::addDebugPoints(const vec3* pos, uint32_t count, const vec4& co
     }
 
     int vidx = debug_vertex_data_->addVertices(vertices, count);
-    gosDebugDrawCall ddc = {
-        .vb_start_idx_ = vidx,
-        .num_vertices_ = (int)count,
-        .prim_type_ = PRIMITIVE_POINTLIST,
-        .colour_ = colour,
-        .transform = prim_transform ? *prim_transform : mat4::identity(),
-    };
+    gosDebugDrawCall ddc;
+	ddc.vb_start_idx_ = vidx;
+	ddc.num_vertices_ = (int)count;
+	ddc.prim_type_ = PRIMITIVE_POINTLIST;
+	ddc.colour_ = colour;
+	ddc.transform = prim_transform ? *prim_transform : mat4::identity();
 
     if(colour.w>=1.0f)
         debug_draw_calls_opaque_.push_back(ddc);
