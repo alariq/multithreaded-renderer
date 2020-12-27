@@ -1,6 +1,7 @@
 #include "sph.h"
 #include "sph_kernels.h"
 #include "sph_boundary.h"
+#include "sph_polygonize.h"
 #include <cmath>
 #include "obj_model.h"
 #include "res_man.h"
@@ -893,6 +894,7 @@ SPHGrid *SPHGrid::makeGrid(int sx, int sy, vec2 dim) {
     grid->vertices_ = new SPHGridVertex*[num_vert_arrays];
     grid->num_vert_arrays_ = num_vert_arrays;
     grid->cur_vert_array_ = 0;
+    grid->cur_vert_array_rt_ = 0;
     for(int i = 0;i<num_vert_arrays;++i) {
 	    grid->vertices_[i] = new SPHGridVertex[grid->num_vertices_];
         for(uint32_t y=0;y<vsy;++y) {
@@ -958,6 +960,8 @@ SPHSceneObject* SPHSceneObject::Create(const vec2& view_dim, int num_particles, 
     bool b_is2d = true;
     bm->Initialize(vec3(o->view_dim_.x, o->view_dim_.y, 10000.0f), fm->radius_, fm->support_radius_, resolution, b_is2d);
 
+    o->surface_ = new SPHSurfaceMesh();
+
     g_sim->boundary_model_ = bm;
     g_sim->sim_data_ = sim_data;
     g_sim->fluid_model_ = fm;
@@ -968,6 +972,7 @@ SPHSceneObject* SPHSceneObject::Create(const vec2& view_dim, int num_particles, 
 
 SPHSceneObject::~SPHSceneObject() {
     DeinitRenderResources();
+    delete surface_;
     delete[] particles_;
     delete[] part_indices_;
     delete[] part_flags_;
@@ -993,12 +998,16 @@ void SPHSceneObject::InitRenderResources() {
 
     g_sim->boundary_model_->InitializeRenderResources();
 
+    surface_->InitRenderResources();
+
     b_initalized_rendering_resources = true;
 
 }
 
 void SPHSceneObject::DeinitRenderResources() {
     b_initalized_rendering_resources = false;
+
+    surface_->DeinitRenderResources();
 
     delete sphere_mesh_;
     sphere_mesh_ = nullptr;
@@ -1016,6 +1025,8 @@ void SPHSceneObject::Update(float /*dt*/) {
     if(gos_GetKeyStatus(KEY_T) == KEY_PRESSED)
         g_calc_sdf = !g_calc_sdf;
 
+    sph_update(particles_, num_particles_, view_dim_, grid_);
+
     memset(part_flags_, 0, sizeof(int) * num_particles_);
     memset(part_indices_, 0, sizeof(int) * num_particles_);
     hash_particles(grid_, particles_, num_particles_, part_indices_);
@@ -1024,12 +1035,15 @@ void SPHSceneObject::Update(float /*dt*/) {
     if(g_calc_sdf)
         calc_sdf(grid_, particles_, num_particles_, radius_);
 
-    sph_update(particles_, num_particles_, view_dim_, grid_);
-
     for (int i = 0; i < num_particles_; ++i) {
         SPHParticle2D& p = particles_[i];
         p.flags = part_flags_[i] == 0 ? -1.0f : 1.0f;
     }
+
+    surface_->updateFromGrid(grid_);
+
+    grid_->cur_vert_array_rt_ = grid_->cur_vert_array_;
+	grid_->cur_vert_array_ = (grid_->cur_vert_array_ + 1) % (grid_->num_vert_arrays_);
 }
 
 extern void render_quad(uint32_t tex_id, const vec4& scale_offset, HGOSRENDERMATERIAL pmat);
@@ -1045,8 +1059,7 @@ void SPHSceneObject::AddRenderPackets(struct RenderFrameContext *rfc) const {
 	HGOSBUFFER inst_vb = inst_vb_[cur_inst_vb_];
 	SPHParticle2D *particles = particles_;
 
-    SPHGridVertex* grid_verts = grid_->vertices_[grid_->cur_vert_array_];
-	grid_->cur_vert_array_ = (grid_->cur_vert_array_ + 1) % (grid_->num_vert_arrays_);
+    SPHGridVertex* grid_verts = grid_->vertices_[grid_->cur_vert_array_rt_];
     DWORD surface_grid_tex = surface_grid_tex_;
     DWORD sdf_tex = sdf_tex_;
     uint32_t vsx = grid_->vertexDimX();
@@ -1060,6 +1073,18 @@ void SPHSceneObject::AddRenderPackets(struct RenderFrameContext *rfc) const {
 			(SPHParticle2D *)gos_MapBuffer(inst_vb, 0, bufsize, gosBUFFER_ACCESS::WRITE);
 		memcpy(part_data, particles, bufsize);
 		gos_UnmapBuffer(inst_vb);
+#ifdef DEBUG_DRAW_PARTICLE_OUTLINE
+        for(int i=0; i<num_particles;++i) {
+            vec3 p = vec3(particles[i].pos.x, particles[i].pos.y, 0);
+            //ceneter
+            gos_AddPoints(&p, 1, vec4(1,1,1,1), 4);
+            for(int j=0; j<36;++j) {
+                vec3 dp = p + 0.1*vec3(sin((float)j*10*M_PI/180.0f), cos((float)j*10*M_PI/180.0f), 0.0f); 
+                gos_AddPoints(&dp, 1, vec4(1,1,1,1), 4);
+            }
+
+        }
+#endif
 
         TEXTUREPTR texinfo;
 #if 0
@@ -1081,11 +1106,11 @@ void SPHSceneObject::AddRenderPackets(struct RenderFrameContext *rfc) const {
         for(uint32_t y=0;y<vsy;++y) {
             for(uint32_t x=0;x<vsx;++x) {
                 vec2 p = grid->vtx2pos(x, y);
-                if(grid_verts[x + y*vsx].value_ >0.0f)
+                if(grid_verts[x + y*vsx].value_ == 9999.0f)
     				vpos[offset++] = vec3(p.x, p.y, 0);
 			}
         }
-        gos_AddPoints(vpos, offset, vec4(1,1,0,1));
+        gos_AddPoints(vpos, offset, vec4(1,0,0,1), 4);
         int start = offset;
         for(uint32_t y=0;y<vsy;++y) {
             for(uint32_t x=0;x<vsx;++x) {
@@ -1094,7 +1119,16 @@ void SPHSceneObject::AddRenderPackets(struct RenderFrameContext *rfc) const {
     				vpos[offset++] = vec3(p.x, p.y, 0);
 			}
         }
-        gos_AddPoints(vpos+start, vsx*vsy - start, vec4(0,0,1,1));
+        gos_AddPoints(vpos+start, offset - start, vec4(0,0,1,1), 4);
+        int start2 = offset;
+        for(uint32_t y=0;y<vsy;++y) {
+            for(uint32_t x=0;x<vsx;++x) {
+                vec2 p = grid->vtx2pos(x, y);
+                if(grid_verts[x + y*vsx].value_ > 0.0f && grid_verts[x + y*vsx].value_ != 9999.0f)
+    				vpos[offset++] = vec3(p.x, p.y, 0);
+			}
+        }
+        gos_AddPoints(vpos+start2, offset - start2, vec4(1,1,0,1), 4);
         delete[] vpos;
     
         gos_LockTexture(sdf_tex, 0, false, &texinfo);
@@ -1140,6 +1174,17 @@ void SPHSceneObject::AddRenderPackets(struct RenderFrameContext *rfc) const {
     rp->m_ = transform_->GetTransform();
 	rp->is_debug_pass = 1;
 	rp->debug_color = vec4(1,0,0,1);
+
+    // update & draw surface mesh
+    surface_->UpdateMesh(rfc);
+   
+	rp = rl->AddPacket();
+	memset(rp, 0, sizeof(RenderPacket));
+	rp->id_ = GetId();
+	rp->is_opaque_pass = 1;
+    rp->m_ = transform_->GetTransform();
+	rp->mesh_ = *surface_->getRenderMesh();
+
 }
 
 void initialize_particle_positions(SPHSceneObject* o) {

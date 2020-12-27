@@ -46,6 +46,7 @@ struct SPHGrid {
     SPHGridVertex** vertices_;
     int num_vert_arrays_;
     int cur_vert_array_;
+    int cur_vert_array_rt_;
     int num_vertices_;
 
     ivec2 res_;
@@ -69,19 +70,6 @@ struct SPHGrid {
 		ivec2 coord = ivec2(idx % res_.x, idx / res_.y);
         return coord;
 	}
-
-#if 0
-    ivec2 getVetexCoordFromVertexIndex(int idx) const  {
-		ivec2 coord = ivec2(idx % (res_.x + 1), idx / (res_.y + 1));
-        return coord;
-	}
-
-    vec2 getVertexPosFromVertexCoord(int x, int y) const {
-		vec2 normalized = vec2((float)x / ((float)res_.x + 1.0f),
-							   (float)y / ((float)res_.y + 1.0f));
-		return normalized * (domain_max_ - domain_min_);
-    }
-#endif
 
     ivec2 getNumVertices() const {
         return ivec2(res_.x, res_.y);
@@ -118,9 +106,6 @@ struct SPHGrid {
     ~SPHGrid();
 };
 
-int pos2cell_index(vec2 pos, const SPHGrid* grid);
-
-
 class SPHSceneObject : public GameObject {
     SPHParticle2D* particles_;
     uint32_t* part_flags_;
@@ -129,6 +114,7 @@ class SPHSceneObject : public GameObject {
     vec2 view_dim_;
     float radius_;
     SPHGrid* grid_;
+    class SPHSurfaceMesh* surface_;
     // cached transform component
     TransformComponent* transform_ = nullptr;
 

@@ -90,6 +90,8 @@ set(SOURCES
     "sph_kernels.cpp"
     "sph_boundary.h"
     "sph_boundary.cpp"
+    "sph_polygonize.h"
+    "sph_polygonize.cpp"
     )
 
 #find_library(GLEW NAMES "GLEW" "glew32")

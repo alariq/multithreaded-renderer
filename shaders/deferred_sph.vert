@@ -23,7 +23,7 @@ layout(location=0) out VsOut {
 
 void main(void)
 {
-	gl_Position = wvp_*vec4(pos * 0.1 + vec3(inst_pos.x, inst_pos.y, 0.0), 1);
+	gl_Position = wvp_*vec4(pos * vec3(0.1,0.1,0) + vec3(inst_pos.x, inst_pos.y, 0.0), 1);
 	o.texcoord = texcoord;
     o.normal = normal;
     o.force = inst_force;
