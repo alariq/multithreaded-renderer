@@ -196,7 +196,7 @@ public:
         } else if(ro.inst_vb_) {
     		gos_RenderArrayInstanced(ro.vb_, ro.inst_vb_, ro.num_instances, ro.vdecl_, ro.prim_type_);
         } else {
-    		gos_RenderArray(ro.vb_, ro.vdecl_, ro.prim_type_);
+    		gos_RenderArray(ro.vb_, ro.vdecl_, ro.prim_type_, ro.vb_first_, ro.vb_count_);
         }
 
         gos_SetSamplerState(0, 0);
