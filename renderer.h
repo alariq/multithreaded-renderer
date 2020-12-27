@@ -39,6 +39,8 @@ struct RenderMesh {
     uint32_t                tex_id_;
     gosPRIMITIVETYPE        prim_type_;
     AABB                    aabb_;
+    uint32_t                vb_first_;
+    uint32_t                vb_count_;
 };
 
 struct PointLight {
