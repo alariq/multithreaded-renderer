@@ -511,10 +511,10 @@ class gosMeshT {
         bool resize(int new_vertex_capacity, int new_index_capacity) {
             if(vertex_capacity_ < new_vertex_capacity) {
                 VERTEX_T* vdata = new VERTEX_T[new_vertex_capacity];
-                memcpy(vdata, pvertex_data_, vertex_capacity_);
+                memcpy(vdata, pvertex_data_, vertex_capacity_*sizeof(VERTEX_T));
                 delete[] pvertex_data_;
                 pvertex_data_ = vdata;
-                vertex_capacity_ = new_index_capacity;
+                vertex_capacity_ = new_vertex_capacity;
 
                 glDeleteBuffers(1, &vb_);
                 vb_ = makeBuffer(GL_ARRAY_BUFFER, 0, sizeof(VERTEX_T)*vertex_capacity_, GL_DYNAMIC_DRAW);
@@ -524,12 +524,12 @@ class gosMeshT {
 
             if(index_capacity_ >= new_index_capacity) {
                 INDEX_TYPE* idata = new INDEX_TYPE[new_index_capacity];
-                memcpy(idata, pindex_data_, index_capacity_);
-                delete pindex_data_;
+                memcpy(idata, pindex_data_, index_capacity_*sizeof(INDEX_TYPE));
+                delete[] pindex_data_;
                 pindex_data_ = idata;
                 index_capacity_ = new_index_capacity;
 
-                glDeleteBuffers(1, &vb_);
+                glDeleteBuffers(1, &ib_);
                 ib_ = makeBuffer(GL_ELEMENT_ARRAY_BUFFER, 0, sizeof(INDEX_TYPE)*index_capacity_, GL_DYNAMIC_DRAW);
                 if(!ib_)
                     return false;
@@ -1242,6 +1242,7 @@ struct gosDebugDrawCall {
     gosPRIMITIVETYPE prim_type_;
     vec4 colour_;
     mat4 transform;
+    float point_size_;
 
     struct VDecl {
         vec3 pos;
@@ -1486,13 +1487,13 @@ class gosRenderer {
         void drawIndexedTris(gos_VERTEX* vertices, int num_vertices, WORD* indices, int num_indices);
 		void drawIndexed(HGOSBUFFER ib, HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl, const float* mvp, gosPRIMITIVETYPE pt);
 		void drawIndexed(HGOSBUFFER ib, HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl, gosPRIMITIVETYPE pt);
-		void draw(HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl, gosPRIMITIVETYPE pt);
+		void draw(HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl, gosPRIMITIVETYPE pt, uint32_t first, uint32_t count);
 		void drawInstanced(HGOSBUFFER vb, HGOSBUFFER instanced_vb, uint32_t instance_count, HGOSVERTEXDECLARATION vdecl, gosPRIMITIVETYPE pt);
 		void drawIndexedInstanced(HGOSBUFFER ib, HGOSBUFFER vb, HGOSBUFFER instanced_vb, uint32_t instance_count, HGOSVERTEXDECLARATION vdecl, gosPRIMITIVETYPE pt);
         void drawText(const char* text);
 
         void addDebugLine(const vec3& start, const vec3& end, const vec4& colour, const mat4* transform = nullptr);
-        void addDebugPoints(const vec3* pos, uint32_t count, const vec4& colour, const mat4* transform = nullptr);
+        void addDebugPoints(const vec3* pos, uint32_t count, const vec4& colour, float point_size, const mat4* transform = nullptr);
         void drawDebugPrimitives(const mat4& view, const mat4& projection);
 
         void beginFrame();
@@ -1787,6 +1788,7 @@ void gosRenderer::initRenderStates() {
 	renderStates_[gos_State_Lighting] = 0;
 	renderStates_[gos_State_NormalizeNormals] = 0;
 	renderStates_[gos_State_VertexBlend] = 0;
+	renderStates_[gos_State_PointSize] = 1;
 
     memset(samplerStates_, 0, MAX_TEXTURE_UNITS*sizeof(samplerStates_[0]));
 
@@ -1930,6 +1932,9 @@ void gosRenderer::applyRenderStates() {
     }
     curStates_[gos_State_StencilEnable] = renderStates_[gos_State_StencilEnable];
     ////////////////////////////////////////////////////////////////////////////////
+
+    glPointSize((float)renderStates_[gos_State_PointSize]);
+    curStates_[gos_State_PointSize] = renderStates_[gos_State_PointSize];
 
 	////////////////////////////////////////////////////////////////////////////////
 	fog_color_ = uint32_to_vec4(renderStates_[gos_State_Fog]);
@@ -2381,7 +2386,7 @@ void gosRenderer::drawIndexed(HGOSBUFFER ib, HGOSBUFFER vb, HGOSVERTEXDECLARATIO
     afterDrawCall();
 }
 
-void gosRenderer::draw(HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl, gosPRIMITIVETYPE pt)
+void gosRenderer::draw(HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl, gosPRIMITIVETYPE pt, uint32_t first, uint32_t count)
 {
     gosASSERT(vb);
 
@@ -2389,7 +2394,7 @@ void gosRenderer::draw(HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl, gosPRIMITIVET
 
     applyRenderStates();
 	// maybe getCurMaterial->set.... to not set it from outer code?
-	gosMesh::draw(vb, vdecl, pt);
+	gosMesh::draw(vb, vdecl, pt, first, count);
 
     afterDrawCall();
 }
@@ -2432,7 +2437,7 @@ void gosRenderer::addDebugLine(const vec3& start, const vec3& end, const vec4& c
         debug_draw_calls_transparent_.push_back(ddc);
 }
 
-void gosRenderer::addDebugPoints(const vec3* pos, uint32_t count, const vec4& colour, const mat4* prim_transform) {
+void gosRenderer::addDebugPoints(const vec3* pos, uint32_t count, const vec4& colour, float point_size, const mat4* prim_transform) {
 
 	gosDebugDrawCall::VDecl* vertices = new gosDebugDrawCall::VDecl[count];
     for(uint32_t i=0; i<count; ++i) {
@@ -2447,6 +2452,7 @@ void gosRenderer::addDebugPoints(const vec3* pos, uint32_t count, const vec4& co
 	ddc.prim_type_ = PRIMITIVE_POINTLIST;
 	ddc.colour_ = colour;
 	ddc.transform = prim_transform ? *prim_transform : mat4::identity();
+    ddc.point_size_ = point_size;
 
     if(colour.w>=1.0f)
         debug_draw_calls_opaque_.push_back(ddc);
@@ -2470,6 +2476,9 @@ void gosRenderer::drawDebugPrimitives(const mat4& view, const mat4& projection) 
     mat4 vp = projection * view;
     for(const gosDebugDrawCall& ddc: debug_draw_calls_opaque_) {
 
+        if(PRIMITIVE_POINTLIST == ddc.prim_type_)
+            gos_SetRenderState(gos_State_PointSize, ddc.point_size_);
+
         mat4 wvp = vp * ddc.transform;
         gos_SetRenderMaterialParameterMat4(mat, "wvp_", (const float*)wvp);
         gos_SetRenderMaterialParameterFloat4(mat, "colour_", (const float*)ddc.colour_);
@@ -2484,6 +2493,7 @@ void gosRenderer::drawDebugPrimitives(const mat4& view, const mat4& projection) 
         afterDrawCall();
 	}
 
+    gos_SetRenderState(gos_State_PointSize, 1);
     glUseProgram(0);
 
     debug_vertex_data_->rewind();
@@ -2906,9 +2916,9 @@ void _stdcall gos_AddLine(const vec3& start, const vec3& end, const vec4& colour
     g_gos_renderer->addDebugLine(start, end, colour, transform);
 }
 
-void __stdcall gos_AddPoints(const vec3* pos, uint32_t count, const vec4& colour, const mat4* transform/* = 0*/) {
+void __stdcall gos_AddPoints(const vec3* pos, uint32_t count, const vec4& colour, float point_size, const mat4* transform/* = 0*/) {
     gosASSERT(g_gos_renderer);
-    g_gos_renderer->addDebugPoints(pos, count, colour, transform);
+    g_gos_renderer->addDebugPoints(pos, count, colour, point_size, transform);
 }
 
 void _stdcall gos_RenderDebugPrimitives(const mat4& view_mat, const mat4& proj_mat) {
@@ -3073,10 +3083,10 @@ void __stdcall gos_RenderIndexedArray(HGOSBUFFER ib, HGOSBUFFER vb, HGOSVERTEXDE
     g_gos_renderer->drawIndexed(ib, vb, vdecl, pt);
 }
 
-void __stdcall gos_RenderArray(HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl, gosPRIMITIVETYPE pt)
+void __stdcall gos_RenderArray(HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl, gosPRIMITIVETYPE pt, uint32_t first/* = 0*/, uint32_t count /*= -1*/)
 {
     gosASSERT(g_gos_renderer);
-    g_gos_renderer->draw(vb, vdecl, pt);
+    g_gos_renderer->draw(vb, vdecl, pt, first, count);
 }
 
 void __stdcall gos_RenderArrayInstanced(HGOSBUFFER vb, HGOSBUFFER instance_vb, uint32_t instance_count, HGOSVERTEXDECLARATION vdecl, gosPRIMITIVETYPE pt)
@@ -3424,6 +3434,21 @@ void __stdcall gos_UpdateBuffer(HGOSBUFFER buffer, void* data, size_t offset, si
 	//glBufferData(gl_target, num_bytes, data, GL_DYNAMIC_DRAW);
     glBindBuffer(gl_target, 0);
 }
+
+void __stdcall gos_ResizeBuffer(HGOSBUFFER buffer, size_t new_count)
+{
+	gosASSERT(buffer);
+	if(buffer->count_ < new_count) {
+	    GLenum gl_target = getGLBufferType(buffer->type_);
+	    GLenum gl_usage = getGLBufferUsage(buffer->usage_);
+	    size_t new_buffer_size = buffer->element_size_ * new_count;
+        glBindBuffer(gl_target, buffer->buffer_);
+	    glBufferData(gl_target, new_buffer_size, 0, gl_usage);
+        glBindBuffer(gl_target, 0);
+        buffer->count_ = new_count;
+    }
+}
+
 
 void* __stdcall gos_MapBuffer(HGOSBUFFER buffer, size_t offset, size_t num_bytes, uint32_t flags)
 {
