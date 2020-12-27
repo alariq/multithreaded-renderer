@@ -2131,6 +2131,8 @@ enum gos_RenderState
 
 	gos_State_VertexBlend,		// Default: 0						Number of blend weights in each vertex to blend (Only 0 or 1 valid currently)
 
+    gos_State_PointSize,
+
 	gos_MaxState				// Marker for last render state
 };
 
@@ -2241,7 +2243,7 @@ void __stdcall gos_DrawPoints( gos_VERTEX* Vertices, int NumVertices );
 //
 void __stdcall gos_DrawLines( gos_VERTEX* Vertices, int NumVertices );
 void __stdcall gos_AddLine(const vec3& start, const vec3& end, const vec4& color, const mat4* transform = 0);
-void __stdcall gos_AddPoints(const vec3* pos, uint32_t count, const vec4& color, const mat4* transform = 0);
+void __stdcall gos_AddPoints(const vec3* pos, uint32_t count, const vec4& color, float point_size, const mat4* transform = 0);
 
 void __stdcall gos_RenderDebugPrimitives(const mat4& view_mat, const mat4& proj_mat);
 //
@@ -2280,7 +2282,7 @@ void __stdcall gos_RenderIndexedArray( gos_VERTEX_3UV* pVertexArray, DWORD Numbe
 
 void __stdcall gos_RenderIndexedArray(HGOSBUFFER ib, HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl, const float* mvp, gosPRIMITIVETYPE pt); //sebi
 void __stdcall gos_RenderIndexedArray(HGOSBUFFER ib, HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl, gosPRIMITIVETYPE pt); //sebi
-void __stdcall gos_RenderArray(HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl, gosPRIMITIVETYPE pt); //sebi
+void __stdcall gos_RenderArray(HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl, gosPRIMITIVETYPE pt, uint32_t first = 0, uint32_t count = -1); //sebi
 void __stdcall gos_RenderArrayInstanced(HGOSBUFFER vb, HGOSBUFFER instance_vb, uint32_t instance_count, HGOSVERTEXDECLARATION vdecl, gosPRIMITIVETYPE pt); //sebi
 void __stdcall gos_RenderIndexedInstanced(HGOSBUFFER ib, HGOSBUFFER vb, HGOSBUFFER instance_vb, uint32_t instance_count, HGOSVERTEXDECLARATION vdecl, gosPRIMITIVETYPE pt); //sebi
 
@@ -2673,6 +2675,7 @@ struct gosVERTEX_FORMAT_RECORD {
 HGOSBUFFER __stdcall gos_CreateBuffer(gosBUFFER_TYPE type, gosBUFFER_USAGE usage, int element_size, uint32_t count, void* pdata);
 void __stdcall gos_DestroyBuffer(HGOSBUFFER buffer);
 void __stdcall gos_UpdateBuffer(HGOSBUFFER buffer, void* data, size_t offset, size_t num_bytes);
+void __stdcall gos_ResizeBuffer(HGOSBUFFER buffer, size_t new_count);
 void* __stdcall gos_MapBuffer(HGOSBUFFER buffer, size_t offset, size_t num_bytes, uint32_t flags);
 void __stdcall gos_UnmapBuffer(HGOSBUFFER buffer);
 void __stdcall gos_BindBufferBase(HGOSBUFFER buffer, uint32_t slot);
