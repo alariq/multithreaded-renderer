@@ -56,6 +56,10 @@ set(SOURCES ${SOURCES}
     utils/obj_loader.h
     utils/hashing.cpp
     utils/hashing.h
+    utils/simple_quadrature.h
+    utils/simple_quadrature.cpp
+    utils/marshingcubes.h
+    utils/marshingcubes.cpp
     Remotery/lib/Remotery.c
     Remotery/lib/Remotery.h
     )
