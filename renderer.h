@@ -11,6 +11,8 @@
 #include <atomic>
 #include <functional>
 
+//#define DO_BAD_THING_FOR_TEST 1
+
 struct SVD {
     vec3 pos;
     vec2 uv;
@@ -57,7 +59,7 @@ struct RenderPacket {
 	uint32_t id_;
     // material, other params
 #if DO_BAD_THING_FOR_TEST
-    class GameObject* go_;
+    const class GameObject* go_;
 #endif
     uint32_t is_render_to_shadow: 1;
     uint32_t is_transparent_pass: 1;
