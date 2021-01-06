@@ -81,6 +81,8 @@ static RenderMesh *render_mesh_from_mesh_buffer(const MeshBuffer &mb,
                          mb.kVertexSize, (uint32_t)mb.vb_size_, mb.vb_);
 
     mesh->prim_type_ = PRIMITIVE_TRIANGLELIST;
+    mesh->vb_count_ = -1;
+    mesh->vb_first_ = 0;
     mesh->aabb_ = mb.get_aabb();
     return mesh;
 }
@@ -117,6 +119,8 @@ static RenderMesh* CreateFSQuadRenderMesh() {
                          sizeof(QVD), NUM_VERT, vb);
 
     fs_quad->prim_type_ = PRIMITIVE_TRIANGLELIST;
+    fs_quad->vb_count_ = -1;
+    fs_quad->vb_first_ = 0;
     return fs_quad;
 }
 
