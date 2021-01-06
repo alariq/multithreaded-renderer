@@ -89,6 +89,8 @@ void FrustumObject::InitRenderResources() {
         gos_CreateBuffer(gosBUFFER_TYPE::VERTEX, gosBUFFER_USAGE::DYNAMIC_DRAW,
                          sizeof(SVD), vb_size, vb);
     mesh_->prim_type_ = PRIMITIVE_TRIANGLELIST;
+    mesh_->vb_first_ = 0;
+    mesh_->vb_count_ = -1;
     mesh_->tex_id_ = res_man_load_texture("default");
 }
 

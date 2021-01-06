@@ -98,8 +98,9 @@ void initialize_scene(const struct camera *cam, struct RenderFrameContext *rfc) 
     g_world_objects.push_back(go);
 
     camera loc_cam = *cam;
-    loc_cam.set_projection(45, Environment.drawableWidth,
-                           Environment.drawableHeight, 2.0f, 20.0f);
+    // drawableWidth/Height may not be filled yet as renderer might not be initialized yet
+    loc_cam.set_projection(45, Environment.screenWidth,
+                           Environment.screenHeight, 2.0f, 20.0f);
     FrustumObject *fo = FrustumObject::Create(&loc_cam);
     g_world_objects.push_back(fo);
 

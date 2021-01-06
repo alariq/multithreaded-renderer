@@ -406,6 +406,8 @@ public:
         rp->mesh_.ib_ = 0;
         rp->mesh_.inst_vb_ = vb_[cur_vb_];
         rp->mesh_.vb_ = get_quad_vb();
+        rp->mesh_.vb_count_ = -1;
+        rp->mesh_.vb_first_ = 0;
         rp->mesh_.tex_id_ = 0;
         rp->mesh_.vdecl_ = get_vdecl();
         rp->mesh_.prim_type_ = PRIMITIVE_TRIANGLELIST;
