@@ -179,6 +179,7 @@ public:
 
         gos_SetRenderState(gos_State_Texture, texid);
         gos_SetSamplerState(0, sampler_);
+        gos_SetRenderState(gos_State_Culling, ro.two_sided_ ? gos_Cull_None : gos_Cull_CCW);
 
         mat4 wvp = view_proj_ * rp.m_;
         mat4 wv = view_ * rp.m_;

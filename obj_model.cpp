@@ -91,6 +91,7 @@ void FrustumObject::InitRenderResources() {
     mesh_->prim_type_ = PRIMITIVE_TRIANGLELIST;
     mesh_->vb_first_ = 0;
     mesh_->vb_count_ = -1;
+    mesh_->two_sided_ = 0;
     mesh_->tex_id_ = res_man_load_texture("default");
 }
 

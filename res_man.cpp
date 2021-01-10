@@ -83,6 +83,7 @@ static RenderMesh *render_mesh_from_mesh_buffer(const MeshBuffer &mb,
     mesh->prim_type_ = PRIMITIVE_TRIANGLELIST;
     mesh->vb_count_ = -1;
     mesh->vb_first_ = 0;
+    mesh->two_sided_ = 0;
     mesh->aabb_ = mb.get_aabb();
     return mesh;
 }
@@ -120,6 +121,7 @@ static RenderMesh* CreateFSQuadRenderMesh() {
 
     fs_quad->prim_type_ = PRIMITIVE_TRIANGLELIST;
     fs_quad->vb_count_ = -1;
+    fs_quad->two_sided_ = 0;
     fs_quad->vb_first_ = 0;
     return fs_quad;
 }

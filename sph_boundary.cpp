@@ -408,6 +408,8 @@ void SPHBoundaryModel::InitializeRenderResources() {
 		gosBUFFER_TYPE::VERTEX, gosBUFFER_USAGE::STATIC_DRAW, sizeof(vec3), NUM_VERT, vb);
 
 	boundary_mesh_->prim_type_ = PRIMITIVE_LINELIST;
+    boundary_mesh_->vb_first_ = 0;
+    boundary_mesh_->vb_count_ = -1;
 }
 
 void SPHBoundaryModel::UpdateTexturesByData() {

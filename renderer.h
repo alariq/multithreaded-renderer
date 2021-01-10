@@ -43,6 +43,8 @@ struct RenderMesh {
     AABB                    aabb_;
     uint32_t                vb_first_;
     uint32_t                vb_count_;
+    // state 
+    uint32_t                two_sided_: 1;
 };
 
 struct PointLight {

@@ -94,6 +94,8 @@ void SPHSurfaceMesh::InitRenderResources() {
 	mesh_->vdecl_ = get_svd_vdecl();
     mesh_->ib_ = 0;
     mesh_->vb_ = gos_CreateBuffer( gosBUFFER_TYPE::VERTEX, gosBUFFER_USAGE::DYNAMIC_DRAW, sizeof(SVD), 1024, nullptr);
+    mesh_->vb_first_ = 0;
+    mesh_->two_sided_ = 1;
 	mesh_->prim_type_ = PRIMITIVE_TRIANGLELIST;
 }
 
