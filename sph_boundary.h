@@ -37,12 +37,16 @@ class SPHBoundaryModel {
     struct RenderMesh* boundary_mesh_;
 
     int pos2idx(vec3 local_pos);
+    int idx(int x, int y, int z) const {
+        return x + y * res_.x + z * res_.x * res_.y;
+    }
     // returns local pos
     vec3 idx2pos(ivec3 idx);
 
     void calculate_distance_field(bool b_invert, float particle_radius);
     void generate_volume_map(float support_radius);
 
+    float interpolate_value(const vec3& pos, std::function<float(const int)> value) const;
     float interpolate_value_xy(const vec3& pos, std::function<float(const int)> value) const;
     float interpolate_value_xy_old(const vec3& pos, std::function<float(const int)> value) const;
     ivec3 wrapi(vec3 p) const;
@@ -60,6 +64,8 @@ public:
     bool Initialize(vec3 cube, float particle_radius, float support_radius, ivec3 resolution, bool b_is2d);
     void Destroy();
 
+    vec3 getDimension() const { return domain_max_ - domain_min_; }
+    vec3 getOrigin() const { return domain_min_; }
     float getDistance2D(const vec2& pos) const;
     float getVolume2D(const vec2& pos) const;
 

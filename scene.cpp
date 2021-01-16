@@ -1,5 +1,6 @@
 #include "scene.h"
 #include "particle_system.h"
+#include "sph_object.h"
 #include "sph.h"
 #include "res_man.h"
 #include "obj_model.h"
@@ -40,6 +41,7 @@ const std::vector<PointLight>& scene_get_light_list() {
 
 void initialize_scene(const struct camera *cam, struct RenderFrameContext *rfc) {
     (void)cam;
+    sph_init();
 #if 0
     const uint32_t NUM_OBJECTS = 3;
     for (uint32_t i = 0; i < NUM_OBJECTS; ++i) {
@@ -161,12 +163,15 @@ void finalize_scene() {
         GameObject *go = *it;
         delete go;
     }
+
+    sph_deinit();
 }
 
 void scene_update(const camera *cam, const float dt) {
     std::list<GameObject *>::const_iterator it = g_world_objects.begin();
     std::list<GameObject *>::const_iterator end = g_world_objects.end();
 
+    sph_update();
     ParticleSystemManager::Instance().Update(dt);
 
     for (; it != end; ++it) {

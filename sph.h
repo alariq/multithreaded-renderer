@@ -1,8 +1,15 @@
 #pragma once
 
-#include "obj_model.h"
 #include "utils/vec.h"
-#include <atomic>
+#include "sph_kernels.h"
+#include "sph_boundary.h"
+#include <cassert>
+#include <functional>
+#include <vector>
+
+int pos2idx(const vec3& pos, const ivec3& res, const vec3& domain_min, const vec3& domain_max);
+vec3 idx2pos(const ivec3& idx, const ivec3 res, const vec3 domain_min, const vec3& domain_max);
+vec3 vtx2pos(const ivec3& idx, const ivec3 res, const vec3 domain_min, const vec3& domain_max);
 
 struct SPHParticle2D {
 	vec2 pos;
@@ -15,13 +22,6 @@ struct SPHParticle2D {
 
 typedef SPHParticle2D SPHInstVDecl ;
 
-void sph_init();
-void sph_deinit();
-void sph_update(SPHParticle2D *particles, int count, vec2 view_dim);
-
-int pos2idx(const vec3& pos, const ivec3& res, const vec3& domain_min, const vec3& domain_max);
-vec3 idx2pos(const ivec3& idx, const ivec3 res, const vec3 domain_min, const vec3& domain_max);
-vec3 vtx2pos(const ivec3& idx, const ivec3 res, const vec3 domain_min, const vec3& domain_max);
 
 struct SPHGridCell {
     // particles which fall into this cell
@@ -106,58 +106,151 @@ struct SPHGrid {
     ~SPHGrid();
 };
 
-class SPHSceneObject : public GameObject {
-    SPHParticle2D* particles_;
-    uint32_t* part_flags_;
-    int* part_indices_;
-    int num_particles_;
-    vec2 view_dim_;
-    float radius_;
+struct SPHFluidModel {
     SPHGrid* grid_;
-    class SPHSurfaceMesh* surface_;
-    // cached transform component
-    TransformComponent* transform_ = nullptr;
+    SPHParticle2D* particles_;
 
-    RenderMesh* sphere_mesh_ = nullptr; 
-    HGOSVERTEXDECLARATION vdecl_;
-    std::vector<HGOSBUFFER> inst_vb_;
-    mutable int cur_inst_vb_ = 0;
-    
-    HGOSRENDERMATERIAL  mat_;
-    HGOSRENDERMATERIAL  sdf_mat_;
-    DWORD surface_grid_tex_;
-    DWORD sdf_tex_;
-
-    std::atomic_bool b_initalized_rendering_resources;
-
-public:
-    static SPHSceneObject* Create(const vec2& view_dim, int num_particles, const vec3& pos);
-
-    virtual void Update(float /*dt*/) override;
-
-    virtual const char* GetName() const override { return "SPH Scene"; };
-    virtual RenderMesh* GetMesh() const override { return nullptr; }
-    virtual ~SPHSceneObject();
-
-	float GetRadius() { return radius_; }
-
-    const vec2& GetBounds() { return view_dim_; }
-
-	SPHParticle2D* GetParticles() { return particles_; }
-	int GetParticlesCount() { return num_particles_; }
-
-    virtual void InitRenderResources() override;
-    void DeinitRenderResources();
-
-    // IRenderable
-    virtual void AddRenderPackets(struct RenderFrameContext* rfc) const override;
+    int num_particles_;
+    float radius_;
+    float density0_;
+    float volume_;
+    float support_radius_;
 };
 
-void initialize_particle_positions(SPHSceneObject* o);
-void sph_init_renderer();
+struct SPHStateData {
+    std::vector<uint32_t> flags_;
+    std::vector<int> cell_indices_;
 
+	void allocate(size_t count) {
+		flags_.resize(count);
+		cell_indices_.resize(count);
+	}
+    void clear_data() {
+		memset(flags_.data(), 0, sizeof(int) * flags_.size());
+		memset(cell_indices_.data(), 0, sizeof(int) * cell_indices_.size());
+    }
+};
+
+struct SPHSimData {
+    std::vector<float> kappa_;
+    std::vector<float> factor_;
+    std::vector<float> density_adv_;
+
+    // from boundary (overkill because only a fraction of particles needs this dunring a simulation frame)
+    // use index into another array (resized on demand, or using fixed block allocator scheme)
+    std::vector<vec2> boundaryXj_;
+    std::vector<float> boundaryVolume_;
+
+	void allocate(size_t count) {
+		density_adv_.resize(count);
+		factor_.resize(count);
+		kappa_.resize(count);
+		boundaryXj_.resize(count);
+		boundaryVolume_.resize(count);
+	}
+};
+
+
+class SPHSimulation {
+
+    // make solvers friends (for now)
+    friend struct DF_TimeStep;
+    friend void SPH_OldTick(SPHSimulation* sim);
+    friend void sph_update();
+
+    const vec2 accel_ = vec2(0.0f, -9.81f);
+    const float radius_ = 0.1f;
+    const float support_radius_ = 4.0f * radius_;
+
+    float time_step_ = 0.016f;
+    float cfl_factor_ = 0.5f;
+    float min_cfl_timestep_ = 0.0001f;
+    float max_cfl_timestep_ = 0.016f;//0.005;
+
+    float W_zero_;
+	float (*kernel_fptr_)(const vec3 &);
+	vec3 (*grad_kernel_fptr_)(const vec3& r);
+
+public:
+    SPHSimulation() = default;
+
+    SPHSimulation(const SPHSimulation&) = delete;
+    SPHSimulation(SPHSimulation&&) = delete;
+
+    ~SPHSimulation() {
+        delete sim_data_;
+        delete state_data_;
+    }
+
+    void Setup() {
+	    CubicKernel::setRadius(support_radius_);
+	    CubicKernel2D::setRadius(support_radius_);
+
+        kernel_fptr_ = CubicKernel2D::W;
+        grad_kernel_fptr_ = CubicKernel2D::gradW;
+        W_zero_ = CubicKernel2D::W_zero();
+    }
+
+    float W(const vec3& v) const {
+        return kernel_fptr_(v);
+    }
+
+    float W(const vec2& v) const {
+        return kernel_fptr_(vec3(v.x, v.y, 0.0f));
+    }
+
+    vec2 gradW(const vec2& v) const {
+        vec3 grad = grad_kernel_fptr_(vec3(v.x, v.y, 0.0f));
+        return vec2(grad.x, grad.y);
+    }
+
+    vec3 gradW(const vec3& v) const {
+        return grad_kernel_fptr_(v);
+    }
+
+    float Wzero() { return W_zero_; }
+
+    void updateTimestep() {
+        SPHFluidModel* fm = fluid_model_;
+        float max_vel = 0.01f;
+		for (int i = 0; i < fm->num_particles_; ++i) {
+			SPHParticle2D &pi = fm->particles_[i];
+            float vel = lengthSqr(pi.vel + accel_*time_step_);
+            max_vel = max(max_vel, vel);
+        }
+        
+        float diameter = fm->radius_ * 2.0f;
+        float h = cfl_factor_ * diameter / sqrtf(max_vel);
+        h = clamp(h, min_cfl_timestep_, max_cfl_timestep_);
+        time_step_ = h;
+    }
+    void setFluid(struct SPHFluidModel*);
+    void setBoundary(class SPHBoundaryModel*);
+
+private:
+    struct SPHFluidModel* fluid_model_ = nullptr;
+    struct SPHSimData* sim_data_ = nullptr;
+    struct SPHStateData* state_data_ = nullptr;
+
+    class SPHBoundaryModel* boundary_model_ = nullptr;
+
+};
+
+void sph_init();
+void sph_init_renderer();
+void sph_deinit();
+void sph_update();
+SPHSimulation* sph_get_simulation();
+
+// surface identification
+void hash_particles(SPHGrid* grid, SPHParticle2D* particles, int num_particles, int* part_cell_indices) ;
+void identify_surface_cells(SPHGrid* grid, int num_particles, uint32_t* part_flags) ;
+void identify_surface_vertices(SPHGrid* grid, SPHParticle2D* particles, int num_particles, float radius, int* part_cell_indices, uint32_t* part_flags) ;
+void calc_sdf(SPHGrid *grid, const SPHParticle2D *particles, int num_particles, float radius) ;
+//
 
 // Does not include particle i itself!
 void foreach_in_radius(float r, int i, SPHGrid *grid, SPHParticle2D *particles,
 					   int num_particles,
 					   std::function<void(const SPHParticle2D *, int)> func);
+

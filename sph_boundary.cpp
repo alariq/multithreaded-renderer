@@ -31,7 +31,7 @@ int SPHBoundaryModel::pos2idx(vec3 p) {
     p.z = clamp(p.z, 0.0f, 1.0f - eps);
 
 
-    vec3 fres = vec3(res_.x, res_.y, res_.z);
+    vec3 fres = vec3((float)res_.x, (float)res_.y, (float)res_.z);
     vec3 fi = fres * p;
     ivec3 i = ivec3((int)fi.x, (int)fi.y, (int)fi.z);
     assert(i.x >= 0 && i.x < res_.x);
@@ -115,6 +115,46 @@ ivec3 SPHBoundaryModel::wrapi(vec3 p) const {
     return ivec3((int)p.x, (int)p.y, (int)p.z);
 }
 
+float SPHBoundaryModel::interpolate_value(const vec3& pos, std::function<float(const int)> value) const
+{
+    vec3 p = (pos - domain_min_) / (domain_max_ - domain_min_) ;
+    p.x = clamp(p.x, 0.0f, 1.0f);
+    p.y = clamp(p.y, 0.0f, 1.0f);
+    p.z = clamp(p.z, 0.0f, 1.0f);
+
+    p *= vec3((float)res_.x, (float)res_.y, (float)res_.z);
+
+    // OpenGL 4.6 spec 8.14. TEXTURE MINIFICATION
+
+    ivec3 s = wrapi(floor(p - 0.5f));
+    ivec3 e = wrapi(floor(p - 0.5f) + 1.0f);
+    vec3 k = frac(p-0.5f);
+
+    const int i0 = s.x;
+    const int j0 = s.y;
+    const int k0 = s.z;
+
+    const int i1 = e.x;
+    const int j1 = e.y;
+    const int k1 = e.z;
+    
+    const float a = k.x;
+    const float b = k.y;
+    const float c = k.z;
+
+    float v = (1 - a) * (1 - b) * (1 - c) * value(idx(i0, j0, k0)) +
+			  a * (1 - b) * (1 - c) * value(idx(i1, j0, k0)) +
+			  (1 - a) * b * (1 - c) * value(idx(i0, j1, k0)) +
+			  a * b * (1 - c) * value(idx(i1, j1, k0)) +
+			  (1 - a) * (1 - b) * c * value(idx(i0, j0, k1)) +
+			  a * (1 - b) * c * value(idx(i1, j1, k0)) +
+			  (1 - a) * b * c * value(idx(i0, j1, k1)) +
+			  a * b * c * value(idx(i1, j1, k1));
+
+    return v;
+}
+
+
 float SPHBoundaryModel::interpolate_value_xy(const vec3& pos, std::function<float(const int)> value) const
 {
     vec3 p = (pos - domain_min_) / (domain_max_ - domain_min_) ;
@@ -137,11 +177,6 @@ float SPHBoundaryModel::interpolate_value_xy(const vec3& pos, std::function<floa
     float v1 = value(i10)*(1.0f - k.x) + value(i11)*k.x;
     float v = v0*(1.0f - k.y) + v1*k.y;
     return v;
-
-	//return (1.0f - k.x) * (1.0f - k.y) * value(vec3(c0, 0.0f)) +
-	//	   k.x * (1.0f - k.y) * value(vec2(c1.x, c0.y)) +
-	//	   (1.0f - k.x) * k.y * value(vec2(c0.x, c1.y)) + k.x * k.y * value(c1);
-
 }
 
 float SPHBoundaryModel::interpolate_value_xy_old(const vec3& pos, std::function<float(const int)> value) const {
@@ -151,6 +186,8 @@ float SPHBoundaryModel::interpolate_value_xy_old(const vec3& pos, std::function<
     p.z = clamp(p.z, 0.0f, 1.0f);
 
     p *= vec3((float)(res_.x - 1), (float)(res_.y - 1), (float)(res_.z - 1));
+
+
     vec3 k = vec3(p.x - floorf(p.x), p.y - floorf(p.y), p.z - floorf(p.z));
     ivec3 s = ivec3((int)p.x, (int)p.y, (int)p.z);
 	ivec3 e = ivec3(min(s.x + 1, res_.x - 1), min(s.y + 1, res_.y - 1), s.z);

@@ -31,10 +31,14 @@ endif()
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -D_ARMOR -D_DEBUG -DBUGLOG -DLAB_ONLY")
 #set(CMAKE_CXX_FLAGS_RELWITHDEBINFO" ${CMAKE_CXX_FLAGS_RELWITHDEBINFO} -DSOME_STUFF")
 if(MSVC)
+    # disable:
     # 4514 - unreferenced inline function has been removed
     # 4121 - alignment of a member was sensitive to packing
+    # 4201 - nonstandard extension used: nameless struct/union
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /std:c++17 /W4 /wd4514 /wd4121 /wd4201")
+    # as error:
     # 4099 - type name first seen using 'struct' now seen using 'class'
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /std:c++14 /W4 /wd4514 /wd4121 /we4099")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /we4099")
     set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MTd")
 endif()
 
@@ -75,23 +79,40 @@ add_subdirectory("./platform" "./out/platform")
 set(SOURCES 
     "main.cpp"
     "shadow_renderer.cpp"
+    "shadow_renderer.h"
     "particle_system.cpp"
+    "particle_system.h"
     "debug_renderer.cpp"
+    "debug_renderer.h"
     "deferred_renderer.cpp"
+    "deferred_renderer.h"
     "obj_id_renderer.cpp"
+    "obj_id_renderer.h"
     "renderer.cpp"
+    "renderer.h"
     "test_fixed_block_allocator.cpp"
     "scene.cpp"
+    "scene.h"
     "obj_model.cpp"
+    "obj_model.h"
     "res_man.cpp"
+    "res_man.h"
     "editor.cpp"
+    "editor.h"
     "sph.cpp"
+    "sph.h"
     "sph_kernels.h"
     "sph_kernels.cpp"
     "sph_boundary.h"
     "sph_boundary.cpp"
     "sph_polygonize.h"
     "sph_polygonize.cpp"
+    "sph_solver_df.h"
+    "sph_solver_df.cpp"
+    "sph_solver_old.h"
+    "sph_solver_old.cpp"
+    "sph_object.h"
+    "sph_object.cpp"
     )
 
 #find_library(GLEW NAMES "GLEW" "glew32")
