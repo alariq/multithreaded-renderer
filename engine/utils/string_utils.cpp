@@ -64,7 +64,7 @@ inline int StringToLower(const char* const szPath, char* szLowerPath, int nLen)
 	if(l > (nLen - 1))
 		l = nLen - 1;
 	for(i = 0; i < l; ++i)
-		szLowerPath[i] = tolower(szPath[i]);
+		szLowerPath[i] = (char)tolower(szPath[i]);
 	szLowerPath[i] = 0;
 	
 	return l;

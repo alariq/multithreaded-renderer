@@ -195,7 +195,7 @@ size_t get_num_lines(const char* text)
 
     size_t count = 1;
     const char* token = text;
-    while(token && (token = strchr(token, '\n')))
+    while((token = strchr(token, '\n')))
     {
         token++;
         count++;
