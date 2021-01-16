@@ -362,7 +362,6 @@ unsigned int toBGRA(const vec4 &u);
 //@}
 
 
-
 /** 2x2 matrix */
 struct mat2 {
 	float elem[2][2];

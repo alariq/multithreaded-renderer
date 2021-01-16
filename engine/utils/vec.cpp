@@ -454,6 +454,27 @@ float lengthSqr(const vec4 &v){
 	return v.x * v.x + v.y * v.y + v.z * v.z + v.w * v.w;
 }
 
+vec2 floor(const vec2 &v){
+    return vec2(floorf(v.x), floorf(v.y));
+}
+
+vec3 floor(const vec3 &v){
+    return vec3(floorf(v.x), floorf(v.y), floorf(v.z));
+}
+vec4 floor(const vec4 &v){
+    return vec4(floorf(v.x), floorf(v.y), floorf(v.z), floorf(v.w));
+}
+
+vec2 frac(const vec2 &v){
+    return vec2(v.x - floorf(v.x), v.y - floorf(v.y));
+}
+vec3 frac(const vec3 &v){
+    return vec3(v.x - floorf(v.x), v.y - floorf(v.y), v.z - floorf(v.z));
+}
+vec4 frac(const vec4 &v){
+    return vec4(v.x - floorf(v.x), v.y - floorf(v.y), v.z - floorf(v.z), v.w - floorf(v.w));
+}
+
 vec3 cross(const vec3 &u, const vec3 &v){
 	return vec3(u.y * v.z - v.y * u.z, u.z * v.x - u.x * v.z, u.x * v.y - u.y * v.x);
 }
