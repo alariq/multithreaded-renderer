@@ -2050,6 +2050,7 @@ void gosRenderer::applyRenderStates() {
 void gosRenderer::beginFrame()
 {
     glFrontFace(GL_CCW);
+    glEnable(GL_DEPTH_TEST);
     glBindVertexArray(gVAO);
     num_draw_calls_ = 0;
 
