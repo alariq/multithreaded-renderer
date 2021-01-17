@@ -264,7 +264,7 @@ void SPHSceneObject::AddRenderPackets(struct RenderFrameContext *rfc) const {
     rp->mesh_ = *boundary_->getBoundaryMesh();
     rp->m_ = transform_->GetTransform();
 	rp->is_debug_pass = 1;
-	rp->debug_color = vec4(1,0,0,1);
+	rp->debug_color = vec4(0,1,0,1);
 
     // update & draw surface mesh
     surface_->UpdateMesh(rfc);

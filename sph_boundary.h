@@ -59,13 +59,16 @@ class SPHBoundaryModel {
         return distance_[index];
     }
 
+    vec3 getDomainDimension() const { return domain_max_ - domain_min_; }
 public:
 
     bool Initialize(vec3 cube, float particle_radius, float support_radius, ivec3 resolution, bool b_is2d);
     void Destroy();
 
-    vec3 getDimension() const { return domain_max_ - domain_min_; }
-    vec3 getOrigin() const { return domain_min_; }
+
+    vec3 getDimension() const { return boundary_max_ - boundary_min_; }
+    vec3 getCenter() const { return 0.5f * (boundary_max_ + boundary_min_); }
+
     float getDistance2D(const vec2& pos) const;
     float getVolume2D(const vec2& pos) const;
 

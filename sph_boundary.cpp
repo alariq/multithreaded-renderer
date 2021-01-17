@@ -487,11 +487,18 @@ void SPHBoundaryModel::UpdateTexturesByData() {
 				row[4*x + 0] = (uint8_t)clamp(n.x, 0.0f, 255.0f);
 				row[4*x + 1] = (uint8_t)clamp(n.y, 0.0f, 255.0f);
 				row[4*x + 2] = (uint8_t)0;
-				row[4*x + 3] = (uint8_t)0;
+				row[4*x + 3] = (uint8_t)255;
 			}
 		}
 		gos_UnLockTexture(normal_tex_);
 	}
+
+    // draw debug quad with texture
+    vec2 size = getDomainDimension().xy();
+    vec3 center = getCenter();
+    center.z = 0.4f;
+    mat4 tr = mat4::translation(center);// +0.5f * vec3(size.x, size.y, 0.0f));
+    gos_AddQuad(size, vec4(1,1,1, 1.3f), volume_tex_, &tr, true);
 }
 
 
