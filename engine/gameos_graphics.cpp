@@ -1241,11 +1241,14 @@ struct gosDebugDrawCall {
     int num_vertices_;
     gosPRIMITIVETYPE prim_type_;
     vec4 colour_;
+    uint32_t tex_;
     mat4 transform;
     float point_size_;
+    bool is_two_side_;
 
     struct VDecl {
         vec3 pos;
+        vec2 uv;
         uint32_t colour;
     };
 };
@@ -1254,7 +1257,8 @@ HGOSVERTEXDECLARATION get_debug_vdecl() {
     using VDecl = gosDebugDrawCall::VDecl;
     static const gosVERTEX_FORMAT_RECORD debug_vdecl[] = {
         {0, 3, false, sizeof(VDecl), 0, gosVERTEX_ATTRIB_TYPE::FLOAT, 0},
-        {1, 4, false, sizeof(VDecl), offsetof(VDecl, colour), gosVERTEX_ATTRIB_TYPE::UNSIGNED_BYTE, 0},
+        {1, 2, false, sizeof(VDecl), offsetof(VDecl, uv), gosVERTEX_ATTRIB_TYPE::FLOAT, 0},
+        {2, 4, false, sizeof(VDecl), offsetof(VDecl, colour), gosVERTEX_ATTRIB_TYPE::UNSIGNED_BYTE, 0},
     };
 
     static auto vdecl = gos_CreateVertexDeclaration(
@@ -1492,6 +1496,7 @@ class gosRenderer {
 		void drawIndexedInstanced(HGOSBUFFER ib, HGOSBUFFER vb, HGOSBUFFER instanced_vb, uint32_t instance_count, HGOSVERTEXDECLARATION vdecl, gosPRIMITIVETYPE pt);
         void drawText(const char* text);
 
+        void addDebugQuad(const vec2& size, const vec4& colour, uint32_t texture_id, const mat4* transform, bool is_two_side);
         void addDebugLine(const vec3& start, const vec3& end, const vec4& colour, const mat4* transform = nullptr);
         void addDebugPoints(const vec3* pos, uint32_t count, const vec4& colour, float point_size, const mat4* transform = nullptr);
         void drawDebugPrimitives(const mat4& view, const mat4& projection);
@@ -1949,11 +1954,6 @@ void gosRenderer::applyRenderStates() {
    curStates_[gos_State_ZWrite] = renderStates_[gos_State_ZWrite];
 
    ////////////////////////////////////////////////////////////////////////////////
-   if(0 == renderStates_[gos_State_ZCompare]) {
-       glDisable(GL_DEPTH_TEST);
-   } else {
-       glEnable(GL_DEPTH_TEST);
-   }
    switch(renderStates_[gos_State_ZCompare]) {
        case 0: glDepthFunc(GL_ALWAYS); break;
        case 1: glDepthFunc(GL_LEQUAL); break;
@@ -2418,10 +2418,37 @@ void gosRenderer::drawIndexedInstanced(HGOSBUFFER ib, HGOSBUFFER vb, HGOSBUFFER 
     afterDrawCall();
 }
 
+void gosRenderer::addDebugQuad(const vec2& size, const vec4& colour, uint32_t texture_id, const mat4* transform, bool is_two_side) {
+
+    gosDebugDrawCall::VDecl v[6] = {
+        {vec3(-0.5f * size.x, -0.5f * size.y, 0.0f), vec2(0,0), vec4_to_uint32(colour)},
+        {vec3(-0.5f * size.x, +0.5f * size.y, 0.0f), vec2(0,1), vec4_to_uint32(colour)},
+        {vec3(+0.5f * size.x, +0.5f * size.y, 0.0f), vec2(1,1), vec4_to_uint32(colour)},
+        {vec3(-0.5f * size.x, -0.5f * size.y, 0.0f), vec2(0,0), vec4_to_uint32(colour)},
+        {vec3(+0.5f * size.x, +0.5f * size.y, 0.0f), vec2(1,1), vec4_to_uint32(colour)},
+        {vec3(+0.5f * size.x, -0.5f * size.y, 0.0f), vec2(1,0), vec4_to_uint32(colour)}
+    };
+
+    int vidx = debug_vertex_data_->addVertices(v, COUNTOF(v));
+    gosDebugDrawCall ddc;
+    ddc.vb_start_idx_ = vidx;
+	ddc.num_vertices_ = COUNTOF(v);
+	ddc.prim_type_ = PRIMITIVE_TRIANGLELIST;
+	ddc.colour_ = colour;
+	ddc.tex_ = texture_id;
+	ddc.transform = transform ? *transform : mat4::identity();
+    ddc.is_two_side_ = is_two_side;
+
+    if(colour.w>=1.0f)
+        debug_draw_calls_opaque_.push_back(ddc);
+    else
+        debug_draw_calls_transparent_.push_back(ddc);
+}
+
 void gosRenderer::addDebugLine(const vec3& start, const vec3& end, const vec4& colour, const mat4* prim_transform) {
 
-	gosDebugDrawCall::VDecl v[2] = {{start, vec4_to_uint32(colour)},
-									{end, vec4_to_uint32(colour)}};
+	gosDebugDrawCall::VDecl v[2] = {{start, vec2(0,0), vec4_to_uint32(colour)},
+									{end, vec2(0,0), vec4_to_uint32(colour)}};
 
     int vidx = debug_vertex_data_->addVertices(v, COUNTOF(v));
     gosDebugDrawCall ddc;
@@ -2442,6 +2469,7 @@ void gosRenderer::addDebugPoints(const vec3* pos, uint32_t count, const vec4& co
 	gosDebugDrawCall::VDecl* vertices = new gosDebugDrawCall::VDecl[count];
     for(uint32_t i=0; i<count; ++i) {
         vertices[i].pos = pos[i];
+        vertices[i].uv = vec2(0,0);
         vertices[i].colour = vec4_to_uint32(colour);
     }
 
@@ -2469,29 +2497,61 @@ void gosRenderer::drawDebugPrimitives(const mat4& view, const mat4& projection) 
     CHECK_GL_ERROR;
 
     gos_SetRenderState(gos_State_Culling, gos_Cull_None);
-    gos_SetRenderState(gos_State_ZCompare, 0);
-    gos_SetRenderState(gos_State_AlphaMode, gos_Alpha_OneZero);
-    gos_SetRenderState(gos_State_ZWrite, 1);
+    gos_SetRenderState(gos_State_ZCompare, 1);
 
-    mat4 vp = projection * view;
-    for(const gosDebugDrawCall& ddc: debug_draw_calls_opaque_) {
+    std::vector<gosDebugDrawCall>* draw_lists[] = {
+        &debug_draw_calls_opaque_,
+        &debug_draw_calls_transparent_
+    };
+    
+    bool b_is_opaque = true;
+    for (const auto draw_list : draw_lists) {
+        
+        if (b_is_opaque) {
+            gos_SetRenderState(gos_State_AlphaMode, gos_Alpha_OneZero);
+            gos_SetRenderState(gos_State_ZWrite, 1);
+            b_is_opaque = false;
+        } else {
+            gos_SetRenderState(gos_State_AlphaMode, gos_Alpha_AlphaInvAlpha);
+            gos_SetRenderState(gos_State_ZWrite, 0);
+        }
 
-        if(PRIMITIVE_POINTLIST == ddc.prim_type_)
-            gos_SetRenderState(gos_State_PointSize, ddc.point_size_);
+        mat4 vp = projection * view;
+        for (const gosDebugDrawCall& ddc : *draw_list) {
 
-        mat4 wvp = vp * ddc.transform;
-        gos_SetRenderMaterialParameterMat4(mat, "wvp_", (const float*)wvp);
-        gos_SetRenderMaterialParameterFloat4(mat, "colour_", (const float*)ddc.colour_);
+            uint32_t tex_id = 0;
+            switch (ddc.prim_type_) {
+            case PRIMITIVE_POINTLIST:
+                gos_SetRenderState(gos_State_PointSize, ddc.point_size_);
+                tex_id = 0;
+                break;
+            case PRIMITIVE_LINELIST:
+                tex_id = 0;
+                break;
+            case PRIMITIVE_TRIANGLELIST:
+                tex_id = ddc.tex_;
+                gos_SetRenderState(gos_State_PointSize, 1);
+                gos_SetRenderState(gos_State_Culling, ddc.is_two_side_ ? gos_Cull_None : gos_Cull_CCW);
+                break;
+            }
+            gos_SetRenderState(gos_State_Texture, tex_id);
 
-        gos_ApplyRenderMaterial(mat);
+            mat4 wvp = vp * ddc.transform;
+            gos_SetRenderMaterialParameterMat4(mat, "wvp_", (const float*)wvp);
+            gos_SetRenderMaterialParameterFloat4(mat, "colour_", (const float*)ddc.colour_);
+            vec4 flags = vec4(tex_id != 0 ? 1.0f : 0.0f, 0.0f, 0.0f, 0.0f);
+            gos_SetRenderMaterialParameterFloat4(mat, "flags_", (const float*)flags);
 
-        if(beforeDrawCall())
-            continue;
+            gos_ApplyRenderMaterial(mat);
 
-        applyRenderStates();
-		debug_vertex_data_->draw(get_debug_vdecl(), ddc.prim_type_, ddc.vb_start_idx_, ddc.num_vertices_);
-        afterDrawCall();
-	}
+            if (beforeDrawCall())
+                continue;
+
+            applyRenderStates();
+            debug_vertex_data_->draw(get_debug_vdecl(), ddc.prim_type_, ddc.vb_start_idx_, ddc.num_vertices_);
+            afterDrawCall();
+        }
+    }
 
     gos_SetRenderState(gos_State_PointSize, 1);
     glUseProgram(0);
@@ -2909,6 +2969,11 @@ void _stdcall gos_DrawTriangles(gos_VERTEX* Vertices, int NumVertices)
 {
     gosASSERT(g_gos_renderer);
     g_gos_renderer->drawTris(Vertices, NumVertices);
+}
+
+void _stdcall gos_AddQuad(const vec2& size, const vec4& colour, uint32_t texture_id, const mat4* transform, bool is_two_side) {
+    gosASSERT(g_gos_renderer);
+    g_gos_renderer->addDebugQuad(size, colour, texture_id, transform, is_two_side);
 }
 
 void _stdcall gos_AddLine(const vec3& start, const vec3& end, const vec4& colour, const mat4* transform/* =0*/) {
