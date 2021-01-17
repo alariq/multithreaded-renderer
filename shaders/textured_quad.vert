@@ -9,7 +9,7 @@ out vec2 o_uv;
 
 void main(void)
 {
-	gl_Position     =  vec4(scale_offset.zw + scale_offset.xy*pos.xy, 0.9999, 1);
+	gl_Position     =  vec4(scale_offset.zw + scale_offset.xy*pos.xy, 0.0, 1);
     o_pos = pos;
     o_uv = pos*0.5 + 0.5;
 }

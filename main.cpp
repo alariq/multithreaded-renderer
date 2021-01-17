@@ -312,6 +312,8 @@ void render_quad(uint32_t tex_id, const vec4& scale_offset, HGOSRENDERMATERIAL m
 	gos_SetRenderViewport(0, 0, Environment.drawableWidth, Environment.drawableHeight);
     glViewport(0, 0, (GLsizei)Environment.drawableWidth, (GLsizei)Environment.drawableHeight);
     
+    gos_SetRenderState(gos_State_ZCompare, 0);
+    gos_SetRenderState(gos_State_ZWrite, 1);
     gos_SetRenderState(gos_State_Texture, tex_id);
     gos_SetRenderState(gos_State_Culling, gos_Cull_CW);
 
