@@ -2,6 +2,7 @@
 #include "obj_model.h"
 #include "particle_system.h"
 #include "utils/obj_loader.h"
+#include <cstdint>
 
 ParticleSystemObject* ParticleSystemObject::Create()
 {
@@ -90,7 +91,7 @@ void FrustumObject::InitRenderResources() {
                          sizeof(SVD), vb_size, vb);
     mesh_->prim_type_ = PRIMITIVE_TRIANGLELIST;
     mesh_->vb_first_ = 0;
-    mesh_->vb_count_ = -1;
+    mesh_->vb_count_ = UINT32_MAX;
     mesh_->two_sided_ = 0;
     mesh_->tex_id_ = res_man_load_texture("default");
 }

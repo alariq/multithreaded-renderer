@@ -5,10 +5,10 @@
 #include "res_man.h"
 #include "utils/vec.h"
 
+void initialize_particle_positions(SPHFluidModel* fm);
+
 SPHSceneObject* SPHSceneObject::Create(const vec2& view_dim, int num_particles, const vec3& pos) {
     SPHSceneObject* o = new SPHSceneObject();
-    o->num_particles_ = num_particles;
-    o->particles_ = new SPHParticle2D[num_particles];
     o->view_dim_ = view_dim;
     o->radius_ = 0.1f;
 	// recommended by 2014_EG_SPH_STAR.pdf 7.1
@@ -36,9 +36,9 @@ SPHSceneObject* SPHSceneObject::Create(const vec2& view_dim, int num_particles, 
     } else {
         fm->volume_ = diameter * diameter * diameter * 0.8f;
     }
-	fm->particles_ = o->particles_;
-    fm->num_particles_ = num_particles;
+	fm->particles_.resize(num_particles);
     fm->grid_ = o->grid_;
+    initialize_particle_positions(fm);
 
     SPHBoundaryModel* bm = new SPHBoundaryModel();
     float volume_map_cell_size = 0.1f;
@@ -59,7 +59,6 @@ SPHSceneObject* SPHSceneObject::Create(const vec2& view_dim, int num_particles, 
 SPHSceneObject::~SPHSceneObject() {
     DeinitRenderResources();
     delete surface_;
-    delete[] particles_;
     delete[] part_indices_;
     delete[] part_flags_;
     delete grid_;
@@ -79,7 +78,7 @@ HGOSVERTEXDECLARATION get_sph_vdecl() {
 		{5, 2, false, sizeof(SPHInstVDecl), offsetof(SPHInstVDecl,force), gosVERTEX_ATTRIB_TYPE::FLOAT, 1},
 		{6, 1, false, sizeof(SPHInstVDecl), offsetof(SPHInstVDecl,density), gosVERTEX_ATTRIB_TYPE::FLOAT, 1},
 		{7, 1, false, sizeof(SPHInstVDecl), offsetof(SPHInstVDecl,pressure), gosVERTEX_ATTRIB_TYPE::FLOAT, 1},
-		{8, 1, false, sizeof(SPHInstVDecl), offsetof(SPHInstVDecl,flags), gosVERTEX_ATTRIB_TYPE::FLOAT, 1},
+		{8, 1, false, sizeof(SPHInstVDecl), offsetof(SPHInstVDecl,flags), gosVERTEX_ATTRIB_TYPE::UNSIGNED_INT, 1},
 	};
 
     static auto vdecl = gos_CreateVertexDeclaration(
@@ -97,7 +96,7 @@ void SPHSceneObject::InitRenderResources() {
 	for (int32_t i = 0; i < num_buffers; ++i) {
 		inst_vb_[i] =
 			gos_CreateBuffer(gosBUFFER_TYPE::VERTEX, gosBUFFER_USAGE::DYNAMIC_DRAW,
-							 sizeof(SPHInstVDecl), num_particles_, nullptr);
+							 sizeof(SPHInstVDecl), (uint32_t)fluid_->particles_.size(), nullptr);
 	}
 
     vdecl_ = get_sph_vdecl();
@@ -145,9 +144,9 @@ void SPHSceneObject::AddRenderPackets(struct RenderFrameContext *rfc) const {
 	// update instancing buffer
 	cur_inst_vb_ = (cur_inst_vb_ + 1) % ((int)inst_vb_.size());
 
-	int num_particles = num_particles_;
+	const int num_particles = (int)fluid_->particles_.size();
 	HGOSBUFFER inst_vb = inst_vb_[cur_inst_vb_];
-	SPHParticle2D *particles = particles_;
+	const SPHParticle2D *particles = fluid_->particles_.data();
 
     SPHGridVertex* grid_verts = grid_->vertices_[grid_->cur_vert_array_rt_];
     DWORD surface_grid_tex = surface_grid_tex_;
@@ -257,7 +256,7 @@ void SPHSceneObject::AddRenderPackets(struct RenderFrameContext *rfc) const {
 	rp->mesh_.mat_ = mat_;
 	rp->mesh_.inst_vb_ = inst_vb_[cur_inst_vb_];
     rp->mesh_.vdecl_ = vdecl_;
-    rp->mesh_.num_instances = num_particles_;
+    rp->mesh_.num_instances = num_particles;
 
 	rp = rl->AddPacket();
 	memset(rp, 0, sizeof(RenderPacket));
@@ -278,10 +277,10 @@ void SPHSceneObject::AddRenderPackets(struct RenderFrameContext *rfc) const {
 
 }
 
-void initialize_particle_positions(class SPHSceneObject* o) {
-    SPHParticle2D*  particles = o->GetParticles();
-    const int count = o->GetParticlesCount();
-    const float radius = o->GetRadius();
+void initialize_particle_positions(SPHFluidModel* fm) {
+    SPHParticle2D* particles = fm->particles_.data();
+    const int count = (int)fm->particles_.size();
+    const float radius = fm->radius_;
     vec2 offset = vec2(.2f, 4.0f*radius);
     int row_size = (int)(sqrtf((float)count) + 1.5f);////(int)(o->GetBounds().x / (2.0f*radius));
     int column_size = (count + row_size - 1) / row_size; 

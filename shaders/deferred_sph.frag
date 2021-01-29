@@ -11,16 +11,21 @@ layout(location=0) in PsIn {
     PREC vec2 force;
     PREC float density;
     PREC float pressure;
-    PREC float flags;
+    flat PREC uint flags;
 } Input;
 
+#define kSPHFlagActive 0x01
+#define kSPHFlagBoundary 0x02
+#define kSPHFlagSurface 0x04
 
 uniform sampler2D tex1;
 uniform mat4 wv_;
 
 void main(void)
 {
-	PREC vec4 albedo = texture(tex1, vec2(Input.texcoord.x, 1-Input.texcoord.y)) * Input.flags;
+	PREC vec4 albedo = texture(tex1, vec2(Input.texcoord.x, 1-Input.texcoord.y));
+    if((Input.flags & kSPHFlagSurface) != 0)
+        albedo.rgb = vec3(1) - albedo.rgb;
 
     g_buffer_albedo = albedo;
     PREC float scaler = 0.1;

@@ -3,14 +3,13 @@
 #include "obj_model.h"
 #include "utils/vec.h"
 #include <atomic>
+#include <vector>
 
 void initialize_particle_positions(class SPHSceneObject* o);
 
 class SPHSceneObject : public GameObject {
-    struct SPHParticle2D* particles_;
     uint32_t* part_flags_;
     int* part_indices_;
-    int num_particles_;
     vec2 view_dim_;
     float radius_;
     struct SPHGrid* grid_;
@@ -44,9 +43,6 @@ public:
 	float GetRadius() { return radius_; }
 
     const vec2& GetBounds() { return view_dim_; }
-
-	SPHParticle2D* GetParticles() { return particles_; }
-	int GetParticlesCount() { return num_particles_; }
 
     virtual void InitRenderResources() override;
     void DeinitRenderResources();

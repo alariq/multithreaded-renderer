@@ -7,6 +7,7 @@
 #include <functional>
 #include <cassert>
 #include <cfloat>
+#include <cstdint>
 
 static const float eps = 1.0e+31F*FLT_MIN;
 
@@ -446,7 +447,7 @@ void SPHBoundaryModel::InitializeRenderResources() {
 
 	boundary_mesh_->prim_type_ = PRIMITIVE_LINELIST;
     boundary_mesh_->vb_first_ = 0;
-    boundary_mesh_->vb_count_ = -1;
+    boundary_mesh_->vb_count_ = UINT32_MAX;
 }
 
 void SPHBoundaryModel::UpdateTexturesByData() {

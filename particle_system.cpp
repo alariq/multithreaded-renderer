@@ -4,6 +4,7 @@
 #include "engine/utils/vec.h"
 #include <cmath>
 #include <cassert>
+#include <cstdint>
 
 namespace {
 
@@ -406,7 +407,7 @@ public:
         rp->mesh_.ib_ = 0;
         rp->mesh_.inst_vb_ = vb_[cur_vb_];
         rp->mesh_.vb_ = get_quad_vb();
-        rp->mesh_.vb_count_ = -1;
+        rp->mesh_.vb_count_ = UINT32_MAX;
         rp->mesh_.vb_first_ = 0;
         rp->mesh_.two_sided_ = 0;
         rp->mesh_.tex_id_ = 0;

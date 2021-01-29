@@ -11,13 +11,19 @@ int pos2idx(const vec3& pos, const ivec3& res, const vec3& domain_min, const vec
 vec3 idx2pos(const ivec3& idx, const ivec3 res, const vec3 domain_min, const vec3& domain_max);
 vec3 vtx2pos(const ivec3& idx, const ivec3 res, const vec3 domain_min, const vec3& domain_max);
 
+enum SPHParticleFlags : uint32_t {
+    kSPHFlagActive = 0x01,
+    kSPHFlagBoundary = 0x02,
+    kSPHFlagSurface = 0x04
+};
+
 struct SPHParticle2D {
 	vec2 pos;
 	vec2 vel;
 	vec2 force;
 	float density;
 	float pressure;
-    float flags;
+    uint32_t flags;
 };
 
 typedef SPHParticle2D SPHInstVDecl ;
@@ -108,13 +114,22 @@ struct SPHGrid {
 
 struct SPHFluidModel {
     SPHGrid* grid_;
-    SPHParticle2D* particles_;
+    std::vector<SPHParticle2D> particles_;
 
-    int num_particles_;
     float radius_;
     float density0_;
     float volume_;
     float support_radius_;
+
+    // return index of the first added particle
+	int add(size_t count) {
+        auto old_size = particles_.size();
+		particles_.resize(old_size + count);
+        for (int i = 0; i < count; i++) {
+            particles_[old_size + i].flags = 0;
+        }
+        return (int)old_size;
+	}
 };
 
 struct SPHStateData {
@@ -213,7 +228,8 @@ public:
     void updateTimestep() {
         SPHFluidModel* fm = fluid_model_;
         float max_vel = 0.01f;
-		for (int i = 0; i < fm->num_particles_; ++i) {
+        const int num_particles = (int)fm->particles_.size();
+		for (int i = 0; i < num_particles; ++i) {
 			SPHParticle2D &pi = fm->particles_[i];
             float vel = lengthSqr(pi.vel + accel_*time_step_);
             max_vel = max(max_vel, vel);
@@ -245,7 +261,7 @@ SPHSimulation* sph_get_simulation();
 // surface identification
 void hash_particles(SPHGrid* grid, SPHParticle2D* particles, int num_particles, int* part_cell_indices) ;
 void identify_surface_cells(SPHGrid* grid, int num_particles, uint32_t* part_flags) ;
-void identify_surface_vertices(SPHGrid* grid, SPHParticle2D* particles, int num_particles, float radius, int* part_cell_indices, uint32_t* part_flags) ;
+void identify_surface_vertices(SPHGrid* grid, SPHParticle2D* particles, int num_particles, float radius, int* part_cell_indices, const uint32_t* part_flags) ;
 void calc_sdf(SPHGrid *grid, const SPHParticle2D *particles, int num_particles, float radius) ;
 //
 

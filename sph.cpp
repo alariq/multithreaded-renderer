@@ -40,16 +40,17 @@ void sph_update() {
     SPHFluidModel* fm = g_sim->fluid_model_;
     int32_t* cell_indices = g_sim->state_data_->cell_indices_.data();
     uint32_t* part_flags = g_sim->state_data_->flags_.data();
+    const int num_particles = (int)fm->particles_.size();
 
-    hash_particles(fm->grid_, fm->particles_, fm->num_particles_, cell_indices);
-    identify_surface_cells(fm->grid_, fm->num_particles_, part_flags);
-    identify_surface_vertices(fm->grid_, fm->particles_, fm->num_particles_, fm->radius_, cell_indices, part_flags);
+    hash_particles(fm->grid_, fm->particles_.data(), num_particles, cell_indices);
+    identify_surface_cells(fm->grid_, num_particles, part_flags);
+    identify_surface_vertices(fm->grid_, fm->particles_.data(), num_particles, fm->radius_, cell_indices, part_flags);
     if(g_calc_sdf)
-        calc_sdf(fm->grid_, fm->particles_, fm->num_particles_, fm->radius_);
+        calc_sdf(fm->grid_, fm->particles_.data(), num_particles, fm->radius_);
 
-    for (int i = 0; i < fm->num_particles_; ++i) {
+    for (int i = 0; i < num_particles; ++i) {
         SPHParticle2D& p = fm->particles_[i];
-        p.flags = part_flags[i] == 0.0f ? -1.0f : 1.0f;
+        p.flags = part_flags[i] == 0 ? 0 : kSPHFlagSurface; 
     }
 }
 
@@ -193,7 +194,7 @@ void identify_surface_cells(SPHGrid* grid, int num_particles, uint32_t* part_fla
 }
 
 // A completely parallel surface reconstruction method for particle-based fluids. Section 4.1
-void identify_surface_vertices(SPHGrid* grid, SPHParticle2D* particles, int num_particles, float radius, int* part_indices, uint32_t* part_flags) {
+void identify_surface_vertices(SPHGrid* grid, SPHParticle2D* particles, int num_particles, float radius, int* part_indices, const uint32_t* part_flags) {
 
 	// check all cell in 3*radius
 	const float thresholdSqr = 3 * radius * 3 * radius;
@@ -360,17 +361,17 @@ void calc_sdf(SPHGrid *grid, const SPHParticle2D *particles, int num_particles, 
 #endif
 }
 
-void SPHSimulation::setFluid(struct SPHFluidModel* fluid) {
+void SPHSimulation::setFluid(struct SPHFluidModel* fm) {
     // replace the current fluid (only one at a time supported at the moment)
-    fluid_model_ = fluid;
+    fluid_model_ = fm;
     if (!sim_data_) {
         sim_data_ = new SPHSimData();
-        sim_data_->allocate(fluid->num_particles_);
+        sim_data_->allocate(fm->particles_.size());
     }
 
     if (!state_data_) {
         state_data_ = new SPHStateData();
-        state_data_->allocate(fluid->num_particles_);
+        state_data_->allocate(fm->particles_.size());
     }
 }
 

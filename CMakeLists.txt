@@ -113,6 +113,8 @@ set(SOURCES
     "sph_solver_old.cpp"
     "sph_object.h"
     "sph_object.cpp"
+    "sph_emitter.h"
+    "sph_emitter.cpp"
     )
 
 #find_library(GLEW NAMES "GLEW" "glew32")

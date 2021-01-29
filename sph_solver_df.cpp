@@ -17,8 +17,8 @@ struct DF_TimeStep {
 	void calcVolumeAndBoundaryX(SPHSimulation *sim) {
 		SPHFluidModel *fm = sim->fluid_model_;
 		SPHSimData *sim_data = sim->sim_data_;
-		const int num_particles = fm->num_particles_;
-		SPHParticle2D *particles = fm->particles_;
+		const int num_particles = (int)fm->particles_.size();
+		SPHParticle2D *particles = fm->particles_.data();
 		const float particle_radius = fm->radius_;
 		const float support_radius = fm->support_radius_;
 
@@ -48,8 +48,8 @@ struct DF_TimeStep {
 
 	void calcDensities(SPHSimulation *sim) {
 		SPHFluidModel *fm = sim->fluid_model_;
-		const int num_particles = fm->num_particles_;
-		SPHParticle2D *particles = fm->particles_;
+		const int num_particles = (int)fm->particles_.size();
+		SPHParticle2D *particles = fm->particles_.data();
 		SPHGrid *grid = fm->grid_;
 		const float support_radius = fm->support_radius_;
 
@@ -77,8 +77,8 @@ struct DF_TimeStep {
 
 	void calcFactor(SPHSimulation *sim) {
 		SPHFluidModel *fm = sim->fluid_model_;
-		const int num_particles = fm->num_particles_;
-		SPHParticle2D *particles = fm->particles_;
+		const int num_particles = (int)fm->particles_.size();
+		SPHParticle2D *particles = fm->particles_.data();
 		SPHGrid *grid = fm->grid_;
 		const float support_radius = fm->support_radius_;
 		SPHSimData *data = sim->sim_data_;
@@ -130,8 +130,8 @@ struct DF_TimeStep {
 	// Imsen (Ch 3.2) and his "Implicit Incompressible SPH" (Ch 2.1)
 	void calcDensityAdv(SPHSimulation *sim) {
 		SPHFluidModel *fm = sim->fluid_model_;
-		const int num_particles = fm->num_particles_;
-		SPHParticle2D *particles = fm->particles_;
+		const int num_particles = (int)fm->particles_.size();
+		SPHParticle2D *particles = fm->particles_.data();
 		SPHGrid *grid = fm->grid_;
 		const float support_radius = fm->support_radius_;
 
@@ -162,8 +162,8 @@ struct DF_TimeStep {
 	float pressureSolveIter(SPHSimulation *sim) {
 
 		SPHFluidModel *fm = sim->fluid_model_;
-		const int num_particles = fm->num_particles_;
-		SPHParticle2D *particles = fm->particles_;
+		const int num_particles = (int)fm->particles_.size();
+		SPHParticle2D *particles = fm->particles_.data();
 		SPHGrid *grid = fm->grid_;
 		const float support_radius = fm->support_radius_;
 		const float *factor = sim->sim_data_->factor_.data();
@@ -240,8 +240,8 @@ struct DF_TimeStep {
 	void Tick(SPHSimulation *sim) {
 
 		SPHFluidModel *fm = sim->fluid_model_;
-		const int num_particles = fm->num_particles_;
-		SPHParticle2D *particles = fm->particles_;
+		const int num_particles = (int)fm->particles_.size();
+		SPHParticle2D *particles = fm->particles_.data();
 
         calcVolumeAndBoundaryX(sim);
 

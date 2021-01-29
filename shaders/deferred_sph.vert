@@ -8,7 +8,7 @@ layout(location = 4) in vec2 inst_vel;
 layout(location = 5) in vec2 inst_force;
 layout(location = 6) in float inst_density;
 layout(location = 7) in float inst_pressure;
-layout(location = 8) in float inst_flags;
+layout(location = 8) in uint inst_flags;
 
 uniform mat4 wvp_;
 
@@ -18,7 +18,7 @@ layout(location=0) out VsOut {
     vec2 force;
     float density;
     float pressure;
-    float flags;
+    flat uint flags;
 } o;
 
 void main(void)

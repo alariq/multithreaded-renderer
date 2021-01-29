@@ -153,8 +153,8 @@ void Integrate(SPHParticle2D* particles, int count, vec2 view_dim)
 }
 
 void SPH_OldTick(SPHSimulation* sim) {
-	SPHParticle2D* particles = sim->fluid_model_->particles_;
-	int count = sim->fluid_model_->num_particles_;
+	SPHParticle2D* particles = sim->fluid_model_->particles_.data();
+	const int count = (int)sim->fluid_model_->particles_.size();
 	SPHGrid* grid = sim->fluid_model_->grid_;
 	vec3 dim = sim->boundary_model_->getDimension();
 
