@@ -146,16 +146,6 @@ template <typename T, size_t N>
 char(&COUNTOF_REQUIRES_ARRAY_ARGUMENT(T(&)[N]))[N];
 #define COUNTOF(x) sizeof(COUNTOF_REQUIRES_ARRAY_ARGUMENT(x))
 
-#if 0
-void* operator new(size_t sz);
-void operator delete(void* ptr)
-#ifndef PLATFORM_WINDOWS
-noexcept 
-#endif
-;
-#endif
-
-
 
 
 //

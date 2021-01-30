@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <time.h>
 #include <stdlib.h> // rand
+#include <new>
 #include "utils/timing.h"
 
 #ifndef PLATFORM_WINDOWS
@@ -191,20 +192,51 @@ void __stdcall gos_WalkMemoryHeap(HGOSHEAP pHeap, bool vociferous/* = false*/)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void* operator new(size_t sz) {
+
+void* operator new(size_t sz) noexcept {
     return gos_Malloc(sz, NULL);
 }
-void operator delete(void* ptr)
-#ifndef PLATFORM_WINDOWS
-noexcept 
-#endif
-{
-    gos_Free(ptr);
+void* operator new[](size_t sz) noexcept {
+    return gos_Malloc(sz, NULL);
+}
+void* operator new  ( std::size_t count, std::align_val_t al ) noexcept {
+    return aligned_alloc((size_t)al, count);
+}
+void* operator new[]  ( std::size_t count, std::align_val_t al ) noexcept {
+    return aligned_alloc((size_t)al, count);
+}
+void* operator new  ( std::size_t count,
+                      std::align_val_t al, const std::nothrow_t& ) noexcept {
+    return aligned_alloc((size_t)al, count);
 }
 
-void* __cdecl operator new[](size_t size, HGOSHEAP Heap)
-{
-    return malloc(size);
+void* operator new[]  ( std::size_t count,
+                      std::align_val_t al, const std::nothrow_t& ) noexcept {
+    return aligned_alloc((size_t)al, count);
+}
+void operator delete(void* ptr) noexcept {
+    gos_Free(ptr);
+}
+void operator delete[](void* ptr) noexcept {
+    gos_Free(ptr);
+}
+void operator delete  ( void* ptr, std::size_t sz ) noexcept {
+    gos_Free(ptr);
+}
+void operator delete[]  ( void* ptr, std::size_t sz ) noexcept {
+    gos_Free(ptr);
+}
+void operator delete  ( void* ptr, std::align_val_t al ) noexcept {
+    gos_Free(ptr);
+}
+void operator delete [] ( void* ptr, std::align_val_t al ) noexcept {
+    gos_Free(ptr);
+}
+void operator delete  ( void* ptr, std::size_t sz, std::align_val_t al ) noexcept {
+    gos_Free(ptr);
+}
+void operator delete[]  ( void* ptr, std::size_t sz, std::align_val_t al ) noexcept {
+    gos_Free(ptr);
 }
 
 void* __stdcall gos_Malloc(size_t bytes, HGOSHEAP Heap/* = 0*/)
