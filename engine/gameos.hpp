@@ -11,7 +11,6 @@
 // Pragmas needed to compile at Warning 4
 //
 //
-#pragma pack(push,4)
 #ifdef PLATFORM_WINDOWS
 #pragma warning( disable: 4725 )					// fdiv generates a warning
 #pragma warning( disable: 4127 )					// conditional expression is constant eg: Asserts will not work otherwise
@@ -147,13 +146,14 @@ template <typename T, size_t N>
 char(&COUNTOF_REQUIRES_ARRAY_ARGUMENT(T(&)[N]))[N];
 #define COUNTOF(x) sizeof(COUNTOF_REQUIRES_ARRAY_ARGUMENT(x))
 
-
+#if 0
 void* operator new(size_t sz);
 void operator delete(void* ptr)
 #ifndef PLATFORM_WINDOWS
 noexcept 
 #endif
 ;
+#endif
 
 
 
@@ -3289,7 +3289,6 @@ struct gos_CycleData
 	int64_t	StartCounter[2];
 };
 #define SPEWALWAYS(x)	InternalFunctionSpew x
-#pragma pack(pop)
 
 
 
