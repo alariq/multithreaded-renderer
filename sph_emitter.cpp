@@ -6,7 +6,7 @@
 
 void SPHEmitterSystem::step(float dt, float cur_time) {
 	for (SPHEmitter* e : emitters_) {
-		float num_to_emit = std::floorf((e->time_since_last_emit_ + dt) / e->rate_);
+		float num_to_emit = std::floor((e->time_since_last_emit_ + dt) / e->rate_);
 		e->time_since_last_emit_ -= num_to_emit * e->rate_;
 		assert(e->time_since_last_emit_ >= 0.0f);
 

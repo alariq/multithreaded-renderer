@@ -125,7 +125,7 @@ struct SPHFluidModel {
 	int add(size_t count) {
         auto old_size = particles_.size();
 		particles_.resize(old_size + count);
-        for (int i = 0; i < count; i++) {
+        for (int i = 0; i < (int)count; i++) {
             particles_[old_size + i].flags = 0;
         }
         return (int)old_size;

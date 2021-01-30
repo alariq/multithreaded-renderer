@@ -3,6 +3,7 @@
 #include "sph_boundary.h"
 
 #include "utils/vec.h"
+#include <cfloat>
 
 // Divergence-Free SPH for Incompressible andViscous Fluids
 struct DF_TimeStep {
