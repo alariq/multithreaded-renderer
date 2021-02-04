@@ -4,7 +4,6 @@
 #include "sph_kernels.h"
 #include "sph_boundary.h"
 #include <cassert>
-#include <functional>
 #include <vector>
 
 int pos2idx(const vec3& pos, const ivec3& res, const vec3& domain_min, const vec3& domain_max);

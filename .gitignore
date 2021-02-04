@@ -5,9 +5,8 @@
 dump/
 *.swp
 *.dll
-build/
-build-rel/
-cmake-x64/
+build*/
+cmake-*/
 cachegrind.*
 callgrind.*
 tools/

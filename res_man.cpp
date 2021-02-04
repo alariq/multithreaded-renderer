@@ -3,6 +3,7 @@
 #include "gameos.hpp" // DWORD
 #include "utils/obj_loader.h"
 #include "utils/intersection.h" // aabb
+#include "utils/gl_utils.h" // aabb
 
 #include <string>
 #include <unordered_map>

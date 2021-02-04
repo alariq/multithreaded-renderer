@@ -6,6 +6,7 @@
 #include "obj_model.h"
 #include "renderer.h"
 
+#include "utils/gl_utils.h" // glu_MatrixInvert
 #include "utils/camera.h"
 #include "utils/math_utils.h"
 #include "utils/timing.h"

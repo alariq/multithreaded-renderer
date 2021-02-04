@@ -1,4 +1,5 @@
 #include "renderer.h"
+#include "engine/utils/ts_queue.h"
 #include <cassert>
 
 TSQueue<RenderList*> gFreeRenderLists;

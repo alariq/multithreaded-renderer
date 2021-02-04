@@ -1,7 +1,5 @@
 #pragma once 
 
-#include "engine/utils/gl_utils.h"
-#include "engine/utils/ts_queue.h"
 #include "engine/utils/camera.h"
 #include "engine/utils/frustum.h"
 #include "engine/utils/intersection.h" //aabb
@@ -10,6 +8,7 @@
 #include <vector>
 #include <atomic>
 #include <functional>
+#include <cassert>
 
 //#define DO_BAD_THING_FOR_TEST 1
 
