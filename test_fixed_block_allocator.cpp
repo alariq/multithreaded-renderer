@@ -78,7 +78,6 @@ FixedBlockAllocator<SomeStruct> *SomeStruct::s_allocator_;
 uint32_t SomeStruct::s_allocated = 0;
 void *SomeStruct::s_allcator_backing_mem = nullptr;
 
-const char *const g_names[] = {"alpha", "omega", "beta", "gamma"};
 
 volatile bool exit_mt_test = false;
 void mt_test(int num_threads) {
@@ -205,6 +204,7 @@ void test_fixed_block_allocator()
     for(size_t i=0; i < num_el; ++i)
         bookkeping[i] = nullptr;
 #if 0
+    const char *const g_names[] = {"alpha", "omega", "beta", "gamma"};
     for(size_t i=0; i < num_el; ++i)
     {
         const size_t index = rand() % bookkeping.size();

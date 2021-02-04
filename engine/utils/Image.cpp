@@ -61,6 +61,8 @@ struct BMPHeader {
 	unsigned int   biClrImportant;
 };
 
+#pragma pack (pop)
+
 enum class TGADataType {
 	kNoImageData = 0,
 	kUncompressedColorMapped = 1,
