@@ -8,6 +8,9 @@
 static const DWORD INVALID_AUDIO_ID = -1;
 static const DWORD MAX_VOLUME = 254;
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunused-private-field"
+
 class gosAudio {
 
     public:
@@ -50,6 +53,7 @@ class gosAudio {
         Mix_Chunk mix_chunk_;
 
 };
+#pragma clang diagnostic pop
 
 class SoundEngine {
 
