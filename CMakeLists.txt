@@ -23,7 +23,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS "ON")
 if(NOT MSVC)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -ggdb")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror=return-type -Wno-unused-local-typedefs -Wno-unused-function -Werror=array-bounds -Wno-switch -Wwrite-strings -Wno-unknown-warning-option -Wunused-variable -Wuninitialized -ftime-trace" ) # -fsanitize=address -fno-omit-frame-pointer")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror=return-type -Wno-unused-local-typedefs -Wno-unused-function -Werror=array-bounds -Wno-switch -Wwrite-strings -Wno-unknown-warning-option -Wunused-variable -Wuninitialized -ftime-trace -fno-exceptions" ) # -fsanitize=address -fno-omit-frame-pointer")
 endif()
 # -Wno-unused-local-typedefs - to disable "typedef was ignored on this declaration"
 
