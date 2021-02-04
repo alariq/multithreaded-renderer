@@ -4,7 +4,6 @@
 #include "utils/vec.h"
 #include "utils/gl_utils.h"
 #include "utils/simple_quadrature.h"
-#include <functional>
 #include <cassert>
 #include <cfloat>
 #include <cstdint>
@@ -23,50 +22,20 @@ float sdBox2D(vec2 p, vec2 b)
   return length(max(q,vec2(0.0f))) + min(max(q.x,q.y),0.0f);
 }
 
-int SPHBoundaryModel::pos2idx(vec3 p) {
-
-    p = (p - domain_min_) / (domain_max_ - domain_min_) ;
-    // -eps to avoid getting index which equals to resolution
-    p.x = clamp(p.x, 0.0f, 1.0f - eps);
-    p.y = clamp(p.y, 0.0f, 1.0f - eps);
-    p.z = clamp(p.z, 0.0f, 1.0f - eps);
-
-
-    vec3 fres = vec3((float)res_.x, (float)res_.y, (float)res_.z);
-    vec3 fi = fres * p;
-    ivec3 i = ivec3((int)fi.x, (int)fi.y, (int)fi.z);
-    assert(i.x >= 0 && i.x < res_.x);
-    assert(i.y >= 0 && i.y < res_.y);
-    assert(i.z >= 0 && i.z < res_.z);
-
-	int idx = i.x + (i.y + i.z * res_.y) * res_.x;
-    assert(idx >= 0 && idx < (int)distance_.size());
-    return idx;
-}
-
-// value is stored at the cell center
-vec3 SPHBoundaryModel::idx2pos(ivec3 idx) {
-    assert(idx.x >= 0 && idx.x < res_.x);
-    assert(idx.y >= 0 && idx.y < res_.y);
-    assert(idx.z >= 0 && idx.z < res_.z);
-
-    vec3 p = vec3((float)idx.x, (float)idx.y, (float)idx.z);
-    p += vec3(0.5f);
-    p /= vec3((float)res_.x, (float)res_.y, max(1.0f, (float)res_.z - 1.0f));
-    return p * (domain_max_ - domain_min_) + domain_min_;
-}
-
 void SPHBoundaryModel::calculate_distance_field(bool b_invert, float particle_radius) {
     float sign = b_invert ? -1.0f : 1.0f;
 
     vec3 side_length = 0.5f * (boundary_max_ - boundary_min_);
     vec3 center = 0.5f * (boundary_max_ + boundary_min_);
 
-	for (int z = 0; z < res_.z; ++z) {
-		for (int y = 0; y < res_.y; ++y) {
-			for (int x = 0; x < res_.x; ++x) {
-                vec3 p = idx2pos(ivec3(x, y, z));
-                int idx = x + (y + z * res_.y) * res_.x;
+    ivec3 res = lattice_->res();
+    float* distances = lattice_->get<kDistanceIdx>();
+
+	for (int z = 0; z < res.z; ++z) {
+		for (int y = 0; y < res.y; ++y) {
+			for (int x = 0; x < res.x; ++x) {
+                vec3 p = lattice_->idx2pos(ivec3(x, y, z));
+                int idx = x + (y + z * res.y) * res.x;
                 // subtract 0.5*radius to avoid particle penetration
                 float v = 0.0f;
                 if(b_is2d_) {
@@ -74,8 +43,8 @@ void SPHBoundaryModel::calculate_distance_field(bool b_invert, float particle_ra
                 } else {
                     v = sign * (sdBox(p - center, side_length) - 0.5f*particle_radius);
                 }
-                distance_[idx] = v;
-                printf("%.2f ", v);
+                distances[idx] = v;
+                //printf("%.2f ", v);
 			}
             printf("\n");
 		}
@@ -86,11 +55,12 @@ void SPHBoundaryModel::calculate_distance_field(bool b_invert, float particle_ra
         printf("\n");
         printf("\n");
         printf("\n");
-	for (int z = 0; z < res_.z; ++z) {
-		for (int y = 0; y < res_.y; ++y) {
-			for (int x = 0; x < res_.x; ++x) {
-                vec3 p = idx2pos(ivec3(x, y, z));
-                int idx = x + (y + z * res_.y) * res_.x;
+    vec2* normals = lattice_->get<kNormalIdx>();
+	for (int z = 0; z < res.z; ++z) {
+		for (int y = 0; y < res.y; ++y) {
+			for (int x = 0; x < res.x; ++x) {
+                vec3 p = lattice_->idx2pos(ivec3(x, y, z));
+                int idx = x + (y + z * res.y) * res.x;
 
 				float dx = sign * (sdBox2D((p - center).xy(), side_length.xy()) -
 								   sdBox2D(p.xy() + vec2(0.01f, 0.0f) - center.xy(),
@@ -100,109 +70,13 @@ void SPHBoundaryModel::calculate_distance_field(bool b_invert, float particle_ra
 										   side_length.xy()));
 				vec2 normal = normalize(vec2(-dx, dy));
                 //normal_[idx] = getNormal2D(p.xy() + cell_size_.xy()*0.5f);
-                normal_[idx] = normal;
-                printf("%.2f,%.2f ", normal_[idx].x, normal_[idx].y);
+                normals[idx] = normal;
+                //printf("%.2f,%.2f ", normal_[idx].x, normal_[idx].y);
 			}
             printf("\n");
 		}
         printf("\n");
 	}
-}
-
-ivec3 SPHBoundaryModel::wrapi(vec3 p) const {
-    p.x = clamp(p.x, 0.0f, res_.x - 1.0f);
-    p.y = clamp(p.y, 0.0f, res_.y - 1.0f);
-    p.z = clamp(p.z, 0.0f, res_.z - 1.0f);
-    return ivec3((int)p.x, (int)p.y, (int)p.z);
-}
-
-float SPHBoundaryModel::interpolate_value(const vec3& pos, std::function<float(const int)> value) const
-{
-    vec3 p = (pos - domain_min_) / (domain_max_ - domain_min_) ;
-    p.x = clamp(p.x, 0.0f, 1.0f);
-    p.y = clamp(p.y, 0.0f, 1.0f);
-    p.z = clamp(p.z, 0.0f, 1.0f);
-
-    p *= vec3((float)res_.x, (float)res_.y, (float)res_.z);
-
-    // OpenGL 4.6 spec 8.14. TEXTURE MINIFICATION
-
-    ivec3 s = wrapi(floor(p - 0.5f));
-    ivec3 e = wrapi(floor(p - 0.5f) + 1.0f);
-    vec3 k = frac(p-0.5f);
-
-    const int i0 = s.x;
-    const int j0 = s.y;
-    const int k0 = s.z;
-
-    const int i1 = e.x;
-    const int j1 = e.y;
-    const int k1 = e.z;
-    
-    const float a = k.x;
-    const float b = k.y;
-    const float c = k.z;
-
-    float v = (1 - a) * (1 - b) * (1 - c) * value(idx(i0, j0, k0)) +
-			  a * (1 - b) * (1 - c) * value(idx(i1, j0, k0)) +
-			  (1 - a) * b * (1 - c) * value(idx(i0, j1, k0)) +
-			  a * b * (1 - c) * value(idx(i1, j1, k0)) +
-			  (1 - a) * (1 - b) * c * value(idx(i0, j0, k1)) +
-			  a * (1 - b) * c * value(idx(i1, j1, k0)) +
-			  (1 - a) * b * c * value(idx(i0, j1, k1)) +
-			  a * b * c * value(idx(i1, j1, k1));
-
-    return v;
-}
-
-
-float SPHBoundaryModel::interpolate_value_xy(const vec3& pos, std::function<float(const int)> value) const
-{
-    vec3 p = (pos - domain_min_) / (domain_max_ - domain_min_) ;
-    p.x = clamp(p.x, 0.0f, 1.0f);
-    p.y = clamp(p.y, 0.0f, 1.0f);
-    p.z = clamp(p.z, 0.0f, 1.0f);
-
-    p *= vec3((float)res_.x, (float)res_.y, (float)res_.z);
-    ivec3 s = wrapi(floor(p - 0.5f));
-    ivec3 e = wrapi(floor(p - 0.5f) + 1.0f);
-
-	int i00 = (s.x) + ((s.y) + s.z * res_.y) * res_.x;
-    int i01 = (s.x) + ((e.y) + s.z * res_.y) * res_.x;
-    int i10 = (e.x) + ((s.y) + s.z * res_.y) * res_.x;
-    int i11 = (e.x) + ((e.y) + s.z * res_.y) * res_.x;
-
-    vec3 k = frac(p-0.5f);
-
-    float v0 = value(i00)*(1.0f - k.x) + value(i01)*k.x;
-    float v1 = value(i10)*(1.0f - k.x) + value(i11)*k.x;
-    float v = v0*(1.0f - k.y) + v1*k.y;
-    return v;
-}
-
-float SPHBoundaryModel::interpolate_value_xy_old(const vec3& pos, std::function<float(const int)> value) const {
-    vec3 p = (pos - domain_min_) / (domain_max_ - domain_min_) ;
-    p.x = clamp(p.x, 0.0f, 1.0f);
-    p.y = clamp(p.y, 0.0f, 1.0f);
-    p.z = clamp(p.z, 0.0f, 1.0f);
-
-    p *= vec3((float)(res_.x - 1), (float)(res_.y - 1), (float)(res_.z - 1));
-
-
-    vec3 k = vec3(p.x - floorf(p.x), p.y - floorf(p.y), p.z - floorf(p.z));
-    ivec3 s = ivec3((int)p.x, (int)p.y, (int)p.z);
-	ivec3 e = ivec3(min(s.x + 1, res_.x - 1), min(s.y + 1, res_.y - 1), s.z);
-
-	int i00 = (s.x) + ((s.y) + s.z * res_.y) * res_.x;
-    int i01 = (s.x) + ((e.y) + s.z * res_.y) * res_.x;
-    int i10 = (e.x) + ((s.y) + s.z * res_.y) * res_.x;
-    int i11 = (e.x) + ((e.y) + s.z * res_.y) * res_.x;
-
-    float dist0 = value(i00)*(1.0f - k.x) + value(i01)*k.x;
-    float dist1 = value(i10)*(1.0f - k.x) + value(i11)*k.x;
-    float dist = dist0*(1.0f - k.y) + dist1*k.y;
-
-    return dist;
 }
 
 void SPHBoundaryModel::generate_volume_map(float support_radius) {
@@ -211,19 +85,17 @@ void SPHBoundaryModel::generate_volume_map(float support_radius) {
     float factor = b_is2d_ ? 1.75f : 1.0f;
     assert(b_is2d_);
 
-	auto get_distance = [this](const int idx) -> float { return d(idx); };
-
 	auto volume_func = [&](vec3 const &x) -> float {
-		auto dist = interpolate_value_xy(x, get_distance);
-		if (dist > (1.0 + 1.0 /*/ factor*/) * support_radius) {
-			return 0.0;
+		auto dist = lattice_->interpolate_value_xy<kDistanceIdx>(x);
+		if (dist > (1.0f + 1.0f /*/ factor*/) * support_radius) {
+			return 0.0f;
 		}
 
-		auto integrand = [this, &x, support_radius, factor, &get_distance](vec3 const &xi) -> float {
+		auto integrand = [this, &x, support_radius, factor](vec3 const &xi) -> float {
 			if (lengthSqr(xi) > support_radius * support_radius)
                 return 0.0f;
 
-			auto dist = interpolate_value_xy(x + xi, get_distance);
+			auto dist = lattice_->interpolate_value_xy<kDistanceIdx>(x + xi);
 
 			if (dist <= 0.0f)
                 return 1.0f - 0.1f * dist / support_radius;
@@ -242,13 +114,15 @@ void SPHBoundaryModel::generate_volume_map(float support_radius) {
 	};
  
     printf("volume:\n");
-	for (int z = 0; z < res_.z; ++z) {
-		for (int y = 0; y < res_.y; ++y) {
-			for (int x = 0; x < res_.x; ++x) {
-				vec3 p = idx2pos(ivec3(x, y, z));
-				int idx = x + (y + z * res_.y) * res_.x;
-                volume_[idx] = volume_func(p);
-                printf("%.2f ", volume_[idx]);
+    ivec3 res = lattice_->res();
+    float* volumes = lattice_->get<kVolumeIdx>();
+	for (int z = 0; z < res.z; ++z) {
+		for (int y = 0; y < res.y; ++y) {
+			for (int x = 0; x < res.x; ++x) {
+				vec3 p = lattice_->idx2pos(ivec3(x, y, z));
+				int idx = x + (y + z * res.y) * res.x;
+                volumes[idx] = volume_func(p);
+                //printf("%.2f ", volume_[idx]);
 			}
             printf("\n");
 		}
@@ -256,7 +130,7 @@ void SPHBoundaryModel::generate_volume_map(float support_radius) {
 	}
 }
 
-bool SPHBoundaryModel::Initialize(vec3 cube, float particle_radius, float support_radius, ivec3 resolution, bool b_is2d) {
+bool SPHBoundaryModel::Initialize(vec3 cube, float particle_radius, float support_radius, ivec3 resolution, bool b_is2d, bool b_invert) {
 
     // extend by support radius
     vec3 ext = vec3(4.0f*support_radius);
@@ -264,47 +138,43 @@ bool SPHBoundaryModel::Initialize(vec3 cube, float particle_radius, float suppor
     if(b_is2d)
         ext.z = 0.0f;
 
-    b_invert_distance_ = true;
+    b_invert_distance_ = b_invert;
 
     boundary_min_ = vec3(0);
     boundary_max_ = cube;
 
-    domain_min_ = boundary_min_ - ext;
-    domain_max_ = boundary_max_ + ext;
-
     position_ = vec3(0,0,0);
     rotation_ = identity3();
-    res_ = resolution;
-    cell_size_ = (domain_max_ - domain_min_) / vec3((float)res_.x, (float)res_.y, (float)res_.z);
-    const int bufsize = resolution.x * resolution.y * resolution.z;
-    distance_.resize(bufsize);
-    volume_.resize(bufsize);
-    normal_.resize(bufsize);
+
+    vec3 domain_min = boundary_min_ - ext;
+    vec3 domain_max = boundary_max_ + ext;
+    lattice_ = new SPHLattice(domain_min, domain_max, resolution);
 
     calculate_distance_field(b_invert_distance_, particle_radius);
 
     generate_volume_map(support_radius);
 
-	auto get_distance = [this](const int idx) -> float { return d(idx); };
-    float dist0 = interpolate_value_xy(idx2pos(ivec3(0,0,0)), get_distance);(void)dist0;
-    float dist1 = interpolate_value_xy(idx2pos(ivec3(0,1,0)), get_distance);(void)dist1;
-    float dist2 = interpolate_value_xy(idx2pos(ivec3(1,0,0)), get_distance);(void)dist2;
-    float dist3 = interpolate_value_xy(idx2pos(ivec3(1,1,0)), get_distance);(void)dist3;
-    float dist_c = interpolate_value_xy(domain_min_ + cell_size_ , get_distance);(void)dist_c;
+    ivec3 res = lattice_->res();
+	//auto get_distance = [this](const int idx) -> float { return d(idx); };
+    float dist0 = lattice_->interpolate_value_xy<kDistanceIdx>(lattice_->idx2pos(ivec3(0,0,0)));(void)dist0;
+    float dist1 = lattice_->interpolate_value_xy<kDistanceIdx>(lattice_->idx2pos(ivec3(0,1,0)));(void)dist1;
+    float dist2 = lattice_->interpolate_value_xy<kDistanceIdx>(lattice_->idx2pos(ivec3(1,0,0)));(void)dist2;
+    float dist3 = lattice_->interpolate_value_xy<kDistanceIdx>(lattice_->idx2pos(ivec3(1,1,0)));(void)dist3;
+    float dist_c = lattice_->interpolate_value_xy<kDistanceIdx>(lattice_->domain_min() + lattice_->cell_size());(void)dist_c;
 
-    float dist_center = interpolate_value_xy(idx2pos(ivec3(res_.x/2, res_.y/2, 0)), get_distance);
+    float dist_center = lattice_->interpolate_value_xy<kDistanceIdx>(lattice_->idx2pos(ivec3(resolution.x/2, resolution.y/2, 0)));
     gosASSERT(dist_center > 0.0f);
 
-    vec2 norm_right = getNormal2D(idx2pos(ivec3(res_.x-1,res_.y/2,0)).xy());
+    vec2 norm_right = getNormal2D(lattice_->idx2pos(ivec3(res.x-1,res.y/2,0)).xy());
     gosASSERT(norm_right.x < -0.5f);        
 
-    vec2 norm_left = getNormal2D(idx2pos(ivec3(0,res_.y/2,0)).xy());
+    vec2 norm_left = getNormal2D(lattice_->idx2pos(ivec3(0,res.y/2,0)).xy());
     gosASSERT(norm_left.x > 0.5f);        
 
-    vec2 norm_bottom = getNormal2D(idx2pos(ivec3(res_.x/2, 0, 0)).xy());
+    vec2 norm_bottom = getNormal2D(lattice_->idx2pos(ivec3(res.x/2, 0, 0)).xy());
     gosASSERT(norm_bottom.y > 0.5f);        
 
-    vec2 norm_top = getNormal2D(idx2pos(ivec3(res_.x/2, res_.y-1, 0)).xy());
+    vec2 norm_top = getNormal2D(lattice_->idx2pos(ivec3(res.x/2, res.y-1, 0)).xy());
     gosASSERT(norm_top.y < -0.5f);        
 
     return true;
@@ -328,7 +198,8 @@ float SPHBoundaryModel::getDistance2D(const vec2& pos) const {
     float v = 0.0f;
     float part_r = 0.1f;
     if(b_is2d_) {
-        v = sign * (sdBox2D((p - center).xy(), side_length.xy()) - 0.5f*part_r);
+        float box_d = sdBox2D((p - center).xy(), side_length.xy());
+        v = sign * box_d ;//- 0.5f*part_r;
     } else {
         v = sign * (sdBox(p - center, side_length) - 0.5f*part_r);
     }
@@ -346,7 +217,7 @@ float SPHBoundaryModel::getVolume2D(const vec2& pos) const {
 
 	auto volume_func = [&](vec3 const &x) -> float {
 		auto dist = getDistance2D(x.xy());
-		if (dist > (1.0 + 1.0 /*/ factor*/) * support_r) {
+		if (dist > (1.0f + 1.0f /*/ factor*/) * support_r) {
 			return 0.0;
 		}
 
@@ -404,18 +275,24 @@ vec2 SPHBoundaryModel::getNormal2D(const vec2& pos) const {
     
     // it may be that dx=0 and dy=0, for cube it may be when we are close to the diagonal line
     // so in this case return normalize(vec2(1,1));
+    vec2 normal;
     if(fabsf(dx) < eps && fabsf(dy) < eps)
-        return normalize(vec2(1.0f, 1.0f));
-
-    vec2 normal = vec2(-dx, -dy);
-    return normalize(normal);
+        normal = normalize(vec2(1.0f*sign(dx), 1.0f*sign(dy)));
+    else
+        normal = vec2(-dx, -dy);
+    normal = normalize(normal);
+    return b_invert_distance_ == false ? -normal : normal; 
 }
 
 void SPHBoundaryModel::InitializeRenderResources() {
 
-    volume_tex_ = gos_NewEmptyTexture(gos_Texture_R32F, "volume", res_.x, res_.y);
-	distance_tex_ = gos_NewEmptyTexture(gos_Texture_R32F, "distance", res_.x, res_.y);
-	normal_tex_ = gos_NewEmptyTexture(gos_Texture_RGBA8, "normal", res_.x, res_.y);
+    ivec3 res = lattice_->res();
+    vec3 domain_min = lattice_->domain_min();
+    vec3 domain_max = lattice_->domain_max();
+
+    volume_tex_ = gos_NewEmptyTexture(gos_Texture_R32F, "volume", res.x, res.y);
+	distance_tex_ = gos_NewEmptyTexture(gos_Texture_R32F, "distance", res.x, res.y);
+	normal_tex_ = gos_NewEmptyTexture(gos_Texture_RGBA8, "normal", res.x, res.y);
 
 	//
 	constexpr const size_t NUM_VERT = 8;
@@ -428,10 +305,10 @@ void SPHBoundaryModel::InitializeRenderResources() {
 		vec3(boundary_max_.x, boundary_max_.y, z),
 		vec3(boundary_max_.x, boundary_min_.y, z),
 
-		vec3(domain_min_.x, domain_min_.y, z),
-		vec3(domain_min_.x, domain_max_.y, z),
-		vec3(domain_max_.x, domain_max_.y, z),
-		vec3(domain_max_.x, domain_min_.y, z),
+		vec3(domain_min.x, domain_min.y, z),
+		vec3(domain_min.x, domain_max.y, z),
+		vec3(domain_max.x, domain_max.y, z),
+		vec3(domain_max.x, domain_min.y, z),
 	};
 	uint16_t ib[NUM_IND] = {0, 1, 1, 2, 2, 3, 3, 0,
     4,5, 5, 6, 6, 7, 7, 4
@@ -453,12 +330,13 @@ void SPHBoundaryModel::InitializeRenderResources() {
 void SPHBoundaryModel::UpdateTexturesByData() {
 
 	TEXTUREPTR texinfo;
+    ivec3 res = lattice_->res();
 	{
 		gos_LockTexture(distance_tex_, 0, false, &texinfo);
-		for (int y = 0; y < res_.y; ++y) {
+		for (int y = 0; y < res.y; ++y) {
 			float *row = (float*)texinfo.pTexture + y * texinfo.Pitch;
-			const float *src_row = distance_.data() + y * res_.x;
-			for (int x = 0; x < res_.x; ++x) {
+			const float *src_row = lattice_->get<SPHBoundaryModel::kDistanceIdx>() + y * res.x;
+			for (int x = 0; x < res.x; ++x) {
 				row[x] = src_row[x];
 			}
 		}
@@ -467,10 +345,10 @@ void SPHBoundaryModel::UpdateTexturesByData() {
 
 	{
 		gos_LockTexture(volume_tex_, 0, false, &texinfo);
-		for (int y = 0; y < res_.y; ++y) {
+		for (int y = 0; y < res.y; ++y) {
 			float *row = (float*)texinfo.pTexture + y * texinfo.Pitch;
-			const float *src_row = volume_.data() + y * res_.x;
-			for (int x = 0; x < res_.x; ++x) {
+			const float *src_row = lattice_->get<SPHBoundaryModel::kVolumeIdx>() + y * res.x;
+			for (int x = 0; x < res.x; ++x) {
 				row[x] = src_row[x];
 			}
 		}
@@ -479,10 +357,10 @@ void SPHBoundaryModel::UpdateTexturesByData() {
 
 	{
 		gos_LockTexture(normal_tex_, 0, false, &texinfo);
-		for (int y = 0; y < res_.y; ++y) {
+		for (int y = 0; y < res.y; ++y) {
 			uint8_t* row = (uint8_t*)((uint32_t*)texinfo.pTexture + y * texinfo.Pitch);
-			const vec2* src_row = normal_.data() + y * res_.x;
-			for (int x = 0; x < res_.x; ++x) {
+			const vec2* src_row = lattice_->get<SPHBoundaryModel::kNormalIdx>() + y * res.x;
+			for (int x = 0; x < res.x; ++x) {
                 vec2 n = 255.0f*(src_row[x] * 0.5 + 0.5f);
                  
 				row[4*x + 0] = (uint8_t)clamp(n.x, 0.0f, 255.0f);
@@ -495,7 +373,7 @@ void SPHBoundaryModel::UpdateTexturesByData() {
 	}
 
     // draw debug quad with texture
-    vec2 size = getDomainDimension().xy();
+    vec2 size = lattice_->getDomainDimension().xy();
     vec3 center = getCenter();
     center.z = 0.4f;
     mat4 tr = mat4::translation(center);// +0.5f * vec3(size.x, size.y, 0.0f));

@@ -1,4 +1,5 @@
 #pragma once
+
 #include <vector>
 #include "utils/vec.h"
 
@@ -20,7 +21,6 @@ struct SPHEmitter {
 class SPHEmitterSystem {
 
 	std::vector<SPHEmitter*> emitters_;
-
 
 	void step(float dt, float cur_time);
 };

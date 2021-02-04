@@ -14,7 +14,7 @@ class SPHSceneObject : public GameObject {
     float radius_;
     struct SPHGrid* grid_;
     struct SPHFluidModel* fluid_;
-    class SPHBoundaryModel* boundary_;
+    std::vector<class SPHBoundaryModel*> boundaries_;
     class SPHSurfaceMesh* surface_;
     // cached transform component
     TransformComponent* transform_ = nullptr;

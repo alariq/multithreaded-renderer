@@ -1,8 +1,10 @@
 #include "sph_emitter.h"
 #include "sph.h"
+#include "sph_boundary.h"
+#include "utils/vec.h"
 
 #include <vector>
-#include "utils/vec.h"
+#include <cassert>
 
 void SPHEmitterSystem::step(float dt, float cur_time) {
 	for (SPHEmitter* e : emitters_) {

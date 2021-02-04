@@ -121,7 +121,7 @@ struct SPHFluidModel {
     float support_radius_;
 
     // return index of the first added particle
-	int add(size_t count) {
+	int add(int count) {
         auto old_size = particles_.size();
 		particles_.resize(old_size + count);
         for (int i = 0; i < (int)count; i++) {
@@ -240,14 +240,14 @@ public:
         time_step_ = h;
     }
     void setFluid(struct SPHFluidModel*);
-    void setBoundary(class SPHBoundaryModel*);
+    void addBoundary(class SPHBoundaryModel*);
 
 private:
     struct SPHFluidModel* fluid_model_ = nullptr;
     struct SPHSimData* sim_data_ = nullptr;
     struct SPHStateData* state_data_ = nullptr;
 
-    class SPHBoundaryModel* boundary_model_ = nullptr;
+    std::vector<class SPHBoundaryModel*> boundary_models_;
 
 };
 

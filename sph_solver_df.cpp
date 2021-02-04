@@ -14,6 +14,20 @@ struct DF_TimeStep {
     const int max_iterations_ = 100;
     const float max_error_percent_ = 0.01f;
 
+    void getClosestBoundary(const vec2& pos, const SPHSimulation* sim, SPHBoundaryModel **bm, float* dist, vec2* normal) {
+        *bm = nullptr;
+        *dist = FLT_MAX;
+        *normal = vec2(0,0);
+        for(SPHBoundaryModel* model : sim->boundary_models_) {
+            float cur_dist = model->getDistance2D(pos);
+            if(cur_dist < *dist) {
+                *dist = cur_dist;
+                *normal = model->getNormal2D(pos);
+                *bm = model;
+            }
+        }
+    }
+
     // !NB: no world -> local point conversion yet
 	void calcVolumeAndBoundaryX(SPHSimulation *sim) {
 		SPHFluidModel *fm = sim->fluid_model_;
@@ -25,24 +39,34 @@ struct DF_TimeStep {
 
 		for (int i = 0; i < num_particles; ++i) {
 			SPHParticle2D &pi = particles[i];
-			const float dist = sim->boundary_model_->getDistance2D(pi.pos);
-            const vec2 normal = sim->boundary_model_->getNormal2D(pi.pos);
 
 			sim_data->boundaryVolume_[i] = 0.0f;
+           
+            SPHBoundaryModel* boundary;
+			float dist;
+            vec2 normal;
+            getClosestBoundary(pi.pos, sim, &boundary, &dist, &normal);
+            if(!boundary)
+                continue;
+
+            //dist = std::max(0,dist);
 
 			if ((dist > 0.1 * particle_radius) && (dist < support_radius)) {
-				const float volume = sim->boundary_model_->getVolume2D(pi.pos);
+				const float volume = boundary->getVolume2D(pi.pos);
 				if ((volume > 1e-5) && (volume != FLT_MAX)) {
 					sim_data->boundaryVolume_[i] = volume;
-					sim_data->boundaryXj_[i] = pi.pos - normal*dist;
+					sim_data->boundaryXj_[i] = pi.pos - normal*(dist + 0*0.5f*particle_radius);
 				}
 			} else if(dist <= 0.1*particle_radius) {
-                float d = -dist;
-				d = min(d, (0.25f / 0.005f) * particle_radius * sim->time_step_);
+                //float d = -dist;
+				//d = min(d, (0.25f / 0.005f) * particle_radius * sim->time_step_);
+				float d = dist < 0 ? -dist : (0.5*particle_radius - dist);
                 // bring back to boundary surface
                 pi.pos += d * normal;
                 // adapt velocity in normal direction
-				pi.vel += (0.05f - dot(pi.vel, normal)) * normal;
+				pi.vel += (0.05f - dot(pi.vel, normal)) * normal ;
+                    // compensate for the gravity
+                    //+ sim->accel_*sim->time_step_;
 			}
 		}
 	}

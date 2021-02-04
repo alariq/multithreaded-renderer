@@ -156,7 +156,7 @@ void SPH_OldTick(SPHSimulation* sim) {
 	SPHParticle2D* particles = sim->fluid_model_->particles_.data();
 	const int count = (int)sim->fluid_model_->particles_.size();
 	SPHGrid* grid = sim->fluid_model_->grid_;
-	vec3 dim = sim->boundary_model_->getDimension();
+	vec3 dim = sim->boundary_models_[0]->getDimension();
 
 	ComputeDensityPressure_neigh(particles, count, grid);
 	ComputeForces_neigh(particles, count, grid);

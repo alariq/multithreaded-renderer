@@ -375,9 +375,8 @@ void SPHSimulation::setFluid(struct SPHFluidModel* fm) {
     }
 }
 
-void SPHSimulation::setBoundary(class SPHBoundaryModel* boundary) {
-    // replace the current fluid (only one at a time supported at the moment)
-    boundary_model_ = boundary;
+void SPHSimulation::addBoundary(class SPHBoundaryModel* boundary) {
+    boundary_models_.push_back(boundary);
 }
 
 // Does not include particle i itself!

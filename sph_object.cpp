@@ -40,17 +40,22 @@ SPHSceneObject* SPHSceneObject::Create(const vec2& view_dim, int num_particles, 
     fm->grid_ = o->grid_;
     initialize_particle_positions(fm);
 
+    const float volume_map_cell_size = 0.1f;
     SPHBoundaryModel* bm = new SPHBoundaryModel();
-    float volume_map_cell_size = 0.1f;
     ivec3 resolution = ivec3((int)(o->view_dim_.x / volume_map_cell_size), (int)(o->view_dim_.y / volume_map_cell_size), 1);
-    bm->Initialize(vec3(o->view_dim_.x, o->view_dim_.y, 10000.0f), fm->radius_, fm->support_radius_, resolution, b_is2d);
+    bm->Initialize(vec3(o->view_dim_.x, o->view_dim_.y, 10000.0f), fm->radius_, fm->support_radius_, resolution, b_is2d, true);
+
+    SPHBoundaryModel* bm2 = new SPHBoundaryModel();
+    bm2->Initialize(vec3(0.25f*o->view_dim_.x, 0.25f*o->view_dim_.y, 10000.0f), fm->radius_, fm->support_radius_, resolution, b_is2d, false);
 
     o->fluid_ = fm;
-    o->boundary_ = bm;
+    o->boundaries_.push_back(bm);
+    o->boundaries_.push_back(bm2);
     o->surface_ = new SPHSurfaceMesh();
     
     SPHSimulation* sim = sph_get_simulation();
-    sim->setBoundary(o->boundary_);
+    sim->addBoundary(bm);
+    sim->addBoundary(bm2);
     sim->setFluid(o->fluid_);
 
 	return o;
@@ -105,7 +110,9 @@ void SPHSceneObject::InitRenderResources() {
     surface_grid_tex_ = gos_NewEmptyTexture(gos_Texture_R8, "surface_grid", grid_->res_.x, grid_->res_.y);
     sdf_tex_ = gos_NewEmptyTexture(gos_Texture_R32F, "sdf" , grid_->vertexDimX(), grid_->vertexDimY());
 
-    boundary_->InitializeRenderResources();
+    for(auto boundary: boundaries_) {
+        boundary->InitializeRenderResources();
+    }
     surface_->InitRenderResources();
 
     b_initalized_rendering_resources = true;
@@ -154,9 +161,9 @@ void SPHSceneObject::AddRenderPackets(struct RenderFrameContext *rfc) const {
     uint32_t vsx = grid_->vertexDimX();
     uint32_t vsy = grid_->vertexDimY();
     SPHGrid* grid = grid_;
-    SPHBoundaryModel* boundary = boundary_;
+    auto boundaries = boundaries_;
 
-	ScheduleRenderCommand(rfc, [num_particles, inst_vb, particles, grid_verts, grid, boundary, surface_grid_tex, sdf_tex, vsx, vsy]() {
+	ScheduleRenderCommand(rfc, [num_particles, inst_vb, particles, grid_verts, grid, boundaries, surface_grid_tex, sdf_tex, vsx, vsy]() {
 		const size_t bufsize = num_particles * sizeof(SPHParticle2D);
 		// TODO: think about typed buffer wrapper
 		SPHParticle2D *part_data =
@@ -177,6 +184,8 @@ void SPHSceneObject::AddRenderPackets(struct RenderFrameContext *rfc) const {
 #endif
 
         TEXTUREPTR texinfo;
+
+        (void)surface_grid_tex;
 #if 0
         gos_LockTexture(surface_grid_tex, 0, false, &texinfo);
         //static_assert(sizeof(SPHGridVertex) == 1, "Sizes must be the same");
@@ -231,19 +240,21 @@ void SPHSceneObject::AddRenderPackets(struct RenderFrameContext *rfc) const {
         }
         gos_UnLockTexture(sdf_tex);
 
-        boundary->UpdateTexturesByData();
+        for(auto b: boundaries)
+            b->UpdateTexturesByData();
 
 	});
-
+#if 0
     HGOSRENDERMATERIAL sdf_material = sdf_mat_;
-	ScheduleDebugDrawCommand(rfc, [surface_grid_tex, boundary, sdf_tex, sdf_material]() {
+	ScheduleDebugDrawCommand(rfc, [surface_grid_tex, boundaries, sdf_tex, sdf_material]() {
 		//render_quad(surface_grid_tex, vec4(0.25f, 0.25f, -0.5f, 0.5f), nullptr);
 		render_quad(sdf_tex, vec4(0.5f, 0.5f, -0.5f, 0.5f), sdf_material);
 
 		//render_quad(g_sim->boundary_model_->getVolumeTexture(), vec4(0.25f, 0.25f, -0.5f, 0.5f), sdf_material);
 		//render_quad(g_sim->boundary_model_->getNormalTexture(), vec4(0.25f, 0.25f, -0.5f, 0.5f), sdf_material);
-		render_quad(boundary->getDistanceTexture(), vec4(0.25f, 0.25f, 0.25f, 0.5f), sdf_material);
+        render_quad(boundaries[0]->getDistanceTexture(), vec4(0.25f, 0.25f, 0.25f, 0.5f), sdf_material);
 	});
+#endif
 
 	class RenderList* rl = rfc->rl_;
 	RenderPacket *rp = rl->AddPacket();
@@ -258,14 +269,16 @@ void SPHSceneObject::AddRenderPackets(struct RenderFrameContext *rfc) const {
     rp->mesh_.vdecl_ = vdecl_;
     rp->mesh_.num_instances = num_particles;
 
-	rp = rl->AddPacket();
-	memset(rp, 0, sizeof(RenderPacket));
-    rp->mesh_ = *boundary_->getBoundaryMesh();
-    rp->m_ = transform_->GetTransform();
-	rp->is_debug_pass = 1;
-	rp->debug_color = vec4(0,1,0,1);
+	for (auto b : boundaries) {
+		rp = rl->AddPacket();
+		memset(rp, 0, sizeof(RenderPacket));
+		rp->mesh_ = *b->getBoundaryMesh();
+		rp->m_ = transform_->GetTransform();
+		rp->is_debug_pass = 1;
+		rp->debug_color = vec4(0, 1, 0, 1);
+	}
 
-    // update & draw surface mesh
+	// update & draw surface mesh
     surface_->UpdateMesh(rfc);
    
 	rp = rl->AddPacket();
@@ -281,7 +294,7 @@ void initialize_particle_positions(SPHFluidModel* fm) {
     SPHParticle2D* particles = fm->particles_.data();
     const int count = (int)fm->particles_.size();
     const float radius = fm->radius_;
-    vec2 offset = vec2(.2f, 4.0f*radius);
+    vec2 offset = vec2(.2f, 4.0f*radius + 4.0f);
     int row_size = (int)(sqrtf((float)count) + 1.5f);////(int)(o->GetBounds().x / (2.0f*radius));
     int column_size = (count + row_size - 1) / row_size; 
     for(int y= 0; y<column_size; ++y) {
