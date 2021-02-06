@@ -4,6 +4,7 @@
 #include "obj_model.h"
 #include "renderer.h"
 
+#include "utils/matrix.h"
 #include "utils/camera.h"
 #include "utils/math_utils.h"
 #include "utils/timing.h"

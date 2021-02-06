@@ -101,17 +101,6 @@ struct glsl_program;
 void applyTexture(glsl_program* program, int unit, const char* name, GLuint texid);
 void applyPBO(glsl_program* program, int unit, const char* name, const Texture pbo, const Texture tex);
 
-void normalize(float (&v)[3]);
-void cross(float v1[3], float v2[3], float result[3]);
-float dot(float (&v1)[3], float (&v2)[3]);
-
-int glu_InvertMatrixf(const float m[16], float invOut[16]);
-void glu_MakeIdentityf(GLfloat m[16]);
-void glu_LookAt2(GLdouble eyex, GLdouble eyey, GLdouble eyez, GLdouble centerx,
-          GLdouble centery, GLdouble centerz, GLdouble upx, GLdouble upy,
-          GLdouble upz);
-
-
 typedef void (*render_func_t)(int w, int h, void* puserdata);
 
 void draw_in_2d(int w, int h, render_func_t prenderfunc, void* puserdata);
