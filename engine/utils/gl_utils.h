@@ -706,6 +706,41 @@ void generate_cube(MeshBuffer& mb, const vec3 scale, const vec3 offset)
     mb.p(35, x__), mb.uv(35, __), mb.n(35, -nz);
 }
 
+// size - size of the quad
+// center - local 0 of the quad
+// plane - 0 - XY, 1- XZ 2- YZ
+template<typename MeshBuffer>
+void generate_quad(MeshBuffer& mb, const vec3& size, const vec3& center, int plane)
+{
+    mb.allocate_vb(4);
+    mb.allocate_ib(6);
+
+	vec2 uv[4] = {{vec2(-1.0f, -1.0f)},
+				  {vec2(-1.0f, 1.0f)},
+				  {vec2(1.0f, -1.0f)},
+				  {vec2(1.0f, 1.0f)}};
+
+    vec3 v0 = vec3(0, 0, 0)*size + center;
+    vec3 v1 = vec3(0, 1, 0)*size + center;
+    vec3 v2 = vec3(1, 0, 0)*size + center;
+    vec3 v3 = vec3(1, 1, 0)*size + center;
+
+    vec3 n = normalize(cross(v2-v0, v3-v0));
+
+    int i=0;
+    mb.i(i++, 0);
+    mb.i(i++, 3);
+    mb.i(i++, 2);
+    mb.i(i++, 0);
+    mb.i(i++, 1);
+    mb.i(i++, 3);
+
+    mb.p(0, v0), mb.uv(0, uv[0]), mb.n(0, n);
+    mb.p(1, v1), mb.uv(1, uv[1]), mb.n(1, n);
+    mb.p(2, v2), mb.uv(2, uv[2]), mb.n(2, n);
+    mb.p(3, v3), mb.uv(3, uv[3]), mb.n(3, n);
+}
+
 template <typename MeshBuffer>
 void generate_axes(MeshBuffer& mb)
 {
