@@ -177,8 +177,8 @@ void __stdcall Update(void)
 		editor_update(&g_camera, dt_sec);
 	}
 
+    scene_update(&g_camera, g_update_simulation, dt_sec);
     if (g_update_simulation) {
-        scene_update(&g_camera, dt_sec);
         if (g_update_simulation_step_by_step) {
             g_update_simulation = false;
         }
@@ -210,7 +210,7 @@ void __stdcall Update(void)
 
     if(g_render_initialized_hack)
     {
-		scene_render_update(rfc);
+		scene_render_update(rfc, g_is_in_editor);
 		if(g_is_in_editor)
 			editor_render_update(rfc);
 	}
