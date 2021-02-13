@@ -15,6 +15,7 @@ struct camera
 	const mat4& get_inv_projection() const { return inv_proj_; }
 	void update(float dt);
 	void get_pos(float (*p)[4] ) const; 
+	vec3 get_pos() const; 
 	void set_pos(const vec3& world_pos);
 	void get_view_proj_inv(mat4* vpi) const { *vpi = view_proj_inv_; }
 	void get_view(mat4* view) const { *view = view_; }

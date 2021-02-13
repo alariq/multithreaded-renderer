@@ -39,6 +39,11 @@ void camera::get_pos(float (*p)[4] ) const
 	memcpy(p, pos_, sizeof(pos_) );
 }
 
+vec3 camera::get_pos() const
+{
+    return vec3(pos_[0], pos_[1], pos_[2]);
+}
+
 void camera::set_projection(const mat4& proj)
 {
 	proj_ = proj;
