@@ -5,15 +5,20 @@
 #include "res_man.h"
 #include "obj_model.h"
 #include "renderer.h"
+#include "render_utils.h"
 
 #include "utils/matrix.h"
 #include "utils/camera.h"
 #include "utils/math_utils.h"
 #include "utils/timing.h"
+#include <mutex>
 #include <list>
 
 typedef std::list<GameObject*> ObjList_t;
 static ObjList_t g_world_objects;
+static std::vector<GameObject*> g_render_init_pending;
+// have separate arrays of concrete types?
+static std::vector<std::vector<Component*>> g_components;
 static std::vector<PointLight> g_light_list;
 
 static uint32_t g_obj_id_under_cursor = scene::kInvalidObjectId;
@@ -43,6 +48,7 @@ const std::vector<PointLight>& scene_get_light_list() {
 void initialize_scene(const struct camera *cam, struct RenderFrameContext *rfc) {
     (void)cam;
     sph_init();
+    g_components.resize((size_t)ComponentType::kCount);
 #if 0
     const uint32_t NUM_OBJECTS = 3;
     for (uint32_t i = 0; i < NUM_OBJECTS; ++i) {
@@ -110,8 +116,8 @@ void initialize_scene(const struct camera *cam, struct RenderFrameContext *rfc) 
     ParticleSystemObject *pso = ParticleSystemObject::Create();
     g_world_objects.push_back(pso);
 #endif
-    SPHSceneObject* sph = SPHSceneObject::Create(vec2(8, 8), 150, vec3(0, 0, 0));
-    g_world_objects.push_back(sph);
+    SPHSceneObject* sph = SPHSceneObject::Create(vec2(1, 8), 1, vec3(0, 0, 0));
+    scene_add_game_object(sph);
 
 #if 0
     // make vilage
@@ -141,18 +147,6 @@ void initialize_scene(const struct camera *cam, struct RenderFrameContext *rfc) 
         l.transform_ = translate(p) * mat4::scale(vec3(l.radius_));
         g_light_list.push_back(l);
     }
-
-    std::list<GameObject *>::const_iterator it = g_world_objects.begin();
-    std::list<GameObject *>::const_iterator end = g_world_objects.end();
-    for (; it != end; ++it) {
-        GameObject *gameobj = *it;
-
-        // TEMP: TODO: I know I can't touch GameObject in render thread
-        // but I need to initalize its render state
-        // make it shader object and take weak ref to it, then check if it is
-        // still valid when render thread does it's job
-        ScheduleRenderCommand(rfc, [gameobj]() { gameobj->InitRenderResources(); });
-    }
 }
 
 void finalize_scene() {
@@ -167,49 +161,91 @@ void finalize_scene() {
     sph_deinit();
 }
 
-void scene_update(const camera *cam, const float dt) {
+void scene_update(const camera *cam, const bool b_update_simulation, const float dt) {
     std::list<GameObject *>::const_iterator it = g_world_objects.begin();
     std::list<GameObject *>::const_iterator end = g_world_objects.end();
 
-    sph_update();
-    ParticleSystemManager::Instance().Update(dt);
+    // update transform components
+    for(int t=0;t<(uint32_t)ComponentType::kCount;++t) {
+        for(auto comp: g_components[t]) {
+            comp->UpdateComponent(dt);
+		}
+	}
 
-    for (; it != end; ++it) {
-        GameObject *go = *it;
-        go->Update(dt);
+	if (b_update_simulation) {
 
-        // if object is frustum object.... and we wnt to update it
-        if (0) {
-            camera loc_cam = *cam;
-            loc_cam.set_projection(45.0f, Environment.drawableWidth,
-                                   Environment.drawableHeight, 4.0f, 20.0f);
-            ((FrustumObject *)go)->UpdateFrustum(&loc_cam);
-        }
-    }
+		sph_update();
+		ParticleSystemManager::Instance().Update(dt);
+
+		for (; it != end; ++it) {
+			GameObject *go = *it;
+			go->Update(dt);
+
+			// if object is frustum object.... and we wnt to update it
+			if (0) {
+				camera loc_cam = *cam;
+				loc_cam.set_projection(45.0f, Environment.drawableWidth,
+									   Environment.drawableHeight, 4.0f, 20.0f);
+				((FrustumObject *)go)->UpdateFrustum(&loc_cam);
+			}
+		}
+	}
 }
 
-void scene_render_update(struct RenderFrameContext *rfc) {
+void scene_add_game_object(GameObject* go) {
+    g_render_init_pending.push_back(go);
+}
+
+void scene_render_update(struct RenderFrameContext *rfc, bool is_in_editor_mode) {
 
     RenderList *frame_render_list = rfc->rl_;
 
     if (frame_render_list->GetCapacity() < g_world_objects.size())
         frame_render_list->ReservePackets(g_world_objects.size());
 
-    std::list<GameObject *>::const_iterator it = g_world_objects.begin();
-    std::list<GameObject *>::const_iterator end = g_world_objects.end();
+    // update render init pending array
+    for (GameObject*& gameobj: g_render_init_pending) {
+        if(gameobj->IsRenderInitialized()) {
+			assert(std::find(g_world_objects.begin(), g_world_objects.end(), gameobj) ==
+				   g_world_objects.end());
+			g_world_objects.push_back(gameobj);
+            for(Component* comp: gameobj->GetComponents()) {
+                g_components[(uint32_t)comp->GetType()].push_back(comp);
+            }
+            gameobj = nullptr;
+        }
+    }
 
-    for (; it != end; ++it) {
-        const GameObject *go = *it;
+    auto b = std::begin(g_render_init_pending);
+    auto e = std::end(g_render_init_pending);
+	g_render_init_pending.erase(
+		std::remove_if(b, e, [](GameObject *o) { return o == nullptr; }), e);
+    //
 
-        // check if visible
+    // schedule render resource initialization for pending objects
+	for (GameObject* gameobj: g_render_init_pending) {
+        // TEMP: TODO: I know I can't touch GameObject in render thread
+        // but I need to initalize its render state
+        // make it shared object and take weak ref to it, then check if it is
+        // still valid when render thread does it's job
+		ScheduleRenderCommand(rfc, [gameobj]() {
+			gameobj->InitRenderResources();
+			gameobj->SetInitialized(true);
+		});
+	}
+    //
+
+    for (const GameObject* go: g_world_objects) {
+
+        // TODO: check if visible
         // ...
 
+        const auto* tc = go->GetComponent<TransformComponent>();
         // maybe instead create separate render thread render objects or make
         // all render object always live on render thread
-        if (go->GetMesh()) // if initialized
+        if (go->GetMesh())
         {
             RenderPacket *rp = frame_render_list->AddPacket();
-            const auto* tc = go->GetComponent<TransformComponent>();
 
             rp->mesh_ = *go->GetMesh();
             rp->m_ = tc ? tc->GetTransform() : mat4::identity();
@@ -218,7 +254,7 @@ void scene_render_update(struct RenderFrameContext *rfc) {
             rp->is_render_to_shadow = 1;
             rp->is_transparent_pass = 0;
             rp->is_debug_pass = 0;
-            rp->is_selection_pass = 1;
+            rp->is_selection_pass = go->IsSelectable() && is_in_editor_mode;
 #if DO_BAD_THING_FOR_TEST
             rp->go_ = go;
 #endif
@@ -226,8 +262,17 @@ void scene_render_update(struct RenderFrameContext *rfc) {
 
         go->AddRenderPackets(rfc);
 
-    }
+        if(is_in_editor_mode) 
+        {
+            int icon_id = go->GetIconID();
+            if(icon_id > 0) {
+                RenderMesh* mesh = res_man_load_mesh("xy_quad");
+                vec3 pos = tc->GetPosition();
+                add_debug_mesh_constant_size_px(rfc, mesh, vec4(0,0.5,1,1), mat4::translation(pos), 10, go->GetId());
+            }
+        }
 
+    }
 
     rfc->point_lights_ = g_light_list;
 }

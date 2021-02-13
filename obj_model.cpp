@@ -4,20 +4,57 @@
 #include "utils/obj_loader.h"
 #include <cstdint>
 
+void TransformComponent::SetParent(TransformComponent* parent) {
+
+    if(parent_)
+        parent_->RemoveChild(this);
+
+    parent_ = parent;
+
+    if(parent_)
+        parent_->AddChild(this);
+    else {
+        // notify scene that this component is now parent, so should be added to update list
+        // maybe just add all of them and only update if root component?
+        // also update our transform from parent
+    }
+
+    b_need_recalculate = true;
+    on_transformed();
+}
+
+void TransformComponent::AddChild(TransformComponent *child) {
+    assert(child);
+	auto b = std::begin(children_);
+	auto e = std::end(children_);
+	assert(std::find(b, e, child) == children_.end());
+    children_.push_back(child);
+}
+
+void TransformComponent::RemoveChild(TransformComponent *child) {
+    assert(child);
+	auto b = std::begin(children_);
+	auto e = std::end(children_);
+	children_.erase(
+		std::remove_if(b, e, [child](TransformComponent *o) { return o == child; }), e);
+}
+
+void TransformComponent::UpdateComponent(float dt) {
+	if (NeedRecalculate()) {
+		update_transform();
+	}
+}
+
 ParticleSystemObject* ParticleSystemObject::Create()
 {
     ParticleSystem* ps = new ParticleSystem;
 
     ParticleSystemObject* pso = new ParticleSystemObject;
     pso->ps_ = ps;
+    pso->ps_->AddEmitter(CreateStandardEmitter());
+    ParticleSystemManager::Instance().Add(pso->ps_);
 
     return pso;
-}
-
-void ParticleSystemObject::InitRenderResources() {
-
-    ps_->AddEmitter(CreateStandardEmitter());
-    ParticleSystemManager::Instance().Add(ps_);
 }
 
 ParticleSystemObject::~ParticleSystemObject() {

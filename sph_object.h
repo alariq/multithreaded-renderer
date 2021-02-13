@@ -45,7 +45,7 @@ public:
     const vec2& GetBounds() { return view_dim_; }
 
     virtual void InitRenderResources() override;
-    void DeinitRenderResources();
+    virtual void DeinitRenderResources() override;
 
     // IRenderable
     virtual void AddRenderPackets(struct RenderFrameContext* rfc) const override;
