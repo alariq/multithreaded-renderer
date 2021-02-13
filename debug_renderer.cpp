@@ -51,6 +51,11 @@ void RenderDebugObjects(const RenderPacketList_t& rpl, const mat4& view, const m
     struct RPSorter {
         mat4 view_;
         bool operator()(const RenderPacket& a, const RenderPacket& b) {
+            if(a.is_gizmo_pass && !b.is_gizmo_pass) {
+                return true;
+            } else if(!a.is_gizmo_pass && b.is_gizmo_pass) {
+                return false;
+            }
             return (view_ * a.m_.getCol3()).z < (view_ * b.m_.getCol3()).z;
         }
     };
