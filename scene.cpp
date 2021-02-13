@@ -108,10 +108,10 @@ void initialize_scene(const struct camera *cam, struct RenderFrameContext *rfc) 
     loc_cam.set_projection(45, Environment.screenWidth,
                            Environment.screenHeight, 2.0f, 20.0f);
     FrustumObject *fo = FrustumObject::Create(&loc_cam);
-    scene_add_game_object(go);
+    scene_add_game_object(fo);
 
     ParticleSystemObject *pso = ParticleSystemObject::Create();
-    scene_add_game_object(go);
+    scene_add_game_object(pso);
 
     // make vilage
     const float rot[] = {0, 150, 30, 90, 55};
