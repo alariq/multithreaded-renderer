@@ -127,6 +127,12 @@ static RenderMesh* CreateFSQuadRenderMesh() {
     return fs_quad;
 }
 
+static RenderMesh* CreateXYQuadRenderMesh() {
+    SVDAdapter<> svd_adapter;
+    generate_quad(svd_adapter, vec3(1,1,1), vec3(0.5f, 0.5f, 0.0f), 0);
+    return render_mesh_from_mesh_buffer(svd_adapter, get_svd_vdecl());
+}
+
 static RenderMesh *CreateSphereRenderMesh() {
     SVDAdapter<> svd_adapter;
     generate_sphere(svd_adapter, 5);
@@ -167,6 +173,10 @@ void initialize_res_man() {
     def->tex_id_ = def_tex;
     g_world_meshes.insert(std::make_pair("fs_quad", def));
 
+    def = CreateXYQuadRenderMesh();
+    def->tex_id_ = def_tex;
+    g_world_meshes.insert(std::make_pair("xy_quad", def));
+
     def = CreateSphereRenderMesh();
     def->tex_id_ = def_tex;
     g_world_meshes.insert(std::make_pair("sphere", def));
@@ -193,7 +203,6 @@ void finalize_res_man() {
         gos_DestroyTexture(tex_id.second);
 
     g_world_textures.clear();
-
     is_res_man_initialized = false;
 }
 
