@@ -90,6 +90,8 @@ set(SOURCES
     "obj_id_renderer.h"
     "renderer.cpp"
     "renderer.h"
+    "render_utils.h"
+    "render_utils.cpp"
     "test_fixed_block_allocator.cpp"
     "scene.cpp"
     "scene.h"

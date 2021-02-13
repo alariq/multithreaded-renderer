@@ -23,6 +23,7 @@ set(SOURCES ${SOURCES}
     utils/stream.h
     utils/camera.cpp
     utils/camera.h
+    utils/camera_utils.h
     utils/gl_fbo.cpp
     utils/gl_utils.cpp
     utils/gl_utils.h

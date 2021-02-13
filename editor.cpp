@@ -3,11 +3,15 @@
 #include "obj_model.h"
 #include "res_man.h"
 #include "renderer.h"
+#include "render_utils.h"
 #include "engine/gameos.hpp"
 #include "engine/utils/camera.h"
 #include "utils/logging.h"
 #include "utils/vec.h"
 #include "utils/quaternion.h"
+#include "utils/logging.h"
+#include "utils/math_utils.h"
+#include "utils/camera_utils.h"
 
 #include <algorithm>
 #include <vector>
@@ -26,52 +30,6 @@ enum class GizmoMode {
 	kScale
 };
 
-static void add_debug_mesh(struct RenderFrameContext *rfc, RenderMesh *mesh, const mat4 &mat,
-						   const vec4 &color, uint32_t selection_id = 0) {
-    RenderList *frame_render_list = rfc->rl_;
-    frame_render_list->ReservePackets(1);
-    RenderPacket *rp = frame_render_list->AddPacket();
-    rp->mesh_ = *mesh;
-	rp->m_ = mat;
-	rp->id_ = selection_id;
-	rp->debug_color = color;
-
-    rp->is_debug_pass = 1;
-	rp->is_selection_pass = selection_id ? 1 : 0;
-	rp->is_gizmo_pass = selection_id ? 1 : 0;
-
-    rp->is_opaque_pass = 0;
-    rp->is_render_to_shadow = 0;
-    rp->is_transparent_pass = 0;
-}
-
-static void add_debug_sphere_constant_size(struct RenderFrameContext *rfc, const vec3& pos, float scale, const vec4& color) {
-
-	const float oo_no_scale_distance = 1.0f / 100.0f;
-	const float cam_z = (rfc->view_ * vec4(pos, 1)).z;
-	const mat4 tr = mat4::translation(pos) * mat4::scale(scale * vec3(cam_z * oo_no_scale_distance));
-	add_debug_mesh(rfc, res_man_load_mesh("sphere"), tr, color);
-}
-#if 0
-static void add_debug_mesh_constant_size(struct RenderFrameContext *rfc, RenderMesh *mesh,
-										 const vec4 &color, const vec3 &pos,
-										 const vec3 &scale = vec3(1)) {
-
-	const float oo_no_scale_distance = 1.0f / 100.0f;
-	const float cam_z = (rfc->view_ * vec4(pos, 1)).z;
-	const mat4 tr = mat4::translation(pos) * mat4::scale(vec3(cam_z * oo_no_scale_distance) * scale);
-	add_debug_mesh(rfc, mesh, tr, color);
-}
-#endif
-static void add_debug_mesh_constant_size(struct RenderFrameContext *rfc, RenderMesh *mesh,
-										 const vec4 &color, const mat4 &tr_m,
-										 const vec3 &scale = vec3(1)) {
-
-	const float oo_no_scale_distance = 1.0f / 100.0f;
-	const float cam_z = (rfc->view_ * tr_m.getTranslationPoint()).z;
-	const mat4 tr = tr_m * mat4::scale(vec3(cam_z * oo_no_scale_distance) * scale);
-	add_debug_mesh(rfc, mesh, tr, color);
-}
 
 class Gizmo {
 	static const float kNoScaleDistance;
@@ -203,10 +161,12 @@ const float Gizmo::kRotSphereRadius = 3.0f;
 const float Gizmo::kScaleCubesScale = 0.15f;
 Gizmo g_gizmo;
 
-// TODOL move all variables in a single Editor state
+// TODO: move all variables in a single Editor state
 static EditorOpMode s_editor_mode = EditorOpMode::kMove;
-
 static GameObject* g_sel_obj = nullptr;
+
+static std::vector<UserEditorInterface> registered_editors;
+static int g_active_user_editor = -1;
 void initialize_editor()
 {
 }
@@ -215,29 +175,16 @@ void finalize_editor()
 {
 }
 
-// converts screen position to world space at a given distance from camera
-// x,y = [-1,1] screen space range
-// z - distance from camera pos (in world space)
-// returns: world position at a given distance from camera
-static vec3 get_cursor_pos(const mat4* inv_proj, const mat4* inv_view, const float x, const float y,
-                    const float dist_from_cam) {
-    vec4 view_pos = *inv_proj * vec4(x, y, 0.5f, 1.0f);
-    vec3 view_pos_n = dist_from_cam * normalize(view_pos.xyz());
-    vec3 wpos = (*inv_view * vec4(view_pos_n, 1.0f)).xyz();
-    return wpos;
+int editor_register_user_editor(UserEditorInterface interface) {
+    registered_editors.push_back(interface);
+    return (int)registered_editors.size()-1;
+}
+void editor_unregister_user_editor(int id) {
+    assert(id>=0 && id < registered_editors.size());
+    registered_editors.erase(registered_editors.begin() + id);
+
 }
 
-static vec3 screen2world(const camera *cam, const vec2 screen_pos,
-                    const float dist_from_cam) {
-    vec4 view_pos = cam->get_inv_projection() * vec4(screen_pos, 0.0f, 1.0f);
-    vec3 view_pos_n = dist_from_cam * normalize(view_pos.xyz());
-    vec3 wpos = (cam->get_inv_view() * vec4(view_pos_n, 1.0f)).xyz();
-    return wpos;
-}
-
-static vec2 proj2screen(vec2 proj, float w, float h) {
-	return vec2((0.5f*proj.x + 0.5f)*w, (0.5f*(1.0f - proj.y) + 0.5f)*h);
-}
 
 // x,y = [-1,1] screen space range
 GameObject* select_object_under_cursor(const camera *cam, float x, float y) {
@@ -281,75 +228,6 @@ static int drag_type;
 
 static vec3 drag_rotation_gizmo_helper_pos;
 
-static vec3 ray_plane_intersect(const vec3 ray_dir, const vec3 ray_origin, const vec4 plane) {
-	const vec3 n = plane.xyz(); // plane normal
-	const vec3 p0 = n * plane.w; // point on plane
-	// (r0 + rd*t - p0) ^ n = 0;
-	// t = (p0 - r0)^n / rd^n;
-	return ray_origin + ray_dir * dot((p0 - ray_origin), n) / dot(ray_dir, n);
-}
-
-static vec3 ray_sphere_intersect(const vec3 ray_dir, const vec3 ray_origin, const vec4 sphere) {
-	const float r = sphere.w;
-	const vec3 p = ray_origin - sphere.xyz();
-	const vec3 d = ray_dir;
-	vec3 res;
-	// (dx*t+x0)^2 +(dy*t+y0)^2 +(dz*t+z0)^2 = r^2
-	float discriminant_sq = 4 * dot(d, p) * dot(d, p) - 4 * dot(d, d)*(dot(p, p) - r * r);
-	if (discriminant_sq < 0.0f) {
-		res = vec3(FLT_MAX, FLT_MAX, FLT_MAX);
-	}
-	else {
-		float t = (-2 * dot(d, p) - sqrtf(discriminant_sq)) / (2 * dot(d,d));
-		if(t < 0)
-			t = (-2 * dot(d, p) + sqrtf(discriminant_sq)) / (2 * dot(d,d));
-		if (t < 0)
-			res = vec3(FLT_MAX, FLT_MAX, FLT_MAX);
-		else
-			res = ray_origin + d * t;
-	}
-
-	return res;
-}
-
-// takes plane, rotates it and puts at point "pt"
-static vec4 transform_plane_around_point(const mat4& tr, const vec4& plane, vec3 pt) {
-	vec3 old_normal = plane.xyz();
-	vec3 new_normal = (tr * vec4(old_normal, 0.0f)).xyz();
-	float new_dist = dot(new_normal, pt);
-	return vec4(new_normal, new_dist);
-}
-
-// Building an Orthonormal Basis, Revisited
-// http://jcgt.org/published/0006/01/01/ 
-static void calculate_basis(const vec3 &n, vec3 &b1, vec3 &b2) {
-	if (n.z < 0.0f) {
-		const float a = 1.0f / (1.0f - n.z);
-		const float b = n.x * n.y * a;
-		b1 = vec3(1.0f - n.x * n.x * a, -b, n.x);
-		b2 = vec3(b, n.y * n.y * a - 1.0f, -n.y);
-	} else {
-		const float a = 1.0f / (1.0f + n.z);
-		const float b = -n.x * n.y * a;
-		b1 = vec3(1.0f - n.x * n.x * a, b, -n.x);
-		b2 = vec3(b, 1.0f - n.y * n.y * a, -n.y);
-	}
-}
-
-// assume that axis passes through origin
-static vec3 project_on_vector(const vec3 ray_dir, const vec3 ray_origin, const vec3& axis) {
-	// get some plane (which our axis lies at) to intersect with
-	vec3 b1, b2;
-	calculate_basis(axis, b1, b2);
-	vec3 int_pt = ray_plane_intersect(ray_dir, ray_origin, vec4(b1, 0.0));
-	float int_dot = dot(int_pt, axis);
-	return int_dot * axis;
-}
-
-static vec4 make_plane(const vec3& normal, const vec3& pt) {
-	return vec4(normal, dot(normal, pt));
-}
-
 static EditorOpMode update_input_mode(const EditorOpMode ed_mode) {
 
 	 if(gos_GetKeyStatus(KEY_Q) == KEY_PRESSED)
@@ -362,7 +240,7 @@ static EditorOpMode update_input_mode(const EditorOpMode ed_mode) {
 	 return ed_mode;
 }
 
-void editor_update(camera *cam, const float /*dt*/) {
+void editor_update(camera *cam, const float dt) {
 
 	int XDelta, YDelta, WheelDelta;
 	float XPos, YPos;
@@ -372,8 +250,14 @@ void editor_update(camera *cam, const float /*dt*/) {
 	const float screen_width = (float)Environment.drawableWidth;
 	const float screen_height = (float)Environment.drawableHeight;
 
-	if (gos_GetKeyStatus(KEY_ESCAPE) == KEY_RELEASED)
-		gos_TerminateApplication();
+	if (gos_GetKeyStatus(KEY_ESCAPE) == KEY_RELEASED) {
+        if(g_active_user_editor == -1) {
+    		gos_TerminateApplication();
+        } else {
+            g_active_user_editor = -1;
+            log_info("Switched to main editor\n");
+        }
+    }
 
 	if (gos_GetKeyStatus(KEY_1) == KEY_RELEASED)
 		g_gizmo.set_world_space(!g_gizmo.get_world_space());
@@ -561,6 +445,17 @@ void editor_update(camera *cam, const float /*dt*/) {
 		drag_started = false;
 		log_debug("drag stop\n");
 	}
+
+    for(auto i=0; i<registered_editors.size(); ++i) {
+        if(registered_editors[i].wants_activate()) {
+            g_active_user_editor = i;
+            log_info("Switched to editor: %s\n", registered_editors[i].name());
+        }
+    }
+
+    if(g_active_user_editor != -1) {
+        registered_editors[g_active_user_editor].update(cam, dt, g_sel_obj);
+    }
 }
 
 
@@ -571,7 +466,7 @@ void editor_render_update(struct RenderFrameContext *rfc)
         if(tc) {
 			g_gizmo.draw(rfc);
 			// TODO: move this variable to gizmo and set when approprate
-			add_debug_sphere_constant_size(rfc, drag_rotation_gizmo_helper_pos, 0.25f,
+			add_debug_sphere_constant_size(rfc, drag_rotation_gizmo_helper_pos, 250.0f,
 										   vec4(1, 1, 1, 1));
 		}
     }
@@ -585,8 +480,12 @@ void editor_render_update(struct RenderFrameContext *rfc)
         // add lights to debug render pass
 		for (auto &l : light_list) {
 			vec4 c(l.color_.getXYZ(), 0.5f);
-			add_debug_mesh_constant_size(rfc, sphere, c, l.transform_, vec3(0.1f));
+			add_debug_mesh_constant_size(rfc, sphere, c, l.transform_, 1000.0f);
 		}
+    }
+
+    if(g_active_user_editor != -1) {
+        registered_editors[g_active_user_editor].render_update(rfc);
     }
 }
 
