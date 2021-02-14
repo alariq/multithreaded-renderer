@@ -1,6 +1,8 @@
 #ifndef INCLUDED_MATH_H
 #define INCLUDED_MATH_H
 
+#include "utils/vec.h"
+
 // remove those 3
 void normalize(float (&v)[3]);
 void cross(float v1[3], float v2[3], float result[3]);
@@ -12,5 +14,7 @@ void glu_MakeIdentityf( float m[16] );
 void glu_LookAt2(float eyex, double eyey, float eyez, float centerx,
           float centery, float centerz, float upx, float upy,
           float upz);
+
+bool invert(const mat4& m, mat4 &inverse, float tolerance);
 
 #endif // INCLUDED_MATH_H

@@ -730,6 +730,47 @@ mat4 operator ! (const mat4 &m){
 	return mat * (1.0f / (m.elem[0][0] * mat.elem[0][0] + m.elem[1][0] * mat.elem[0][1] + m.elem[2][0] * mat.elem[0][2] + m.elem[3][0] * mat.elem[0][3]));
 }
 
+mat2 upper2x2(const mat3& m) {
+
+    mat2 r;
+    r.elem[0][0] = m[0][0];
+    r.elem[0][1] = m[0][1];
+
+    r.elem[1][0] = m[1][0];
+    r.elem[1][1] = m[1][1];
+
+    return r;
+}
+
+mat2 upper2x2(const mat4& m) {
+
+    mat2 r;
+    r.elem[0][0] = m[0][0];
+    r.elem[0][1] = m[0][1];
+
+    r.elem[1][0] = m[1][0];
+    r.elem[1][1] = m[1][1];
+
+    return r;
+}
+
+mat3 upper3x3(const mat4& m) {
+
+    mat3 r;
+    r.elem[0][0] = m[0][0];
+    r.elem[0][1] = m[0][1];
+    r.elem[0][2] = m[0][2];
+
+    r.elem[1][0] = m[1][0];
+    r.elem[1][1] = m[1][1];
+    r.elem[1][2] = m[1][2];
+
+    r.elem[2][0] = m[2][0];
+    r.elem[2][1] = m[2][1];
+    r.elem[2][2] = m[2][2];
+
+    return r;
+}
 
 mat2 rotate2(const float angle){
 	float cosA = cosf(angle), sinA = sinf(angle);
