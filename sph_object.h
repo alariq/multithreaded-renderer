@@ -5,6 +5,51 @@
 #include <atomic>
 #include <vector>
 
+class SPHBoundaryComponent : public TransformComponent {
+	class SPHBoundaryModel *boundary_ = nullptr;
+    virtual ~SPHBoundaryComponent() {};
+public:
+	static const ComponentType type_ = ComponentType::kSPHBoundary;
+	virtual ComponentType GetType() const override { return type_; }
+    SPHBoundaryComponent() {};
+
+    class SPHBoundaryModel* getBoundary() const { return boundary_; }
+    class SPHBoundaryModel* getBoundary() { return boundary_; }
+
+    virtual void UpdateComponent(float dt) override;
+
+    static SPHBoundaryComponent* Create(const class SPHSimulation *sim, const vec2 &dim, bool b_invert);
+    static void Destroy(SPHBoundaryComponent* comp);
+};
+
+class SPHBoundaryObject: public GameObject {
+
+    struct BoundaryTuple {
+        TransformComponent* tr_;
+        SPHBoundaryComponent* bm_;
+    };
+    BoundaryTuple Tuple_;
+public:
+    SPHBoundaryObject(const SPHSimulation* sim, const vec2 &dim, bool b_invert);
+    ~SPHBoundaryObject();
+
+    // IEditorObject
+    virtual int GetIconID() const override { return 1; }
+    //
+
+    void addToSimulation(SPHSimulation* sim);
+    void removeFromSimulation(SPHSimulation* sim);
+
+    virtual const char* GetName() const override { return "boundary"; };
+    virtual void Update(float dt) override;
+    virtual RenderMesh* GetMesh() const override { return nullptr; }
+
+    // IRenderable
+    virtual void InitRenderResources() override;
+    virtual void DeinitRenderResources() override;
+    virtual void AddRenderPackets(struct RenderFrameContext *rfc) const override;
+};
+
 void initialize_particle_positions(class SPHSceneObject* o);
 
 class SPHSceneObject : public GameObject {
@@ -15,6 +60,7 @@ class SPHSceneObject : public GameObject {
     struct SPHGrid* grid_;
     struct SPHFluidModel* fluid_;
     std::vector<class SPHBoundaryModel*> boundaries_;
+    std::vector<struct SPHEmitter*> emitters_;
     class SPHSurfaceMesh* surface_;
     // cached transform component
     TransformComponent* transform_ = nullptr;

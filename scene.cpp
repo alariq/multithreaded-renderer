@@ -135,7 +135,7 @@ void initialize_scene(const struct camera *cam, struct RenderFrameContext *rfc) 
     }
 #endif
     // create some point lights
-    for (int i = 0; i < 100; ++i) {
+    for (int i = 0; i < 4; ++i) {
         PointLight l;
         vec3 color = random_vec(0.f, 1.0f);
         float intensity = random(0.5f, 1.5f);
@@ -174,7 +174,7 @@ void scene_update(const camera *cam, const bool b_update_simulation, const float
 
 	if (b_update_simulation) {
 
-		sph_update();
+		sph_update(dt);
 		ParticleSystemManager::Instance().Update(dt);
 
 		for (; it != end; ++it) {

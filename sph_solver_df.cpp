@@ -5,7 +5,38 @@
 #include "utils/vec.h"
 #include <cfloat>
 
-// Divergence-Free SPH for Incompressible andViscous Fluids
+struct SPHSimData_DF: public SPHSimData {
+    std::vector<float> kappa_;
+    std::vector<float> factor_;
+    std::vector<float> density_adv_;
+
+    static constexpr const char* const type_ = "SPHSimData_DF";
+
+    // from boundary (overkill because only a fraction of particles needs this dunring a simulation frame)
+    // use index into another array (resized on demand, or using fixed block allocator scheme)
+    std::vector<vec2> boundaryXj_;
+    std::vector<float> boundaryVolume_;
+
+    virtual const char* getType() const override { return type_; }
+
+	virtual void allocate(size_t count) override {
+		density_adv_.resize(count);
+		factor_.resize(count);
+		kappa_.resize(count);
+		boundaryXj_.resize(count);
+		boundaryVolume_.resize(count);
+	}
+
+	virtual void append(size_t count) override {
+        auto old_count = density_adv_.size();
+        auto new_count = old_count + count;
+        allocate(new_count);
+    }
+
+    virtual ~SPHSimData_DF() = default;
+};
+
+// Divergence-Free SPH for Incompressible and Viscous Fluids
 struct DF_TimeStep {
 
 	inline static const float s_eps_ = 1.0e-5f;
@@ -29,9 +60,8 @@ struct DF_TimeStep {
     }
 
     // !NB: no world -> local point conversion yet
-	void calcVolumeAndBoundaryX(SPHSimulation *sim) {
+	void calcVolumeAndBoundaryX(SPHSimulation *sim, SPHSimData_DF* sim_data) {
 		SPHFluidModel *fm = sim->fluid_model_;
-		SPHSimData *sim_data = sim->sim_data_;
 		const int num_particles = (int)fm->particles_.size();
 		SPHParticle2D *particles = fm->particles_.data();
 		const float particle_radius = fm->radius_;
@@ -71,7 +101,7 @@ struct DF_TimeStep {
 		}
 	}
 
-	void calcDensities(SPHSimulation *sim) {
+	void calcDensities(SPHSimulation *sim, SPHSimData_DF* sim_data) {
 		SPHFluidModel *fm = sim->fluid_model_;
 		const int num_particles = (int)fm->particles_.size();
 		SPHParticle2D *particles = fm->particles_.data();
@@ -87,9 +117,9 @@ struct DF_TimeStep {
 							  });
 
             // boundary
-            float Vj = sim->sim_data_->boundaryVolume_[i];
+            float Vj = sim_data->boundaryVolume_[i];
             if( Vj > 0.0f) {
-                vec2 xj = sim->sim_data_->boundaryXj_[i];
+                vec2 xj = sim_data->boundaryXj_[i];
                 vec2 d = pi.pos - xj;
                 float k = sim->W(d);
                 pi.density += Vj * k;
@@ -100,13 +130,12 @@ struct DF_TimeStep {
 		}
 	}
 
-	void calcFactor(SPHSimulation *sim) {
+	void calcFactor(SPHSimulation *sim, SPHSimData_DF* sim_data) {
 		SPHFluidModel *fm = sim->fluid_model_;
 		const int num_particles = (int)fm->particles_.size();
 		SPHParticle2D *particles = fm->particles_.data();
 		SPHGrid *grid = fm->grid_;
 		const float support_radius = fm->support_radius_;
-		SPHSimData *data = sim->sim_data_;
 
 		for (int i = 0; i < num_particles; ++i) {
 			SPHParticle2D &pi = particles[i];
@@ -121,9 +150,9 @@ struct DF_TimeStep {
 								  sum_of_grad_squares += lengthSqr(grad_pj);
 							  });
             // boundary
-            float Vj = sim->sim_data_->boundaryVolume_[i];
+            float Vj = sim_data->boundaryVolume_[i];
             if( Vj > 0.0f) {
-				vec2 xj = sim->sim_data_->boundaryXj_[i];
+				vec2 xj = sim_data->boundaryXj_[i];
 				vec2 grad_pj = -Vj * sim->gradW(pi.pos - xj);
 				grad_sums -= grad_pj;
 				//sum_of_grad_squares += lengthSqr(grad_pj);
@@ -134,7 +163,7 @@ struct DF_TimeStep {
 				alpha = -1.0f / alpha;
 			else
 				alpha = 0.0f;
-			data->factor_[i] = alpha;
+			sim_data->factor_[i] = alpha;
 		}
 	}
 #if 0
@@ -153,7 +182,7 @@ struct DF_TimeStep {
 
 	// clac "Rho star i" (3.3) more on this in "SPH Fluids in Computer Graphics" Markus
 	// Imsen (Ch 3.2) and his "Implicit Incompressible SPH" (Ch 2.1)
-	void calcDensityAdv(SPHSimulation *sim) {
+	void calcDensityAdv(SPHSimulation *sim, SPHSimData_DF* sim_data) {
 		SPHFluidModel *fm = sim->fluid_model_;
 		const int num_particles = (int)fm->particles_.size();
 		SPHParticle2D *particles = fm->particles_.data();
@@ -170,29 +199,29 @@ struct DF_TimeStep {
 														sim->gradW(pi.pos - pj->pos));
 							  });
             // boundary
-            float Vj = sim->sim_data_->boundaryVolume_[i];
+            float Vj = sim_data->boundaryVolume_[i];
             if( Vj > 0.0f) {
                 const vec2 vj = vec2(0.0f, 0.0f);// only static boundaries for now
-                vec2 xj = sim->sim_data_->boundaryXj_[i];
+                vec2 xj = sim_data->boundaryXj_[i];
 				delta += Vj * dot((pi.vel - vj), sim->gradW(pi.pos - xj));
 			}
 
             float density_adv = pi.density / fm->density0_ + sim->time_step_ * delta;
-            sim->sim_data_->density_adv_[i] = max(density_adv, 1.0f);
+            sim_data->density_adv_[i] = max(density_adv, 1.0f);
 		}
 
 	}
 
     // returns average density error
-	float pressureSolveIter(SPHSimulation *sim) {
+	float pressureSolveIter(SPHSimulation *sim, SPHSimData_DF* sim_data) {
 
 		SPHFluidModel *fm = sim->fluid_model_;
 		const int num_particles = (int)fm->particles_.size();
 		SPHParticle2D *particles = fm->particles_.data();
 		SPHGrid *grid = fm->grid_;
 		const float support_radius = fm->support_radius_;
-		const float *factor = sim->sim_data_->factor_.data();
-		const float *density_adv = sim->sim_data_->density_adv_.data();
+		const float *factor = sim_data->factor_.data();
+		const float *density_adv = sim_data->density_adv_.data();
 		const float h = sim->time_step_;
         const float oo_h2 = 1.0f/(h*h);
 
@@ -218,9 +247,9 @@ struct DF_TimeStep {
 							  });
             // boundary
 			if (fabs(kappa_i*oo_h2) > s_eps_) {
-				float Vj = sim->sim_data_->boundaryVolume_[i];
+				float Vj = sim_data->boundaryVolume_[i];
 				if (Vj > 0.0f) {
-                        const vec2 xj = sim->sim_data_->boundaryXj_[i];
+                        const vec2 xj = sim_data->boundaryXj_[i];
 						const vec2 grad_p_j = -Vj * sim->gradW(pi.pos - xj);
 						const vec2 vel_change = -sim->time_step_ * 1.0f * kappa_i * oo_h2 * grad_p_j;				// kj already contains inverse density
 						pi.vel += vel_change;
@@ -231,18 +260,18 @@ struct DF_TimeStep {
 		}
 
         // now when we've udated velocities, update density advection
-	    calcDensityAdv(sim);
+	    calcDensityAdv(sim, sim_data);
         // move this into calcDensityAdv
         float density_err = 0.0;
 		for (int i = 0; i < num_particles; ++i) {
-            density_err += (sim->sim_data_->density_adv_[i] - 1.0f) * fm->density0_;
+            density_err += (sim_data->density_adv_[i] - 1.0f) * fm->density0_;
         }
 		return density_err / num_particles;
 	}
 
-	void pressureSolve(SPHSimulation* sim) {
+	void pressureSolve(SPHSimulation* sim, SPHSimData_DF* sim_data) {
 
-        calcDensityAdv(sim);
+        calcDensityAdv(sim, sim_data);
         int num_iterations = 0;
 
 
@@ -253,7 +282,7 @@ struct DF_TimeStep {
 
         while((!check || (num_iterations < min_iterations_)) && num_iterations < max_iterations_) {
             check = true;
-            float avg_density_err = pressureSolveIter(sim);
+            float avg_density_err = pressureSolveIter(sim, sim_data);
             check = check && (avg_density_err < eta);
             num_iterations++;
         }
@@ -265,13 +294,15 @@ struct DF_TimeStep {
 	void Tick(SPHSimulation *sim) {
 
 		SPHFluidModel *fm = sim->fluid_model_;
+        assert(fm->sim_data_->isOfType(SPHSimData_DF::type_));
+        SPHSimData_DF* sim_data = (SPHSimData_DF*)fm->sim_data_;
 		const int num_particles = (int)fm->particles_.size();
 		SPHParticle2D *particles = fm->particles_.data();
 
-        calcVolumeAndBoundaryX(sim);
+        calcVolumeAndBoundaryX(sim, sim_data);
 
-		calcDensities(sim);
-		calcFactor(sim);
+		calcDensities(sim, sim_data);
+		calcFactor(sim, sim_data);
 
         calcNonPressureForces();
 
@@ -284,7 +315,7 @@ struct DF_TimeStep {
             pi.vel += h * sim->accel_;
         }
 
-        pressureSolve(sim);
+        pressureSolve(sim, sim_data);
 
 		for (int i = 0; i < num_particles; ++i) {
 			SPHParticle2D &pi = particles[i];
@@ -294,6 +325,10 @@ struct DF_TimeStep {
 	}
 
 };
+
+SPHSimData* SPH_DFCreateSimData() {
+    return new SPHSimData_DF();
+}
 
 void SPH_DFTimestepTick(SPHSimulation* sim)
 {

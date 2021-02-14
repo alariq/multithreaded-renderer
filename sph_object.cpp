@@ -1,9 +1,95 @@
 #include "sph_object.h"
 #include "sph.h"
 #include "sph_boundary.h"
+#include "sph_emitter.h"
 #include "sph_polygonize.h"
 #include "res_man.h"
 #include "utils/vec.h"
+#include "utils/quaternion.h"
+
+SPHBoundaryComponent* SPHBoundaryComponent::Create(const SPHSimulation *sim, const vec2 &dim, bool b_invert) {
+
+    SPHBoundaryComponent* c = new SPHBoundaryComponent();
+    
+	const float volume_map_cell_size = 0.025f;
+    const bool b_is2d = true;
+    c->boundary_ = new SPHBoundaryModel();
+    ivec3 resolution = ivec3((int)(dim.x / volume_map_cell_size), (int)(dim.y / volume_map_cell_size), 1);
+    c->boundary_->Initialize(vec3(dim.x, dim.y, 10000.0f), sim->radius(), sim->support_radius(), resolution, b_is2d, b_invert);
+
+    return c;
+}
+
+void SPHBoundaryComponent::Destroy(SPHBoundaryComponent* comp)
+{
+    delete comp->boundary_;
+    delete comp;
+}
+
+void SPHBoundaryComponent::UpdateComponent(float dt) {
+    TransformComponent::UpdateComponent(dt);
+    boundary_->setTransform(GetTransform());
+}
+
+
+SPHBoundaryObject::SPHBoundaryObject(const SPHSimulation* sim, const vec2 &dim, bool b_invert)
+{
+    Tuple_.tr_ = AddComponent<TransformComponent>();
+
+    Tuple_.bm_ = SPHBoundaryComponent::Create(sim, dim, b_invert);
+    AddComponent(Tuple_.bm_);
+    addToSimulation(sph_get_simulation());
+
+    Tuple_.bm_->SetParent(Tuple_.tr_);
+}
+
+void SPHBoundaryObject::addToSimulation(SPHSimulation* sim) {
+
+    sim->addBoundary(Tuple_.bm_->getBoundary());
+}
+
+void SPHBoundaryObject::removeFromSimulation(SPHSimulation* sim) {
+    sim->removeBoundary(Tuple_.bm_->getBoundary());
+}
+
+SPHBoundaryObject::~SPHBoundaryObject()
+{
+    delete RemoveComponent(Tuple_.tr_);
+    SPHBoundaryComponent::Destroy(Tuple_.bm_);
+}
+void SPHBoundaryObject::Update(float dt) {
+
+/*
+    vec3 pos = Tuple_.tr_->GetPosition();
+    quaternion rot = Tuple_.tr_->GetRotation();
+
+    Tuple_.bm_->getBoundary()->setTransform(pos, quat_to_mat3(rot));
+*/
+}
+
+void SPHBoundaryObject::InitRenderResources() {
+    Tuple_.bm_->getBoundary()->InitializeRenderResources();
+}
+
+void SPHBoundaryObject::DeinitRenderResources() {
+
+    // destroy render resource here
+}
+
+void SPHBoundaryObject::AddRenderPackets(struct RenderFrameContext *rfc) const {
+
+	SPHBoundaryModel *bm = Tuple_.bm_->getBoundary();
+	ScheduleRenderCommand(rfc, [bm]() { bm->UpdateTexturesByData(); });
+
+	class RenderList *rl = rfc->rl_;
+	RenderPacket *rp = rl->AddPacket();
+	memset(rp, 0, sizeof(RenderPacket));
+	rp->mesh_ = *bm->getBoundaryMesh();
+	rp->m_ = Tuple_.tr_->GetTransform();
+	//rp->is_debug_pass = 1;
+	rp->is_opaque_pass = 1;
+	rp->debug_color = vec4(0, 1, 0, 1);
+}
 
 void initialize_particle_positions(SPHFluidModel* fm);
 
@@ -26,6 +112,7 @@ SPHSceneObject* SPHSceneObject::Create(const vec2& view_dim, int num_particles, 
     o->b_initalized_rendering_resources = false;
 
     SPHFluidModel* fm = new SPHFluidModel();
+
     fm->density0_ = 1000;
     fm->radius_ = o->radius_;
     fm->support_radius_ = 4.0f * fm->radius_;
@@ -45,24 +132,31 @@ SPHSceneObject* SPHSceneObject::Create(const vec2& view_dim, int num_particles, 
     ivec3 resolution = ivec3((int)(o->view_dim_.x / volume_map_cell_size), (int)(o->view_dim_.y / volume_map_cell_size), 1);
     bm->Initialize(vec3(o->view_dim_.x, o->view_dim_.y, 10000.0f), fm->radius_, fm->support_radius_, resolution, b_is2d, true);
 
-    SPHBoundaryModel* bm2 = new SPHBoundaryModel();
-    bm2->Initialize(vec3(0.25f*o->view_dim_.x, 0.25f*o->view_dim_.y, 10000.0f), fm->radius_, fm->support_radius_, resolution, b_is2d, false);
+    SPHEmitter* e = SPHEmitterSystem::createrEmitter();
+    e->dir_ = normalize(vec2(1,1));
+    e->pos_ = 0.5f * o->view_dim_;
+    e->initial_vel_ = e->dir_ * 2.0f;
+    e->rate_ = 1.0f;
+    e->fluid_model_ = fm;
 
     o->fluid_ = fm;
     o->boundaries_.push_back(bm);
     o->boundaries_.push_back(bm2);
+    o->emitters_.push_back(e);
+
     o->surface_ = new SPHSurfaceMesh();
     
     SPHSimulation* sim = sph_get_simulation();
     sim->addBoundary(bm);
-    sim->addBoundary(bm2);
     sim->setFluid(o->fluid_);
 
 	return o;
 }
 
 SPHSceneObject::~SPHSceneObject() {
-    DeinitRenderResources();
+    for(auto e: emitters_) {
+        SPHEmitterSystem::destroyEmitter(e);
+    }
     delete surface_;
     delete[] part_indices_;
     delete[] part_flags_;
@@ -166,6 +260,11 @@ void SPHSceneObject::AddRenderPackets(struct RenderFrameContext *rfc) const {
 	ScheduleRenderCommand(rfc, [num_particles, inst_vb, particles, grid_verts, grid, boundaries, surface_grid_tex, sdf_tex, vsx, vsy]() {
 		const size_t bufsize = num_particles * sizeof(SPHParticle2D);
 		// TODO: think about typed buffer wrapper
+        uint32_t inst_buf_num_part = gos_GetBufferSizeBytes(inst_vb)/sizeof(SPHParticle2D);
+        if(inst_buf_num_part < num_particles) {
+            gos_ResizeBuffer(inst_vb, (uint32_t)(num_particles*1.5f));
+        }
+
 		SPHParticle2D *part_data =
 			(SPHParticle2D *)gos_MapBuffer(inst_vb, 0, bufsize, gosBUFFER_ACCESS::WRITE);
 		memcpy(part_data, particles, bufsize);
@@ -273,7 +372,7 @@ void SPHSceneObject::AddRenderPackets(struct RenderFrameContext *rfc) const {
 		rp = rl->AddPacket();
 		memset(rp, 0, sizeof(RenderPacket));
 		rp->mesh_ = *b->getBoundaryMesh();
-		rp->m_ = transform_->GetTransform();
+		rp->m_ = b->getTransform();
 		rp->is_debug_pass = 1;
 		rp->debug_color = vec4(0, 1, 0, 1);
 	}

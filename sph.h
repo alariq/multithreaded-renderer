@@ -13,7 +13,9 @@ vec3 vtx2pos(const ivec3& idx, const ivec3 res, const vec3 domain_min, const vec
 enum SPHParticleFlags : uint32_t {
     kSPHFlagActive = 0x01,
     kSPHFlagBoundary = 0x02,
-    kSPHFlagSurface = 0x04
+    kSPHFlagSurface = 0x04,
+    kSPHFlagPending = 0x08,
+    kSPHFlagInactive = 0x10,
 };
 
 struct SPHParticle2D {
@@ -112,8 +114,9 @@ struct SPHGrid {
 };
 
 struct SPHFluidModel {
-    SPHGrid* grid_;
+    SPHGrid* grid_ = nullptr;
     std::vector<SPHParticle2D> particles_;
+    struct SPHSimData* sim_data_ = nullptr;
 
     float radius_;
     float density0_;
@@ -139,6 +142,14 @@ struct SPHStateData {
 		flags_.resize(count);
 		cell_indices_.resize(count);
 	}
+
+    void append(size_t count) {
+        auto old_count = flags_.size();
+        auto new_count = old_count + count;
+		flags_.resize(new_count);
+		cell_indices_.resize(new_count);
+    }
+
     void clear_data() {
 		memset(flags_.data(), 0, sizeof(int) * flags_.size());
 		memset(cell_indices_.data(), 0, sizeof(int) * cell_indices_.size());
@@ -146,31 +157,26 @@ struct SPHStateData {
 };
 
 struct SPHSimData {
-    std::vector<float> kappa_;
-    std::vector<float> factor_;
-    std::vector<float> density_adv_;
+    
+    SPHSimData() = default;
 
-    // from boundary (overkill because only a fraction of particles needs this dunring a simulation frame)
-    // use index into another array (resized on demand, or using fixed block allocator scheme)
-    std::vector<vec2> boundaryXj_;
-    std::vector<float> boundaryVolume_;
+	virtual const char* getType() const = 0;
+	virtual void allocate(size_t count) = 0;
+	virtual void append(size_t count) = 0;
+    virtual ~SPHSimData() {};
 
-	void allocate(size_t count) {
-		density_adv_.resize(count);
-		factor_.resize(count);
-		kappa_.resize(count);
-		boundaryXj_.resize(count);
-		boundaryVolume_.resize(count);
-	}
+    bool isOfType(const char* todo_compile_time_hash) const {
+        return 0 == strcmp(todo_compile_time_hash, getType());
+    }
+
 };
-
 
 class SPHSimulation {
 
     // make solvers friends (for now)
     friend struct DF_TimeStep;
     friend void SPH_OldTick(SPHSimulation* sim);
-    friend void sph_update();
+    friend void sph_update(float dt);
 
     const vec2 accel_ = vec2(0.0f, -9.81f);
     const float radius_ = 0.1f;
@@ -241,6 +247,12 @@ public:
     }
     void setFluid(struct SPHFluidModel*);
     void addBoundary(class SPHBoundaryModel*);
+    void removeBoundary(const class SPHBoundaryModel* boundary);
+
+    void addToSimulation(SPHParticle2D* particle, struct SPHFluidModel* fm);
+
+    float radius() const { return radius_; }
+    float support_radius() const { return support_radius_; }
 
 private:
     struct SPHFluidModel* fluid_model_ = nullptr;
@@ -254,8 +266,10 @@ private:
 void sph_init();
 void sph_init_renderer();
 void sph_deinit();
-void sph_update();
+void sph_update(float dt);
 SPHSimulation* sph_get_simulation();
+// simulation->get_emitter_system() ?
+class SPHEmitterSystem* sph_get_emitter_system();
 
 // surface identification
 void hash_particles(SPHGrid* grid, SPHParticle2D* particles, int num_particles, int* part_cell_indices) ;

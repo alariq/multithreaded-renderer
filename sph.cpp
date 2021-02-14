@@ -2,19 +2,24 @@
 #include "sph_kernels.h"
 #include "sph_solver_df.h"
 #include "sph_boundary.h"
+#include "sph_emitter.h"
 #include "sph_polygonize.h"
 #include <cmath>
 #include "obj_model.h"
 #include "res_man.h"
+#include "sph_editor.h"
 #include "engine/gameos.hpp" // COUNTOF
 #include "utils/vec.h"
 #include <functional>
 #include <cfloat>
 
-static SPHSimulation* g_sim = 0;
+static SPHSimulation* g_sim = nullptr;
+static SPHEmitterSystem* g_emitter_system = nullptr;
 void sph_init() {
     g_sim = new SPHSimulation();
     g_sim->Setup();
+    g_emitter_system = new SPHEmitterSystem();
+    sph_editor_init();
 }
 
 void sph_init_renderer() {
@@ -23,13 +28,36 @@ void sph_init_renderer() {
 }
 
 void sph_deinit() {
+    delete g_emitter_system;
+    g_emitter_system = nullptr;
+
     delete g_sim;
     g_sim = nullptr;
+
+    sph_editor_deinit();
+}
+
+SPHEmitterSystem* sph_get_emitter_system() {
+    return g_emitter_system;
 }
 
 bool g_calc_sdf = false;
-void sph_update() {
-    // simulate particle movement
+void sph_update(float dt) {
+
+    g_emitter_system->step(dt);
+
+	{
+		SPHFluidModel *fm = g_sim->fluid_model_;
+		for (SPHParticle2D &p : fm->particles_) {
+			if (p.flags & kSPHFlagPending) {
+				g_sim->addToSimulation(&p, fm);
+				p.flags &= ~kSPHFlagPending;
+				p.flags |= kSPHFlagActive;
+			}
+		}
+	}
+
+	// simulate particle movement
     SPH_DFTimestepTick(g_sim);
 
     if(gos_GetKeyStatus(KEY_T) == KEY_PRESSED)
@@ -363,10 +391,11 @@ void calc_sdf(SPHGrid *grid, const SPHParticle2D *particles, int num_particles, 
 
 void SPHSimulation::setFluid(struct SPHFluidModel* fm) {
     // replace the current fluid (only one at a time supported at the moment)
+
     fluid_model_ = fm;
-    if (!sim_data_) {
-        sim_data_ = new SPHSimData();
-        sim_data_->allocate(fm->particles_.size());
+    if(!fm->sim_data_) {
+        fm->sim_data_ = SPH_DFCreateSimData();
+        fm->sim_data_->allocate(fm->particles_.size());
     }
 
     if (!state_data_) {
@@ -375,9 +404,22 @@ void SPHSimulation::setFluid(struct SPHFluidModel* fm) {
     }
 }
 
-void SPHSimulation::addBoundary(class SPHBoundaryModel* boundary) {
+// you have not seen that, I have mot done that
+void SPHSimulation::addToSimulation(SPHParticle2D* p, struct SPHFluidModel* fm) {
+    fm->sim_data_->append(1);
+    state_data_->append(1);
+}
+
+void SPHSimulation::addBoundary(SPHBoundaryModel* boundary) {
     boundary_models_.push_back(boundary);
 }
+
+void SPHSimulation::removeBoundary(const SPHBoundaryModel* boundary) {
+    auto b = std::begin(boundary_models_);
+    auto e = std::end(boundary_models_);
+    boundary_models_.erase(std::remove(b, e, boundary), e);
+}
+
 
 // Does not include particle i itself!
 void foreach_in_radius(float r, int i, SPHGrid *grid, SPHParticle2D *particles,

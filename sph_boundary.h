@@ -16,9 +16,9 @@ class SPHBoundaryModel {
     bool b_is2d_;
     bool b_invert_distance_;
 
-    // world transform
-    vec3 position_;
-    mat3 rotation_;
+    mat4 transform_;
+    mat3 normal_transform_;
+    mat4 inv_transform_;
     
     uint32_t distance_tex_;
     uint32_t volume_tex_;
@@ -56,5 +56,8 @@ public:
     uint32_t getVolumeTexture() const { return volume_tex_; }
     uint32_t getDistanceTexture() const { return distance_tex_; }
     uint32_t getNormalTexture() const { return normal_tex_; }
+
+    void setTransform(const mat4& tr);
+    mat4 getTransform() const { return transform_; }
 
 };

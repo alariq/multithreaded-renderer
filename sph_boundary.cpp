@@ -4,6 +4,7 @@
 #include "utils/vec.h"
 #include "utils/gl_utils.h"
 #include "utils/simple_quadrature.h"
+#include "utils/matrix.h"
 #include <cassert>
 #include <cfloat>
 #include <cstdint>
@@ -143,8 +144,7 @@ bool SPHBoundaryModel::Initialize(vec3 cube, float particle_radius, float suppor
     boundary_min_ = vec3(0);
     boundary_max_ = cube;
 
-    position_ = vec3(0,0,0);
-    rotation_ = identity3();
+    setTransform(mat4::identity());
 
     vec3 domain_min = boundary_min_ - ext;
     vec3 domain_max = boundary_max_ + ext;
@@ -186,9 +186,20 @@ void SPHBoundaryModel::Destroy() {
     delete boundary_mesh_;
 }
 
-float SPHBoundaryModel::getDistance2D(const vec2& pos) const {
+void SPHBoundaryModel::setTransform(const mat4& tr)
+{
+    transform_ = tr;
+    normal_transform_ = upper3x3(transform_);
+    bool rv = invert(transform_, inv_transform_, 1e-4f);
+    assert(rv);(void)rv;
+}
+
+float SPHBoundaryModel::getDistance2D(const vec2& world_pos) const {
 //	auto get_distance = [this](const int idx) -> float { return d(idx); };
   //  return interpolate_value_xy(vec3(pos.x, pos.y, 0.0f), get_distance);
+
+	vec4 loc_pos = inv_transform_ * vec4(world_pos, 0, 1);
+	const vec2 pos = loc_pos.xy();
 
     float sign = b_invert_distance_ ? -1.0f : 1.0f;
     vec3 side_length = 0.5f * (boundary_max_ - boundary_min_);
@@ -207,10 +218,11 @@ float SPHBoundaryModel::getDistance2D(const vec2& pos) const {
     return v;
 }
 
-float SPHBoundaryModel::getVolume2D(const vec2& pos) const {
+float SPHBoundaryModel::getVolume2D(const vec2& world_pos) const {
 	//auto get_volume = [this](const int idx) -> float { return v(idx); };
     //return interpolate_value_xy(vec3(pos.x, pos.y, 0.0f), get_volume);
 
+	const vec2 pos = world_pos;
     float part_r = 0.1f;
     float support_r = 4.0f * part_r;
     float factor = 1.75f;
@@ -246,7 +258,9 @@ float SPHBoundaryModel::getVolume2D(const vec2& pos) const {
     return volume_func(vec3(pos.x, pos.y, 0.0f));
 }
 
-vec2 SPHBoundaryModel::getNormal2D(const vec2& pos) const {
+vec2 SPHBoundaryModel::getNormal2D(const vec2& world_pos) const {
+	vec4 loc_pos = inv_transform_ * vec4(world_pos, 0, 1);
+	const vec2 pos = loc_pos.xy();
 
 #if 1
     vec3 side_length = 0.5f * (boundary_max_ - boundary_min_);
@@ -280,6 +294,7 @@ vec2 SPHBoundaryModel::getNormal2D(const vec2& pos) const {
         normal = normalize(vec2(1.0f*sign(dx), 1.0f*sign(dy)));
     else
         normal = vec2(-dx, -dy);
+    normal = upper2x2(normal_transform_) * normal;
     normal = normalize(normal);
     return b_invert_distance_ == false ? -normal : normal; 
 }
@@ -376,7 +391,8 @@ void SPHBoundaryModel::UpdateTexturesByData() {
     vec2 size = lattice_->getDomainDimension().xy();
     vec3 center = getCenter();
     center.z = 0.4f;
-    mat4 tr = mat4::translation(center);// +0.5f * vec3(size.x, size.y, 0.0f));
+
+    mat4 tr = transform_ * mat4::translation(center);
     gos_AddQuad(size, vec4(1,1,1, 1.3f), volume_tex_, &tr, true);
 }
 
