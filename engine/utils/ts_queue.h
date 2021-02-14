@@ -2,6 +2,7 @@
 #define TS_QUEUE_H
 
 #include "SDL2/SDL.h"
+#include "threading.h"
 #include <queue>
 
 
@@ -9,7 +10,7 @@ template< typename T>
 class TSQueue {
     SDL_mutex* mutex_;
     std::queue<T> job_list_;
-
+    threading::Event has_job_;
 public:
     TSQueue() {
         mutex_ = SDL_CreateMutex();
@@ -23,6 +24,7 @@ public:
         SDL_LockMutex(mutex_);
         job_list_.push(job);
         SDL_UnlockMutex(mutex_);
+        has_job_.Signal();
     }
 
     T pop() {
@@ -34,6 +36,10 @@ public:
         }
         SDL_UnlockMutex(mutex_);
         return pjob;
+    }
+
+    void wait_for_job() {
+        has_job_.Wait();
     }
 
     int size() { 

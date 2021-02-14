@@ -12,6 +12,7 @@
 #include "utils/gl_utils.h"
 #include "utils/timing.h"
 #include "utils/threading.h"
+#include "utils/ts_queue.h"
 
 #include "Remotery/lib/Remotery.h"
 
@@ -183,40 +184,7 @@ public:
     }
 };
 
-class RenderJobQueue {
-    SDL_mutex* mutex_;
-    std::queue<R_job*> job_list_;
-
-public:
-    RenderJobQueue() {
-        mutex_ = SDL_CreateMutex();
-    }
-
-    ~RenderJobQueue() {
-        SDL_DestroyMutex(mutex_);
-    }
-
-    void push(R_job* job) {
-        SDL_LockMutex(mutex_);
-        job_list_.push(job);
-        SDL_UnlockMutex(mutex_);
-    }
-
-    R_job* pop() {
-        R_job* pjob = 0;
-        SDL_LockMutex(mutex_);
-        if(!job_list_.empty()) {
-            pjob = job_list_.front();
-            job_list_.pop();
-        }
-        SDL_UnlockMutex(mutex_);
-        return pjob;
-    }
-
-    size_t size() { 
-        return job_list_.size();
-    }
-};
+typedef TSQueue<R_job*> RenderJobQueue;
 
 RenderJobQueue* g_render_job_queue = 0;
 
@@ -592,11 +560,12 @@ int main(int argc, char** argv)
                     }
             };
             g_render_job_queue->push( new R_handle_events() );
-
+#if SIMULATE_MAIN_THREAD_WORK
             const uint32_t num_draw_calls = (rand()%3) + 1;
             for(uint32_t i=0; i<num_draw_calls;++i) {
                 g_render_job_queue->push( new R_draw_job(std::string("DIP"), (rand()%2) + 1) );
             }
+#endif
 
             g_render_job_queue->push( new R_render() );
 
@@ -677,9 +646,8 @@ int main(int argc, char** argv)
 int RenderThreadMain(void* /*data*/) {
 
     while(g_rendering) {
-        R_job* pjob = g_render_job_queue->pop();
-        if(pjob)
-        {
+        g_render_job_queue->wait_for_job();
+        while(R_job* pjob = g_render_job_queue->pop()) {
             int rv = pjob->exec(); 
             delete pjob;
             if(0 != rv)
