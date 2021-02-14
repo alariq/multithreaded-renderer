@@ -399,6 +399,10 @@ struct mat2 {
 	}
 
 	operator const float *() const { return (const float *) elem; }
+	operator float *() { return (float *) elem; }
+
+    float* operator[](int i) { return &(elem[i][0]); }
+    const float* operator[](int i) const { return &(elem[i][0]); }
 
 };
 
@@ -436,6 +440,9 @@ struct mat3 {
 	}
 
 	operator const float *() const { return (const float *) elem; }
+	operator float *() { return (float *) elem; }
+    float* operator[](int i) { return &(elem[i][0]); }
+    const float* operator[](int i) const { return &(elem[i][0]); }
 };
 
 mat3 operator + (const mat3 &m, const mat3 &n);
@@ -474,6 +481,9 @@ struct mat4 {
 	vec3 getForwardVec() const { return vec3(elem[2][0], elem[2][1], elem[2][2]); }
 
 	operator const float *() const { return (const float *) elem; }
+    float* operator[](int i) { return &(elem[i][0]); }
+    const float* operator[](int i) const { return &(elem[i][0]); }
+
 	void translate(const vec3 &v);
 
 	// ps3 interface support
@@ -554,6 +564,10 @@ mat4 rotateZ4(const float angle);
 mat4 rotateXY4(const float angleX, const float angleY);
 mat4 rotateZXY4(const float angleX, const float angleY, const float angleZ);
 //@}
+
+mat2 upper2x2(const mat3&);
+mat2 upper2x2(const mat4&);
+mat3 upper3x3(const mat4&);
 
 /** Creates a 4x4 translation matrix by the input vector */
 mat4 translate(const float x, const float y, const float z);
