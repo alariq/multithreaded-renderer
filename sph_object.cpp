@@ -141,7 +141,6 @@ SPHSceneObject* SPHSceneObject::Create(const vec2& view_dim, int num_particles, 
 
     o->fluid_ = fm;
     o->boundaries_.push_back(bm);
-    o->boundaries_.push_back(bm2);
     o->emitters_.push_back(e);
 
     o->surface_ = new SPHSurfaceMesh();
