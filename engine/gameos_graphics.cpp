@@ -1281,6 +1281,8 @@ class gosRenderer {
             height_ = h;
             ctx_h_ = ctx_h;
             win_h_ = win_h;
+
+            pendingRequest = false;
         }
 
         uint32_t addTexture(gosTexture* texture) {
@@ -1706,9 +1708,6 @@ void gosRenderer::init() {
 
     glGenVertexArrays(1, &gVAO);
 
-
-    pendingRequest = false;
-
     num_draw_calls_ = 0;
     num_draw_calls_to_draw_ = 0;
     break_on_draw_call_ = false;
@@ -2087,6 +2086,7 @@ void gosRenderer::handleEvents()
                 0, 0, 1.0f, 0.0f,
                 0, 0, 0.0f, 1.0f);
 
+        // probably renderer should not manage the window
         if(graphics::resize_window(win_h_, width_, height_))
 		{
             graphics::set_window_fullscreen(win_h_, reqGotoFullscreen);
