@@ -1,4 +1,4 @@
-cmake_minimum_required (VERSION 2.8)
+cmake_minimum_required (VERSION 3.10)
 project(engine)
 
 set(SOURCES ${SOURCES}
@@ -66,11 +66,9 @@ set(SOURCES ${SOURCES}
     Remotery/lib/Remotery.h
     )
 
-#find_package(SDL2 REQUIRED PATHS "/opt" NO_DEFAULT_PATH)
-#include_directories("${SDL2_PREFIX}/include")
-
 include_directories(".")
 include_directories("../platform/include")
 
 add_library(engine ${SOURCES})
+target_compile_definitions(engine PUBLIC $<$<CONFIG:Debug>:_ARMOR _DEBUG BUGLOG LAB_ONLY>)
 

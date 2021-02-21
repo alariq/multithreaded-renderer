@@ -1,4 +1,4 @@
-cmake_minimum_required (VERSION 2.8)
+cmake_minimum_required (VERSION 3.10)
 cmake_policy(SET CMP0072 NEW) # cmake --help-policy CMP0072
 project(mt-renderer)
 
@@ -31,7 +31,6 @@ endif()
 
 
 # to support windows sln file generator as well
-set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -D_ARMOR -D_DEBUG -DBUGLOG -DLAB_ONLY")
 #set(CMAKE_CXX_FLAGS_RELWITHDEBINFO" ${CMAKE_CXX_FLAGS_RELWITHDEBINFO} -DSOME_STUFF")
 if(MSVC)
     # disable:
