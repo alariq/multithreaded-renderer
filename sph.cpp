@@ -16,6 +16,7 @@
 static SPHSimulation* g_sim = nullptr;
 static SPHEmitterSystem* g_emitter_system = nullptr;
 void sph_init() {
+    assert(nullptr == g_sim);
     g_sim = new SPHSimulation();
     g_sim->Setup();
     g_emitter_system = new SPHEmitterSystem();
@@ -28,13 +29,14 @@ void sph_init_renderer() {
 }
 
 void sph_deinit() {
+    assert(nullptr != g_sim);
+    sph_editor_deinit();
+
     delete g_emitter_system;
     g_emitter_system = nullptr;
 
     delete g_sim;
     g_sim = nullptr;
-
-    sph_editor_deinit();
 }
 
 SPHEmitterSystem* sph_get_emitter_system() {

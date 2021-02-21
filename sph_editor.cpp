@@ -8,9 +8,9 @@
 #include "engine/utils/camera.h"
 #include "engine/utils/camera_utils.h"
 
-static int g_editor_id = -1;
+static int g_sph_editor_id = -1;
 
-void sph_editor_update(camera* cam, float dt, GameObject* sel_go) {
+GameObject* sph_editor_update(camera* cam, float dt, GameObject* sel_go) {
 
     SPHSimulation* sim = sph_get_simulation();
 
@@ -29,6 +29,12 @@ void sph_editor_update(camera* cam, float dt, GameObject* sel_go) {
         tr->SetPosition(int_pt);
         scene_add_game_object(bo);
     }
+    else if(gos_GetKeyStatus(KEY_DELETE) == KEY_PRESSED && sel_go) {
+        scene_delete_game_object(sel_go);
+        return nullptr;
+    }
+
+    return sel_go;
 }
 
 void sph_editor_render_update(struct RenderFrameContext* rfc) {
@@ -52,11 +58,11 @@ void sph_editor_init() {
     uei.render_update = sph_editor_render_update;
     uei.wants_activate = sph_editor_wants_activate;
     uei.name = sph_editor_name;
-    g_editor_id = editor_register_user_editor(uei);
+    g_sph_editor_id = editor_register_user_editor(uei);
 }
 
 void sph_editor_deinit() {
-    editor_unregister_user_editor(g_editor_id);
-    g_editor_id = -1;
+    editor_unregister_user_editor(g_sph_editor_id);
+    g_sph_editor_id = -1;
 }
 
