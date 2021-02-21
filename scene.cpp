@@ -48,7 +48,6 @@ const std::vector<PointLight>& scene_get_light_list() {
 
 void initialize_scene(const struct camera *cam, struct RenderFrameContext *rfc) {
     (void)cam;
-    sph_init();
     g_components.resize((size_t)ComponentType::kCount);
 #if 0
     const uint32_t NUM_OBJECTS = 3;
@@ -158,8 +157,6 @@ void finalize_scene() {
         GameObject *go = *it;
         delete go;
     }
-
-    sph_deinit();
 }
 
 void scene_update(const camera *cam, const bool b_update_simulation, const float dt) {
@@ -175,8 +172,6 @@ void scene_update(const camera *cam, const bool b_update_simulation, const float
 
 	if (b_update_simulation) {
 
-		sph_update(dt);
-		ParticleSystemManager::Instance().Update(dt);
 
 		for (; it != end; ++it) {
 			GameObject *go = *it;

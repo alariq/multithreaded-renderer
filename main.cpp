@@ -92,7 +92,6 @@ void __stdcall Init(void)
 
 void __stdcall Deinit(void)
 {
-    sph_deinit();
 
     g_obj_id_renderer.Deinit();
 
@@ -103,6 +102,8 @@ void __stdcall Deinit(void)
     finalize_editor();
     finalize_scene();
     finalize_res_man();
+
+    sph_deinit();
 
     printf("::Deinit\n");
 }
@@ -156,6 +157,8 @@ void __stdcall Update(void)
 
     uint64_t end_tick = timing::gettickcount();
     float dt_sec = ((float)timing::ticks2ms(end_tick - start_tick))/1e3f;
+    // stop-on-breakpoint-proof dt
+    dt_sec = clamp(dt_sec, 0.0f, 0.033f*10);
 
     //printf("dt: %zd\n", dt);
 
@@ -181,6 +184,12 @@ void __stdcall Update(void)
 	} else {
 		editor_update(&g_camera, dt_sec);
 	}
+
+    // TODO: move to array of systems ?
+    if(g_update_simulation) {
+        sph_update(dt_sec);
+        ParticleSystemManager::Instance().Update(dt_sec);
+    }
 
     scene_update(&g_camera, g_update_simulation, dt_sec);
     if (g_update_simulation) {
