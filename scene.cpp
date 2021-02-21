@@ -166,7 +166,6 @@ void scene_update(const camera *cam, const bool b_update_simulation, const float
 
 	if (b_update_simulation) {
 
-		ParticleSystemManager::Instance().Update(dt);
 
 		for (; it != end; ++it) {
 			GameObject *go = *it;
