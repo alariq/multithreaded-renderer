@@ -15,6 +15,7 @@
 typedef std::list<GameObject*> ObjList_t;
 static ObjList_t g_world_objects;
 static std::vector<GameObject*> g_render_init_pending;
+static std::vector<GameObject*> g_render_destroy_pending;
 // have separate arrays of concrete types?
 static std::vector<std::vector<Component*>> g_components;
 static std::vector<PointLight> g_light_list;
@@ -186,6 +187,27 @@ void scene_add_game_object(GameObject* go) {
     g_render_init_pending.push_back(go);
 }
 
+// TODO: what will happen if object is still in g_render_init_pending?
+void scene_delete_game_object(GameObject* go) {
+    auto b = g_world_objects.begin();
+    auto e = g_world_objects.end();
+	auto it = std::find(b, e, go);
+    assert(it!=e);
+    if(it!=e) {
+
+	    g_world_objects.erase(it);
+
+		for (Component *comp : go->GetComponents()) {
+            auto& cmp_list = g_components[(uint32_t)comp->GetType()];
+			auto b = std::begin(cmp_list);
+			auto e = std::end(cmp_list);
+            cmp_list.erase(std::remove(b, e, comp), e);
+		}
+
+        g_render_destroy_pending.push_back(go);
+	}
+}
+
 void scene_render_update(struct RenderFrameContext *rfc, bool is_in_editor_mode) {
 
     RenderList *frame_render_list = rfc->rl_;
@@ -206,28 +228,47 @@ void scene_render_update(struct RenderFrameContext *rfc, bool is_in_editor_mode)
         }
     }
 
-    auto b = std::begin(g_render_init_pending);
-    auto e = std::end(g_render_init_pending);
-	g_render_init_pending.erase(
-		std::remove_if(b, e, [](GameObject *o) { return o == nullptr; }), e);
-    //
+    // update render destroy pending array
+    for (GameObject*& gameobj: g_render_destroy_pending) {
+        if(!gameobj->IsRenderInitialized()) {
+			assert(std::find(g_world_objects.begin(), g_world_objects.end(), gameobj) ==
+				   g_world_objects.end());
 
-    // schedule render resource initialization for pending objects
+            delete gameobj;
+            gameobj = nullptr;
+        }
+    }
+
+	{
+		auto b = std::begin(g_render_init_pending);
+		auto e = std::end(g_render_init_pending);
+		g_render_init_pending.erase(
+			std::remove_if(b, e, [](GameObject *o) { return o == nullptr; }), e);
+	}
+	{
+		auto b = std::begin(g_render_destroy_pending);
+		auto e = std::end(g_render_destroy_pending);
+		g_render_destroy_pending.erase(
+			std::remove_if(b, e, [](GameObject *o) { return o == nullptr; }), e);
+	}
+
+	// schedule render resource initialization for pending objects
 	for (GameObject* gameobj: g_render_init_pending) {
         // TEMP: TODO: I know I can't touch GameObject in render thread
         // but I need to initalize its render state
         // make it shared object and take weak ref to it, then check if it is
         // still valid when render thread does it's job
-		ScheduleRenderCommand(rfc, [gameobj]() {
-			gameobj->InitRenderResources();
-			gameobj->SetInitialized(true);
-		});
+	    ScheduleRenderCommand(rfc, [gameobj]() { gameobj->DoInitRenderResources(); });
 	}
-    //
 
-    for (const GameObject* go: g_world_objects) {
+	for (GameObject *gameobj : g_render_destroy_pending) {
+		ScheduleRenderCommand(rfc, [gameobj]() { gameobj->DoDeinitRenderResources(); });
+	}
+	//
 
-        // TODO: check if visible
+	for (const GameObject *go : g_world_objects) {
+
+		// TODO: check if visible
         // ...
 
         const auto* tc = go->GetComponent<TransformComponent>();
@@ -261,10 +302,9 @@ void scene_render_update(struct RenderFrameContext *rfc, bool is_in_editor_mode)
                 add_debug_mesh_constant_size_px(rfc, mesh, vec4(0,0.5,1,1), mat4::translation(pos), 10, go->GetId());
             }
         }
+	}
 
-    }
-
-    rfc->point_lights_ = g_light_list;
+	rfc->point_lights_ = g_light_list;
 }
 
 void scene_get_intersected_objects(
