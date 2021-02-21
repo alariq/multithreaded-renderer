@@ -218,8 +218,13 @@ static void process_events( void ) {
                 SDL_PumpEvents();
                 SDL_FlushEvents(SDL_FIRSTEVENT, SDL_LASTEVENT);
                 break;
-            }
-            else {
+            } if (event.type == SDL_WINDOWEVENT &&
+				event.window.event == SDL_WINDOWEVENT_RESIZED) {
+                    float w = (float)event.window.data1;
+                    float h = (float)event.window.data2;
+                    gos_SetScreenMode(w, h);
+                    SPEW(("INPUT", "resize event while unfocused: w: %f h:%f\n", w, h));
+            } else {
                 continue;
             }
         }
@@ -251,7 +256,7 @@ static void process_events( void ) {
             {
                 float w = (float)event.window.data1;
                 float h = (float)event.window.data2;
-                glViewport(0, 0, (GLsizei)w, (GLsizei)h);
+                gos_SetScreenMode(w, h);
                 SPEW(("INPUT", "resize event: w: %f h:%f\n", w, h));
                 break;
             }

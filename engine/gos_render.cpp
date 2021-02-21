@@ -504,8 +504,9 @@ void get_window_size(RenderWindowHandle rw_handle, int* width, int* height)
 {
     RenderWindow* rw = (RenderWindow*)rw_handle;
     assert(rw && width && height);
-    *width = rw->width_;
-    *height = rw->height_;
+    SDL_GetWindowSize(rw_handle->window_, width, height);
+    assert(rw->width_ == *width);
+    assert(rw->height_ == *height);
 }
 
 //==============================================================================

@@ -439,9 +439,8 @@ void parse_uniforms(GLuint pprogram, glsl_program::UniArr_t* puniforms, glsl_pro
 			static const char *typeNames[] = {
 				"sampler_1d", "sampler_2d", "sampler_3d", "sampler_cube", "sampler_1d_shadow", "sampler_2d_shadow"
 			};
+			log_debug("name: %s type: %s\n", buf, typeNames[psampler->type_]);
 
-			log_info("name: %s type: %s\n", buf, typeNames[psampler->type_]);
-	
 			psamplers->insert(std::make_pair(psampler->name_, psampler));
 
 			continue;
@@ -477,7 +476,7 @@ void parse_uniforms(GLuint pprogram, glsl_program::UniArr_t* puniforms, glsl_pro
             "float", "int  ", "vec2 ", "vec3 ", "vec4 ", "ivec2", "ivec3", "ivec4",
             "bool ", "bvec2", "bvec3", "bvec4", "mat2 ", "mat3 ", "mat4 "
         };
-        log_info("name: %s type: %s  num_el: %d\n", buf, typeNames[puni->type_], puni->num_el_);
+        log_debug("name: %s type: %s  num_el: %d\n", buf, typeNames[puni->type_], puni->num_el_);
 
         puniforms->insert( std::make_pair(puni->name_, puni) );
     }
