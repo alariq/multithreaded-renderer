@@ -55,6 +55,7 @@ void scene_get_intersected_objects(
     std::vector<std::pair<float, GameObject *>>& out_obj);
 
 void scene_add_game_object(GameObject* go);
+void scene_delete_game_object(GameObject* go);
 
 const std::vector<PointLight>& scene_get_light_list();
 

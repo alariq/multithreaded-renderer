@@ -19,9 +19,24 @@ class ParticleSystem;
 class IRenderable {
     std::atomic_bool bRenderInitialized = false;
 public:
-    void SetInitialized(bool b_is_init) { bRenderInitialized = b_is_init; }
     bool IsRenderInitialized() const { return bRenderInitialized; }
-    virtual void InitRenderResources() = 0;
+	void DoInitRenderResources() {
+		// check in case we've already scheduled it, but initialization did not happed
+		// prev. frame due to e.g. latency issues (2 frames latency)
+		if (!bRenderInitialized) {
+			InitRenderResources();
+			bRenderInitialized = true;
+		}
+	}
+
+	void DoDeinitRenderResources() {
+		if (bRenderInitialized) {
+			InitRenderResources();
+			bRenderInitialized = false;
+		}
+	}
+
+	virtual void InitRenderResources() = 0;
     virtual void DeinitRenderResources() = 0;
     virtual void AddRenderPackets(struct RenderFrameContext* ) const {};
     virtual ~IRenderable() {}
@@ -170,7 +185,9 @@ public:
 		id_ = ++counter;
 	}
     virtual ~GameObject() {
-        assert(0 == components_.size());
+        for(Component* c: components_) {
+            delete c;
+        }
     }
 };
 
