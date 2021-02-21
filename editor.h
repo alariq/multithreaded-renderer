@@ -1,7 +1,7 @@
 #pragma once
 
 struct UserEditorInterface {
-    typedef void (*update_t)(struct camera* cam, float dt, class GameObject* sel_go);
+    typedef class GameObject* (*update_t)(struct camera* cam, float dt, class GameObject* sel_go);
     typedef void (*render_update_t)(struct RenderFrameContext *rfc);
     typedef bool (*wants_activate_t)();
     typedef const char* (*name_t)();

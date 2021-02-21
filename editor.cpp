@@ -454,7 +454,7 @@ void editor_update(camera *cam, const float dt) {
     }
 
     if(g_active_user_editor != -1) {
-        registered_editors[g_active_user_editor].update(cam, dt, g_sel_obj);
+        g_sel_obj = registered_editors[g_active_user_editor].update(cam, dt, g_sel_obj);
     }
 }
 
