@@ -74,7 +74,7 @@ struct SPHGrid {
 
     // linearIndex()
     ivec2 getCellCoordFromCellIndex(int idx) const  {
-		ivec2 coord = ivec2(idx % res_.x, idx / res_.y);
+		ivec2 coord = ivec2(idx % res_.x, idx / res_.x);
         return coord;
 	}
 

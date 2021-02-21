@@ -226,7 +226,7 @@ void identify_surface_vertices(SPHGrid* grid, SPHParticle2D* particles, int num_
 
 	// check all cell in 3*radius
 	const float thresholdSqr = 3 * radius * 3 * radius;
-    const vec2 cells_in_radius = grid->getCellSize() / (3.0f * radius);
+    const vec2 cells_in_radius = vec2(3.0f * radius) / grid->getCellSize() ;
 	const ivec2 num_cells2check = ivec2(1 + (int)cells_in_radius.x, 1 + (int)cells_in_radius.y);
     const ivec2 num_vert = grid->getNumVertices();
     const vec2 cell_size = grid->getCellSize();
