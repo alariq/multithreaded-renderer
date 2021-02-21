@@ -55,7 +55,8 @@ void SPHBoundaryObject::removeFromSimulation(SPHSimulation* sim) {
 SPHBoundaryObject::~SPHBoundaryObject()
 {
     delete RemoveComponent(Tuple_.tr_);
-    SPHBoundaryComponent::Destroy(Tuple_.bm_);
+    auto c = RemoveComponent(Tuple_.bm_);
+    SPHBoundaryComponent::Destroy(c);
 }
 void SPHBoundaryObject::Update(float dt) {
 
@@ -94,18 +95,19 @@ void SPHBoundaryObject::AddRenderPackets(struct RenderFrameContext *rfc) const {
 void initialize_particle_positions(SPHFluidModel* fm);
 
 SPHSceneObject* SPHSceneObject::Create(const vec2& view_dim, int num_particles, const vec3& pos) {
-    SPHSceneObject* o = new SPHSceneObject();
-    o->view_dim_ = view_dim;
-    o->radius_ = 0.1f;
-	// recommended by 2014_EG_SPH_STAR.pdf 7.1
-	// float grid_cell = o->radius_;
-	// vec2 grid_res = view_dim / grid_cell;
-	//    ivec2 igrid_res = ivec2(min(grid_res.x, 64.0f), min(grid_res.y, 64.0f));
-	//   o->grid_ = SPHGrid::makeGrid(igrid_res.x, igrid_res.y, view_dim);
 
     const bool b_is2d = true;
 
-	o->grid_ = SPHGrid::makeGrid(64, 64, view_dim);
+    SPHSceneObject* o = new SPHSceneObject();
+    o->view_dim_ = view_dim;
+    o->radius_ = 0.1f;
+
+	// recommended by 2014_EG_SPH_STAR.pdf 7.1
+	float grid_cell = o->radius_;
+	vec2 grid_res = view_dim / grid_cell;
+	ivec2 igrid_res = ivec2(min(grid_res.x, 128.0f), min(grid_res.y, 128.0f));
+	o->grid_ = SPHGrid::makeGrid(igrid_res.x, igrid_res.y, view_dim);
+
     auto tr = o->AddComponent<TransformComponent>();
     tr->SetPosition(pos);
     o->transform_ = tr;
@@ -127,10 +129,12 @@ SPHSceneObject* SPHSceneObject::Create(const vec2& view_dim, int num_particles, 
     fm->grid_ = o->grid_;
     initialize_particle_positions(fm);
 
-    const float volume_map_cell_size = 0.1f;
+    const vec2 boundary_size = vec2(10, 2);
+    const float volume_map_cell_size = o->radius_;
     SPHBoundaryModel* bm = new SPHBoundaryModel();
-    ivec3 resolution = ivec3((int)(o->view_dim_.x / volume_map_cell_size), (int)(o->view_dim_.y / volume_map_cell_size), 1);
-    bm->Initialize(vec3(o->view_dim_.x, o->view_dim_.y, 10000.0f), fm->radius_, fm->support_radius_, resolution, b_is2d, true);
+    ivec3 resolution = ivec3((int)(boundary_size.x / volume_map_cell_size), (int)(boundary_size.y / volume_map_cell_size), 1);
+    bm->Initialize(vec3(boundary_size, 10000.0f), fm->radius_, fm->support_radius_, resolution, true, false);
+    bm->setTransform(mat4::translation(vec3(-0.5f*boundary_size, 0.0f)));
 
     SPHEmitter* e = SPHEmitterSystem::createrEmitter();
     e->dir_ = normalize(vec2(1,1));
