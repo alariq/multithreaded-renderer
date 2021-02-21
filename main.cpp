@@ -472,8 +472,8 @@ void __stdcall Render(void)
 
 		// TODO: this stalls GPU, make is async through FBO
 		g_obj_under_cursor =
-			g_obj_id_renderer.Readback((uint32_t)(Environment.drawableWidth * xpos),
-									   (uint32_t)(Environment.drawableHeight * (1 - ypos)));
+			g_obj_id_renderer.Readback((uint32_t)(SCREEN_W * xpos),
+									   (uint32_t)(SCREEN_H * (1 - ypos)));
 	}
 
     g_deferred_renderer.Present(Environment.drawableWidth,
