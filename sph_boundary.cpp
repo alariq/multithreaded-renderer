@@ -163,19 +163,19 @@ bool SPHBoundaryModel::Initialize(vec3 cube, float particle_radius, float suppor
     float dist_c = lattice_->interpolate_value_xy<kDistanceIdx>(lattice_->domain_min() + lattice_->cell_size());(void)dist_c;
 
     float dist_center = lattice_->interpolate_value_xy<kDistanceIdx>(lattice_->idx2pos(ivec3(resolution.x/2, resolution.y/2, 0)));
-    gosASSERT(dist_center > 0.0f);
+    gosASSERT((!b_invert_distance_ && dist_center < 0.0f) || (b_invert_distance_ && dist_center > 0.0f));
 
     vec2 norm_right = getNormal2D(lattice_->idx2pos(ivec3(res.x-1,res.y/2,0)).xy());
-    gosASSERT(norm_right.x < -0.5f);        
+    gosASSERT((!b_invert_distance_ && norm_right.x > 0.5f) || (b_invert_distance_ && norm_right.x < -0.5f));
 
     vec2 norm_left = getNormal2D(lattice_->idx2pos(ivec3(0,res.y/2,0)).xy());
-    gosASSERT(norm_left.x > 0.5f);        
+    gosASSERT((!b_invert_distance_ && norm_left.x < -0.5f) || (b_invert_distance_ && norm_left.x > 0.5f));
 
     vec2 norm_bottom = getNormal2D(lattice_->idx2pos(ivec3(res.x/2, 0, 0)).xy());
-    gosASSERT(norm_bottom.y > 0.5f);        
+    gosASSERT((!b_invert_distance_ && norm_bottom.y < -0.5f) || (b_invert_distance_ && norm_bottom.y > 0.5f));
 
     vec2 norm_top = getNormal2D(lattice_->idx2pos(ivec3(res.x/2, res.y-1, 0)).xy());
-    gosASSERT(norm_top.y < -0.5f);        
+    gosASSERT((!b_invert_distance_ && norm_top.y > 0.5f) || (b_invert_distance_ && norm_top.y < -0.5f));
 
     return true;
 }
