@@ -10,6 +10,8 @@
 
 #include "Tracy/Tracy.hpp"
 #include "Tracy/TracyC.h"
+
+#include "utils/graphics.h"
 #include "Tracy/TracyOpenGL.hpp"
 
 #define prof_initialize()

@@ -1,5 +1,6 @@
 .vs/
 .vscode/
+.vs/
 .clangd/
 .cache/
 .ccls-cache/
@@ -9,6 +10,7 @@ dump/
 out/
 build/
 build-*/
+build*/
 cmake-*/
 tools/
 cachegrind.*

@@ -1,4 +1,5 @@
 #ifdef PLATFORM_WINDOWS
+#define NOMNMAX
 #include <windows.h>
 #endif
 #include <GL/glew.h>

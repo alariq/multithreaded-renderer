@@ -229,8 +229,8 @@ static void process_events( void ) {
                     float w = (float)event.window.data1;
                     float h = (float)event.window.data2;
                     SPEW(("INPUT", "resize event while unfocused: w: %f h:%f\n", w, h));
-                    g_pending_width = w;
-                    g_pending_height = h;
+                    g_pending_width = (int)w;
+                    g_pending_height = (int)h;
             } else {
                 continue;
             }
@@ -264,8 +264,8 @@ static void process_events( void ) {
                 float w = (float)event.window.data1;
                 float h = (float)event.window.data2;
                 SPEW(("INPUT", "resize event: w: %f h:%f\n", w, h));
-                g_pending_width = w;
-                g_pending_height = h;
+                g_pending_width = (int)w;
+                g_pending_height = (int)h;
                 break;
             }
             case SDL_WINDOWEVENT_FOCUS_LOST:

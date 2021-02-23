@@ -1,6 +1,7 @@
 #include "timing.h"
 
 #ifdef PLATFORM_WINDOWS
+#define NOMNMAX
 #include<windows.h>
 #include<time.h>
 #else

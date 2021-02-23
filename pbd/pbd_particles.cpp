@@ -392,7 +392,12 @@ mat2 calculateQ(const mat2 m, float* angle) {
 	float theta = atan2(m[1][0] - m[0][1], m[0][0] + m[1][1]);
 
     float s, c;
+#if PLATFORM_WINDOWS
+	s = sinf(theta);
+	c = cosf(theta);
+#else
     sincosf(theta, &s, &c);
+#endif
     *angle = theta;
     return mat2(c, -s, s, c);
 }
@@ -1040,8 +1045,10 @@ vec2 PBDUnifiedTimestep::getBoundaryGrad(PBDUnifiedSimulation* sim, int i, const
 
 void PBDUnifiedTimestep::fluidUpdate(PBDUnifiedSimulation* sim, float dt,
 									 std::vector<vec2>& pos_array) {
-
-    return fluidUpdate_GS(sim, dt, pos_array);
+	if (1)
+	{
+		return fluidUpdate_GS(sim, dt, pos_array);
+	}
 
 	const int num_fluid_particles = (int)sim->fluid_particle_idxs_.size();
 	std::vector<PBDParticle>& p = sim->particles_;

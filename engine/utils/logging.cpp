@@ -1,6 +1,7 @@
 #include "utils/logging.h"
 
 #ifdef PLATFORM_WINDOWS
+#define NOMNMAX
 #include <windows.h>
 #else
 #include <cstdarg>

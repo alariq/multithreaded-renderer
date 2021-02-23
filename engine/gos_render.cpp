@@ -1,6 +1,7 @@
 #include "gos_render.h"
 
 #ifdef PLATFORM_WINDOWS
+#define NOMINMAX
 #include <windows.h>
 #endif
 #include <stdio.h>
