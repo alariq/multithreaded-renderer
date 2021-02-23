@@ -18,5 +18,5 @@ void finalize_editor();
 void editor_update(struct camera* cam, const float dt);
 void editor_render_update(struct RenderFrameContext *rfc);
 
-int editor_register_user_editor(UserEditorInterface interface);
+int editor_register_user_editor(UserEditorInterface ue_interface);
 void editor_unregister_user_editor(int id);

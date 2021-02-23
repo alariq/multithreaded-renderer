@@ -10,7 +10,7 @@ void initialize_particle_positions(class SPHSceneObject* o);
 class PBDTestObject: public GameObject {
     TransformComponent* transform_ = nullptr;
 
-    class PBDUnifiedSimulation* sim_;
+    struct PBDUnifiedSimulation* sim_;
     vec2 sim_dim_;
     vec2 sim_origin_;
 

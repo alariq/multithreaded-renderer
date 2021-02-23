@@ -4,6 +4,7 @@
 #include "engine/utils/frustum.h"
 #include "engine/utils/obj_loader.h"
 #include "engine/utils/matrix.h"
+#include "engine/profiler/profiler.h"
 #include "engine/gameos.hpp"
 
 #include "sph.h"
@@ -18,7 +19,6 @@
 #include "deferred_renderer.h"
 #include "obj_id_renderer.h"
 
-#include "engine/profiler/profiler.h"
 #include <cstdlib>
 #include <cstddef>
 #include <string>

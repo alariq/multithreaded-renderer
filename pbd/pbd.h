@@ -62,11 +62,11 @@ struct RigidBody {
 
 	void setBox(const vec3 &size, float density) {
 		float mass = size.x * size.y * size.z * density;
-		inv_mass = 1.0 / mass;
-		mass /= 12.0;
-		inv_inertia = vec3(1.0 / (size.y * size.y + size.z * size.z) / mass,
-						   1.0 / (size.z * size.z + size.x * size.x) / mass,
-						   1.0 / (size.x * size.x + size.y * size.y) / mass);
+		inv_mass = 1.0f / mass;
+		mass /= 12.0f;
+		inv_inertia = vec3(1.0f / (size.y * size.y + size.z * size.z) / mass,
+						   1.0f / (size.z * size.z + size.x * size.x) / mass,
+						   1.0f / (size.x * size.x + size.y * size.y) / mass);
     
         int i=0;
         const vec3 scale = 0.5f * size;

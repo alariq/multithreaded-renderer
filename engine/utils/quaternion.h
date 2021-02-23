@@ -39,21 +39,21 @@ struct quaternion {
     }
 
 	vec3 axis0() const {
-		float x2 = x * 2.0;
-		float w2 = w * 2.0;
-		return vec3((w * w2) - 1.0 + x * x2, (z * w2) + y * x2, (-y * w2) + z * x2);
+		float x2 = x * 2.0f;
+		float w2 = w * 2.0f;
+		return vec3((w * w2) - 1.0f + x * x2, (z * w2) + y * x2, (-y * w2) + z * x2);
 	}
 
     vec3 axis1() const {
-        float y2 = y * 2.0;
-        float w2 = w * 2.0;
-        return vec3((-z * w2) + x * y2, (w * w2) - 1.0 + y * y2, (x * w2) + z * y2);
+        float y2 = y * 2.0f;
+        float w2 = w * 2.0f;
+        return vec3((-z * w2) + x * y2, (w * w2) - 1.0f + y * y2, (x * w2) + z * y2);
     }
 
     vec3 axis2() const {
-        float z2 = z * 2.0;
-        float w2 = w * 2.0;
-        return vec3((y * w2) + x * z2, (-x * w2) + y * z2, (w * w2) - 1.0 + z * z2);
+        float z2 = z * 2.0f;
+        float w2 = w * 2.0f;
+        return vec3((y * w2) + x * z2, (-x * w2) + y * z2, (w * w2) - 1.0f + z * z2);
     }
 
     float length_sq() const {

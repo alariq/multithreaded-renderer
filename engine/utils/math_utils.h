@@ -2,6 +2,7 @@
 
 #include "vec.h"
 #include "quaternion.h"
+#include <cstdlib>
 #include <cfloat>
 
 // [s, e]

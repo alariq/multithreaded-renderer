@@ -1,4 +1,5 @@
 .vscode/
+.vs/
 .clangd/
 .cache/
 .ccls-cache/
@@ -6,6 +7,7 @@ build-ninja/
 dump/
 *.swp
 *.dll
+*.plist
 build*/
 cmake-*/
 cachegrind.*

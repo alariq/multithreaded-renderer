@@ -49,7 +49,8 @@ if(MSVC)
     # 4514 - unreferenced inline function has been removed
     # 4121 - alignment of a member was sensitive to packing
     # 4201 - nonstandard extension used: nameless struct/union
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /std:c++17 /W4 /wd4514 /wd4121 /wd4201")
+    # latest - for designated initializers
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /std:c++latest /W4 /wd4514 /wd4121 /wd4201")
     # as error:
     # 4099 - type name first seen using 'struct' now seen using 'class'
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /we4099")

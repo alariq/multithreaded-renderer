@@ -50,7 +50,7 @@ struct DistanceFieldCollisionObject : public ICollisionObject {
     virtual bool collisionTest(const vec3& x, const float tolerance, vec3* cp, vec3* n, float* dist, const float max_dist = 0.0f);
     virtual vec3 approximateNormal(const vec3 &x, const float tolerance);
 
-    virtual double distance(const vec3 &x, const float tolerance) = 0;
+    virtual float distance(const vec3 &x, const float tolerance) = 0;
 };
 
 struct DistanceFieldCollisionObjectBox : public DistanceFieldCollisionObject {
@@ -58,7 +58,7 @@ struct DistanceFieldCollisionObjectBox : public DistanceFieldCollisionObject {
     vec3 box_;
 
 	virtual int getTypeId() override { return type_; }
-    virtual double distance(const vec3 &x, const float tolerance) override {
+    virtual float distance(const vec3 &x, const float tolerance) override {
         return distance_box(box_, x, invert_?-1.0f : 1.0f, tolerance);
     }
 };
@@ -68,7 +68,7 @@ struct DistanceFieldCollisionObjectSphere : public DistanceFieldCollisionObject 
     float radius_;
 
 	virtual int getTypeId() override { return type_; }
-    virtual double distance(const vec3 &x, const float tolerance) override {
+    virtual float distance(const vec3 &x, const float tolerance) override {
         return distance_sphere(radius_, x, invert_?-1.0f : 1.0f, tolerance);
     }
 };

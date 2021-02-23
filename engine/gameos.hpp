@@ -57,6 +57,7 @@ static __inline__ unsigned long long rdtsc(void)
 #else
 #include <memory.h> // memcmp
 #include <inttypes.h>
+#define NOMINMAX
 #include <windows.h>
 #ifdef _WIN64
 static inline unsigned long long rdtsc(void)
