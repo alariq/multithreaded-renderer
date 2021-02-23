@@ -1,6 +1,7 @@
 #pragma once
 
 #include "vec.h"
+#include <cstdlib>
 #include <cfloat>
 
 // [s, e]

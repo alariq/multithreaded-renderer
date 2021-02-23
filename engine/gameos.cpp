@@ -1,6 +1,7 @@
 #include "gameos.hpp"
 //#include "toolos.hpp"
 //#include "memorymanager.hpp" // gos_Heap
+#include "utils/defines.h"
 #include <stdio.h>
 #include <time.h>
 #include <stdlib.h> // rand
@@ -192,6 +193,15 @@ void __stdcall gos_WalkMemoryHeap(HGOSHEAP pHeap, bool vociferous/* = false*/)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+void* gos_AlignedAlloc( std::size_t count, std::align_val_t al ) {
+#if COMPILER_MSVC
+    return _aligned_malloc(count, (size_t)al);
+#else
+    return aligned_alloc((size_t)al, count);
+#endif
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 void* operator new(size_t sz) {
     return gos_Malloc(sz, NULL);
@@ -200,19 +210,19 @@ void* operator new[](size_t sz) {
     return gos_Malloc(sz, NULL);
 }
 void* operator new  ( std::size_t count, std::align_val_t al ) {
-    return aligned_alloc((size_t)al, count);
+    return gos_AlignedAlloc(count, al);
 }
 void* operator new[]  ( std::size_t count, std::align_val_t al ) {
-    return aligned_alloc((size_t)al, count);
+    return gos_AlignedAlloc(count, al);
 }
 void* operator new  ( std::size_t count,
                       std::align_val_t al, const std::nothrow_t& ) noexcept {
-    return aligned_alloc((size_t)al, count);
+    return gos_AlignedAlloc(count, al);
 }
 
 void* operator new[]  ( std::size_t count,
                       std::align_val_t al, const std::nothrow_t& ) noexcept {
-    return aligned_alloc((size_t)al, count);
+    return gos_AlignedAlloc(count, al);
 }
 void operator delete(void* ptr) noexcept {
     gos_Free(ptr);

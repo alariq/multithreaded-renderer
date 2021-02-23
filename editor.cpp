@@ -175,8 +175,8 @@ void finalize_editor()
 {
 }
 
-int editor_register_user_editor(UserEditorInterface interface) {
-    registered_editors.push_back(interface);
+int editor_register_user_editor(UserEditorInterface ue_interface) {
+    registered_editors.push_back(ue_interface);
     return (int)registered_editors.size()-1;
 }
 void editor_unregister_user_editor(int id) {

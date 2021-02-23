@@ -1,7 +1,7 @@
 #pragma once
 
-#if defined(_MSC_VER_)
-
+#if defined(_MSC_VER)
+    #define COMPILER_MSVC 1
 #elif defined(__clang__)
 
 #elif defined(__GNUC__)
