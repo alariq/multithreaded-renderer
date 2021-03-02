@@ -263,7 +263,7 @@ void SPHSceneObject::AddRenderPackets(struct RenderFrameContext *rfc) const {
 	ScheduleRenderCommand(rfc, [num_particles, inst_vb, particles, grid_verts, grid, boundaries, surface_grid_tex, sdf_tex, vsx, vsy]() {
 		const size_t bufsize = num_particles * sizeof(SPHParticle2D);
 		// TODO: think about typed buffer wrapper
-        uint32_t inst_buf_num_part = gos_GetBufferSizeBytes(inst_vb)/sizeof(SPHParticle2D);
+        int inst_buf_num_part = (int)(gos_GetBufferSizeBytes(inst_vb)/sizeof(SPHParticle2D));
         if(inst_buf_num_part < num_particles) {
             gos_ResizeBuffer(inst_vb, (uint32_t)(num_particles*1.5f));
         }
