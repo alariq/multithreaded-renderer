@@ -374,7 +374,7 @@ void editor_update(camera *cam, const float dt) {
 				float dp = clamp(dot(v0, v1), -1.0f, 1.0f);
 				float angle = acosf(dp);
 				
-				vec3 perp = cross(v1, v0);
+				vec3 perp = cross(v0, v1);
 				vec3 rot_axis = plane.xyz();
 				float k = dot(perp, rot_axis) < 0.0f ? -1.0f : 1.0f;
 
@@ -399,7 +399,7 @@ void editor_update(camera *cam, const float dt) {
 				vec3 v0 = normalize(start_pos - drag_start_obj_pos);
 				vec3 v1 = normalize(upd_pos - drag_start_obj_pos);
 				gosASSERT(v0 != v1);
-				vec3 axis = normalize(cross(v1, v0));
+				vec3 axis = normalize(cross(v0, v1));
 				float angle = acosf(clamp(dot(v0, v1), -1.0f ,1.0f));
 
 				quaternion add_rot = quaternion(axis, angle);

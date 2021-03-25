@@ -746,6 +746,58 @@ mat4 operator ! (const mat4 &m){
 	return mat * (1.0f / (m.elem[0][0] * mat.elem[0][0] + m.elem[1][0] * mat.elem[0][1] + m.elem[2][0] * mat.elem[0][2] + m.elem[3][0] * mat.elem[0][3]));
 }
 
+
+mat2 diag(const vec2& d) {
+    mat2 m;
+    m[0][0] = d.x;
+    m[0][1] = 0;
+    m[1][0] = 0;
+    m[1][1] = d.y;
+    return m;
+}
+
+mat3 diag(const vec3& d) {
+    mat3 m;
+    m[0][0] = d.x;
+    m[0][1] = 0;
+    m[0][2] = 0;
+
+    m[1][0] = 0;
+    m[1][1] = d.y;
+    m[1][2] = 0;
+
+    m[1][0] = 0;
+    m[1][1] = 0;
+    m[2][2] = d.z;
+
+    return m;
+}
+
+mat4 diag(const vec4& d) {
+    mat4 m;
+    m[0][0] = d.x;
+    m[0][1] = 0;
+    m[0][2] = 0;
+    m[0][3] = 0;
+
+    m[1][0] = 0;
+    m[1][1] = d.y;
+    m[1][2] = 0;
+    m[1][3] = 0;
+
+    m[2][0] = 0;
+    m[2][1] = 0;
+    m[2][2] = d.z;
+    m[2][3] = 0;
+
+    m[3][0] = 0;
+    m[3][1] = 0;
+    m[3][2] = 0;
+    m[3][3] = d.w;
+
+    return m;
+}
+
 mat2 upper2x2(const mat3& m) {
 
     mat2 r;
