@@ -6,8 +6,10 @@
 
 void TransformComponent::SetParent(TransformComponent* parent) {
 
-    if(parent_)
+    if(parent_) {
+        assert(parent_ != parent);
         parent_->RemoveChild(this);
+    }
 
     parent_ = parent;
 
@@ -20,7 +22,7 @@ void TransformComponent::SetParent(TransformComponent* parent) {
     }
 
     b_need_recalculate = true;
-    on_transformed();
+    update_transform();
 }
 
 void TransformComponent::AddChild(TransformComponent *child) {
@@ -39,10 +41,78 @@ void TransformComponent::RemoveChild(TransformComponent *child) {
 		std::remove_if(b, e, [child](TransformComponent *o) { return o == child; }), e);
 }
 
+void TransformComponent::SetPosition(const vec3& pos) {
+    wpos_ = pos;
+    if(parent_) {
+        pos_ =  parent_->ToLocal(wpos_);
+    } else {
+        pos_ = wpos_;
+    }
+    update_transform();
+}
+
+void TransformComponent::SetRotation(const quaternion& q) {
+    wrot_ = q;
+    if(parent_) {
+        rot_ = parent_->ToLocal(wrot_);
+    } else {
+        rot_ = wrot_;
+    }
+    update_transform();
+}
+
 void TransformComponent::UpdateComponent(float dt) {
-	if (NeedRecalculate()) {
+    // all hierarchy gets transformed, so no need to explicitly transform children
+	if (NeedRecalculate() && nullptr == parent_) {
 		update_transform();
 	}
+}
+
+MeshComponent* MeshComponent::Create(const char *res) {
+    static size_t comp_num = 0;
+    MeshComponent* comp = new MeshComponent();
+    comp->mesh_name_ = res;
+    comp->mesh_name_ += std::to_string(comp_num++);
+    return comp;
+}
+
+void MeshComponent::InitRenderResources() {
+    // assert(IsOnRenderThread());
+    mesh_ = res_man_load_mesh(mesh_name_);
+}
+
+void MeshComponent::SetMesh(const char* mesh_name) {
+    pending_mesh_name_ = mesh_name;
+}
+
+void MeshComponent::UpdateComponent(float dt) {
+
+    if(pending_mesh_) {
+        mesh_ = static_cast<decltype(mesh_)>(pending_mesh_.load());
+    }
+}
+
+void MeshComponent::AddRenderPackets(struct RenderFrameContext* rfc) const {
+
+    if(!pending_mesh_name_.empty()) {
+        auto mesh2load = pending_mesh_name_;
+		ScheduleRenderCommand(rfc, [this, mesh2load]() {
+			RenderMesh* mesh = res_man_load_mesh(mesh2load);
+            this->pending_mesh_.store((void*)mesh);
+		});
+        pending_mesh_name_.clear();
+	}
+
+    if(mesh_) {
+        class RenderList *rl = rfc->rl_;
+        RenderPacket *rp = rl->AddPacket();
+        memset(rp, 0, sizeof(RenderPacket));
+        rp->mesh_ = *mesh_;
+        rp->m_ = GetTransform();
+        //rp->is_debug_pass = 1;
+        rp->is_opaque_pass = 1;
+        rp->debug_color = vec4(0, 1, 0, 1);
+    }
 }
 
 ParticleSystemObject* ParticleSystemObject::Create()

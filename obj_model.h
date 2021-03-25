@@ -52,6 +52,8 @@ public:
 enum class ComponentType: int {
     kTransform = 0,
     kSPHBoundary,
+    kRigidBody,
+    kMesh,
     kCount
 };
 
@@ -68,21 +70,37 @@ class TransformComponent: public Component {
     quaternion rot_;
     vec3 pos_;
 
+    vec3 world_scale_;
+    vec3 world_wscale_;
+    quaternion wrot_;
+    vec3 wpos_;
+
     mutable mat4 transform_;
-    mutable bool b_need_recalculate = true;
+    mutable mat4 wtransform_;
+    mutable bool b_need_recalculate = false;
     TransformComponent* parent_ = nullptr;
     std::vector<TransformComponent*> children_;
 
 protected:
     virtual void on_transformed() {};
-    void update_transform() const {
-        transform_ = translate(pos_) * scale4(wscale_.x, wscale_.y, wscale_.z) *
-            quat_to_mat4(rot_) * scale4(scale_.x, scale_.y, scale_.z);
+    void update_transform() {
+
+		transform_ = translate(pos_) * scale4(wscale_.x, wscale_.y, wscale_.z) *
+					 quat_to_mat4(rot_) * scale4(scale_.x, scale_.y, scale_.z);
+
         if(parent_) {
-            transform_ = parent_->GetTransform() * transform_;
+            wpos_ = parent_->Transform(pos_);
+            wrot_ = parent_->GetRotation() * rot_;
+            // this is accounted for in Transform?
+            world_scale_ = parent_->GetScale()*scale_;
+            world_wscale_ = parent_->GetWorldSpaceScale()*wscale_;
+            wtransform_ = parent_->GetTransform() * transform_;
+        } else {
+            wtransform_ = transform_;
         }
 
         b_need_recalculate = false;
+		on_transformed();
 
 		for (TransformComponent *child : children_) {
 			child->update_transform();
@@ -91,29 +109,37 @@ protected:
     }
 public:
 	static const ComponentType type_ = ComponentType::kTransform;
-    TransformComponent(): scale_(1), wscale_(1), rot_(quaternion::identity()), pos_(0) {}
+	TransformComponent()
+		: scale_(1), wscale_(1), rot_(quaternion::identity()), pos_(0), world_scale_(1),
+		  world_wscale_(1), wrot_(quaternion::identity()), wpos_(0), transform_(identity4()), wtransform_(identity4())  {}
 
-    virtual ComponentType GetType() const { return type_; }
+	virtual ComponentType GetType() const { return type_; }
 
     mat4 GetTransform() const {
-        if(b_need_recalculate) {
-            update_transform();
-		}
-        return transform_;
+        assert(!b_need_recalculate);
+        return wtransform_;
     }
 
     bool NeedRecalculate() const { return  b_need_recalculate; }
 
-    vec3 GetPosition() const { return pos_; }
-    quaternion GetRotation() const { return rot_; }
-    vec3 GetScale() const { return scale_; }
-    vec3 GetWorldScale() const { return wscale_; }
+    vec3 Transform(const vec3& p) const { return wscale_*quat_rotate(wrot_, world_scale_ * p) + wpos_; }
+	vec3 ToLocal(const vec3 &p) const {
+		return (vec3(1.0f) / world_scale_) * quat_inv_rotate(wrot_, (p - wpos_) / world_wscale_);
+	}
+	quaternion ToLocal(const quaternion &q) const { return inverse(wrot_) * q; }
+	vec3 Rotate(const vec3& n) const { return quat_rotate(rot_, n); }
 
-    void SetPosition(const vec3& pos) { pos_ = pos; b_need_recalculate = true; on_transformed(); }
-    void SetRotation(const vec3& rot)  { rot_ = euler_to_quat(rot.x, rot.y, rot.z); b_need_recalculate = true; on_transformed();}
-    void SetRotation(const quaternion& q)  { rot_ = q; b_need_recalculate = true; on_transformed();}
-    void SetScale(const vec3& scale) { scale_ = scale; b_need_recalculate = true; on_transformed();}
-    void SetWorldScale(const vec3& wscale) { wscale_ = wscale; b_need_recalculate = true; on_transformed();}
+    vec3 GetPosition() const { assert(!b_need_recalculate); return wpos_; }
+    quaternion GetRotation() const { assert(!b_need_recalculate); return wrot_; }
+    vec3 GetScale() const { assert(!b_need_recalculate); return scale_; }
+    vec3 GetWorldSpaceScale() const { assert(!b_need_recalculate); return wscale_; }
+
+    vec3 GetLocalPosition() const { return pos_; }
+
+    void SetPosition(const vec3& pos);
+    void SetRotation(const quaternion& q);
+    void SetScale(const vec3& scale) { scale_ = scale; b_need_recalculate = true; update_transform();}
+    void SetWorldSpaceScale(const vec3& wscale) { wscale_ = wscale; b_need_recalculate = true; update_transform();}
 
     void SetParent(TransformComponent* parent);
     void AddChild(TransformComponent* child);
@@ -121,6 +147,26 @@ public:
 
     virtual void UpdateComponent(float dt);
 
+};
+
+class MeshComponent : public TransformComponent, public IRenderable {
+	std::string mesh_name_;
+	RenderMesh *mesh_;
+
+	mutable std::string pending_mesh_name_;
+	mutable std::atomic<void *> pending_mesh_;
+
+	static const ComponentType type_ = ComponentType::kMesh;
+	MeshComponent() : mesh_(nullptr), pending_mesh_(nullptr) {}
+
+  public:
+	virtual ComponentType GetType() const override { return type_; }
+	static MeshComponent *Create(const char *res);
+	virtual void InitRenderResources() override;
+	virtual void DeinitRenderResources() override { mesh_ = nullptr; }
+	virtual void AddRenderPackets(struct RenderFrameContext *) const override;
+	virtual void UpdateComponent(float dt) override;
+	void SetMesh(const char *mesh);
 };
 
 typedef uint32_t GameObjectId;
