@@ -20,6 +20,29 @@ inline vec3 aabb_extents(const AABB& aabb) {
     return 0.5f * (aabb.max_ - aabb.min_);
 }
 
+inline bool aabb_intersect(const AABB &a, const AABB &b) {
+	const vec3 min0 = a.min_;
+	const vec3 max0 = a.max_;
+	const vec3 min1 = b.min_;
+	const vec3 max1 = b.max_;
+
+	if (((max0.x < min1.x) || (min0.x > max1.x))) return false;
+	if (((max0.y < min1.y) || (min0.y > max1.y))) return false;
+	if (((max0.z < min1.z) || (min0.z > max1.z))) return false;
+	return true;
+}
+
+inline void aabb_grow(AABB &a, float tolerance) {
+	a.min_ -= vec3(tolerance);
+	a.max_ += vec3(tolerance);
+}
+
+inline void aabb_update(AABB &a, const vec3& p) {
+	a.min_ = min(a.min_, p);
+	a.max_ = max(a.max_, p);
+}
+
+
 template <typename T>
 inline void swap_v(T& a, T& b) {
     T t = a;

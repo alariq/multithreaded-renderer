@@ -35,13 +35,8 @@ struct vec2 {
 
 	// to use in unions
 	vec2() = default;//:x(0),y(0) {}
-	explicit vec2(const float iv){
-		x = y = iv;
-	}
-	vec2(const float ix, const float iy){
-		x = ix;
-		y = iy;
-	}
+	explicit constexpr vec2(const float iv):x(iv), y(iv) {}
+	vec2(const float ix, const float iy):x(ix), y(iy) {}
 
 	operator float *(){ return &x; }
 	operator const float *() const { return &x; }
@@ -74,19 +69,9 @@ struct vec3 {
 
 	// to use in unions
 	vec3() = default;//:x(0),y(0), z(0) {}
-	explicit vec3(const float iv){
-		x = y = z = iv;
-	}
-	vec3(const vec2 &xy, const float iz){
-		x = xy.x;
-		y = xy.y;
-		z = iz;
-	}
-	vec3(const float ix, const float iy, const float iz){
-		x = ix;
-		y = iy;
-		z = iz;
-	}
+	explicit constexpr vec3(const float iv):x(iv),y(iv),z(iv) {}
+	vec3(const vec2 &xy, const float iz):x(xy.x),y(xy.y), z(iz) {}
+	constexpr vec3(const float ix, const float iy, const float iz): x(ix), y(iy), z(iz) {}
 
 	operator float *(){ return &x; }
 	operator const float *() const { return &x; }
@@ -529,6 +514,10 @@ mat4 operator ! (const mat4 &m);
 
 /** Computes a 2x2 rotation matrix about a given angle */
 mat2 rotate2(const float angle);
+
+mat2 diag(const vec2& d);
+mat3 diag(const vec3& d);
+mat4 diag(const vec4& d);
 
 /** Computes an NxN rotation matrix about a (set of) given angle(s). @{ */
 mat3 rotateX3(const float angle);
