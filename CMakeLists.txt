@@ -77,6 +77,7 @@ include_directories(${GLEW_INCLUDE})
 
 add_subdirectory("./engine" "./out/engine")
 add_subdirectory("./platform" "./out/platform")
+add_subdirectory("./pbd" "./out/pbd")
 
 set(SOURCES 
     "main.cpp"
@@ -123,6 +124,8 @@ set(SOURCES
     "sph_emitter.cpp"
     "sph_lattice.h"
     "sph_lattice.cpp"
+    "rigid_body_object.cpp"
+    "rigid_body_object.h"
     )
 
 #find_library(GLEW NAMES "GLEW" "glew32")
@@ -148,5 +151,5 @@ else()
 endif()
 
 add_executable(mt-renderer ${SOURCES})
-target_link_libraries(mt-renderer engine platform GLEW::GLEW ${ADDITIONAL_LIBS} OpenGL::GL)
+target_link_libraries(mt-renderer engine pbd platform GLEW::GLEW ${ADDITIONAL_LIBS} OpenGL::GL)
 

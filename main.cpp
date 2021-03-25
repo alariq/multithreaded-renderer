@@ -7,6 +7,7 @@
 #include "engine/gameos.hpp"
 
 #include "sph.h"
+#include "pbd/pbd.h"
 #include "scene.h"
 #include "editor.h"
 #include "res_man.h"
@@ -87,6 +88,8 @@ void __stdcall Init(void)
     g_shadow_camera.set_view(shadow_view);
 
     sph_init();
+    pbd_create_simulation();
+    pbd_create_collision_detection();
 
 }
 
@@ -104,6 +107,8 @@ void __stdcall Deinit(void)
     finalize_res_man();
 
     sph_deinit();
+    pbd_destroy_collision_detection();
+    pbd_destroy_simulation();
 
     printf("::Deinit\n");
 }
@@ -188,6 +193,7 @@ void __stdcall Update(void)
     // TODO: move to array of systems ?
     if(g_update_simulation) {
         sph_update(dt_sec);
+        pbd_simulate(dt_sec);
         ParticleSystemManager::Instance().Update(dt_sec);
     }
 
