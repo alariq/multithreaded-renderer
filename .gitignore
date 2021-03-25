@@ -2,6 +2,7 @@
 .clangd/
 .cache/
 .ccls-cache/
+build-ninja/
 dump/
 *.swp
 *.dll
