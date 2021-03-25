@@ -71,4 +71,8 @@ include_directories("../platform/include")
 
 add_library(engine ${SOURCES})
 target_compile_definitions(engine PUBLIC $<$<CONFIG:Debug>:_ARMOR _DEBUG BUGLOG LAB_ONLY>)
+# all users of this library will have this path added to their includes (but this lib will not have it added)
+# ref. official cmake tutorial
+# ref. https://leimao.github.io/blog/CMake-Public-Private-Interface/
+target_include_directories(engine INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/..)
 
