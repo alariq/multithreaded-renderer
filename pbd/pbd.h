@@ -95,10 +95,6 @@ struct RigidBody {
         // wants to turn the body by more than 30 degrees in the
         // orders of milliseconds
 
-        if(inv_mass!=0.0f) {
-            printf("ang vel: %.3f %.3f %.3f\n", ang_vel.x, ang_vel.y, ang_vel.z);
-        }
-
         const float phi = length(ang_vel);
         if (phi * dt > maxRotationPerSubstep) 
             dt = maxRotationPerSubstep / phi;

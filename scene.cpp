@@ -56,7 +56,9 @@ void initialize_scene(const struct camera *cam, struct RenderFrameContext *rfc) 
         auto* tr_comp = go->GetComponent<TransformComponent>();
         tr_comp->SetPosition(base_pos);
         tr_comp->SetScale(random_vec(vec3(1), vec3(2.5)));
-        tr_comp->SetRotation(random_vec(vec3(0), vec3(2.0f * 3.1415f)));
+        vec3 ang = random_vec(vec3(0), vec3(2.0f * 3.1415f));
+        quaternion rot_q = euler_to_quat(ang.x, ang.y, ang.z);
+        tr_comp->SetRotation(rot_q);
 #if 1
         float start_time =
             (float)timing::ticks2ms(timing::gettickcount()) / 1000;
@@ -131,7 +133,6 @@ void initialize_scene(const struct camera *cam, struct RenderFrameContext *rfc) 
     ((MeshComponent*)rb_cube->GetComponent(ComponentType::kRigidBody))->SetPosition(vec3(0, 3, 0));
 	scene_add_game_object(rb_cube);
 
-#if 0
     // make vilage
     const float rot[] = {0, 150, 30, 90, 55};
     const float scales[] = {0.1f, 0.07f, 0.12f, 0.08f, 0.1f};
@@ -140,7 +141,8 @@ void initialize_scene(const struct camera *cam, struct RenderFrameContext *rfc) 
     for (int i = 0; i < 5; ++i) {
         go = MeshObject::Create("single_room_building");
         auto* t = go->GetComponent<TransformComponent>();
-        t->SetRotation(vec3(0.0f, -rot[i] * 3.1415f / 180.0f, 0.0f));
+        vec3 ang = vec3(0.0f, -rot[i] * 3.1415f / 180.0f, 0.0f);
+        t->SetRotation(euler_to_quat(ang.x, ang.y, ang.z));
         t->SetPosition(vec3(pos[i].x, 0.0f, pos[i].y));
         t->SetScale(vec3(scales[i]));
         scene_add_game_object(go);
