@@ -158,7 +158,7 @@ void scene_update(const camera *cam, const bool b_update_simulation, const float
     std::list<GameObject *>::const_iterator end = g_world_objects.end();
 
     // update transform components
-    for(int t=0;t<(uint32_t)ComponentType::kCount;++t) {
+    for(int t=0;t<(int)ComponentType::kCount;++t) {
         for(auto comp: g_components[t]) {
             comp->UpdateComponent(dt);
 		}
@@ -214,7 +214,70 @@ void scene_render_update(struct RenderFrameContext *rfc, bool is_in_editor_mode)
     if (frame_render_list->GetCapacity() < g_world_objects.size())
         frame_render_list->ReservePackets(g_world_objects.size());
 
-    // update render init pending array
+    // TODO: what to do about destroy
+    for(Component* comp: g_components[(int)ComponentType::kMesh]) {
+        MeshComponent* mesh_comp = (MeshComponent*)comp;
+        if(!mesh_comp->IsRenderInitialized()) {
+	        ScheduleRenderCommand(rfc, [mesh_comp]() { mesh_comp->DoInitRenderResources(); });
+        } else {
+            mesh_comp->AddRenderPackets(rfc);
+        }
+	}
+
+
+	for (const GameObject *go : g_world_objects) {
+
+		// TODO: check if visible
+        // ...
+
+        const auto* tc = go->GetComponent<TransformComponent>();
+        // maybe instead create separate render thread render objects or make
+        // all render object always live on render thread
+        if (go->GetMesh())
+        {
+            RenderPacket *rp = frame_render_list->AddPacket();
+
+            rp->mesh_ = *go->GetMesh();
+            rp->m_ = tc ? tc->GetTransform() : mat4::identity();
+			rp->id_ = go->GetId();
+            rp->is_opaque_pass = 1;
+            rp->is_render_to_shadow = 1;
+            rp->is_transparent_pass = 0;
+            rp->is_debug_pass = 0;
+            rp->is_selection_pass = go->IsSelectable() && is_in_editor_mode;
+#if DO_BAD_THING_FOR_TEST
+            rp->go_ = go;
+#endif
+        }
+
+        go->AddRenderPackets(rfc);
+
+        if(is_in_editor_mode)
+        {
+            int icon_id = go->GetIconID();
+            if(icon_id > 0 && tc) {
+                RenderMesh* mesh = res_man_load_mesh("xy_quad");
+				if (true) {
+					// just a test that quaternions do same thing as matrix, should be in a unit test
+					vec3 loc = vec3(1, 1, 1);
+					vec3 pos = tc->Transform(loc);
+					vec4 pos2 = tc->GetTransform() * vec4(loc, 1);
+					assert(lengthSqr(pos - pos2.xyz()) < 0.0001f);
+				}
+				vec3 pos = tc->Transform(vec3(0));
+                add_debug_mesh_constant_size_px(rfc, mesh, vec4(0,0.5,1,1), mat4::translation(pos), 10, go->GetId());
+            }
+        }
+	}
+
+	rfc->point_lights_ = g_light_list;
+
+	// update objects pending creation or destruction after update loop because if we add
+	// object to world we first want it to update its components in scene_update
+	// so by doing it at the end of this fuction objects wich are added here in
+	// g_components will be updated next frame and ony drawn after update
+
+	// update render init pending array
     for (GameObject*& gameobj: g_render_init_pending) {
         if(gameobj->IsRenderInitialized()) {
 			assert(std::find(g_world_objects.begin(), g_world_objects.end(), gameobj) ==
@@ -264,46 +327,6 @@ void scene_render_update(struct RenderFrameContext *rfc, bool is_in_editor_mode)
 		ScheduleRenderCommand(rfc, [gameobj]() { gameobj->DoDeinitRenderResources(); });
 	}
 	//
-
-	for (const GameObject *go : g_world_objects) {
-
-		// TODO: check if visible
-        // ...
-
-        const auto* tc = go->GetComponent<TransformComponent>();
-        // maybe instead create separate render thread render objects or make
-        // all render object always live on render thread
-        if (go->GetMesh())
-        {
-            RenderPacket *rp = frame_render_list->AddPacket();
-
-            rp->mesh_ = *go->GetMesh();
-            rp->m_ = tc ? tc->GetTransform() : mat4::identity();
-			rp->id_ = go->GetId();
-            rp->is_opaque_pass = 1;
-            rp->is_render_to_shadow = 1;
-            rp->is_transparent_pass = 0;
-            rp->is_debug_pass = 0;
-            rp->is_selection_pass = go->IsSelectable() && is_in_editor_mode;
-#if DO_BAD_THING_FOR_TEST
-            rp->go_ = go;
-#endif
-        }
-
-        go->AddRenderPackets(rfc);
-
-        if(is_in_editor_mode) 
-        {
-            int icon_id = go->GetIconID();
-            if(icon_id > 0) {
-                RenderMesh* mesh = res_man_load_mesh("xy_quad");
-                vec3 pos = tc->GetPosition();
-                add_debug_mesh_constant_size_px(rfc, mesh, vec4(0,0.5,1,1), mat4::translation(pos), 10, go->GetId());
-            }
-        }
-	}
-
-	rfc->point_lights_ = g_light_list;
 }
 
 void scene_get_intersected_objects(
