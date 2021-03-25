@@ -2,6 +2,7 @@
 #include "particle_system.h"
 #include "res_man.h"
 #include "obj_model.h"
+#include "rigid_body_object.h"
 #include "renderer.h"
 #include "render_utils.h"
 
@@ -114,6 +115,23 @@ void initialize_scene(const struct camera *cam, struct RenderFrameContext *rfc) 
     ParticleSystemObject *pso = ParticleSystemObject::Create();
     scene_add_game_object(pso);
 
+	RigidBodyObject *rb_floor = RigidBodyObject::Create(vec3(4.5f, 1, 4.5f));
+    rb_floor->setKinematic(true);
+    ((MeshComponent*)rb_floor->GetComponent(ComponentType::kRigidBody))->SetPosition(vec3(0, 0, 0));
+    ((MeshComponent*)rb_floor->GetComponent(ComponentType::kRigidBody))->SetRotation(quaternion(vec3(1,0,0), M_PI/6.0f));
+	scene_add_game_object(rb_floor);
+
+	RigidBodyObject *rb_floor2 = RigidBodyObject::Create(vec3(5.5f, 2, 5.5f));
+    rb_floor2->setKinematic(true);
+    ((MeshComponent*)rb_floor2->GetComponent(ComponentType::kRigidBody))->SetPosition(vec3(0.0f, -0.0f, 4.5f));
+    ((MeshComponent*)rb_floor2->GetComponent(ComponentType::kRigidBody))->SetRotation(quaternion(vec3(1,0,0), -M_PI/6.0f));
+	scene_add_game_object(rb_floor2);
+
+	RigidBodyObject *rb_cube = RigidBodyObject::Create(vec3(1, 1, 1));
+    ((MeshComponent*)rb_cube->GetComponent(ComponentType::kRigidBody))->SetPosition(vec3(0, 3, 0));
+	scene_add_game_object(rb_cube);
+
+#if 0
     // make vilage
     const float rot[] = {0, 150, 30, 90, 55};
     const float scales[] = {0.1f, 0.07f, 0.12f, 0.08f, 0.1f};
