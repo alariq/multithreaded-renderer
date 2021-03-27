@@ -288,7 +288,7 @@ void editor_update(camera *cam, const float dt) {
 				drag_start_obj_pos = tc->GetPosition();
 				drag_start_obj_rot = tc->GetRotation();
 				drag_start_obj_scale = tc->GetScale();
-				drag_start_obj_world_scale = tc->GetWorldScale();
+				drag_start_obj_world_scale = tc->GetWorldSpaceScale();
 				mat4 vm = cam->get_view();
 				vec3 vp = (vm * vec4(drag_start_obj_pos, 1.0f)).getXYZ();
 				drag_obj_view_dist = vp.z;
@@ -431,7 +431,7 @@ void editor_update(camera *cam, const float dt) {
 				// could be handled by adding 4th matrix Sw so the wole stack will be: T * Sw * R * Sl,
 				// but I think it is a bit of an overkill, so no support for World Space scale at the moment
 				if (g_gizmo.get_world_space()) {
-					tc->SetWorldScale(drag_start_obj_world_scale * scale_axis);
+					tc->SetWorldSpaceScale(drag_start_obj_world_scale * scale_axis);
 				}
 				else {
 					tc->SetScale(drag_start_obj_scale * scale_axis);
