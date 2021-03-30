@@ -180,7 +180,7 @@ int editor_register_user_editor(UserEditorInterface ue_interface) {
     return (int)registered_editors.size()-1;
 }
 void editor_unregister_user_editor(int id) {
-    assert(id>=0 && id < registered_editors.size());
+    assert(id>=0 && id < (int)registered_editors.size());
     registered_editors.erase(registered_editors.begin() + id);
 
 }
@@ -446,7 +446,7 @@ void editor_update(camera *cam, const float dt) {
 		log_debug("drag stop\n");
 	}
 
-    for(auto i=0; i<registered_editors.size(); ++i) {
+    for(auto i=0; i<(int)registered_editors.size(); ++i) {
         if(registered_editors[i].wants_activate()) {
             g_active_user_editor = i;
             log_info("Switched to editor: %s\n", registered_editors[i].name());

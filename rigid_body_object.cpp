@@ -13,12 +13,10 @@ RigidBodyComponent* RigidBodyComponent::Create(PBDSimulation *sim, ICollisionDet
 
 	RigidBody *rb_cube = new RigidBody();
 	rb_cube->setBox(box_size, 1000.0f);
-	rb_cube->pose.p = vec3(0, 4, 0);
-	rb_cube->pose.q = quaternion::identity();
-	rb_cube->prev_pose.p = vec3(0, 4, 0);
-	rb_cube->prev_pose.q = quaternion::identity();
-	rb_cube->old_pose.p = vec3(0, 4, 0);
-	rb_cube->old_pose.q = quaternion::identity();
+    Pose pose;
+    pose.p = vec3(0, 4, 0);
+    pose.q = quaternion::identity();
+    rb_cube->resetPose(pose);
     rb_cube->restitution_c = 0.15f;
     rb_cube->friction_c = 0.0f;
     rb_cube->omega = vec3(0,0,0);
@@ -52,18 +50,6 @@ void RigidBodyComponent::Destroy(RigidBodyComponent* comp, PBDSimulation *sim, I
     delete comp;
 }
 
-void RigidBodyComponent::on_transformed() {
-    rigid_body_->pose.p = GetPosition();
-    rigid_body_->pose.q = GetRotation();
-
-    rigid_body_->orig_pose.p = GetPosition();
-    rigid_body_->orig_pose.q = GetRotation();
-    rigid_body_->prev_pose.p = GetPosition();
-    rigid_body_->prev_pose.q = GetRotation();
-    rigid_body_->old_pose.p = GetPosition();
-    rigid_body_->old_pose.q = GetRotation();
-}
-
 void RigidBodyComponent::setKinematic(bool b_kinematic) {
     if(b_kinematic) {
         rigid_body_->inv_mass = 0.0f;
@@ -73,8 +59,27 @@ void RigidBodyComponent::setKinematic(bool b_kinematic) {
     }
 }
 
+void RigidBodyComponent::on_transformed() {
+	if (!b_self_update_) {
+        Pose p;
+        p.p = GetPosition();
+        p.q = GetRotation();
+		rigid_body_->resetPose(p);
+	}
+}
+
+void RigidBodyComponent::on_transformed(TransformComponent* c) {
+    assert(c->GetType() == ComponentType::kRigidBody);
+    RigidBodyComponent* comp = (RigidBodyComponent*)c;
+    comp->on_transformed();
+}
 
 void RigidBodyComponent::UpdateComponent(float dt) {
+    Pose pose = rigid_body_->pose;
+    b_self_update_ = true;
+    SetPosition(pose.p);
+    SetRotation(pose.q);
+    b_self_update_ = false;
 }
 
 RigidBodyObject* RigidBodyObject::Create(const vec3 &dim)
@@ -90,10 +95,18 @@ RigidBodyObject* RigidBodyObject::Create(const vec3 &dim)
 
     rbo->Tuple_.tr_ = rbo->AddComponent<TransformComponent>();
     MeshComponent* mesh_comp = rbo->AddComponent(rbo->Tuple_.mesh_);
-    /*RigidBodyComponent* rb_comp =*/ rbo->AddComponent(rbo->Tuple_.rb_);
+    /*RigidBodyComponent* rb_comp = */rbo->AddComponent(rbo->Tuple_.rb_);
     mesh_comp->SetParent(rbo->Tuple_.tr_);
     //rb_comp->SetParent(rbo->Tuple_.tr_);
+    rbo->Tuple_.tr_->on_transformed_fptr_ = on_transformed;
+    rbo->Tuple_.rb_->on_transformed_fptr_ = RigidBodyComponent::on_transformed;
+
     return rbo;
+}
+
+void RigidBodyObject::SetTransform(const vec3& pos, const quaternion& rot) {
+    Tuple_.tr_->SetPosition(pos);
+    Tuple_.tr_->SetRotation(rot);
 }
 
 RigidBodyObject::~RigidBodyObject()
@@ -111,6 +124,13 @@ void RigidBodyObject::setKinematic(bool b_kinematic) {
     Tuple_.rb_->setKinematic(b_kinematic);
 }
 
+void RigidBodyObject::on_transformed(TransformComponent* c) {
+    GameObject* go = getGameObject(c->getGameObjectHandle());
+    RigidBodyObject* rbo = (RigidBodyObject*)go;
+    rbo->Tuple_.rb_->SetPosition(c->GetPosition());
+    rbo->Tuple_.rb_->SetRotation(c->GetRotation());
+}
+
 void RigidBodyObject::Update(float dt) {
 
 /*
@@ -121,7 +141,10 @@ void RigidBodyObject::Update(float dt) {
 */
 
     Pose pose = Tuple_.rb_->getPose();
+    Tuple_.tr_->on_transformed_fptr_ = TransformComponent::on_transformed_default;
     Tuple_.tr_->SetPosition(pose.p);
     Tuple_.tr_->SetRotation(pose.q);
+    Tuple_.tr_->on_transformed_fptr_ = on_transformed;
+
 }
 

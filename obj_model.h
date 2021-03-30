@@ -48,7 +48,7 @@ public:
 };
 
 // TODO: use array with compile time hashes as Component type
-enum class ComponentType: uint32_t {
+enum class ComponentType: int {
     kTransform = 0,
     kSPHBoundary,
     kRigidBody,

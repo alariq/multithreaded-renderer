@@ -119,19 +119,24 @@ void initialize_scene(const struct camera *cam, struct RenderFrameContext *rfc) 
 
 	RigidBodyObject *rb_floor = RigidBodyObject::Create(vec3(4.5f, 1, 4.5f));
     rb_floor->setKinematic(true);
-    ((MeshComponent*)rb_floor->GetComponent(ComponentType::kRigidBody))->SetPosition(vec3(0, 0, 0));
-    ((MeshComponent*)rb_floor->GetComponent(ComponentType::kRigidBody))->SetRotation(quaternion(vec3(1,0,0), M_PI/6.0f));
+    rb_floor->SetTransform(vec3(0, 0, 0), quaternion(vec3(1,0,0), M_PI/6.0f));
 	scene_add_game_object(rb_floor);
 
 	RigidBodyObject *rb_floor2 = RigidBodyObject::Create(vec3(5.5f, 2, 5.5f));
     rb_floor2->setKinematic(true);
-    ((MeshComponent*)rb_floor2->GetComponent(ComponentType::kRigidBody))->SetPosition(vec3(0.0f, -0.0f, 4.5f));
-    ((MeshComponent*)rb_floor2->GetComponent(ComponentType::kRigidBody))->SetRotation(quaternion(vec3(1,0,0), -M_PI/6.0f));
+    rb_floor2->SetTransform(vec3(0.0f, -0.0f, 4.5f), quaternion(vec3(1,0,0), -M_PI/6.0f));
 	scene_add_game_object(rb_floor2);
 
+    vec3 er = random_vec(vec3(0), vec3(2.0f * 3.1415f));
+    quaternion qrot = euler_to_quat(er.x, er.y, er.z);
 	RigidBodyObject *rb_cube = RigidBodyObject::Create(vec3(1, 1, 1));
-    ((MeshComponent*)rb_cube->GetComponent(ComponentType::kRigidBody))->SetPosition(vec3(0, 3, 0));
+    rb_cube->SetTransform(vec3(0, 3, 0), qrot);
 	scene_add_game_object(rb_cube);
+
+	RigidBodyObject *rb_floor3 = RigidBodyObject::Create(vec3(25.5f, 0.5f, 25.5f));
+    rb_floor3->setKinematic(true);
+    rb_floor3->SetTransform(vec3(0.0f, -2.0f, 4.5f), quaternion::identity());
+	scene_add_game_object(rb_floor3);
 
     // make vilage
     const float rot[] = {0, 150, 30, 90, 55};
@@ -149,7 +154,7 @@ void initialize_scene(const struct camera *cam, struct RenderFrameContext *rfc) 
     }
 
     // create some point lights
-    for (int i = 0; i < 100; ++i) {
+    for (int i = 0; i < 10; ++i) {
         PointLight l;
         vec3 color = random_vec(0.f, 1.0f);
         float intensity = random(0.5f, 1.5f);
