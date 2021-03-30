@@ -88,7 +88,7 @@ class R_wait_event: public R_job {
 public:
     R_wait_event(threading::Event* ev, int ev_idx):ev_(ev), ev_idx_(ev_idx) {}
 
-    int exec() {
+    virtual int exec() override {
         //printf("RT: WAIT FOR EVENT [%d]\n", ev_idx_);
         rmt_ScopedCPUSample(RT_wait, 0);
         ev_->Wait();
@@ -107,7 +107,7 @@ class R_signal_event: public R_job {
 public:
     R_signal_event(threading::Event* ev, int ev_idx):ev_(ev), ev_idx_(ev_idx) {}
 
-    int exec() {
+    virtual int exec() override {
         rmt_ScopedCPUSample(RT_signal, 0);
         //printf("RT: SIGNAL EVENT [%d]\n", ev_idx_);
         ev_->Signal();
@@ -123,7 +123,7 @@ public:
     R_draw_job(const std::string& name, uint64_t sleep_millisec):
         name_(name), sleep_millisec_(sleep_millisec) {}
 
-    int exec() {
+    virtual int exec() override {
         rmt_ScopedCPUSample(draw, 0);
         timing::sleep(sleep_millisec_ * 1000000ull);
         return 0;
@@ -140,7 +140,7 @@ public:
         frame_num_(frame_num),
         render_frame_context_(rfc) {}
 
-    int exec() {
+    virtual int exec() override {
         gRenderFrameNumber = frame_num_;
         gRenderThreadRenderFrameContext = render_frame_context_;
         rmt_BeginCPUSampleDynamic(name_.c_str(), 0);
@@ -152,7 +152,7 @@ class R_scope_end: public R_job {
 public:    
     R_scope_end() {}
 
-    int exec() {
+    virtual int exec() override {
         // render thread render frame context only valid between rendering commands
         gRenderThreadRenderFrameContext = nullptr;
         rmt_EndCPUSample();
@@ -166,7 +166,7 @@ class R_render: public R_job {
 public:
     R_render() {};
 
-    int exec() {
+	virtual int exec() override {
         {
             rmt_ScopedCPUSample(make_current_context, 0);
             graphics::make_current_context(g_ctx);
@@ -428,8 +428,7 @@ int main(int argc, char** argv)
         int w_, h_;
     public:
         R_init_renderer(int w, int h):w_(w), h_(h) {}
-        virtual int exec() {
-
+        virtual int exec() override {
 
             g_ctx = graphics::init_render_context(g_win);
             if(!g_ctx)
@@ -559,7 +558,7 @@ int main(int argc, char** argv)
 
             class R_handle_events: public R_job {
                 public:
-                    int exec() {
+				  virtual int exec() override {
                         gos_RendererHandleEvents();
                         return 0;
                     }
@@ -604,7 +603,7 @@ int main(int argc, char** argv)
     public:
         R_stop_renderer(threading::Event* ev):rendering_finished_(ev) {}
         ~R_stop_renderer() {}
-        int exec() {
+		virtual int exec() override {
             rendering_finished_->Signal();
             return 0;
         }
@@ -621,7 +620,8 @@ int main(int argc, char** argv)
     public:
         R_destroy_renderer() {}
         ~R_destroy_renderer() {}
-        int exec() {
+		virtual int exec() override {
+
             rmt_UnbindOpenGL();
             gos_DestroyRenderer();
             graphics::destroy_render_context(g_ctx);

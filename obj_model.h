@@ -113,7 +113,7 @@ public:
 		: scale_(1), wscale_(1), rot_(quaternion::identity()), pos_(0), world_scale_(1),
 		  world_wscale_(1), wrot_(quaternion::identity()), wpos_(0), transform_(identity4()), wtransform_(identity4())  {}
 
-	virtual ComponentType GetType() const { return type_; }
+	virtual ComponentType GetType() const override { return type_; }
 
     mat4 GetTransform() const {
         assert(!b_need_recalculate);
@@ -147,6 +147,7 @@ public:
 
     virtual void UpdateComponent(float dt);
 
+	virtual void UpdateComponent(float dt) override;
 };
 
 class MeshComponent : public TransformComponent, public IRenderable {
@@ -243,13 +244,13 @@ public:
     static ParticleSystemObject* Create();
 
     // done by the particle system
-    void InitRenderResources() {};
-    void DeinitRenderResources() {};
+    virtual void InitRenderResources() override {};
+    virtual void DeinitRenderResources() override {};
 
-    virtual void Update(float /*dt*/) { }
+    virtual void Update(float /*dt*/) override { }
 
-    virtual const char* GetName() const { return "particle system"; };
-    virtual RenderMesh* GetMesh() const { return nullptr; }
+    virtual const char* GetName() const override { return "particle system"; };
+    virtual RenderMesh* GetMesh() const override { return nullptr; }
     virtual ~ParticleSystemObject();
 };
 
@@ -268,14 +269,14 @@ class FrustumObject: public GameObject {
         ~FrustumObject() {
         }
 
-        virtual const char* GetName() const { return "frustum"; };
-        void Update(float /*dt*/) {}
+        virtual const char* GetName() const override { return "frustum"; };
+        virtual void Update(float /*dt*/) override {}
         void UpdateFrustum(const camera* pcam);
 
-        void InitRenderResources();
-        void DeinitRenderResources();
+        virtual void InitRenderResources() override;
+        virtual void DeinitRenderResources() override;
 
-        RenderMesh* GetMesh() const { return mesh_; }
+        virtual RenderMesh* GetMesh() const override { return mesh_; }
 };
 
 class MeshObject: public GameObject {
@@ -298,17 +299,17 @@ private:
 
 public:
    static MeshObject* Create(const char* res);
-   void InitRenderResources();
-   void DeinitRenderResources() { mesh_ = nullptr; }
+   virtual void InitRenderResources() override;
+   virtual void DeinitRenderResources() override { mesh_ = nullptr; }
 
    // TODO: store and return ref counted object
    // and test deferred deletion
-   RenderMesh* GetMesh() const { return mesh_; }
+   virtual RenderMesh* GetMesh() const override { return mesh_; }
 
-   const char* GetName() const { return name_.c_str(); } 
+   virtual const char* GetName() const override { return name_.c_str(); } 
 
    void SetUpdater(Updater_t updater) { updater_ = updater; }
-   void Update(float dt) {
+   virtual void Update(float dt) override {
        if (updater_)
            updater_(dt, this);
    }
