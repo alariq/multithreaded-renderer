@@ -28,27 +28,27 @@ public:
 
 	file_stream(void);
 	virtual ~file_stream(void);
-	virtual int open(const char *, const char *);
-	virtual int close();
-	virtual size_t write(const void* pbuf, size_t size);
-	virtual size_t write(const void* pbuf, size_t size, size_t count);
-	virtual size_t write_byte(char b);
-	virtual size_t write_word(short sh);
-	virtual size_t write_dword(unsigned int i);
-	virtual size_t write_float(float f);
-	virtual size_t write_cstr(const char* str);
+	virtual int open(const char *, const char *) override;
+	virtual int close() override;
+	virtual size_t write(const void* pbuf, size_t size) override;
+	virtual size_t write(const void* pbuf, size_t size, size_t count) override;
+	virtual size_t write_byte(char b) override;
+	virtual size_t write_word(short sh) override;
+	virtual size_t write_dword(unsigned int i) override;
+	virtual size_t write_float(float f) override;
+	virtual size_t write_cstr(const char* str) override;
 
-	virtual size_t read(void* pbuf, size_t size) const;
-	virtual size_t read(void* pbuf, size_t size, size_t count) const;
-	virtual char read_byte();
-	virtual short read_word();
-	virtual unsigned int read_dword() const;
-	virtual float read_float() const;
-	virtual size_t read_cstr(char* ) const;
+	virtual size_t read(void* pbuf, size_t size) const override;
+	virtual size_t read(void* pbuf, size_t size, size_t count) const override;
+	virtual char read_byte() override;
+	virtual short read_word() override;
+	virtual unsigned int read_dword() const override;
+	virtual float read_float() const override;
+	virtual size_t read_cstr(char* ) const override;
 
-	virtual int seek(int bytes, SEEK_TYPE type);
-    virtual int tell();
-	virtual const char* get_path() const { return _path; }
+	virtual int seek(int bytes, SEEK_TYPE type) override;
+    virtual int tell() override;
+	virtual const char* get_path() const override { return _path; }
 
     //virtual int get_fstat(struct _stat* pstat);
 };

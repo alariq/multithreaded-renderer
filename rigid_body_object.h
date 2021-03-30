@@ -40,8 +40,8 @@ public:
     virtual int GetIconID() const override { return 2; }
     //
 
-	virtual void InitRenderResources() {}
-    virtual void DeinitRenderResources() {};
+	virtual void InitRenderResources() override {}
+    virtual void DeinitRenderResources() override {};
 
     void addToSimulation(PBDSimulation* sim);
     void removeFromSimulation(PBDSimulation* sim);

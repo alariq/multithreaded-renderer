@@ -57,8 +57,8 @@ struct DistanceFieldCollisionObjectBox : public DistanceFieldCollisionObject {
     static const CollisionObjectType type_ = kDistanceFieldBox;
     vec3 box_;
 
-	virtual int getTypeId() { return type_; }
-    virtual double distance(const vec3 &x, const float tolerance) {
+	virtual int getTypeId() override { return type_; }
+    virtual double distance(const vec3 &x, const float tolerance) override {
         return distance_box(box_, x, invert_?-1.0f : 1.0f, tolerance);
     }
 };
@@ -67,8 +67,8 @@ struct DistanceFieldCollisionObjectSphere : public DistanceFieldCollisionObject 
     static const CollisionObjectType type_ = kDistanceFieldSphere;
     float radius_;
 
-	virtual int getTypeId() { return type_; }
-    virtual double distance(const vec3 &x, const float tolerance) {
+	virtual int getTypeId() override { return type_; }
+    virtual double distance(const vec3 &x, const float tolerance) override {
         return distance_sphere(radius_, x, invert_?-1.0f : 1.0f, tolerance);
     }
 };
