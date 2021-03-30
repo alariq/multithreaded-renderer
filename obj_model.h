@@ -111,6 +111,8 @@ class TransformComponent : public Component {
 			wtransform_ = parent_->GetTransform() * transform_;
 		} else {
 			wtransform_ = transform_;
+			world_scale_ = scale_;
+			world_wscale_ = wscale_;
 		}
 
 		b_need_recalculate = false;
