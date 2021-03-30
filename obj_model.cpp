@@ -3,6 +3,7 @@
 #include "particle_system.h"
 #include "utils/obj_loader.h"
 
+
 void TransformComponent::SetParent(TransformComponent* parent) {
 
     if(parent_) {
