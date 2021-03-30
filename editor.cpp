@@ -464,6 +464,13 @@ void editor_render_update(struct RenderFrameContext *rfc)
     if(g_sel_obj) {
         auto* tc = g_sel_obj->GetComponent<TransformComponent>();
         if(tc) {
+            if(drag_started) {
+			    g_gizmo.draw(rfc);
+            } else {
+                // object may be updating its position
+                g_gizmo.set_position(tc->GetPosition());
+                g_gizmo.set_rotation(tc->GetRotation());
+            }
 			g_gizmo.draw(rfc);
 			// TODO: move this variable to gizmo and set when approprate
 			add_debug_sphere_constant_size(rfc, drag_rotation_gizmo_helper_pos, 250.0f,
