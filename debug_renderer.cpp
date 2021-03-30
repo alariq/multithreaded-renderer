@@ -60,9 +60,11 @@ void RenderDebugObjects(const RenderPacketList_t& rpl, const mat4& view, const m
         }
     };
 
-    const bool do_depth_test = false;
+    const bool depth_test = false;
+    const bool b_double_sided = true;
+	const gos_CullMode cull_mode = b_double_sided ? gos_Cull_None: gos_Cull_CCW;
 
-    RPSorter sorter;
+	RPSorter sorter;
     sorter.view_ = view;
     std::sort(tmp.begin(), tmp.end(), sorter);
 //#define TEST_POINT_LIGTHS
@@ -70,8 +72,8 @@ void RenderDebugObjects(const RenderPacketList_t& rpl, const mat4& view, const m
     gos_SetRenderState(gos_State_ZCompare, 3);
     gos_SetRenderState(gos_State_Culling, gos_Cull_CW);
 #else
-    gos_SetRenderState(gos_State_ZCompare, do_depth_test);
-    gos_SetRenderState(gos_State_Culling, gos_Cull_CCW);
+    gos_SetRenderState(gos_State_ZCompare, depth_test);
+    gos_SetRenderState(gos_State_Culling, cull_mode);
 #endif
     //gos_SetRenderState(gos_State_AlphaMode, gos_Alpha_OneZero);
     gos_SetRenderState(gos_State_AlphaMode, gos_Alpha_AlphaOne);
