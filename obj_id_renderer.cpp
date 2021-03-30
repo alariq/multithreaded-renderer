@@ -78,7 +78,7 @@ void ObjIdRenderer::Render(struct RenderFrameContext *rfc, GLuint scene_depth)
     
     gos_SetRenderState(gos_State_AlphaMode, gos_Alpha_OneZero);
     gos_SetRenderState(gos_State_StencilEnable, 0);
-    gos_SetRenderState(gos_State_Culling, gos_Cull_CCW);
+    gos_SetRenderState(gos_State_Culling, gos_Cull_None);
     gos_SetRenderState(gos_State_ZCompare, 1); // less equal, equal should be enough
     gos_SetRenderState(gos_State_ZWrite, false);
 
@@ -93,16 +93,16 @@ void ObjIdRenderer::Render(struct RenderFrameContext *rfc, GLuint scene_depth)
     for(;it!=end;++it)
     {
         const RenderPacket& rp = (*it);
-        if(!rp.is_selection_pass || rp.is_gizmo_pass)
-            continue;
-
-		draw_rp(mat, vp, rp);
+        if(rp.is_selection_pass) {
+            gosASSERT(!rp.is_gizmo_pass);
+		    draw_rp(mat, vp, rp);
+        }
 	}
 
 	// now draw all gizmo stuff back to front
     std::vector<const RenderPacket*> tmp;
 	for (it = rpl.begin(); it != end; ++it) {
-		if ((*it).is_selection_pass && (*it).is_gizmo_pass) {
+		if ((*it).is_gizmo_pass) {
 			tmp.push_back(&(*it));
 		}
 	}
@@ -111,6 +111,7 @@ void ObjIdRenderer::Render(struct RenderFrameContext *rfc, GLuint scene_depth)
 				  return (view * a->m_.getCol3()).z > (view * b->m_.getCol3()).z;
 			  });
 
+    gos_SetRenderState(gos_State_Culling, gos_Cull_CCW);
 	for (auto rp : tmp) {
 		draw_rp(mat, vp, *rp);
 	}
