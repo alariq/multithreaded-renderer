@@ -78,6 +78,16 @@ struct RigidBody {
         local_vertices_ = vertices_;
 	}
 
+    void resetPose(const Pose& p) {
+        pose = p;
+        old_pose = p;
+        prev_pose = p;
+        orig_pose = p;
+		vel = vec3(0);
+		omega = vec3(0);
+        onUpdateRotation();
+    }
+
     void onUpdateRotation() {
         const mat3 rot_m = quat_to_mat3(pose.q);
 
