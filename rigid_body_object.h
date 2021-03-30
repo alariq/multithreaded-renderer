@@ -5,15 +5,16 @@
 class RigidBodyComponent : public TransformComponent {
 	struct RigidBody* rigid_body_ = nullptr;
     struct ICollisionObject* collision_ = nullptr; 
-
+    bool b_self_update_ = false;
     virtual ~RigidBodyComponent() {};
+    void on_transformed();
 public:
 	static const ComponentType type_ = ComponentType::kRigidBody;
 	virtual ComponentType GetType() const override { return type_; }
     RigidBodyComponent() {};
 
     const Pose& getPose() const { return rigid_body_->pose; }
-    virtual void on_transformed() override;
+    static void on_transformed(TransformComponent* );
     void setKinematic(bool b_kinematic);
 
 
@@ -31,6 +32,7 @@ class RigidBodyObject: public GameObject {
         MeshComponent* mesh_;
     };
     RigidBodyTuple Tuple_;
+    static void on_transformed(TransformComponent*);
 public:
     static RigidBodyObject* Create(const vec3 &dim);
     RigidBodyObject() = default;
@@ -50,6 +52,8 @@ public:
     virtual const char* GetName() const override { return "rigid body"; };
     virtual void Update(float dt) override;
     virtual RenderMesh* GetMesh() const override { return nullptr; }
+
+    void SetTransform(const vec3& pos, const quaternion& rot); 
 
 };
 
