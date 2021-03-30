@@ -4,6 +4,7 @@
 #include "utils/obj_loader.h"
 #include <cstdint>
 
+
 void TransformComponent::SetParent(TransformComponent* parent) {
 
     if(parent_) {

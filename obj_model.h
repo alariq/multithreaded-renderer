@@ -44,7 +44,7 @@ public:
 
 class IEditorObject {
 public:
-    virtual int GetIconID() const { return -1; }
+    virtual int GetIconID() const { return 1; }
     virtual int IsSelectable() const { return true; }
 };
 
@@ -56,96 +56,134 @@ enum class ComponentType: int {
     kMesh,
     kCount
 };
-
-class Component {
-    public:
-    virtual ComponentType GetType() const = 0;
-    virtual void UpdateComponent(float dt) {};
-    virtual ~Component() {};
+// stub for the future
+struct GameObjectHandle {
+	GameObject *go_handle_ = nullptr;
 };
 
-class TransformComponent: public Component {
-    vec3 scale_;
-    vec3 wscale_;
-    quaternion rot_;
-    vec3 pos_;
+inline GameObject *getGameObject(GameObjectHandle go_handle) { return go_handle.go_handle_; }
 
-    vec3 world_scale_;
-    vec3 world_wscale_;
-    quaternion wrot_;
-    vec3 wpos_;
+class Component {
+	GameObjectHandle go_handle_;
+  protected:
 
-    mutable mat4 transform_;
-    mutable mat4 wtransform_;
-    mutable bool b_need_recalculate = false;
-    TransformComponent* parent_ = nullptr;
-    std::vector<TransformComponent*> children_;
+  public:
+    GameObjectHandle getGameObjectHandle() const { return go_handle_; }
+	virtual ComponentType GetType() const = 0;
+	virtual void UpdateComponent(float dt){};
+	void Initialize(GameObjectHandle go_handle) { go_handle_ = go_handle; }
+	virtual ~Component(){};
+};
 
-protected:
-    virtual void on_transformed() {};
-    void update_transform() {
+class TransformComponent : public Component {
+  public:
+	typedef void (*on_transformed_fptr_t)(TransformComponent*);
+
+  private:
+
+	vec3 scale_;
+	vec3 wscale_;
+	quaternion rot_;
+	vec3 pos_;
+
+	vec3 world_scale_;
+	vec3 world_wscale_;
+	quaternion wrot_;
+	vec3 wpos_;
+
+	mutable mat4 transform_;
+	mutable mat4 wtransform_;
+	mutable bool b_need_recalculate = false;
+	TransformComponent *parent_ = nullptr;
+	std::vector<TransformComponent *> children_;
+
+  protected:
+	void update_transform() {
 
 		transform_ = translate(pos_) * scale4(wscale_.x, wscale_.y, wscale_.z) *
 					 quat_to_mat4(rot_) * scale4(scale_.x, scale_.y, scale_.z);
 
-        if(parent_) {
-            wpos_ = parent_->Transform(pos_);
-            wrot_ = parent_->GetRotation() * rot_;
-            // this is accounted for in Transform?
-            world_scale_ = parent_->GetScale()*scale_;
-            world_wscale_ = parent_->GetWorldSpaceScale()*wscale_;
-            wtransform_ = parent_->GetTransform() * transform_;
-        } else {
-            wtransform_ = transform_;
-        }
+		if (parent_) {
+			wpos_ = parent_->Transform(pos_);
+			wrot_ = parent_->GetRotation() * rot_;
+			// this is accounted for in Transform?
+			world_scale_ = parent_->GetScale() * scale_;
+			world_wscale_ = parent_->GetWorldSpaceScale() * wscale_;
+			wtransform_ = parent_->GetTransform() * transform_;
+		} else {
+			wtransform_ = transform_;
+		}
 
-        b_need_recalculate = false;
-		on_transformed();
-
+		b_need_recalculate = false;
+		on_transformed_fptr_(this);
 		for (TransformComponent *child : children_) {
 			child->update_transform();
 		}
+	}
 
-    }
-public:
+  public:
+	static void on_transformed_default(TransformComponent* ) {}
+	on_transformed_fptr_t on_transformed_fptr_ = on_transformed_default;
 	static const ComponentType type_ = ComponentType::kTransform;
 	TransformComponent()
 		: scale_(1), wscale_(1), rot_(quaternion::identity()), pos_(0), world_scale_(1),
-		  world_wscale_(1), wrot_(quaternion::identity()), wpos_(0), transform_(identity4()), wtransform_(identity4())  {}
+		  world_wscale_(1), wrot_(quaternion::identity()), wpos_(0),
+		  transform_(identity4()), wtransform_(identity4()) {}
 
 	virtual ComponentType GetType() const override { return type_; }
 
-    mat4 GetTransform() const {
-        assert(!b_need_recalculate);
-        return wtransform_;
-    }
+	mat4 GetTransform() const {
+		assert(!b_need_recalculate);
+		return wtransform_;
+	}
 
-    bool NeedRecalculate() const { return  b_need_recalculate; }
+	bool NeedRecalculate() const { return b_need_recalculate; }
 
-    vec3 Transform(const vec3& p) const { return wscale_*quat_rotate(wrot_, world_scale_ * p) + wpos_; }
+	vec3 Transform(const vec3 &p) const {
+		return wscale_ * quat_rotate(wrot_, world_scale_ * p) + wpos_;
+	}
 	vec3 ToLocal(const vec3 &p) const {
-		return (vec3(1.0f) / world_scale_) * quat_inv_rotate(wrot_, (p - wpos_) / world_wscale_);
+		return (vec3(1.0f) / world_scale_) *
+			   quat_inv_rotate(wrot_, (p - wpos_) / world_wscale_);
 	}
 	quaternion ToLocal(const quaternion &q) const { return inverse(wrot_) * q; }
-	vec3 Rotate(const vec3& n) const { return quat_rotate(rot_, n); }
+	vec3 Rotate(const vec3 &n) const { return quat_rotate(rot_, n); }
 
-    vec3 GetPosition() const { assert(!b_need_recalculate); return wpos_; }
-    quaternion GetRotation() const { assert(!b_need_recalculate); return wrot_; }
-    vec3 GetScale() const { assert(!b_need_recalculate); return scale_; }
-    vec3 GetWorldSpaceScale() const { assert(!b_need_recalculate); return wscale_; }
+	vec3 GetPosition() const {
+		assert(!b_need_recalculate);
+		return wpos_;
+	}
+	quaternion GetRotation() const {
+		assert(!b_need_recalculate);
+		return wrot_;
+	}
+	vec3 GetScale() const {
+		assert(!b_need_recalculate);
+		return scale_;
+	}
+	vec3 GetWorldSpaceScale() const {
+		assert(!b_need_recalculate);
+		return wscale_;
+	}
 
-    vec3 GetLocalPosition() const { return pos_; }
+	vec3 GetLocalPosition() const { return pos_; }
 
-    void SetPosition(const vec3& pos);
-    void SetRotation(const quaternion& q);
-    void SetScale(const vec3& scale) { scale_ = scale; b_need_recalculate = true; update_transform();}
-    void SetWorldSpaceScale(const vec3& wscale) { wscale_ = wscale; b_need_recalculate = true; update_transform();}
+	void SetPosition(const vec3 &pos);
+	void SetRotation(const quaternion &q);
+	void SetScale(const vec3 &scale) {
+		scale_ = scale;
+		b_need_recalculate = true;
+		update_transform();
+	}
+	void SetWorldSpaceScale(const vec3 &wscale) {
+		wscale_ = wscale;
+		b_need_recalculate = true;
+		update_transform();
+	}
 
-    void SetParent(TransformComponent* parent);
-    void AddChild(TransformComponent* child);
-    void RemoveChild(TransformComponent* child);
-
-    virtual void UpdateComponent(float dt);
+	void SetParent(TransformComponent *parent);
+	void AddChild(TransformComponent *child);
+	void RemoveChild(TransformComponent *child);
 
 	virtual void UpdateComponent(float dt) override;
 };
@@ -201,16 +239,19 @@ public:
     template<typename T>
     T* AddComponent() {
         T* comp = new T();
-        components_.push_back(comp);
-        return comp;
+        return AddComponent(comp);
     }
 
     template<typename T>
     T* AddComponent(T* comp) {
         static_assert( std::is_base_of<Component, T>::value == true ); 
+        auto b = std::begin(components_);
+        auto e = std::end(components_);
+		assert(e == std::find(b, e, comp));
+		comp->Initialize(GameObjectHandle{this});
         components_.push_back(comp);
         return comp;
-    }
+	}
 
     // returns component if removed, otherwise nullptr
     template<typename T>
