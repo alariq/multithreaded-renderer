@@ -1,6 +1,6 @@
 #pragma once
 
-#include "utils/vec.h"
+#include "engine/utils/vec.h"
 
 class CubicKernel {
   protected:
@@ -120,3 +120,141 @@ class CubicKernel2D {
 
 	static float W_zero() { return m_W_zero; }
 };
+
+class Poly6Kernel {
+  protected:
+	static float m_radius;
+	static float m_k;
+	static float m_l;
+	static float m_m;
+	static float m_W_zero;
+
+  public:
+	static float getRadius() { return m_radius; }
+	static void setRadius(float val) {
+		m_radius = val;
+		const float pi = (float)M_PI;
+		m_k = 315.0f / (64.0f * pi * powf(m_radius, 9.0f));
+		m_l = -945.0f / (32.0f * pi * powf(m_radius, 9.0f));
+		m_m = m_l;
+		m_W_zero = W(vec3(0.0f));
+	}
+
+  public:
+	/**
+	 * W(r,h) = (315/(64 pi h^9))(h^2-|r|^2)^3
+	 *        = (315/(64 pi h^9))(h^2-r*r)^3
+	 */
+	static float W(const float r) {
+		float res = 0.0;
+		const float r2 = r * r;
+		const float radius2 = m_radius * m_radius;
+		if (r2 <= radius2) {
+			res = pow(radius2 - r2, 3) * m_k;
+		}
+		return res;
+	}
+
+	static float W(const vec3& r) {
+		float res = 0.0;
+		const float r2 = lengthSqr(r);
+		const float radius2 = m_radius * m_radius;
+		if (r2 <= radius2) {
+			res = pow(radius2 - r2, 3) * m_k;
+		}
+		return res;
+	}
+
+	/**
+	 * grad(W(r,h)) = r(-945/(32 pi h^9))(h^2-|r|^2)^2
+	 *              = r(-945/(32 pi h^9))(h^2-r*r)^2
+	 */
+	static vec3 gradW(const vec3& r) {
+		vec3 res;
+		const float r2 = lengthSqr(r);
+		const float radius2 = m_radius * m_radius;
+		if (r2 <= radius2) {
+			float tmp = radius2 - r2;
+			res = m_l * tmp * tmp * r;
+		} else
+			res = vec3(0.0f);
+
+		return res;
+	}
+
+	/**
+	 * laplacian(W(r,h)) = (-945/(32 pi h^9))(h^2-|r|^2)(-7|r|^2+3h^2)
+	 *                   = (-945/(32 pi h^9))(h^2-r*r)(3 h^2-7 r*r)
+	 */
+	static float laplacianW(const vec3& r) {
+		float res;
+		const float r2 = lengthSqr(r);
+		const float radius2 = m_radius * m_radius;
+		if (r2 <= radius2) {
+			float tmp = radius2 - r2;
+			float tmp2 = 3 * radius2 - 7 * r2;
+			res = m_m * tmp * tmp2;
+		} else
+			res = (float)0.0f;
+
+		return res;
+	}
+
+	static float W_zero() { return m_W_zero; }
+};
+
+class Poly6Kernel2D {
+  protected:
+	static float m_radius;
+	static float m_k;
+	static float m_l;
+	static float m_m;
+	static float m_W_zero;
+	static float m_r_sq;
+
+  public:
+	static float getRadius() { return m_radius; }
+	static void setRadius(float val) {
+		m_radius = val;
+        m_r_sq = val * val;
+		const float pi = (float)M_PI;
+		m_k = 4.0f / (pi * powf(m_radius, 8.0f));
+		m_l = 12.0f / (pi * powf(m_radius, 8.0f));
+		m_m = m_l;
+		m_W_zero = W(vec3(0.0f));
+	}
+
+  public:
+	static float W(const float r) {
+		float res = 0.0;
+		const float r2 = r * r;
+		if (r2 <= m_r_sq) {
+			res = pow(m_r_sq - r2, 3) * m_k;
+		}
+		return res;
+	}
+
+	static float W(const vec3& r) {
+		float res = 0.0;
+		const float r2 = lengthSqr(r);
+		if (r2 <= m_r_sq) {
+			res = pow(m_r_sq - r2, 3) * m_k;
+		}
+		return res;
+	}
+
+	static vec3 gradW(const vec3& r) {
+		vec3 res;
+		const float r2 = lengthSqr(r);
+		if (r2 <= m_r_sq) {
+			float tmp = m_r_sq - r2;
+			res = m_l * tmp * tmp * (-2.0f * sqrtf(r2)) * (r2>0?normalize(r):vec3(1,1,1));
+		} else
+			res = vec3(0.0f);
+
+		return res;
+	}
+
+	static float W_zero() { return m_W_zero; }
+};
+
