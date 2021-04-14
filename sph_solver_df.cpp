@@ -27,10 +27,11 @@ struct SPHSimData_DF: public SPHSimData {
 		boundaryVolume_.resize(count);
 	}
 
-	virtual void append(size_t count) override {
+	virtual int append(size_t count) override {
         auto old_count = density_adv_.size();
         auto new_count = old_count + count;
         allocate(new_count);
+        return new_count - 1;
     }
 
     virtual ~SPHSimData_DF() = default;

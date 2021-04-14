@@ -113,6 +113,14 @@ struct SPHGrid {
     ~SPHGrid();
 };
 
+struct SPHSolverInterface {
+    typedef struct SPHSimData* (*CreateSimData_fptr)(void);
+    typedef void (*Tick_fptr)(class SPHSimulation* sim, float dt);
+
+    CreateSimData_fptr CreateSimData;
+    Tick_fptr Tick;
+};
+
 struct SPHFluidModel {
     SPHGrid* grid_ = nullptr;
     std::vector<SPHParticle2D> particles_;
@@ -122,6 +130,7 @@ struct SPHFluidModel {
     float density0_;
     float volume_;
     float support_radius_;
+    float viscosity_;
 
     // return index of the first added particle
 	int add(int count) {
@@ -162,7 +171,8 @@ struct SPHSimData {
 
 	virtual const char* getType() const = 0;
 	virtual void allocate(size_t count) = 0;
-	virtual void append(size_t count) = 0;
+	virtual void init(const struct SPHParticle2D* p, int idx) {}
+	virtual int append(size_t count) = 0;
     virtual ~SPHSimData() {};
 
     bool isOfType(const char* todo_compile_time_hash) const {
@@ -175,12 +185,13 @@ class SPHSimulation {
 
     // make solvers friends (for now)
     friend struct DF_TimeStep;
+    friend struct PBD_TimeStep;
     friend void SPH_OldTick(SPHSimulation* sim);
     friend void sph_update(float dt);
 
     const vec2 accel_ = vec2(0.0f, -9.81f);
     const float radius_ = 0.1f;
-    const float support_radius_ = 4.0f * radius_;
+    const float support_radius_ = 3.0f * radius_;
 
     float time_step_ = 0.016f;
     float cfl_factor_ = 0.5f;
@@ -190,6 +201,7 @@ class SPHSimulation {
     float W_zero_;
 	float (*kernel_fptr_)(const vec3 &);
 	vec3 (*grad_kernel_fptr_)(const vec3& r);
+    const SPHSolverInterface* solver_ = nullptr;
 
 public:
     SPHSimulation() = default;
@@ -202,13 +214,21 @@ public:
         delete state_data_;
     }
 
+    // TODO: should solver setup all this?
     void Setup() {
 	    CubicKernel::setRadius(support_radius_);
 	    CubicKernel2D::setRadius(support_radius_);
+	    Poly6Kernel::setRadius(support_radius_);
+	    Poly6Kernel2D::setRadius(support_radius_);
 
-        kernel_fptr_ = CubicKernel2D::W;
-        grad_kernel_fptr_ = CubicKernel2D::gradW;
-        W_zero_ = CubicKernel2D::W_zero();
+        //kernel_fptr_ = CubicKernel2D::W;
+        //grad_kernel_fptr_ = CubicKernel2D::gradW;
+        //W_zero_ = CubicKernel2D::W_zero();
+
+        kernel_fptr_ = Poly6Kernel2D::W;
+        grad_kernel_fptr_ = Poly6Kernel2D::gradW;
+        W_zero_ = Poly6Kernel2D::W_zero();
+
     }
 
     float W(const vec3& v) const {
@@ -249,7 +269,13 @@ public:
     void addBoundary(class SPHBoundaryModel*);
     void removeBoundary(const class SPHBoundaryModel* boundary);
 
-    void addToSimulation(SPHParticle2D* particle, struct SPHFluidModel* fm);
+    void addToSimulation(const SPHParticle2D* particle, struct SPHFluidModel* fm);
+
+    void setSolver(const SPHSolverInterface* solver_interface) {
+        solver_ = solver_interface;
+    }
+
+    void Tick(float dt) { solver_->Tick(this, dt); }
 
     float radius() const { return radius_; }
     float support_radius() const { return support_radius_; }

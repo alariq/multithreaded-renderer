@@ -1,6 +1,7 @@
 #include "sph.h"
 #include "sph_kernels.h"
 #include "sph_solver_df.h"
+#include "sph_solver_pbd.h"
 #include "sph_boundary.h"
 #include "sph_emitter.h"
 #include "sph_polygonize.h"
@@ -19,6 +20,7 @@ void sph_init() {
     assert(nullptr == g_sim);
     g_sim = new SPHSimulation();
     g_sim->Setup();
+    g_sim->setSolver(Get_SPH_PBD_SolverInterface());
     g_emitter_system = new SPHEmitterSystem();
     sph_editor_init();
 }
@@ -60,7 +62,7 @@ void sph_update(float dt) {
 	}
 
 	// simulate particle movement
-    SPH_DFTimestepTick(g_sim);
+    g_sim->Tick(dt);
 
     if(gos_GetKeyStatus(KEY_T) == KEY_PRESSED)
         g_calc_sdf = !g_calc_sdf;
@@ -396,7 +398,7 @@ void SPHSimulation::setFluid(struct SPHFluidModel* fm) {
 
     fluid_model_ = fm;
     if(!fm->sim_data_) {
-        fm->sim_data_ = SPH_DFCreateSimData();
+        fm->sim_data_ = solver_->CreateSimData();
         fm->sim_data_->allocate(fm->particles_.size());
     }
 
@@ -407,8 +409,9 @@ void SPHSimulation::setFluid(struct SPHFluidModel* fm) {
 }
 
 // you have not seen that, I have mot done that
-void SPHSimulation::addToSimulation(SPHParticle2D* p, struct SPHFluidModel* fm) {
-    fm->sim_data_->append(1);
+void SPHSimulation::addToSimulation(const SPHParticle2D* p, struct SPHFluidModel* fm) {
+    int idx = fm->sim_data_->append(1);
+    fm->sim_data_->init(p, idx);
     state_data_->append(1);
 }
 

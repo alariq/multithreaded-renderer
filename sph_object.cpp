@@ -117,11 +117,12 @@ SPHSceneObject* SPHSceneObject::Create(const vec2& view_dim, int num_particles, 
 
     fm->density0_ = 1000;
     fm->radius_ = o->radius_;
-    fm->support_radius_ = 4.0f * fm->radius_;
+    fm->support_radius_ = 3.0f * fm->radius_;
+    fm->viscosity_ = 0;
     // slightly reduced square (cube for 3D)
     const float diameter = 2.0f * fm->radius_;
     if (b_is2d) {
-        fm->volume_ = diameter * diameter * 0.8f;
+        fm->volume_ = diameter * diameter;// * 0.8f;
     } else {
         fm->volume_ = diameter * diameter * diameter * 0.8f;
     }
@@ -136,16 +137,18 @@ SPHSceneObject* SPHSceneObject::Create(const vec2& view_dim, int num_particles, 
     bm->Initialize(vec3(boundary_size, 10000.0f), fm->radius_, fm->support_radius_, resolution, true, false);
     bm->setTransform(mat4::translation(vec3(-0.5f*boundary_size, 0.0f)));
 
+#if ENABLE_PARTICLE_EMITTER
     SPHEmitter* e = SPHEmitterSystem::createrEmitter();
     e->dir_ = normalize(vec2(1,1));
     e->pos_ = 0.5f * o->view_dim_;
     e->initial_vel_ = e->dir_ * 2.0f;
     e->rate_ = 1.0f;
     e->fluid_model_ = fm;
+    o->emitters_.push_back(e);
+#endif
 
     o->fluid_ = fm;
     o->boundaries_.push_back(bm);
-    o->emitters_.push_back(e);
 
     o->surface_ = new SPHSurfaceMesh();
     
