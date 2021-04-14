@@ -31,7 +31,7 @@ public:
 
 	void DoDeinitRenderResources() {
 		if (bRenderInitialized) {
-			InitRenderResources();
+			DeinitRenderResources();
 			bRenderInitialized = false;
 		}
 	}
