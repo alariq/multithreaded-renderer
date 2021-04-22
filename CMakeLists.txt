@@ -116,6 +116,8 @@ set(SOURCES
     "sph_polygonize.cpp"
     "sph_solver_df.h"
     "sph_solver_df.cpp"
+    "sph_solver_pbd.h"
+    "sph_solver_pbd.cpp"
     "sph_solver_old.h"
     "sph_solver_old.cpp"
     "sph_object.h"
