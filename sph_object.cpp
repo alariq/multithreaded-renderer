@@ -28,7 +28,10 @@ void SPHBoundaryComponent::Destroy(SPHBoundaryComponent* comp)
 
 void SPHBoundaryComponent::UpdateComponent(float dt) {
     TransformComponent::UpdateComponent(dt);
-    boundary_->setTransform(GetTransform());
+	const quaternion q = GetRotation();
+	const vec3 p = GetPosition();
+	const vec3 s = GetScale();
+	boundary_->setTransform(p, q, s);
 }
 
 
@@ -135,7 +138,7 @@ SPHSceneObject* SPHSceneObject::Create(const vec2& view_dim, int num_particles, 
     SPHBoundaryModel* bm = new SPHBoundaryModel();
     ivec3 resolution = ivec3((int)(boundary_size.x / volume_map_cell_size), (int)(boundary_size.y / volume_map_cell_size), 1);
     bm->Initialize(vec3(boundary_size, 10000.0f), fm->radius_, fm->support_radius_, resolution, true, false);
-    bm->setTransform(mat4::translation(vec3(-0.5f*boundary_size, 0.0f)));
+    bm->setTransform(vec3(-0.5f*boundary_size, 0.0f), quaternion::identity(), vec3(1));
 
 #if ENABLE_PARTICLE_EMITTER
     SPHEmitter* e = SPHEmitterSystem::createrEmitter();
@@ -378,7 +381,7 @@ void SPHSceneObject::AddRenderPackets(struct RenderFrameContext *rfc) const {
 		rp = rl->AddPacket();
 		memset(rp, 0, sizeof(RenderPacket));
 		rp->mesh_ = *b->getBoundaryMesh();
-		rp->m_ = b->getTransform();
+		rp->m_ = b->getTransformMatrix();
 		rp->is_debug_pass = 1;
 		rp->debug_color = vec4(0, 1, 0, 1);
 	}

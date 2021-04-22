@@ -3,6 +3,8 @@
 #include "engine/gameos.hpp" 
 #include "renderer.h"
 #include "utils/vec.h"
+#include "utils/quaternion.h"
+#include "utils/math_utils.h"
 
 //#include <functional>
 #include <vector>
@@ -16,9 +18,7 @@ class SPHBoundaryModel {
     bool b_is2d_;
     bool b_invert_distance_;
 
-    mat4 transform_;
-    mat3 normal_transform_;
-    mat4 inv_transform_;
+    pose_s pose_;
     
     uint32_t distance_tex_;
     uint32_t volume_tex_;
@@ -57,7 +57,7 @@ public:
     uint32_t getDistanceTexture() const { return distance_tex_; }
     uint32_t getNormalTexture() const { return normal_tex_; }
 
-    void setTransform(const mat4& tr);
-    mat4 getTransform() const { return transform_; }
+    void setTransform(const vec3& pos, const quaternion& rot, const vec3& scale);
+    mat4 getTransformMatrix() const { return pose_s_to_mat4(pose_); }
 
 };
