@@ -9,11 +9,11 @@ namespace {
 
 gosVERTEX_FORMAT_RECORD particle_vdecl[] = {
     // quad vb with uvs
-    {0, 2, false, sizeof(ParticleVDecl), 0, gosVERTEX_ATTRIB_TYPE::FLOAT, 0},
+    {0, 2, false, sizeof(ParticleVDecl), 0, gosVERTEX_ATTRIB_TYPE::kFLOAT, 0},
 
     // instance data: stream 1
-    {1, 1, false, sizeof(ParticleInstVDecl), 0, gosVERTEX_ATTRIB_TYPE::FLOAT, 1},
-    {2, 3, false, sizeof(ParticleInstVDecl), 4, gosVERTEX_ATTRIB_TYPE::FLOAT, 1},
+    {1, 1, false, sizeof(ParticleInstVDecl), 0, gosVERTEX_ATTRIB_TYPE::kFLOAT, 1},
+    {2, 3, false, sizeof(ParticleInstVDecl), 4, gosVERTEX_ATTRIB_TYPE::kFLOAT, 1},
 
 };
 

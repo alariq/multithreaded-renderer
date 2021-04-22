@@ -115,13 +115,13 @@ GLenum getGLVertexAttribType(gosVERTEX_ATTRIB_TYPE type) {
 	GLenum t = (GLenum)-1;
 	switch (type)
 	{
-	case gosVERTEX_ATTRIB_TYPE::BYTE: return GL_BYTE;
-	case gosVERTEX_ATTRIB_TYPE::UNSIGNED_BYTE: return GL_UNSIGNED_BYTE;
-	case gosVERTEX_ATTRIB_TYPE::SHORT: return GL_SHORT;
-	case gosVERTEX_ATTRIB_TYPE::UNSIGNED_SHORT: return GL_UNSIGNED_SHORT;
-	case gosVERTEX_ATTRIB_TYPE::INT: return GL_INT;
-	case gosVERTEX_ATTRIB_TYPE::UNSIGNED_INT: return GL_UNSIGNED_INT;
-	case gosVERTEX_ATTRIB_TYPE::FLOAT: return GL_FLOAT;
+	case gosVERTEX_ATTRIB_TYPE::kBYTE: return GL_BYTE;
+	case gosVERTEX_ATTRIB_TYPE::kUNSIGNED_BYTE: return GL_UNSIGNED_BYTE;
+	case gosVERTEX_ATTRIB_TYPE::kSHORT: return GL_SHORT;
+	case gosVERTEX_ATTRIB_TYPE::kUNSIGNED_SHORT: return GL_UNSIGNED_SHORT;
+	case gosVERTEX_ATTRIB_TYPE::kINT: return GL_INT;
+	case gosVERTEX_ATTRIB_TYPE::kUNSIGNED_INT: return GL_UNSIGNED_INT;
+	case gosVERTEX_ATTRIB_TYPE::kFLOAT: return GL_FLOAT;
 	default:
 		gosASSERT(0 && "unknows vertex attrib type");
 	}
@@ -1256,9 +1256,9 @@ struct gosDebugDrawCall {
 HGOSVERTEXDECLARATION get_debug_vdecl() {
     using VDecl = gosDebugDrawCall::VDecl;
     static const gosVERTEX_FORMAT_RECORD debug_vdecl[] = {
-        {0, 3, false, sizeof(VDecl), 0, gosVERTEX_ATTRIB_TYPE::FLOAT, 0},
-        {1, 2, false, sizeof(VDecl), offsetof(VDecl, uv), gosVERTEX_ATTRIB_TYPE::FLOAT, 0},
-        {2, 4, false, sizeof(VDecl), offsetof(VDecl, colour), gosVERTEX_ATTRIB_TYPE::UNSIGNED_BYTE, 0},
+        {0, 3, false, sizeof(VDecl), 0, gosVERTEX_ATTRIB_TYPE::kFLOAT, 0},
+        {1, 2, false, sizeof(VDecl), offsetof(VDecl, uv), gosVERTEX_ATTRIB_TYPE::kFLOAT, 0},
+        {2, 4, false, sizeof(VDecl), offsetof(VDecl, colour), gosVERTEX_ATTRIB_TYPE::kUNSIGNED_BYTE, 0},
     };
 
     static auto vdecl = gos_CreateVertexDeclaration(
@@ -1459,12 +1459,12 @@ class gosRenderer {
 
 		const mat4& getProj2Screen() { return projection_; }
 
-        void setRenderState(gos_RenderState RenderState, int Value) {
-            renderStates_[RenderState] = Value;
+        void setRenderState(gos_RenderState InRenderState, int Value) {
+            renderStates_[InRenderState] = Value;
         }
 
-        int getRenderState(gos_RenderState RenderState) const {
-            return renderStates_[RenderState];
+        int getRenderState(gos_RenderState InRenderState) const {
+            return renderStates_[InRenderState];
         }
 
         void setSamplerState(uint32_t unit, HGOSTEXTURESAMPLER sampler) {

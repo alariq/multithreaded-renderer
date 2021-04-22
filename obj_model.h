@@ -223,7 +223,7 @@ public:
     Component* GetComponent(ComponentType type) const {
         auto cmp = std::find_if(
             components_.begin(), components_.end(),
-            [type](Component *cmp) { return cmp->GetType() == type; });
+            [type](Component *comp) { return comp->GetType() == type; });
         return cmp!=components_.end() ? *cmp : nullptr;
     }
 
@@ -231,7 +231,7 @@ public:
     T* GetComponent() const {
         auto cmp = std::find_if(
             components_.begin(), components_.end(),
-            [](Component *cmp) { return cmp->GetType() == T::type_; });
+            [](Component *comp) { return comp->GetType() == T::type_; });
         return cmp!=components_.end() ? (T*)*cmp : nullptr;
     }
 
