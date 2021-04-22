@@ -65,8 +65,8 @@ void initialize_scene(const struct camera *cam, struct RenderFrameContext *rfc) 
         const float amplitude = random(12.0f, 30.0f);
         const float phase = random(0.0f, 2.0f * 3.1415f);
         go->SetUpdater([base_pos, start_time, amplitude,
-                        phase](float dt, MeshObject *go) mutable {
-            auto* tc = go->GetComponent<TransformComponent>();
+                        phase](float dt, MeshObject *gobj) mutable {
+            auto* tc = gobj->GetComponent<TransformComponent>();
             vec3 p = tc->GetPosition();
             p.y =
                 base_pos.y + amplitude * 0.5f * (sin(phase + start_time) + 1.0f);
