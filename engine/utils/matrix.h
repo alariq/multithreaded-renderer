@@ -16,5 +16,6 @@ void glu_LookAt2(float eyex, double eyey, float eyez, float centerx,
           float upz);
 
 bool invert(const mat4& m, mat4 &inverse, float tolerance);
+mat3 inverse(const mat3& m, float tolerance = 0);
 
 #endif // INCLUDED_MATH_H

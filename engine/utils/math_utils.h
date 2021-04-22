@@ -1,6 +1,7 @@
 #pragma once
 
 #include "vec.h"
+#include "quaternion.h"
 #include <cfloat>
 
 // [s, e]
@@ -115,5 +116,32 @@ inline vec3 project_on_vector(const vec3 ray_dir, const vec3 ray_origin, const v
 
 inline vec4 make_plane(const vec3& normal, const vec3& pt) {
 	return vec4(normal, dot(normal, pt));
+}
+
+struct pose_s {
+	vec3 pos;
+	quaternion rot;
+	vec3 scale;
+};
+
+inline mat4 pose_s_to_mat4(const pose_s& tr) {
+	return translate(tr.pos) * quat_to_mat4(tr.rot) * mat4::scale(tr.scale);
+}
+
+inline vec3 pose_s_l2w(const pose_s& tr, const vec3& lp) {
+	return quat_rotate(tr.rot, tr.scale * lp) + tr.pos;
+}
+
+inline vec3 pose_s_w2l(const pose_s& tr, const vec3& wp) {
+	return (vec3(1.0f) / tr.scale) * quat_inv_rotate(tr.rot, (wp - tr.pos));
+}
+
+// does not apply scale
+inline vec3 pose_w2l(const pose_s& tr, const vec3& wp) {
+	return quat_inv_rotate(tr.rot, (wp - tr.pos));
+}
+
+inline vec3 pose_l2w(const pose_s& tr, const vec3& lp) {
+	return quat_rotate(tr.rot, lp) + tr.pos;
 }
 

@@ -402,7 +402,10 @@ mat2 transpose(const mat2 &m);
 
 /** 3x3 matrix */
 struct mat3 {
-	float elem[3][3];
+    union {
+	    float elem[3][3];
+        float e[9];
+    };
 
 	mat3(){}
 	mat3(const float m00, const float m01, const float m02,
