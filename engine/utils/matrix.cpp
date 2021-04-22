@@ -414,3 +414,23 @@ bool invert(const mat4& m, mat4 &inverse, float tolerance) {
     return det*det >= tolerance*tolerance;
 }
 
+// Return the adjoint of this matrix, i.e., the transpose of its cofactor.
+mat3 adjoint(const mat3& m) {
+	return mat3(m.e[4] * m.e[8] - m.e[5] * m.e[7], m.e[2] * m.e[7] - m.e[1] * m.e[8],
+				m.e[1] * m.e[5] - m.e[2] * m.e[4], m.e[5] * m.e[6] - m.e[3] * m.e[8],
+				m.e[0] * m.e[8] - m.e[2] * m.e[6], m.e[2] * m.e[3] - m.e[0] * m.e[5],
+				m.e[3] * m.e[7] - m.e[4] * m.e[6], m.e[1] * m.e[6] - m.e[0] * m.e[7],
+				m.e[0] * m.e[4] - m.e[1] * m.e[3]);
+}
+
+mat3 inverse(const mat3& m, float tolerance /*= 0*/) {
+	mat3 inv(adjoint(m));
+
+	const float det = inv.e[0] * m.e[0] + inv.e[1] * m.e[3] + inv.e[2] * m.e[6];
+
+	// If the determinant is 0, m was singular and the result will be invalid.
+	if (isApproxEqual(det, 0.0f, tolerance)) {
+		assert(0 && "Inversion of singular 3x3 matrix");
+	}
+	return inv * (1.0f / det);
+}
