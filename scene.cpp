@@ -226,9 +226,9 @@ void scene_delete_game_object(GameObject* go) {
 
 		for (Component *comp : go->GetComponents()) {
             auto& cmp_list = g_components[(uint32_t)comp->GetType()];
-			auto b = std::begin(cmp_list);
-			auto e = std::end(cmp_list);
-            cmp_list.erase(std::remove(b, e, comp), e);
+			auto cb = std::begin(cmp_list);
+			auto ce = std::end(cmp_list);
+            cmp_list.erase(std::remove(cb, ce, comp), ce);
 		}
 
         g_render_destroy_pending.push_back(go);

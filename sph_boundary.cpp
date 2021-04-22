@@ -96,12 +96,12 @@ void SPHBoundaryModel::generate_volume_map(float support_radius) {
 			if (lengthSqr(xi) > support_radius * support_radius)
                 return 0.0f;
 
-			auto dist = lattice_->interpolate_value_xy<kDistanceIdx>(x + xi);
+			auto idist = lattice_->interpolate_value_xy<kDistanceIdx>(x + xi);
 
-			if (dist <= 0.0f)
-                return 1.0f - 0.1f * dist / support_radius;
-			if (dist < 1.0f / factor * support_radius)
-				return CubicKernel::W(factor * dist) / CubicKernel::W_zero();
+			if (idist <= 0.0f)
+                return 1.0f - 0.1f * idist / support_radius;
+			if (idist < 1.0f / factor * support_radius)
+				return CubicKernel::W(factor * idist) / CubicKernel::W_zero();
 			return 0.0;
 		};
 
@@ -237,12 +237,12 @@ float SPHBoundaryModel::getVolume2D(const vec2& world_pos) const {
 			if (lengthSqr(xi) > support_r* support_r)
                 return 0.0f;
 
-			auto dist = getDistance2D((x + xi).xy());
+			auto idist = getDistance2D((x + xi).xy());
 
-			if (dist <= 0.0f)
-                return 1.0f - 0.1f * dist / support_r;
-			if (dist < 1.0f / factor * support_r)
-				return CubicKernel::W(factor * dist) / CubicKernel::W_zero();
+			if (idist <= 0.0f)
+                return 1.0f - 0.1f * idist / support_r;
+			if (idist < 1.0f / factor * support_r)
+				return CubicKernel::W(factor * idist) / CubicKernel::W_zero();
 			return 0.0;
 		};
 

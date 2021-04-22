@@ -242,7 +242,7 @@ struct PBD_TimeStep {
 									  grad_Ci -= grad_Cj;
 								  });
 				// boundary
-				float Vj = sim_data->boundaryVolume_[i];
+				//float Vj = sim_data->boundaryVolume_[i];
 				if (Vj > 0.0f) {
 					vec2 xj = sim_data->boundaryXj_[i];
 					vec2 grad_Cj = -Vj * sim->gradW(pi.pos - xj);

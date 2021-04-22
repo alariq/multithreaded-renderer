@@ -47,11 +47,11 @@ void ScheduleDebugDrawCommand(RenderFrameContext *rfc, std::function<void(void)>
 
 HGOSVERTEXDECLARATION get_svd_vdecl() {
     static const gosVERTEX_FORMAT_RECORD simple_vdecl[] = {
-        {0, 3, false, sizeof(SVD), 0, gosVERTEX_ATTRIB_TYPE::FLOAT, 0},
+        {0, 3, false, sizeof(SVD), 0, gosVERTEX_ATTRIB_TYPE::kFLOAT, 0},
         {1, 2, false, sizeof(SVD), offsetof(SVD, uv),
-         gosVERTEX_ATTRIB_TYPE::FLOAT, 0},
+         gosVERTEX_ATTRIB_TYPE::kFLOAT, 0},
         {2, 3, false, sizeof(SVD), offsetof(SVD, normal),
-         gosVERTEX_ATTRIB_TYPE::FLOAT, 0},
+         gosVERTEX_ATTRIB_TYPE::kFLOAT, 0},
     };
 
     static auto vdecl = gos_CreateVertexDeclaration(
@@ -62,7 +62,7 @@ HGOSVERTEXDECLARATION get_svd_vdecl() {
 HGOSVERTEXDECLARATION get_pos_only_vdecl() {
 
     static const gosVERTEX_FORMAT_RECORD pos_only_vdecl[] = {
-        {0, 3, false, sizeof(vec3), 0, gosVERTEX_ATTRIB_TYPE::FLOAT, 0},
+        {0, 3, false, sizeof(vec3), 0, gosVERTEX_ATTRIB_TYPE::kFLOAT, 0},
     };
 
     static auto vdecl = gos_CreateVertexDeclaration(
@@ -73,7 +73,7 @@ HGOSVERTEXDECLARATION get_pos_only_vdecl() {
 
 HGOSVERTEXDECLARATION get_quad_vdecl() {
     static const gosVERTEX_FORMAT_RECORD quad_vdecl[] = {
-        {0, 2, false, sizeof(QVD), 0, gosVERTEX_ATTRIB_TYPE::FLOAT, 0},
+        {0, 2, false, sizeof(QVD), 0, gosVERTEX_ATTRIB_TYPE::kFLOAT, 0},
         //{1, 2, false, sizeof(QVD), offsetof(QVD, uv),
         //gosVERTEX_ATTRIB_TYPE::FLOAT
         //}
