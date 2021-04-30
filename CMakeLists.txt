@@ -10,10 +10,14 @@ list(APPEND CMAKE_MODULE_PATH ${CMAKE_PREFIX_PATH}/cmake/sdl2)
 set(SDL2_PATH ${CMAKE_PREFIX_PATH})
 
 message("CMAKE library architecture: ${CMAKE_LIBRARY_ARCHITECTURE}")
+message("CMAKE generator platform:  ${CMAKE_GENERATOR_PLATFORM}")
 
 if("${CMAKE_SIZEOF_VOID_P}" EQUAL "8")
 	message(STATUS "Target is 64 bits")
 	set_property(GLOBAL PROPERTY FIND_LIBRARY_USE_LIB64_PATHS TRUE)
+    # this may fix GLEW library found for nmake win build, because it does not support CMAKE_GENERATOR_PLATFORM aka -A x64
+    # but also can create lib64 in 3rdparty
+    #set(${FIND_LIBRARY_USE_LIB64_PATHS} TRUE)
 else("${CMAKE_SIZEOF_VOID_P}" EQUAL "8")
 	message(STATUS "Target is 32 bits")
 endif("${CMAKE_SIZEOF_VOID_P}" EQUAL "8")
@@ -36,8 +40,11 @@ if(MSVC)
     # 4514 - unreferenced inline function has been removed
     # 4121 - alignment of a member was sensitive to packing
     # 4099 - type name first seen using 'struct' now seen using 'class'
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /std:c++17 /W4 /wd4514 /wd4121 /we4099")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W4 /wd4514 /wd4121 /we4099")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /std:c++latest") # designated initializers
     set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MTd")
+    # Remotery is C, so important to use same CRT
+    set(CMAKE_C_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MTd")
 endif()
 
 if(MSVC)
@@ -57,10 +64,10 @@ add_definitions(-DUSE_ASSEMBLER_CODE=0)
 add_definitions(-DLINUX_BUILD)
 add_definitions(-DRMT_USE_OPENGL=1)
 
-find_path(GLEW_INCLUDE "GL/glew.h")
-
 # on Windows custom FindSDL2 is used so probably need to use SDL2main (as recommended, but it works with just "SDL2" as well just with a warning)
 find_package(SDL2 REQUIRED)
+set(GLEW_USE_STATIC_LIBS TRUE)
+add_definitions(-DGLEW_STATIC=1)
 find_package(GLEW REQUIRED)
 
 get_filename_component(COM_PATH1 "./GameOS/include" ABSOLUTE)
@@ -68,8 +75,7 @@ get_filename_component(COM_PATH2 "./GameOS/gameos" ABSOLUTE)
 
 set(COMMON_INCLUDE_DIRS  ${COM_PATH1} ${COM_PATH2})
 
-include_directories(SDL2::SDL2)
-include_directories(${GLEW_INCLUDE})
+include_directories(${GLEW_INCLUDE_DIR})
 
 add_subdirectory("./engine" "./out/engine")
 add_subdirectory("./platform" "./out/platform")
@@ -101,7 +107,8 @@ set(SOURCES
 find_package(OpenGL REQUIRED)
 
 message("OPENGL library found in ${OPENGL}")
-message("GLEW library found in ${GLEW}")
+message("GLEW library found in ${GLEW_LIBRARIES}")
+message("GLEW include found in ${GLEW_INCLUDE_DIR}")
 
 include_directories(${COMMON_INCLUDE_DIRS} "./platform/include" "./engine" )
 
