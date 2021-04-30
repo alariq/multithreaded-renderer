@@ -66,8 +66,11 @@ add_definitions(-DRMT_USE_OPENGL=1)
 
 # on Windows custom FindSDL2 is used so probably need to use SDL2main (as recommended, but it works with just "SDL2" as well just with a warning)
 find_package(SDL2 REQUIRED)
-set(GLEW_USE_STATIC_LIBS TRUE)
-add_definitions(-DGLEW_STATIC=1)
+#use glew static on win
+if(MSVC)
+    set(GLEW_USE_STATIC_LIBS TRUE)
+    add_definitions(-DGLEW_STATIC=1)
+endif()
 find_package(GLEW REQUIRED)
 
 get_filename_component(COM_PATH1 "./GameOS/include" ABSOLUTE)
