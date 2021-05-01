@@ -169,6 +169,7 @@ void pbd_init_scene() {
 	solver->simulate(sim, 1.0f / 60.0f);
 }
 
+////////////////////////////////////////////////////////////////////////////////
 static PBDSolver *solver = new PBDSolver(); // aka timestep
 static PBDSimulation* g_pbd_simulation = nullptr;
 static ICollisionDetection* g_collision_detection = nullptr;
@@ -202,4 +203,28 @@ void pbd_simulate(float dt) {
 	solver->simulate(g_pbd_simulation, 1.0f / 60.0f);
 }
 
+////////////////////////////////////////////////////////////////////////////////
+RigidBody* pbd_create_box_rigid_body(const vec3& box_size, const float density,
+									 const vec3& pos, const quaternion& rot,
+									 const float restitution, const float friction) {
+
+	RigidBody *rb = new RigidBody();
+	rb->setBox(box_size, density);
+    rb->resetPose({rot, pos});
+    rb->restitution_c = restitution;
+    rb->friction_c = friction;
+    return rb;
+}
+
+ICollisionObject* pbd_create_box_collision(int rb_index, const vec3& box_size) {
+	// maybe return object handle upon addition to CollisionDetection ?
+	DistanceFieldCollisionObjectBox* co_box = new DistanceFieldCollisionObjectBox();
+	co_box->box_ = 0.5f * box_size;
+	co_box->enable_ = true;
+	co_box->invert_ = false;
+	co_box->aabb_ = AABB(-0.5f * box_size, 0.5f * box_size);
+	co_box->body_type_ = ICollisionObject::RigidBodyCollisionObjectType;
+	co_box->body_index_ = rb_index;
+	return co_box;
+}
 
