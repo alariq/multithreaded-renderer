@@ -21,6 +21,7 @@ void ReleaseRenderList(RenderList* rl) {
 
     rl->Release();
     rl->GetRenderPackets().resize(0);
+    rl->GetDebugPrimitives().resize(0);
     gFreeRenderLists.push(rl);
 }
 

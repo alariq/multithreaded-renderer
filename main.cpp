@@ -389,6 +389,22 @@ void __stdcall Render(void)
     ParticleSystemManager::Instance().Render(rfc_nonconst_because_of_partiles);
     RenderFrameContext* rfc = rfc_nonconst_because_of_partiles;
 
+    for(auto& dp: rfc->rl_->GetDebugPrimitives()) {
+        switch(dp.type_) {
+            case DebugPrimitive::kLine:
+                gos_AddLine(dp.line_.s, dp.line_.e, dp.colour_, &dp.transform_);
+                break;
+            case DebugPrimitive::kPoint:
+                gos_AddPoints(dp.point_.vts, dp.point_.count, dp.colour_, dp.point_.size, &dp.transform_);
+                delete[] dp.point_.vts;
+                break;
+            case DebugPrimitive::kQuad:
+                gos_AddQuad(dp.quad_.size, dp.colour_, dp.quad_.tex_id, &dp.transform_, dp.b_two_sided_);
+                break;
+
+        }
+    }
+
     // process all scheduled commands
     for(auto& cmd : rfc->commands_) {
         cmd();

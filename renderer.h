@@ -71,6 +71,28 @@ struct RenderPacket {
     uint32_t is_gizmo_pass: 1;
 };
 
+struct DebugPrimitive {
+    enum : uint8_t { kLine, kPoint, kQuad };
+    uint32_t type_: 8;
+    uint32_t b_two_sided_: 1;
+    union {
+        struct {
+            vec3 s,e;
+        } line_;
+        struct {
+            float size;
+            vec3* vts;
+            uint32_t count;
+        } point_;
+        struct {
+            vec2 size;
+            uint32_t tex_id;
+        } quad_;
+    };
+    vec4 colour_;
+    mat4 transform_;
+};
+
 class NonCopyable {
     NonCopyable(const NonCopyable&) = delete;
     NonCopyable(NonCopyable&&) = delete;
@@ -80,10 +102,12 @@ protected:
 };
 
 typedef std::vector<RenderPacket> RenderPacketList_t;
+typedef std::vector<DebugPrimitive> DebugPrimitiveList_t;
 class RenderList: public NonCopyable {
     std::atomic_int ref_count;
     int id_;
     RenderPacketList_t packets_;
+    DebugPrimitiveList_t debug_prims_;
 public:
     RenderList():ref_count(0) {
         static int id = 0;
@@ -111,7 +135,40 @@ public:
     }
 
     RenderPacketList_t& GetRenderPackets() { return packets_; }
+    DebugPrimitiveList_t& GetDebugPrimitives() { return debug_prims_; }
 
+
+	void addDebugLine(const vec3& start, const vec3& end, const vec4& colour,
+					  const mat4* prim_transform = nullptr) {
+
+		DebugPrimitive dp = {.type_ = DebugPrimitive::kLine,
+							 .line_ = {start, end},
+							 .colour_ = colour,
+							 .transform_ =
+								 prim_transform ? *prim_transform : mat4::identity()};
+		debug_prims_.emplace_back(dp);
+	}
+	void addDebugQuad(const vec2& size, const vec4& colour, uint32_t texture_id,
+					  bool b_two_sided, const mat4* prim_transform = nullptr) {
+		DebugPrimitive dp = {.type_ = DebugPrimitive::kQuad,
+							 .quad_ = {.size = size, .tex_id = texture_id},
+							 .colour_ = colour,
+							 .transform_ =
+								 prim_transform ? *prim_transform : mat4::identity()};
+		debug_prims_.emplace_back(dp);
+	}
+	void addDebugPoints(const vec3* pos, uint32_t count, const vec4& colour,
+						float point_size, bool b_two_sided, const mat4* prim_transform = nullptr) {
+        // TODO:
+		vec3* vts = new vec3[count];
+		DebugPrimitive dp = {.type_ = DebugPrimitive::kPoint,
+							 .b_two_sided_ = b_two_sided,
+							 .point_ = {.size = point_size, .vts = vts, .count = count},
+							 .colour_ = colour,
+							 .transform_ =
+								 prim_transform ? *prim_transform : mat4::identity()};
+		debug_prims_.emplace_back(dp);
+	}
 };
 
 RenderList* AcquireRenderList();
