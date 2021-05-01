@@ -160,7 +160,7 @@ class TransformComponent : public Component {
 	}
 	vec3 GetScale() const {
 		assert(!b_need_recalculate);
-		return scale_;
+		return world_scale_;
 	}
 	vec3 GetWorldSpaceScale() const {
 		assert(!b_need_recalculate);
@@ -249,6 +249,8 @@ public:
         auto b = std::begin(components_);
         auto e = std::end(components_);
 		assert(e == std::find(b, e, comp));
+		(void)b;
+		(void)e;
 		comp->Initialize(GameObjectHandle{this});
         components_.push_back(comp);
         return comp;
