@@ -1,4 +1,5 @@
 #include "sph_boundary.h"
+#include "pbd/pbd.h"
 #include "sph_kernels.h"
 #include "engine/gameos.hpp"
 #include "utils/vec.h"
@@ -6,6 +7,7 @@
 #include "utils/simple_quadrature.h"
 #include "utils/matrix.h"
 #include "utils/quaternion.h"
+
 #include <cassert>
 #include <cfloat>
 #include <cstdint>
@@ -132,17 +134,33 @@ void SPHBoundaryModel::generate_volume_map(float support_radius) {
 	}
 }
 
-bool SPHBoundaryModel::Initialize(vec3 cube, float particle_radius, float support_radius, ivec3 resolution, bool b_is2d, bool b_invert) {
+bool SPHBoundaryModel::Initialize(vec3 cube, float particle_radius, float support_radius,
+								  ivec3 resolution, bool b_is2d, bool b_invert,
+								  bool b_dynamic) {
 
-    // extend by support radius
+	// extend by support radius
     vec3 ext = vec3(4.0f*support_radius);
     b_is2d_ = b_is2d;
     if(b_is2d)
         ext.z = 0.0f;
 
+    b_dynamic_ = b_dynamic;
+#if 1
+    auto sim = pbd_get_simulation();
+    auto cd = pbd_get_collision_detection();
+
+    rb_ = pbd_create_box_rigid_body(cube, 1000, vec3(0), quaternion::identity(), 0.15f, 0.0f); 
+    if(!b_dynamic) {
+        rb_->inv_mass = 0.0f;
+    }
+    int rb_index = sim->addRigidBody(rb_);
+    rb_collision_ = pbd_create_box_collision(rb_index, cube);
+    cd->addCollisionObject(rb_collision_);
+#endif
+
     b_invert_distance_ = b_invert;
 
-    boundary_min_ = -0.5f*cube;//vec3(0);
+    boundary_min_ = -0.5f*cube;
     boundary_max_ = 0.5f*cube;
 
     setTransform(vec3(0,0,0), quaternion::identity(), vec3(1,1,1));
@@ -192,13 +210,36 @@ void SPHBoundaryModel::setTransform(const vec3& pos, const quaternion& rot, cons
     pose_.pos = pos;
     pose_.rot = rot;
     pose_.scale = scale;
+    if(rb_) {
+        rb_->resetPose({rot, pos});
+    }
+}
+
+mat4 SPHBoundaryModel::getTransformMatrix() const {
+    if(rb_) {
+        return translate(rb_->pose.p) * quat_to_mat4(rb_->pose.q);
+    } else {
+        return pose_s_to_mat4(pose_);
+    }
+}
+
+void SPHBoundaryModel::addForce(const vec3& at, const vec3& f) {
+    if(rb_) {
+        rb_->force_ += f;
+        rb_->torque_ += cross(at - rb_->pose.p, f);
+    }
 }
 
 float SPHBoundaryModel::getDistance2D(const vec2& world_pos) const {
 //	auto get_distance = [this](const int idx) -> float { return d(idx); };
   //  return interpolate_value_xy(vec3(pos.x, pos.y, 0.0f), get_distance);
 
-	vec3 loc_pos = pose_w2l(pose_, vec3(world_pos,0));
+    vec3 loc_pos;
+    if(rb_) {
+        loc_pos = rb_->pose.invTransform(vec3(world_pos,0));
+    } else {
+        loc_pos = pose_w2l(pose_, vec3(world_pos,0));
+    }
 	const vec2 pos = loc_pos.xy();
 
     float sign = b_invert_distance_ ? -1.0f : 1.0f;
@@ -259,7 +300,13 @@ float SPHBoundaryModel::getVolume2D(const vec2& world_pos) const {
 }
 
 vec2 SPHBoundaryModel::getNormal2D(const vec2& world_pos) const {
-	vec3 loc_pos = pose_w2l(pose_, vec3(world_pos, 0));
+	vec3 loc_pos;
+	if (rb_) {
+		loc_pos = rb_->pose.invTransform(vec3(world_pos, 0));
+	} else {
+		loc_pos = pose_w2l(pose_, vec3(world_pos, 0));
+	}
+
 	const vec2 pos = loc_pos.xy();
 
 #if 1
@@ -393,7 +440,12 @@ void SPHBoundaryModel::UpdateTexturesByData() {
     vec3 center = getCenter();
     center.z = 0.4f;
 
-    mat4 tr = pose_s_to_mat4(pose_) * mat4::translation(center);
+    mat4 tr;
+    if(!rb_) {
+        tr = pose_s_to_mat4(pose_) * mat4::translation(center);
+    } else {
+        tr = translate(rb_->pose.p) * quat_to_mat4(rb_->pose.q) * mat4::translation(center);
+    }
     gos_AddQuad(size, vec4(1,1,1, 1.3f), volume_tex_, &tr, true);
 }
 

@@ -3,11 +3,13 @@
 #include "sph_boundary.h"
 #include "sph_emitter.h"
 #include "sph_polygonize.h"
+#include "sph_solver_df.h"
+#include "sph_solver_pbd.h"
 #include "res_man.h"
 #include "utils/vec.h"
 #include "utils/quaternion.h"
 
-SPHBoundaryComponent* SPHBoundaryComponent::Create(const SPHSimulation *sim, const vec2 &dim, bool b_invert) {
+SPHBoundaryComponent* SPHBoundaryComponent::Create(const SPHSimulation *sim, const vec2 &dim, bool b_invert, bool b_dynamic) {
 
     SPHBoundaryComponent* c = new SPHBoundaryComponent();
     
@@ -15,7 +17,9 @@ SPHBoundaryComponent* SPHBoundaryComponent::Create(const SPHSimulation *sim, con
     const bool b_is2d = true;
     c->boundary_ = new SPHBoundaryModel();
     ivec3 resolution = ivec3((int)(dim.x / volume_map_cell_size), (int)(dim.y / volume_map_cell_size), 1);
-    c->boundary_->Initialize(vec3(dim.x, dim.y, 10000.0f), sim->radius(), sim->support_radius(), resolution, b_is2d, b_invert);
+    c->boundary_->Initialize(vec3(dim.x, dim.y, 1), sim->radius(), sim->support_radius(), resolution, b_is2d, b_invert, b_dynamic);
+
+    c->on_transformed_fptr_ = on_transformed;
 
     return c;
 }
@@ -26,20 +30,30 @@ void SPHBoundaryComponent::Destroy(SPHBoundaryComponent* comp)
     delete comp;
 }
 
+void SPHBoundaryComponent::on_transformed(TransformComponent* comp) {
+    SPHBoundaryComponent* bc = (SPHBoundaryComponent*)comp;  
+    assert(bc->GetType() == ComponentType::kSPHBoundary);
+
+	const quaternion q = bc->GetRotation();
+	const vec3 p = bc->GetPosition();
+	const vec3 s = bc->GetScale();
+	bc->getBoundary()->setTransform(p, q, s);
+}
+
 void SPHBoundaryComponent::UpdateComponent(float dt) {
-    TransformComponent::UpdateComponent(dt);
-	const quaternion q = GetRotation();
-	const vec3 p = GetPosition();
-	const vec3 s = GetScale();
-	boundary_->setTransform(p, q, s);
+    //TransformComponent::UpdateComponent(dt);
+	//const quaternion q = GetRotation();
+	//const vec3 p = GetPosition();
+	//const vec3 s = GetScale();
+	//boundary_->setTransform(p, q, s);
 }
 
 
-SPHBoundaryObject::SPHBoundaryObject(const SPHSimulation* sim, const vec2 &dim, bool b_invert)
+SPHBoundaryObject::SPHBoundaryObject(const SPHSimulation* sim, const vec2 &dim, bool b_invert, bool b_dynamic)
 {
     Tuple_.tr_ = AddComponent<TransformComponent>();
 
-    Tuple_.bm_ = SPHBoundaryComponent::Create(sim, dim, b_invert);
+    Tuple_.bm_ = SPHBoundaryComponent::Create(sim, dim, b_invert, b_dynamic);
     AddComponent(Tuple_.bm_);
     addToSimulation(sph_get_simulation());
 
@@ -89,7 +103,10 @@ void SPHBoundaryObject::AddRenderPackets(struct RenderFrameContext *rfc) const {
 	RenderPacket *rp = rl->AddPacket();
 	memset(rp, 0, sizeof(RenderPacket));
 	rp->mesh_ = *bm->getBoundaryMesh();
-	rp->m_ = Tuple_.tr_->GetTransform();
+
+	//rp->m_ = Tuple_.tr_->GetTransform();
+	rp->m_ = bm->getTransformMatrix();
+
 	//rp->is_debug_pass = 1;
 	rp->is_opaque_pass = 1;
 	rp->debug_color = vec4(0, 1, 0, 1);
@@ -137,8 +154,8 @@ SPHSceneObject* SPHSceneObject::Create(const vec2& view_dim, int num_particles, 
     const float volume_map_cell_size = o->radius_;
     SPHBoundaryModel* bm = new SPHBoundaryModel();
     ivec3 resolution = ivec3((int)(boundary_size.x / volume_map_cell_size), (int)(boundary_size.y / volume_map_cell_size), 1);
-    bm->Initialize(vec3(boundary_size, 10000.0f), fm->radius_, fm->support_radius_, resolution, true, false);
-    bm->setTransform(vec3(-0.5f*boundary_size, 0.0f), quaternion::identity(), vec3(1));
+    bm->Initialize(vec3(boundary_size, 10.0f), fm->radius_, fm->support_radius_, resolution, true, false, false);
+    bm->setTransform(vec3(-0.25f*boundary_size, 0.0f), quaternion::identity(), vec3(1));
 
 #if ENABLE_PARTICLE_EMITTER
     SPHEmitter* e = SPHEmitterSystem::createrEmitter();
@@ -265,6 +282,9 @@ void SPHSceneObject::AddRenderPackets(struct RenderFrameContext *rfc) const {
     uint32_t vsy = grid_->vertexDimY();
     SPHGrid* grid = grid_;
     auto boundaries = boundaries_;
+
+    SPH_PBDDebugDrawSimData(fluid_, rfc->rl_);
+    //SPH_DFDebugDrawSimData(fm);
 
 	ScheduleRenderCommand(rfc, [num_particles, inst_vb, particles, grid_verts, grid, boundaries, surface_grid_tex, sdf_tex, vsx, vsy]() {
 		const size_t bufsize = num_particles * sizeof(SPHParticle2D);

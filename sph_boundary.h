@@ -17,8 +17,13 @@ class SPHBoundaryModel {
     SPHLattice* lattice_;
     bool b_is2d_;
     bool b_invert_distance_;
+    bool b_dynamic_;
 
     pose_s pose_;
+
+    // used in case of dynamic boundary
+	struct RigidBody* rb_;
+    struct ICollisionObject* rb_collision_;
     
     uint32_t distance_tex_;
     uint32_t volume_tex_;
@@ -37,9 +42,9 @@ public:
         kNormalIdx = 2
     };
 
-
-    bool Initialize(vec3 cube, float particle_radius, float support_radius, ivec3 resolution, bool b_is2d, bool b_invert);
-    void Destroy();
+	bool Initialize(vec3 cube, float particle_radius, float support_radius,
+					ivec3 resolution, bool b_is2d, bool b_invert, bool b_dynamic);
+	void Destroy();
 
     vec3 getDimension() const { return boundary_max_ - boundary_min_; }
     vec3 getCenter() const { return 0.5f * (boundary_max_ + boundary_min_); }
@@ -58,6 +63,8 @@ public:
     uint32_t getNormalTexture() const { return normal_tex_; }
 
     void setTransform(const vec3& pos, const quaternion& rot, const vec3& scale);
-    mat4 getTransformMatrix() const { return pose_s_to_mat4(pose_); }
+    mat4 getTransformMatrix() const;
 
+    bool isDynamic() const { return b_dynamic_; }
+    void addForce(const vec3& at, const vec3& f);
 };

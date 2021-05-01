@@ -8,6 +8,8 @@
 class SPHBoundaryComponent : public TransformComponent {
 	class SPHBoundaryModel *boundary_ = nullptr;
     virtual ~SPHBoundaryComponent() {};
+
+	static void on_transformed(TransformComponent* );
 public:
 	static const ComponentType type_ = ComponentType::kSPHBoundary;
 	virtual ComponentType GetType() const override { return type_; }
@@ -18,7 +20,7 @@ public:
 
     virtual void UpdateComponent(float dt) override;
 
-    static SPHBoundaryComponent* Create(const class SPHSimulation *sim, const vec2 &dim, bool b_invert);
+    static SPHBoundaryComponent* Create(const class SPHSimulation *sim, const vec2 &dim, bool b_invert, bool b_dynamic);
     static void Destroy(SPHBoundaryComponent* comp);
 };
 
@@ -30,7 +32,7 @@ class SPHBoundaryObject: public GameObject {
     };
     BoundaryTuple Tuple_;
 public:
-    SPHBoundaryObject(const SPHSimulation* sim, const vec2 &dim, bool b_invert);
+    SPHBoundaryObject(const SPHSimulation* sim, const vec2 &dim, bool b_invert, bool b_dynamic);
     ~SPHBoundaryObject();
 
     // IEditorObject
