@@ -56,6 +56,10 @@ struct RigidBody {
     std::vector<vec3> local_vertices_;
     std::vector<vec3> vertices_;
 
+    // accumulated over frame, cleared every frame after application
+    vec3 force_ = vec3(0);
+    vec3 torque_ = vec3(0);
+
 	void setBox(const vec3 &size, float density) {
 		float mass = size.x * size.y * size.z * density;
 		inv_mass = 1.0 / mass;
@@ -109,22 +113,12 @@ struct RigidBody {
         if (phi * dt > maxRotationPerSubstep) 
             dt = maxRotationPerSubstep / phi;
         
-        // A Survey on Position Based Dynamics, 2017 Section 3.1, 3.2
-        // https://github.com/matthias-research/pages/blob/master/challenges/PBD.js
-        
+        // A Survey on Position Based Dynamics, 2017 Section 3.1, 3.2 (eq. 4)
+        // or https://github.com/matthias-research/pages/blob/master/challenges/PBD.js
+        // or GDC2006_Catto_Erin Fast and Simple Physics using Sequential Impulses
         quaternion dq = quaternion(ang_vel.x, ang_vel.y, ang_vel.z, 0.0f);
-        quaternion rot  = pose.q +
-            0.5f * dt * dq * pose.q; // (eq. 4)
-#if 0
-        float len = dq.length();
-        quaternion W_t = dq;
-        quaternion q_t = quaternion(vec3(1), W_t.length()*dt);
-        q_t.x *= W_t.x / len;
-        q_t.y *= W_t.y / len;
-        q_t.z *= W_t.z / len;
-        quaternion d_q = (0.5f * W_t * q_t);
-        quaternion rot = pose.q + d_q;
-#endif
+        quaternion rot  = pose.q + 0.5f * dt * dq * pose.q;
+
         return normalize(rot);
 
     }
@@ -133,13 +127,15 @@ struct RigidBody {
 	// TODO: move gravity to application of all forces
 	void integrate(float dt, const vec3 &gravity) {
 		if (inv_mass != 0.0f) {
-			vel += dt * gravity; // predicted location
+			vel += dt * (gravity + force_*inv_mass); // predicted location
 			pose.p = pose.p + vel * dt;
 
-			// omega += dt * inv_inertia * torque;
-
+			omega += dt * inv_inertia * torque_;
 			pose.q = applyRotation(omega, dt);
 		}
+
+        force_ = vec3(0);
+        torque_= vec3(0);
 	}
 
 	// after constrain & collision resolve
@@ -274,6 +270,7 @@ class PBDSolver {
 	void simulate(PBDSimulation *sim, float dt);
 };
 
+////////////////////////////////////////////////////////////////////////////////
 PBDSimulation* pbd_get_simulation();
 ICollisionDetection* pbd_get_collision_detection();
 
@@ -284,4 +281,10 @@ void pbd_destroy_simulation();
 void pbd_destroy_collision_detection();
 
 void pbd_simulate(float dt);
+
+////////////////////////////////////////////////////////////////////////////////
+RigidBody* pbd_create_box_rigid_body(const vec3& box_size, const float density,
+									 const vec3& pos, const quaternion& rot,
+									 const float restitution, const float friction);
+struct ICollisionObject* pbd_create_box_collision(int rb_index, const vec3& box_size);
 
