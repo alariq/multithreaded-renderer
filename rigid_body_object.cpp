@@ -10,33 +10,19 @@ RigidBodyComponent* RigidBodyComponent::Create(PBDSimulation *sim, ICollisionDet
     RigidBodyComponent* c = new RigidBodyComponent();
     
     const vec3 box_size = dim;
+    float density = 1000.0f;
+    const float restitution = 0.15f;
+    const float friction = 0.0f;
 
-	RigidBody *rb_cube = new RigidBody();
-	rb_cube->setBox(box_size, 1000.0f);
-    Pose pose;
-    pose.p = vec3(0, 4, 0);
-    pose.q = quaternion::identity();
-    rb_cube->resetPose(pose);
-    rb_cube->restitution_c = 0.15f;
-    rb_cube->friction_c = 0.0f;
+	RigidBody* rb = pbd_create_box_rigid_body(
+		box_size, density, vec3(0), quaternion::identity(), restitution, friction);
+	int rb_index = sim->addRigidBody(rb);
 
+    ICollisionObject* collision = pbd_create_box_collision(rb_index, box_size);
+    cd->addCollisionObject(collision);
 
-	int rb_cube_index = sim->addRigidBody(rb_cube);
-
-	// maybe return object handle upon addition to CollisionDetection ?
-	DistanceFieldCollisionObjectBox *co_box = new DistanceFieldCollisionObjectBox();
-	co_box->box_ = 0.5f*box_size;
-	co_box->enable_ = true;
-	co_box->invert_ = false;
-	co_box->aabb_ = AABB(-0.5f*box_size, 0.5f*box_size);
-	co_box->body_type_ = ICollisionObject::RigidBodyCollisionObjectType;
-	co_box->body_index_ = rb_cube_index;
-    cd->addCollisionObject(co_box);
-
-    c->rigid_body_ = rb_cube;
-    c->collision_= co_box;
-
-
+    c->rigid_body_ = rb;
+    c->collision_= collision;
     return c;
 }
 
