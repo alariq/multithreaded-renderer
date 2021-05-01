@@ -35,6 +35,7 @@ static void computeMatrixK(const vec3 &connector, const float invMass, const vec
 // this is a part of impulse magnitude calculation ( see e.g.
 // https://www.scss.tcd.ie/~manzkem/CS7057/cs7057-1516-09-CollisionResponse-mm.pdf slide
 // 28). Cross products are transformed to Hat operators so we have -ra^ * I-1 * ra^ 
+// or GDC2006_Catto_Erin_PhysicsTutorial.pdf (search for K Matrix)
 static void computeMatrixK(const vec3 &connector0, const vec3 &connector1,
 						   const float invMass, const vec3 &x,
 						   const mat3 &inertiaInverseW, mat3 &K) {
