@@ -66,7 +66,7 @@ void __stdcall Init(void)
     test_fixed_block_allocator();
 #endif
 
-	const vec3 init_cam_pos(0, 15, 0);
+	const vec3 init_cam_pos(-1.5f, 1, -19);
 
     g_camera.set_pos(init_cam_pos);
     g_camera.set_projection(45.0f, (int)SCREEN_W, (int)SCREEN_H, 0.1f, 1000.0f);
@@ -240,7 +240,7 @@ void __stdcall Update(void)
     
     //uint64_t sleep_ms= std::max(33ull - dt, 1ull);
     //timing::sleep(sleep_ms*1000000);
-    timing::sleep(32000000ull);
+    //timing::sleep(32000000ull);
 }
 
 class ShapeRenderer {

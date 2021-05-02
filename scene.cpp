@@ -120,6 +120,7 @@ void initialize_scene(const struct camera *cam, struct RenderFrameContext *rfc) 
     SPHSceneObject* sph = SPHSceneObject::Create(vec2(1, 8), 1, vec3(0, 0, 0));
     scene_add_game_object(sph);
 
+#if PRESET_RIGIT_BODIES
 	RigidBodyObject *rb_floor = RigidBodyObject::Create(vec3(4.5f, 1, 4.5f));
     rb_floor->setKinematic(true);
     rb_floor->SetTransform(vec3(0, 0, 0), quaternion(vec3(1,0,0), M_PI/6.0f));
@@ -135,6 +136,7 @@ void initialize_scene(const struct camera *cam, struct RenderFrameContext *rfc) 
 	RigidBodyObject *rb_cube = RigidBodyObject::Create(vec3(1, 1, 1));
     rb_cube->SetTransform(vec3(0, 3, 0), qrot);
 	scene_add_game_object(rb_cube);
+#endif
 
 	RigidBodyObject *rb_floor3 = RigidBodyObject::Create(vec3(25.5f, 0.5f, 25.5f));
     rb_floor3->setKinematic(true);
