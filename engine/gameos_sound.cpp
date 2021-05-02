@@ -4,12 +4,13 @@
 #include <vector>
 #include <algorithm>
 #include "utils/vec.h"
+#include "utils/defines.h"
 
 static const DWORD INVALID_AUDIO_ID = -1;
 static const DWORD MAX_VOLUME = 254;
 
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wunused-private-field"
+PRAGMA_DIAGNOSTIC_PUSH();
+PRAGMA_CLANG_DIAGNOSTIC_IGNORED("-Wunused-private-field");
 
 class gosAudio {
 
@@ -53,7 +54,7 @@ class gosAudio {
         Mix_Chunk mix_chunk_;
 
 };
-#pragma clang diagnostic pop
+PRAGMA_DIAGNOSTIC_POP();
 
 class SoundEngine {
 
