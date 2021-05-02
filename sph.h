@@ -195,7 +195,7 @@ class SPHSimulation {
 
     float time_step_ = 0.016f;
     float cfl_factor_ = 0.5f;
-    float min_cfl_timestep_ = 0.0001f;
+    float min_cfl_timestep_ = 0.005f;
     float max_cfl_timestep_ = 0.016f;//0.005;
 
     float W_zero_;
@@ -279,13 +279,13 @@ public:
 
     float radius() const { return radius_; }
     float support_radius() const { return support_radius_; }
+    std::vector<class SPHBoundaryModel*> boundary_models_;
 
 private:
     struct SPHFluidModel* fluid_model_ = nullptr;
     struct SPHSimData* sim_data_ = nullptr;
     struct SPHStateData* state_data_ = nullptr;
 
-    std::vector<class SPHBoundaryModel*> boundary_models_;
 
 };
 

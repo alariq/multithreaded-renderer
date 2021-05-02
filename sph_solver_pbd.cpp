@@ -444,7 +444,6 @@ void SPH_PBDDebugDrawSimData(const SPHFluidModel* fm, RenderList* rl) {
 				vec3 p = sim_data->prev_x_[i];
 				p.z = -0.05f;
                 rl->addDebugLine(p, vec3(sim_data->b_[i].boundaryXj_[bi], -0.05f), vec4(1, 1, 1, 1));
-				//gos_AddLine(p, vec3(sim_data->b_[i].boundaryXj_[bi], -0.05f), vec4(1, 1, 1, 1));
 			}
 		}
 	}

@@ -24,7 +24,7 @@ GameObject* sph_editor_update(camera* cam, float dt, GameObject* sel_go) {
         vec3 dir = screen2world_vec(cam, mouse_screen_pos);
         vec3 int_pt = ray_plane_intersect(dir, cam->get_pos(), make_plane(vec3(0,0,1),vec3(0,0,0)));
 
-        SPHBoundaryObject* bo = new SPHBoundaryObject(sim, vec2(1,1), false);
+        SPHBoundaryObject* bo = new SPHBoundaryObject(sim, vec2(1,1), false, false);
         auto tr = bo->GetComponent<TransformComponent>();
         tr->SetPosition(int_pt);
         scene_add_game_object(bo);

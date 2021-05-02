@@ -1,6 +1,7 @@
 #include "sph_solver_df.h"
 #include "sph.h"
 #include "sph_boundary.h"
+#include "engine/gameos.hpp"
 
 #include "utils/vec.h"
 #include <cfloat>
@@ -16,6 +17,7 @@ struct SPHSimData_DF: public SPHSimData {
     // use index into another array (resized on demand, or using fixed block allocator scheme)
     std::vector<vec2> boundaryXj_;
     std::vector<float> boundaryVolume_;
+    std::vector<vec2> prev_pos_;
 
     virtual const char* getType() const override { return type_; }
 
@@ -25,6 +27,7 @@ struct SPHSimData_DF: public SPHSimData {
 		kappa_.resize(count);
 		boundaryXj_.resize(count);
 		boundaryVolume_.resize(count);
+		prev_pos_.resize(count);
 	}
 
 	virtual int append(size_t count) override {
@@ -40,7 +43,7 @@ struct SPHSimData_DF: public SPHSimData {
 // Divergence-Free SPH for Incompressible and Viscous Fluids
 struct DF_TimeStep {
 
-	inline static const float s_eps_ = 1.0e-5f;
+	inline static const float s_eps_ = 1.0e-15f;
 
     const int min_iterations_ = 2;
     const int max_iterations_ = 100;
@@ -60,7 +63,6 @@ struct DF_TimeStep {
         }
     }
 
-    // !NB: no world -> local point conversion yet
 	void calcVolumeAndBoundaryX(SPHSimulation *sim, SPHSimData_DF* sim_data) {
 		SPHFluidModel *fm = sim->fluid_model_;
 		const int num_particles = (int)fm->particles_.size();
@@ -72,6 +74,7 @@ struct DF_TimeStep {
 			SPHParticle2D &pi = particles[i];
 
 			sim_data->boundaryVolume_[i] = 0.0f;
+            sim_data->prev_pos_[i] = pi.pos;
            
             SPHBoundaryModel* boundary;
 			float dist;
@@ -89,9 +92,9 @@ struct DF_TimeStep {
 					sim_data->boundaryXj_[i] = pi.pos - normal*(dist + 0*0.5f*particle_radius);
 				}
 			} else if(dist <= 0.1*particle_radius) {
-                //float d = -dist;
-				//d = min(d, (0.25f / 0.005f) * particle_radius * sim->time_step_);
-				float d = dist < 0 ? -dist : (0.5*particle_radius - dist);
+                float d = -dist;
+				d = min(d, (0.25f / 0.005f) * particle_radius * sim->time_step_);
+				//float d = dist < 0 ? -dist : (0.5*particle_radius - dist);
                 // bring back to boundary surface
                 pi.pos += d * normal;
                 // adapt velocity in normal direction
@@ -321,8 +324,7 @@ struct DF_TimeStep {
 		for (int i = 0; i < num_particles; ++i) {
 			SPHParticle2D &pi = particles[i];
             pi.pos += h * pi.vel;
-            //EnforceBoundaryConditions(pi, sim->boundary_model_->getBoundarySize());
-        }
+		}
 	}
 
 };
@@ -337,3 +339,17 @@ void SPH_DFTimestepTick(SPHSimulation* sim)
     df_sph_ts.Tick(sim);
 }
 
+// this is called from render thread but uses main thread sim_data, so line blinking
+// possible if boundaryVolume_[i] changes meanwhile
+void SPH_DFDebugDrawSimData(const SPHFluidModel* fm, RenderList* rl) {
+
+    assert(fm->sim_data_->isOfType(SPHSimData_DF::type_));
+    SPHSimData_DF* sim_data = (SPHSimData_DF*)fm->sim_data_;
+
+    for(int i=0; i<(int)fm->particles_.size();++i) {
+        if(sim_data->boundaryVolume_[i]!=0.0f) {
+            rl->addDebugLine(vec3(sim_data->prev_pos_[i], -0.05f), vec3(sim_data->boundaryXj_[i], -0.05f), vec4(1,1,1,1));
+        }
+    }
+
+}

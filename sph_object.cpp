@@ -8,6 +8,7 @@
 #include "res_man.h"
 #include "utils/vec.h"
 #include "utils/quaternion.h"
+#include "utils/camera_utils.h" // screen2world_vec
 
 SPHBoundaryComponent* SPHBoundaryComponent::Create(const SPHSimulation *sim, const vec2 &dim, bool b_invert, bool b_dynamic) {
 
@@ -256,6 +257,10 @@ void SPHSceneObject::DeinitRenderResources() {
 
 void SPHSceneObject::Update(float /*dt*/) {
 
+    if(emitters_.size() && gos_GetKeyStatus(KEY_Q) == KEY_PRESSED) {
+        emitters_[0]->enabled_ = true;
+    }
+
     surface_->updateFromGrid(grid_);
 
     grid_->cur_vert_array_rt_ = grid_->cur_vert_array_;
@@ -263,10 +268,13 @@ void SPHSceneObject::Update(float /*dt*/) {
 }
 
 extern void render_quad(uint32_t tex_id, const vec4& scale_offset, HGOSRENDERMATERIAL pmat);
+void update_closest_dist_debug_line(struct RenderFrameContext *rfc);
 
 void SPHSceneObject::AddRenderPackets(struct RenderFrameContext *rfc) const {
 
 	if (!b_initalized_rendering_resources) return;
+
+    update_closest_dist_debug_line(rfc);
 
 	// update instancing buffer
 	cur_inst_vb_ = (cur_inst_vb_ + 1) % ((int)inst_vb_.size());
@@ -416,6 +424,49 @@ void SPHSceneObject::AddRenderPackets(struct RenderFrameContext *rfc) const {
     rp->m_ = transform_->GetTransform();
 	rp->mesh_ = *surface_->getRenderMesh();
 
+}
+
+void update_closest_dist_debug_line(struct RenderFrameContext *rfc) {
+
+#define ENABLE_CLOSEST_DISTANCE_DEBUG 1
+#if ENABLE_CLOSEST_DISTANCE_DEBUG 
+    const SPHSimulation* sim = sph_get_simulation();
+    if(sim) {
+        int XDelta, YDelta, WheelDelta;
+        float XPos, YPos;
+        DWORD buttonsPressed;
+        gos_GetMouseInfo(&XPos, &YPos, &XDelta, &YDelta, &WheelDelta, &buttonsPressed);
+
+	    const vec2 mouse_screen_pos = 2 * vec2(XPos, 1 - YPos) - 1;
+        const vec3 dir = screen2world_vec(rfc->inv_view_, rfc->inv_proj_, mouse_screen_pos);
+
+        const vec3 ws_cam_pos = (rfc->inv_view_ * vec4(0, 0, 0, 1)).xyz();
+        const vec3 pos = ray_plane_intersect(dir, ws_cam_pos, make_plane(vec3(0,0,1),vec3(0,0,0)));
+
+        SPHBoundaryModel *bm;
+        float dist;
+        vec2 normal;
+
+        dist = FLT_MAX;
+        normal = vec2(0,0);
+        for(SPHBoundaryModel* model : sim->boundary_models_) {
+            float cur_dist = model->getDistance2D(pos.xy());
+            if(cur_dist < dist) {
+                dist = cur_dist;
+                normal = model->getNormal2D(pos.xy());
+                bm = model;
+            }
+        }
+
+        assert(bm);
+
+		vec2 closest_pos = pos.xy() - normal * dist;
+
+        vec3 lb = vec3(pos.xy(), -0.05f);
+        vec3 le = vec3(closest_pos, -0.05f);
+        rfc->rl_->addDebugLine(lb, le, vec4(0.5f,1,1,1));
+    }
+#endif
 }
 
 void initialize_particle_positions(SPHFluidModel* fm) {

@@ -15,6 +15,7 @@ struct SPHEmitter {
 	vec2 pos_;
 	vec2 dir_;
 	float time_since_last_emit_; // seconds
+    bool enabled_;
 
 
   private:
