@@ -29,6 +29,12 @@ inline vec3 screen2world_vec(const camera *cam, const vec2& screen_pos) {
     return (cam->get_inv_view() * vec4(n, 0.0f)).xyz();
 }
 
+inline vec3 screen2world_vec(const mat4& inv_view, const mat4& inv_proj, const vec2& screen_pos) {
+    vec4 view_pos = inv_proj * vec4(screen_pos, 0.0f, 1.0f);
+    vec3 n = normalize(view_pos.xyz());
+    return (inv_view * vec4(n, 0.0f)).xyz();
+}
+
 inline vec2 proj2screen(vec2 proj, float w, float h) {
 	return vec2((0.5f*proj.x + 0.5f)*w, (0.5f*(1.0f - proj.y) + 0.5f)*h);
 }
