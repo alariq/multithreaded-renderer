@@ -246,7 +246,7 @@ void editor_update(camera *cam, const float dt) {
 	float XPos, YPos;
 	DWORD buttonsPressed;
 	gos_GetMouseInfo(&XPos, &YPos, &XDelta, &YDelta, &WheelDelta, &buttonsPressed);
-	vec2 cur_mouse_proj_pos = 2 * vec2(XPos, 1 - YPos) - 1;
+	vec2 cur_mouse_proj_pos = 2 * vec2(XPos, 1 - YPos) - vec2(1);
 	const float screen_width = (float)Environment.drawableWidth;
 	const float screen_height = (float)Environment.drawableHeight;
 
