@@ -112,6 +112,8 @@ set(SOURCES
     "scene.h"
     "obj_model.cpp"
     "obj_model.h"
+    "pbd_test.h"
+    "pbd_test.cpp"
     "res_man.cpp"
     "res_man.h"
     "editor.cpp"
