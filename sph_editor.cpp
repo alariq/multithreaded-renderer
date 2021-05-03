@@ -20,7 +20,7 @@ GameObject* sph_editor_update(camera* cam, float dt, GameObject* sel_go) {
     gos_GetMouseInfo(&XPos, &YPos, &XDelta, &YDelta, &WheelDelta, &buttonsPressed);
 
     if(gos_GetKeyStatus(KEY_A) == KEY_PRESSED) {
-	    vec2 mouse_screen_pos = 2 * vec2(XPos, 1 - YPos) - 1;
+	    vec2 mouse_screen_pos = 2 * vec2(XPos, 1 - YPos) - vec2(1);
         vec3 dir = screen2world_vec(cam, mouse_screen_pos);
         vec3 int_pt = ray_plane_intersect(dir, cam->get_pos(), make_plane(vec3(0,0,1),vec3(0,0,0)));
 

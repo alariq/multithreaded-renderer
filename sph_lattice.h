@@ -73,9 +73,9 @@ inline typename SPHLattice::get_layer<layer_index>::type_::value_type SPHLattice
 
     // OpenGL 4.6 spec 8.14. TEXTURE MINIFICATION
 
-    ivec3 s = wrapi(floor(p - 0.5f));
-    ivec3 e = wrapi(floor(p - 0.5f) + 1.0f);
-    vec3 k = frac(p-0.5f);
+    ivec3 s = wrapi(floor(p - vec3(0.5f)));
+    ivec3 e = wrapi(floor(p - vec3(0.5f)) + vec3(1.0f));
+    vec3 k = frac(p-vec3(0.5f));
 
     const int i0 = s.x;
     const int j0 = s.y;
@@ -114,15 +114,15 @@ inline typename SPHLattice::get_layer<layer_index>::type_::value_type SPHLattice
     p.z = clamp(p.z, 0.0f, 1.0f);
 
     p *= vec3((float)res_.x, (float)res_.y, (float)res_.z);
-    ivec3 s = wrapi(floor(p - 0.5f));
-    ivec3 e = wrapi(floor(p - 0.5f) + 1.0f);
+    ivec3 s = wrapi(floor(p - vec3(0.5f)));
+    ivec3 e = wrapi(floor(p - vec3(0.5f)) + vec3(1.0f));
 
 	int i00 = (s.x) + ((s.y) + s.z * res_.y) * res_.x;
     int i01 = (s.x) + ((e.y) + s.z * res_.y) * res_.x;
     int i10 = (e.x) + ((s.y) + s.z * res_.y) * res_.x;
     int i11 = (e.x) + ((e.y) + s.z * res_.y) * res_.x;
 
-    vec3 k = frac(p-0.5f);
+    vec3 k = frac(p-vec3(0.5f));
 
     auto value = [this](const int idx) {
         return std::get<layer_index>(storage_)[idx];

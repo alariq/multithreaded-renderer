@@ -424,7 +424,7 @@ void SPHBoundaryModel::UpdateTexturesByData() {
 			uint8_t* row = (uint8_t*)((uint32_t*)texinfo.pTexture + y * texinfo.Pitch);
 			const vec2* src_row = lattice_->get<SPHBoundaryModel::kNormalIdx>() + y * res.x;
 			for (int x = 0; x < res.x; ++x) {
-                vec2 n = 255.0f*(src_row[x] * 0.5 + 0.5f);
+                vec2 n = 255.0f*(src_row[x] * 0.5f + vec2(0.5f));
                  
 				row[4*x + 0] = (uint8_t)clamp(n.x, 0.0f, 255.0f);
 				row[4*x + 1] = (uint8_t)clamp(n.y, 0.0f, 255.0f);

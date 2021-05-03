@@ -437,7 +437,7 @@ void update_closest_dist_debug_line(struct RenderFrameContext *rfc) {
         DWORD buttonsPressed;
         gos_GetMouseInfo(&XPos, &YPos, &XDelta, &YDelta, &WheelDelta, &buttonsPressed);
 
-	    const vec2 mouse_screen_pos = 2 * vec2(XPos, 1 - YPos) - 1;
+	    const vec2 mouse_screen_pos = 2 * vec2(XPos, 1 - YPos) - vec2(1);
         const vec3 dir = screen2world_vec(rfc->inv_view_, rfc->inv_proj_, mouse_screen_pos);
 
         const vec3 ws_cam_pos = (rfc->inv_view_ * vec4(0, 0, 0, 1)).xyz();
