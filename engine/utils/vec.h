@@ -36,7 +36,7 @@ struct vec2 {
 	// to use in unions
 	vec2() = default;//:x(0),y(0) {}
 	explicit constexpr vec2(const float iv):x(iv), y(iv) {}
-	vec2(const float ix, const float iy):x(ix), y(iy) {}
+	constexpr vec2(const float ix, const float iy):x(ix), y(iy) {}
 
 	operator float *(){ return &x; }
 	operator const float *() const { return &x; }
@@ -50,9 +50,9 @@ struct vec2 {
 };
 
 vec2 operator + (const vec2 &u, const vec2 &v);
-vec2 operator + (const vec2 &v, const float s);
+//vec2 operator + (const vec2 &v, const float s);
 vec2 operator - (const vec2 &u, const vec2 &v);
-vec2 operator - (const vec2 &v, const float s);
+//vec2 operator - (const vec2 &v, const float s);
 vec2 operator - (const vec2 &v);
 vec2 operator * (const vec2 &u, const vec2 &v);
 vec2 operator * (const float s, const vec2 &v);
@@ -98,9 +98,9 @@ struct vec3 {
 };
 
 vec3 operator + (const vec3 &u, const vec3 &v);
-vec3 operator + (const vec3 &v, const float s);
+//vec3 operator + (const vec3 &v, const float s);
 vec3 operator - (const vec3 &u, const vec3 &v);
-vec3 operator - (const vec3 &v, const float s);
+//vec3 operator - (const vec3 &v, const float s);
 vec3 operator - (const vec3 &v);
 vec3 operator * (const vec3 &u, const vec3 &v);
 vec3 operator * (const float s, const vec3 &v);
@@ -190,9 +190,9 @@ struct vec4 {
 };
 
 vec4 operator + (const vec4 &u, const vec4 &v);
-vec4 operator + (const vec4 &v, const float s);
+//vec4 operator + (const vec4 &v, const float s);
 vec4 operator - (const vec4 &u, const vec4 &v);
-vec4 operator - (const vec4 &v, const float s);
+//vec4 operator - (const vec4 &v, const float s);
 vec4 operator - (const vec4 &v);
 vec4 operator * (const vec4 &u, const vec4 &v);
 vec4 operator * (const float s, const vec4 &v);
