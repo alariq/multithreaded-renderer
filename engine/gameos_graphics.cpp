@@ -195,8 +195,18 @@ public:
                                                   : vb->buffer_);
             }
 			glEnableVertexAttribArray(rec->index);
-			glVertexAttribPointer(rec->index, rec->num_components, type, rec->normalized ? GL_TRUE : GL_FALSE, rec->stride, BUFFER_OFFSET(rec->offset));
-		    glVertexAttribDivisor(rec->index, rec->stream != 0 ? 1 : 0);
+            if(GL_FLOAT == type) {
+				glVertexAttribPointer(rec->index, rec->num_components, type,
+									  rec->normalized ? GL_TRUE : GL_FALSE, rec->stride,
+									  BUFFER_OFFSET(rec->offset));
+			} else if(GL_DOUBLE != type) {
+                gosASSERT(false == rec->normalized);
+				glVertexAttribIPointer(rec->index, rec->num_components, type, rec->stride,
+									  BUFFER_OFFSET(rec->offset));
+            } else {
+                gosASSERT(0 && "Are you sure you want to use double?");
+            }
+			glVertexAttribDivisor(rec->index, rec->stream != 0 ? 1 : 0);
 		}
 	}
 
