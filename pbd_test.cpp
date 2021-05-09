@@ -14,6 +14,18 @@ PBDTestObject* PBDTestObject::Create() {
     o->sim_ = pbd_unified_sim_create(o->sim_dim_);
 
     initialize_particle_positions(o->sim_, o->sim_dim_, 10, 1000);
+
+    vec2 rb_pos = vec2(0.2f, 3.2f);
+    pbd_unified_sim_add_box_rigid_body(o->sim_, 3, 1, rb_pos, 45.0f* 3.1415f/180.0f, 1000);
+    pbd_unified_sim_add_box_rigid_body(o->sim_, 3, 1, rb_pos - vec2(0,-0.6f), -45.0f* 3.1415f/180.0f, 1000);
+#if 1
+    for(int i=0; i< 2; i++) {
+        vec2 pos = vec2(1.6f, 0.5f - i*0.4f);
+        float r = (i%2) ? -15.0f* 3.1415f/180.0f : 15.0f* 3.1415f/180.0f;
+        pbd_unified_sim_add_box_rigid_body(o->sim_, 3 + i, 1, pos, r, 1000);
+    }
+#endif
+
     
 	return o;
 }
@@ -58,6 +70,8 @@ extern int RendererGetNumBufferedFrames();
 void PBDTestObject::InitRenderResources() {
 	sphere_mesh_ = res_man_load_mesh("sphere");
 
+	gos_AddRenderMaterial("deferred_pbd_particle");
+
     int num_buffers = RendererGetNumBufferedFrames() + 1;
     inst_vb_.resize(num_buffers);
 	for (int32_t i = 0; i < num_buffers; ++i) {
@@ -67,7 +81,7 @@ void PBDTestObject::InitRenderResources() {
 	}
 
     vdecl_ = get_pbd_vdecl();
-	mat_ = gos_getRenderMaterial("deferred_sph");
+	mat_ = gos_getRenderMaterial("deferred_pbd_particle");
 
     b_initalized_rendering_resources = true;
 
@@ -129,7 +143,7 @@ void PBDTestObject::AddRenderPackets(struct RenderFrameContext *rfc) const {
 			p.force = vec2(0);
 			p.density = 1;
 			p.pressure = 1;
-			p.flags = 0;
+			p.flags = particles[i].flags;
 		}
 
 		gos_UnmapBuffer(inst_vb);
@@ -167,7 +181,7 @@ void initialize_particle_positions(PBDUnifiedSimulation* sim, const vec2& dim, i
 								   float density0) {
 
 	const float radius = pbd_unified_sim_get_particle_radius(sim);
-	vec2 offset = vec2(.2f, 1.0f * radius);
+	vec2 offset = vec2(.2f, 1.0f * radius+ 1);
 	int row_size = 1;//(int)(sqrtf((float)count) + 1.5f);
 	int column_size = (count + row_size - 1) / row_size;
 	for (int y = 0; y < column_size; ++y) {
