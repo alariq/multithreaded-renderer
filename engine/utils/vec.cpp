@@ -509,6 +509,10 @@ unsigned int toBGRA(const vec4 &u){
 	return (int(u.z * 255) | (int(u.y * 255) << 8) | (int(u.x * 255) << 16) | (int(u.w * 255) << 24));
 }
 
+mat2 outer(const vec2& a, const vec2& b) {
+	return mat2(a.x * b.x, a.x * b.y, a.y * b.x, a.y * b.y);
+}
+
 mat2 operator + (const mat2 &m, const mat2 &n){
 	return mat2(
 		m.elem[0][0] + n.elem[0][0], m.elem[0][1] + n.elem[0][1],

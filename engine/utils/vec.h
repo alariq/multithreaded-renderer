@@ -608,6 +608,9 @@ mat3 scale3(const float x, const float y, const float z);
 mat4 scale4(const float x, const float y, const float z);
 //@}
 
+mat2 outer(const vec2& a, const vec2& b);
+
+
 /** HLSL (High-Level Shading Language) notation of basic types. @{ */
 // needed to cemment this because of conflicts with mayas float2,3,4
 //typedef vec2 float2;
