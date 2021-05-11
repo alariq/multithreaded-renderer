@@ -77,6 +77,8 @@ struct vec3 {
 	operator const float *() const { return &x; }
 
 	vec2 xy() const { return vec2(x, y); }
+	vec2 xz() const { return vec2(x, z); }
+	vec2 yz() const { return vec2(y, z); }
 
 	vec3 xzy() const { return vec3(x, z, y); }
 	vec3 zyx() const { return vec3(z, y, x); }
@@ -344,6 +346,9 @@ vec4 floor(const vec4 &v);
 vec2 frac(const vec2 &v);
 vec3 frac(const vec3 &v);
 vec4 frac(const vec4 &v);
+
+vec2 reflect(const vec2& v, const vec2 n);
+vec3 reflect(const vec3& v, const vec3 n);
 
 /** Compute the distance between two nD vectors, where n is [2-4] */
 //#define distance(u, v) length((u) - (v))

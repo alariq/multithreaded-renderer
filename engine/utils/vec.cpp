@@ -495,6 +495,23 @@ vec3 cross(const vec3 &u, const vec3 &v){
 	return vec3(u.y * v.z - v.y * u.z, u.z * v.x - u.x * v.z, u.x * v.y - u.y * v.x);
 }
 
+// v - incident
+// n - normal
+//      n
+// v    ^     refl.
+// \    |   -|
+//  \   |   /
+//   \  |  /
+//   \| | /
+//-------------------
+vec2 reflect(const vec2& v, const vec2 n) {
+    return v - 2.0f * (v * n) * n;
+}
+
+vec3 reflect(const vec3& v, const vec3 n) {
+    return v - 2.0f * (v * n) * n;
+}
+
 vec3 rgbeToRGB(unsigned char *rgbe){
 	if (rgbe[3]){
 		return vec3(rgbe[0], rgbe[1], rgbe[2]) * ldexpf(1.0f, rgbe[3] - (int) (128 + 8));
