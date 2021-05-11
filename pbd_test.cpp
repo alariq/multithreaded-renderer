@@ -4,7 +4,8 @@
 #include "utils/vec.h"
 #include "utils/camera_utils.h" // screen2world_vec
 
-void initialize_particle_positions(PBDUnifiedSimulation* sim, const vec2& dim, int count, float density0);
+void initialize_particle_positions(struct PBDUnifiedSimulation* sim, const vec2& dim, int count, float density0);
+void pbd_unified_sim_debug_draw(const struct PBDUnifiedSimulation* sim, class RenderList* rl);
 
 PBDTestObject* PBDTestObject::Create() {
 
@@ -16,13 +17,13 @@ PBDTestObject* PBDTestObject::Create() {
     initialize_particle_positions(o->sim_, o->sim_dim_, 10, 1000);
 
     vec2 rb_pos = vec2(0.2f, 3.2f);
-    pbd_unified_sim_add_box_rigid_body(o->sim_, 3, 1, rb_pos, 45.0f* 3.1415f/180.0f, 1000);
-    pbd_unified_sim_add_box_rigid_body(o->sim_, 3, 1, rb_pos - vec2(0,-0.6f), -45.0f* 3.1415f/180.0f, 1000);
+    pbd_unified_sim_add_box_rigid_body(o->sim_, 3, 1, rb_pos, 0*45.0f* 3.1415f/180.0f, 1000);
+    pbd_unified_sim_add_box_rigid_body(o->sim_, 3, 1, rb_pos - vec2(0,-0.6f), 0*-45.0f* 3.1415f/180.0f, 1000);
 #if 1
     for(int i=0; i< 2; i++) {
-        vec2 pos = vec2(1.6f, 0.5f - i*0.4f);
-        float r = (i%2) ? -15.0f* 3.1415f/180.0f : 15.0f* 3.1415f/180.0f;
-        pbd_unified_sim_add_box_rigid_body(o->sim_, 3 + i, 1, pos, r, 1000);
+        vec2 pos = vec2(1.6f, 4.5f - i*1.4f);
+        float r = 0;//(i%2) ? -15.0f* 3.1415f/180.0f : 15.0f* 3.1415f/180.0f;
+        pbd_unified_sim_add_box_rigid_body(o->sim_, 4 + i, 4, pos, r, 1000);
     }
 #endif
 
@@ -116,6 +117,8 @@ void PBDTestObject::AddRenderPackets(struct RenderFrameContext *rfc) const {
 
 	if (!b_initalized_rendering_resources) return;
 
+    pbd_unified_sim_debug_draw(sim_, rfc->rl_);
+
     //update_closest_dist_debug_line(rfc);
 
 	// update instancing buffer
@@ -177,7 +180,7 @@ void PBDTestObject::AddRenderPackets(struct RenderFrameContext *rfc) const {
     rp->mesh_.num_instances = num_particles;
 }
 
-void initialize_particle_positions(PBDUnifiedSimulation* sim, const vec2& dim, int count,
+void initialize_particle_positions(struct PBDUnifiedSimulation* sim, const vec2& dim, int count,
 								   float density0) {
 
 	const float radius = pbd_unified_sim_get_particle_radius(sim);
@@ -196,4 +199,35 @@ void initialize_particle_positions(PBDUnifiedSimulation* sim, const vec2& dim, i
 			pbd_unified_sim_add_particle(sim, pos, density0);
 		}
 	}
+}
+
+void pbd_unified_sim_debug_draw(const struct PBDUnifiedSimulation* sim, RenderList* rl) {
+
+    const PBDRigidBodyParticleData* data = pbd_unified_sim_get_rb_particle_data(sim);
+    const PBDRigidBody* rb = pbd_unified_sim_get_rigid_bodies(sim);
+
+    const int count = pbd_unified_sim_get_particle_count(sim);
+    const PBDParticle* particles = pbd_unified_sim_get_particles(sim);
+
+    const float z = -0.1f;
+
+	for (int i = 0; i < count; ++i) {
+		const PBDParticle& p = particles[i];
+		if (p.flags & PBDParticleFlags::kRigidBody) {
+			const PBDRigidBodyParticleData& data_i = data[p.rb_data_idx];
+			const PBDRigidBody& rb_i = rb[p.phase];
+			vec2 grad = rotate2(rb_i.angle) * data_i.sdf_grad;
+			rl->addDebugLine(vec3(p.x, 0), vec3(p.x, 0) + 0.15f * vec3(grad, 0),
+							 vec4(1, 1, 0.5f, 1));
+		}
+	}
+
+	vec2 world_bounds = pbd_unified_sim_get_world_bounds(sim);
+	rl->addDebugLine(vec3(0, 0, z), vec3(world_bounds.x, 0, z), vec4(1));
+	rl->addDebugLine(vec3(world_bounds.x, 0, z), vec3(world_bounds, z), vec4(1));
+	rl->addDebugLine(vec3(world_bounds, z), vec3(0, world_bounds.y, z), vec4(1));
+	rl->addDebugLine(vec3(0, world_bounds.y, z), vec3(0, 0, z), vec4(1));
+
+	//for(auto rb: sim->rigid_bodies_) {
+    //}
 }

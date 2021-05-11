@@ -71,6 +71,7 @@ void PBDSolver::updateTransforms(PBDSimulation* sim) {
 		std::vector<vec3>& vd = rb->vertices_;
 		int idx = 0;
 		for(auto& v : vd) {
+            (void)v;
 			rb->vertices_[idx] = rb->pose.transform(rb->local_vertices_[idx]);
 			idx++;
 		}
