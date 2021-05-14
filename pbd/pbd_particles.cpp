@@ -25,6 +25,12 @@ struct RigidBodyCollisionConstraint {
     vec2 x_ij;
 };
 
+struct BoxBoundaryConstraint {
+    //bool b_invert;
+    vec2 p_min;
+    vec2 p_max;
+};
+
 void findNeighboursNaiive(const vec2* x, const int size, float radius,
 						  PBDParticle* particles, NeighbourData* nd) {
 	nd->neigh_idx_.resize(0);
@@ -63,6 +69,7 @@ struct PBDUnifiedSimulation {
 
 	std::vector<ShapeMatchingConstraint> shape_matching_c_;
 	std::vector<RigidBodyCollisionConstraint> rb_collision_c_;
+	std::vector<BoxBoundaryConstraint> box_boundary_c_;
 
 	std::vector<PBDParticle> particles_;
 	std::vector<PBDRigidBodyParticleData> rb_particles_data_;
@@ -77,7 +84,12 @@ struct PBDUnifiedSimulation {
 struct PBDUnifiedSimulation* pbd_unified_sim_create(vec2& sim_dim) {
     PBDUnifiedSimulation* sim = new PBDUnifiedSimulation();
     sim->world_size_ = sim_dim;
-    return sim;
+	sim->box_boundary_c_.push_back(BoxBoundaryConstraint{
+		//.b_invert = false,
+		.p_min = vec2(0),
+		.p_max = sim_dim,
+	});
+	return sim;
 }
 
 void pbd_unified_sim_destroy(struct PBDUnifiedSimulation* sim) {
@@ -311,6 +323,42 @@ void solve_rb_collision_c(const RigidBodyCollisionConstraint& c, PBDUnifiedSimul
     sim->dp_[c.idx1] += (w1/(w0 + w1)) * (norm * d);
 }
 
+void solve_box_boundary(const BoxBoundaryConstraint& c, vec2 pos, int particle_idx, PBDUnifiedSimulation* sim) {
+
+	const float r = sim->particle_r_;
+    vec2 dx = vec2(0);
+
+    // case when width or height is less than a particle radius is not handled
+    // we can change 'else if' for just 'if' but then still it would not work
+
+	if (pos.x - r < c.p_min.x) {
+
+        dx.x = c.p_min.x - (pos.x - r);
+        sim->num_constraints_[particle_idx]++;
+
+    } else if (pos.x + r > c.p_max.x) {
+
+        dx.x = c.p_max.x - (pos.x + r);
+        sim->num_constraints_[particle_idx]++;
+
+    }
+
+    if (pos.y - r < c.p_min.y) {
+
+        dx.y = c.p_min.y - (pos.y - r);
+        sim->num_constraints_[particle_idx]++;
+
+    } else if (pos.y + r > c.p_max.y) {
+
+        dx.y = c.p_max.y - (pos.y + r);
+        sim->num_constraints_[particle_idx]++;
+    }
+
+    sim->dp_[particle_idx] += dx;
+
+}
+
+
 ////////////////////////////////////////////////////////////////////////////////
 class PBDUnifiedTimestep {
 	static const int sim_iter_count = 5;
@@ -368,25 +416,10 @@ void PBDUnifiedTimestep::Simulate(PBDUnifiedSimulation* sim, float dt) {
         }
 
 		for (int i = 0; i < num_particles; i++) {
-			vec2 dx(0);
-			vec2 pos = p[i].x;
 
-			if (pos.x - r < 0) {
-				dx.x = 0 - (pos.x - r);
-				sim->num_constraints_[i]++;
-			}
-			if (pos.x + r > sim->world_size_.x) {
-				dx.x = sim->world_size_.x - (pos.x + r);
-				sim->num_constraints_[i]++;
-			}
-			if (pos.y - r < 0) {
-				dx.y = 0 - (pos.y - r);
-				sim->num_constraints_[i]++;
-			}
-			if (pos.x + r > sim->world_size_.x) {
-				dx.x = sim->world_size_.x - (pos.x + r);
-				sim->num_constraints_[i]++;
-			}
+            for(const BoxBoundaryConstraint& c: sim->box_boundary_c_) {
+                solve_box_boundary(c, p[i].x, i, sim); 
+            }
 
 			const auto& neigh_list = sim->neigh_data_.neigh_idx_;
 			const int n_start = sim->neigh_data_.neighbour_info_[i].start;
@@ -412,17 +445,13 @@ void PBDUnifiedTimestep::Simulate(PBDUnifiedSimulation* sim, float dt) {
                         continue;
                     }
 #endif                
-
 					vec2 gradC = vec / sqrt(dist_sqr);
                     float inv_mass_i = scaled_mass[i];//p[i].inv_mass;
                     float inv_mass_j = scaled_mass[j];//p[j].inv_mass;
 
 					float s = C / (inv_mass_i + inv_mass_j);
-					vec2 dx_i = -s * inv_mass_i * gradC;
-					vec2 dx_j = +s * inv_mass_j * gradC;
-					dx += dx_i;
-                    dp[i] += dx;
-					dp[j] += dx_j;
+					dp[i] += -s * inv_mass_i * gradC;
+					dp[j] += +s * inv_mass_j * gradC;
 					sim->num_constraints_[i]++;
 					sim->num_constraints_[j]++;
 				}
@@ -462,31 +491,8 @@ void PBDUnifiedTimestep::Simulate(PBDUnifiedSimulation* sim, float dt) {
 
 		for (int i = 0; i < num_particles; i++) {
 
-            const vec2 pos = x_pred[i];
-
-			if (pos.x - r < 0) {
-				dp[i].x += 0 - (pos.x - r);
-				sim->num_constraints_[i]++;
-			}
-			if (pos.x + r > sim->world_size_.x) {
-				dp[i].x = sim->world_size_.x - (pos.x + r);
-				sim->num_constraints_[i]++;
-			}
-			if (pos.y - r < 0) {
-				dp[i].y += 0 - (pos.y - r);
-				sim->num_constraints_[i]++;
-			}
-			if (pos.x + r > sim->world_size_.x) {
-				dp[i].x += sim->world_size_.x - (pos.x + r);
-				sim->num_constraints_[i]++;
-			}
-            
-            //dp[i] *= 2.0f; // overrelaxation
-
-			if(0 && sim->num_constraints_[i]) {
-                x_pred[i] += 2.0f * dp[i];
-                dp[i] = vec2(0);
-                sim->num_constraints_[i]--;
+            for(const BoxBoundaryConstraint& c: sim->box_boundary_c_) {
+                solve_box_boundary(c, x_pred[i], i, sim); 
             }
 
 			const auto& neigh_list = sim->neigh_data_.neigh_idx_;
@@ -506,7 +512,6 @@ void PBDUnifiedTimestep::Simulate(PBDUnifiedSimulation* sim, float dt) {
 
 				float C = dist_sqr - 4*r_sqr;
 				if (C < 0) {
-
 #if 1
                     if((p[i].flags&p[j].flags) & PBDParticleFlags::kRigidBody) {
                         sim->rb_collision_c_.push_back(RigidBodyCollisionConstraint{i,j, vec});
@@ -515,17 +520,13 @@ void PBDUnifiedTimestep::Simulate(PBDUnifiedSimulation* sim, float dt) {
                         continue;
                     }
 #endif
-
 					vec2 gradC = vec / sqrt(dist_sqr);
                     float inv_mass_i = scaled_mass[i];//p[i].inv_mass;
                     float inv_mass_j = scaled_mass[j];//p[j].inv_mass;
 
 					float s = C / (inv_mass_i + inv_mass_j);
-					vec2 dx_i = -s * inv_mass_i * gradC;
-					vec2 dx_j = +s * inv_mass_j * gradC;
-
-					dp[i] += dx_i;
-					dp[j] += dx_j;
+					dp[i] += -s * inv_mass_i * gradC;
+					dp[j] += +s * inv_mass_j * gradC;
 					sim->num_constraints_[i]++;
 					sim->num_constraints_[j]++;
 
