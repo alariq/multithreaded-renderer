@@ -49,6 +49,7 @@ void pbd_unified_sim_destroy(struct PBDUnifiedSimulation* sim);
 void pbd_unified_sim_reset(struct PBDUnifiedSimulation*);
 
 int pbd_unified_sim_add_particle(struct PBDUnifiedSimulation* sim, vec2 pos, float density);
+int pbd_unified_sim_add_particle(struct PBDUnifiedSimulation* sim, vec2 pos, vec2 init_vel, float density);
 int pbd_unified_sim_add_box_rigid_body(struct PBDUnifiedSimulation* sim, int size_x, int size_y, vec2 pos, float rot, float density);
 
 float pbd_unified_sim_get_particle_radius(const struct PBDUnifiedSimulation* sim);
