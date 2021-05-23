@@ -4,10 +4,13 @@
 #include <vector>
 #include <stdint.h>
 
+// TODO: remove constrants which are not flags ( e.g. fluid, solid, move them to phase?)
 struct PBDParticleFlags {
 	enum : uint32_t {
 		kRigidBody = 0x01,
-		kSleep = 0x16,
+		kFluid = 0x02,
+		kSolid = 0x04,
+		kSleep = 0x10,
 	};
 };
 
