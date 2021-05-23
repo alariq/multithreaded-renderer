@@ -33,6 +33,12 @@ struct ParticleRigidBodyCollisionConstraint {
     vec2 x_ij;
 };
 
+struct SolidParticlesCollisionConstraint {
+    int idx0, idx1;
+    // xi - xj, xi <-------- xj
+    vec2 x_ij;
+};
+
 struct BoxBoundaryConstraint {
     //bool b_invert;
     vec2 p_min;
@@ -75,6 +81,7 @@ struct PBDUnifiedSimulation {
 
     vec2 world_size_ = vec2(5,5);
 
+	std::vector<SolidParticlesCollisionConstraint> solid_collision_c_;
 	std::vector<ShapeMatchingConstraint> shape_matching_c_;
 	std::vector<RigidBodyCollisionConstraint> rb_collision_c_;
 	std::vector<ParticleRigidBodyCollisionConstraint> particle_rb_collision_c_;
@@ -113,7 +120,7 @@ int pbd_unified_sim_add_particle(struct PBDUnifiedSimulation* sim, vec2 pos,
 		.x = pos,
 		.v = vec2(0),
 		.inv_mass = inv_mass,
-        .flags = 0,
+        .flags = PBDParticleFlags::kSolid,
         .phase = -1,
         .rb_data_idx = -1,
 	});
@@ -286,6 +293,33 @@ void solve_shape_matching_c(const ShapeMatchingConstraint& c,
 	}
 }
 
+void solve_solid_particle_collision_c(const SolidParticlesCollisionConstraint& c, PBDUnifiedSimulation* sim) {
+
+    assert(length(c.x_ij) <= 2*sim->particle_r_);
+
+	assert(c.idx0 >= 0 && c.idx0 < (int32_t)sim->particles_.size());
+	assert(c.idx1 >= 0 && c.idx1 < (int32_t)sim->particles_.size());
+
+	assert(sim->particles_[c.idx0].flags & PBDParticleFlags::kSolid);
+	assert(sim->particles_[c.idx1].flags & PBDParticleFlags::kSolid);
+
+    const float x_ij_len = length(c.x_ij);
+    const float d = x_ij_len - 2*sim->particle_r_;
+    assert(d < 0);
+
+	vec2 gradC = c.x_ij / x_ij_len;
+	float inv_mass_i = sim->inv_scaled_mass_[c.idx0];
+    float inv_mass_j = sim->inv_scaled_mass_[c.idx1];
+
+    float C = d;
+    float s = C / (inv_mass_i + inv_mass_j);
+    sim->dp_[c.idx0] += -s * inv_mass_i * gradC;
+    sim->dp_[c.idx1] += +s * inv_mass_j * gradC;
+
+	sim->num_constraints_[c.idx0]++;
+    sim->num_constraints_[c.idx1]++;
+}
+
 void solve_particle_rb_collision_c(const ParticleRigidBodyCollisionConstraint& c, PBDUnifiedSimulation* sim) {
 
     assert(length(c.x_ij) <= 2*sim->particle_r_);
@@ -338,6 +372,9 @@ void solve_particle_rb_collision_c(const ParticleRigidBodyCollisionConstraint& c
     float s = d / (w0 + w1);
     sim->dp_[c.idx0] += -s * w0 * gradC;
     sim->dp_[c.idx1] += s * w1 * gradC;
+
+	sim->num_constraints_[c.idx0]++;
+    sim->num_constraints_[c.idx1]++;
 }
 
 void solve_rb_collision_c(const RigidBodyCollisionConstraint& c, PBDUnifiedSimulation* sim) {
@@ -399,6 +436,9 @@ void solve_rb_collision_c(const RigidBodyCollisionConstraint& c, PBDUnifiedSimul
     float s = d / (w0 + w1);
     sim->dp_[c.idx0] += -s * w0 * gradC;
     sim->dp_[c.idx1] += s * w1 * gradC;
+
+	sim->num_constraints_[c.idx0]++;
+    sim->num_constraints_[c.idx1]++;
 }
 
 void solve_box_boundary(const BoxBoundaryConstraint& c, vec2 pos, int particle_idx, PBDUnifiedSimulation* sim) {
@@ -418,7 +458,6 @@ void solve_box_boundary(const BoxBoundaryConstraint& c, vec2 pos, int particle_i
 
         dx.x = c.p_max.x - (pos.x + r);
         sim->num_constraints_[particle_idx]++;
-
     }
 
     if (pos.y - r < c.p_min.y) {
@@ -433,9 +472,7 @@ void solve_box_boundary(const BoxBoundaryConstraint& c, vec2 pos, int particle_i
     }
 
     sim->dp_[particle_idx] += dx;
-
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 class PBDUnifiedTimestep {
@@ -447,7 +484,7 @@ class PBDUnifiedTimestep {
     // if movement less than 1% of particle radius
 	static const constexpr float sleep_eps_sq = (0.01f * 0.1f) * (0.01f * 0.1f);
     // successive over-relaxation coefficient
-	static const constexpr float kSOR = 1.5f; // [1,2]
+	static const constexpr float kSOR = 1.0f; // [1,2]
 
 	static float h(vec2 pos) { return pos.y; }
 
@@ -481,7 +518,6 @@ void PBDUnifiedTimestep::Simulate(PBDUnifiedSimulation* sim, float dt) {
 
 
     const float r = sim->particle_r_;
-    const float r_sqr = r * r;
 	std::vector<vec2>& dp = sim->dp_;
 
 	// handle only contact constraints in stabilization phase
@@ -489,6 +525,7 @@ void PBDUnifiedTimestep::Simulate(PBDUnifiedSimulation* sim, float dt) {
 
         sim->rb_collision_c_.resize(0);
         sim->particle_rb_collision_c_.resize(0);
+        sim->solid_collision_c_.resize(0);
 	    for (int i = 0; i < num_particles; i++) {
             sim->num_constraints_[i] = 0;
             sim->dp_[i] = vec2(0);
@@ -512,49 +549,37 @@ void PBDUnifiedTimestep::Simulate(PBDUnifiedSimulation* sim, float dt) {
 				}
 
 				vec2 vec = p[i].x - p[j].x;
-				float dist_sqr = lengthSqr(vec);
+				float dist = length(vec);
 
-				float C = dist_sqr - 4*r_sqr;
+				float C = dist - 2*r;
 				if (C < 0) {
-#if 1
+
                     if((p[i].flags&p[j].flags) & PBDParticleFlags::kRigidBody) {
                         sim->rb_collision_c_.push_back(RigidBodyCollisionConstraint{i,j, vec});
-					    sim->num_constraints_[i]++;
-                        sim->num_constraints_[j]++;
-                        continue;
                     } else if(p[i].flags & PBDParticleFlags::kRigidBody) {
                         sim->particle_rb_collision_c_.push_back(ParticleRigidBodyCollisionConstraint{i,j, vec});
-					    sim->num_constraints_[i]++;
-                        sim->num_constraints_[j]++;
-                        continue;
                     } else if(p[j].flags & PBDParticleFlags::kRigidBody) {
                         sim->particle_rb_collision_c_.push_back(ParticleRigidBodyCollisionConstraint{j,i, -vec});
-					    sim->num_constraints_[i]++;
-                        sim->num_constraints_[j]++;
-                        continue;
+                    } else if((p[j].flags & p[i].flags) & PBDParticleFlags::kSolid ) {
+                        sim->solid_collision_c_.push_back(SolidParticlesCollisionConstraint{i,j, vec});
+                        //solve_solid_particle_collision_c(SolidParticlesCollisionConstraint{i,j, vec}, sim);
+                    } else {
+                        assert(0 && "unsupported contact configuration");
                     }
-#endif                
-					vec2 gradC = vec / sqrt(dist_sqr);
-                    float inv_mass_i = scaled_mass[i];//p[i].inv_mass;
-                    float inv_mass_j = scaled_mass[j];//p[j].inv_mass;
-
-					float s = C / (inv_mass_i + inv_mass_j);
-					dp[i] += -s * inv_mass_i * gradC;
-					dp[j] += +s * inv_mass_j * gradC;
-					sim->num_constraints_[i]++;
-					sim->num_constraints_[j]++;
 				}
 			}
 
 		}
 
+        for(auto c: sim->solid_collision_c_) {
+            solve_solid_particle_collision_c(c, sim);
+        }
+
         for(auto c: sim->rb_collision_c_) {
-            // TODO: handle pre-sim: aka update p[i] as well
             solve_rb_collision_c(c, sim);
         }
 
         for(auto c: sim->particle_rb_collision_c_) {
-            // TODO: handle pre-sim: aka update p[i] as well
             solve_particle_rb_collision_c(c, sim);
         }
 
@@ -579,6 +604,7 @@ void PBDUnifiedTimestep::Simulate(PBDUnifiedSimulation* sim, float dt) {
 
         sim->rb_collision_c_.resize(0);
         sim->particle_rb_collision_c_.resize(0);
+        sim->solid_collision_c_.resize(0);
 	    for (int i = 0; i < num_particles; i++) {
             sim->num_constraints_[i] = 0;
             sim->dp_[i] = vec2(0);
@@ -603,49 +629,30 @@ void PBDUnifiedTimestep::Simulate(PBDUnifiedSimulation* sim, float dt) {
 				}
 
 				vec2 vec = x_pred[i] - x_pred[j];
-				float dist_sqr = lengthSqr(vec);
+				float dist_sqr = length(vec);
 
-				float C = dist_sqr - 4*r_sqr;
+				float C = dist_sqr - 2*r;
 				if (C < 0) {
-#if 1
                     if((p[i].flags&p[j].flags) & PBDParticleFlags::kRigidBody) {
                         sim->rb_collision_c_.push_back(RigidBodyCollisionConstraint{i,j, vec});
-					    sim->num_constraints_[i]++;
-                        sim->num_constraints_[j]++;
-                        continue;
                     } else if(p[i].flags & PBDParticleFlags::kRigidBody) {
                         sim->particle_rb_collision_c_.push_back(ParticleRigidBodyCollisionConstraint{i,j, vec});
-					    sim->num_constraints_[i]++;
-                        sim->num_constraints_[j]++;
-                        continue;
                     } else if(p[j].flags & PBDParticleFlags::kRigidBody) {
                         sim->particle_rb_collision_c_.push_back(ParticleRigidBodyCollisionConstraint{j,i, -vec});
-					    sim->num_constraints_[i]++;
-                        sim->num_constraints_[j]++;
-                        continue;
+                    } else if((p[j].flags & p[i].flags) & PBDParticleFlags::kSolid ) {
+                        sim->solid_collision_c_.push_back(SolidParticlesCollisionConstraint{i,j, vec});
+                        //solve_solid_particle_collision_c(SolidParticlesCollisionConstraint{i,j, vec}, sim);
+                    } else {
+                        assert(0 && "unsupported contact configuration");
                     }
-#endif
-					vec2 gradC = vec / sqrt(dist_sqr);
-                    float inv_mass_i = scaled_mass[i];//p[i].inv_mass;
-                    float inv_mass_j = scaled_mass[j];//p[j].inv_mass;
-
-					float s = C / (inv_mass_i + inv_mass_j);
-					dp[i] += -s * inv_mass_i * gradC;
-					dp[j] += +s * inv_mass_j * gradC;
-					sim->num_constraints_[i]++;
-					sim->num_constraints_[j]++;
-
-                    //x_pred[i] += dp[i];
-                    //dp[i] = vec2(0);
-					//sim->num_constraints_[i]--;
-
-                    //x_pred[j] += dp[j];
-                    //dp[j] = vec2(0);
-					//sim->num_constraints_[j]--;
 				}
 			}
 
 		}
+
+        for(auto c: sim->solid_collision_c_) {
+            solve_solid_particle_collision_c(c, sim);
+        }
 
         for(auto c: sim->rb_collision_c_) {
             solve_rb_collision_c(c, sim);
