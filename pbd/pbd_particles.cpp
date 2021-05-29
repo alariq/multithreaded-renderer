@@ -325,7 +325,7 @@ void solve_solid_particle_collision_c(const SolidParticlesCollisionConstraint& c
 			  (sim->x_pred_[c.idx1] + dp1 - sim->particles_[c.idx1].x);
 
 	// perp projection
-    vec2 dxp = dx - dot(dx, gradC)*gradC;
+    vec2 dxp = dx - fabsf(dot(dx, gradC))*gradC;
     const float ldxp = length(dxp);
 	if (ldxp > mu * -d) {
 		dxp = dxp * min(mu * -d / ldxp, 1.0f);
@@ -487,26 +487,28 @@ void solve_box_boundary(const BoxBoundaryConstraint& c, vec2 pos, int particle_i
 
         dx.y = c.p_min.y - (pos.y - r);
         sim->num_constraints_[particle_idx]++;
-        n = vec2(0,1);
+        n = vec2(0,-1);
 
     } else if (pos.y + r > c.p_max.y) {
 
         dx.y = c.p_max.y - (pos.y + r);
         sim->num_constraints_[particle_idx]++;
-        n = vec2(0,-1);
+        n = vec2(0,1);
     }
+
+    // n - points to the gradient increase
 
     sim->dp_[particle_idx] += dx;
 
 	if (sim->num_constraints_[particle_idx] > prev_constraints) {
 
-		float mu = 0.2f;
+		float mu = 0.5f;
 		float d = length(dx);
 
 		// friction
 		vec2 dxp = (sim->x_pred_[particle_idx] + dx) - sim->particles_[particle_idx].x;
-		// perp projection
-		dxp = dxp - dot(dxp, n) * n;
+		// perp projection, I think abs is necessary here
+		dxp = dxp - fabsf(dot(dxp, n)) * n;
 		const float ldxp = length(dxp);
 		if (ldxp > mu * d) {
 			dxp = dxp * min(mu * d / ldxp, 1.0f);
