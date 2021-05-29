@@ -14,6 +14,29 @@ void scene_stacking_particles_and_box_above(PBDUnifiedSimulation* sim) {
     initialize_particle_positions(sim, world_size, 10, 1000);
 }
 
+void scene_friction_test(PBDUnifiedSimulation* sim) {
+
+    const float density0 = 1000;
+    const float radius = pbd_unified_sim_get_particle_radius(sim);
+	vec2 offset = vec2(1.2f, 1.0f * radius);
+    const float column_size = 4;
+    const float row_size = 10;
+
+	pbd_unified_sim_add_particle(sim, vec2(0.1f, 1.5f), vec2(7,3.0f), density0);
+    
+	for (int y = 0; y < row_size; ++y) {
+		for (int x = 0; x < column_size; ++x) {
+
+			float jitter = 0; // random(-0.01f, 0.01f);
+			vec2 pos = offset + vec2(x * 2.0f * radius + jitter, y * 2.0f * radius);
+
+			pbd_unified_sim_add_particle(sim, pos, density0);
+		}
+	}
+
+
+}
+
 void scene_particle_box_collision_test(PBDUnifiedSimulation* sim) {
     const float density0 = 1000;
     pbd_unified_sim_add_box_rigid_body(sim, 5, 4, vec2(4.0, 0.4f), 0, density0);
@@ -46,9 +69,10 @@ PBDTestObject* PBDTestObject::Create() {
     o->sim_origin_ = vec2(0,0);
     o->sim_ = pbd_unified_sim_create(o->sim_dim_);
 
-    scene_stacking_particles_and_box_above(o->sim_);
+    //scene_stacking_particles_and_box_above(o->sim_);
     //scene_complex(o->sim_);
     //scene_particle_box_collision_test(o->sim_);
+    scene_friction_test(o->sim_);
 
 	return o;
 }
