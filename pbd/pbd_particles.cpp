@@ -313,8 +313,26 @@ void solve_solid_particle_collision_c(const SolidParticlesCollisionConstraint& c
 
     float C = d;
     float s = C / (inv_mass_i + inv_mass_j);
-    sim->dp_[c.idx0] += -s * inv_mass_i * gradC;
-    sim->dp_[c.idx1] += +s * inv_mass_j * gradC;
+    vec2 dp0 = -s * inv_mass_i * gradC;
+    vec2 dp1 = +s * inv_mass_j * gradC;
+    sim->dp_[c.idx0] += dp0;
+    sim->dp_[c.idx1] += dp1;
+     
+    float mu = 0.4f;
+
+    // friction
+	vec2 dx = (sim->x_pred_[c.idx0] + dp0 - sim->particles_[c.idx0].x) -
+			  (sim->x_pred_[c.idx1] + dp1 - sim->particles_[c.idx1].x);
+
+	// perp projection
+    vec2 dxp = dx - dot(dx, gradC)*gradC;
+    const float ldxp = length(dxp);
+	if (ldxp > mu * -d) {
+		dxp = dxp * min(mu * -d / ldxp, 1.0f);
+	}
+
+	sim->dp_[c.idx0] += -inv_mass_i/(inv_mass_i + inv_mass_j) * dxp;
+    sim->dp_[c.idx1] += +inv_mass_j/(inv_mass_i + inv_mass_j) * dxp;
 
 	sim->num_constraints_[c.idx0]++;
     sim->num_constraints_[c.idx1]++;
@@ -445,6 +463,9 @@ void solve_box_boundary(const BoxBoundaryConstraint& c, vec2 pos, int particle_i
 
 	const float r = sim->particle_r_;
     vec2 dx = vec2(0);
+    vec2 n;
+
+    const int prev_constraints = sim->num_constraints_[particle_idx];
 
     // case when width or height is less than a particle radius is not handled
     // we can change 'else if' for just 'if' but then still it would not work
@@ -453,31 +474,51 @@ void solve_box_boundary(const BoxBoundaryConstraint& c, vec2 pos, int particle_i
 
         dx.x = c.p_min.x - (pos.x - r);
         sim->num_constraints_[particle_idx]++;
+        n = vec2(-1,0);
 
     } else if (pos.x + r > c.p_max.x) {
 
         dx.x = c.p_max.x - (pos.x + r);
         sim->num_constraints_[particle_idx]++;
+        n = vec2(1,0);
     }
 
     if (pos.y - r < c.p_min.y) {
 
         dx.y = c.p_min.y - (pos.y - r);
         sim->num_constraints_[particle_idx]++;
+        n = vec2(0,1);
 
     } else if (pos.y + r > c.p_max.y) {
 
         dx.y = c.p_max.y - (pos.y + r);
         sim->num_constraints_[particle_idx]++;
+        n = vec2(0,-1);
     }
 
     sim->dp_[particle_idx] += dx;
+
+	if (sim->num_constraints_[particle_idx] > prev_constraints) {
+
+		float mu = 0.2f;
+		float d = length(dx);
+
+		// friction
+		vec2 dxp = (sim->x_pred_[particle_idx] + dx) - sim->particles_[particle_idx].x;
+		// perp projection
+		dxp = dxp - dot(dxp, n) * n;
+		const float ldxp = length(dxp);
+		if (ldxp > mu * d) {
+			dxp = dxp * min(mu * d / ldxp, 1.0f);
+		}
+		sim->dp_[particle_idx] -= dxp;
+	}
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 class PBDUnifiedTimestep {
 	static const int sim_iter_count = 5;
-	static const int stab_iter_count = 2;
+	static const int stab_iter_count = 0;
 	static const constexpr vec2 g = vec2(0.0f, -9.8f);
 	static const constexpr float k = 1.5f;
 	static const constexpr float eps = 1e-6f;
