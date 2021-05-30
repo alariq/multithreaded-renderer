@@ -37,6 +37,7 @@ struct PBDRigidBody{
     // move to other struct as those are changing?
     vec2 x;
     float angle;
+    float angle0;
 
     // index and number of particles in PBDRigidBodyParticleData
     int start_part_idx;
