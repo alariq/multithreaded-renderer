@@ -199,6 +199,7 @@ int pbd_unified_sim_add_box_rigid_body(struct PBDUnifiedSimulation* sim, int siz
 	sim->rigid_bodies_.push_back(PBDRigidBody{
 		.x = pos,
 		.angle = rot_angle,
+		.angle0 = rot_angle,
 		.start_part_idx = -1,
 		.num_part = size_x * size_y,
 		.flags = 0,
@@ -279,7 +280,9 @@ void solve_shape_matching_c(const ShapeMatchingConstraint& c,
         A = A + outer(x_pred[pi] - com, rb_data[di].x0);
 	}
 
-    mat2 Q = calculateQ(A, &rb.angle);
+    float delta_angle;
+    mat2 Q = calculateQ(A, &delta_angle);
+    rb.angle = rb.angle0 + delta_angle;
     // test
     mat2 rot_m = rotate2(rb.angle);
     (void)rot_m;
