@@ -21,6 +21,9 @@ struct PBDParticle {
     int32_t phase;
     // only valid if flags say it is rigid body particle
     int32_t rb_data_idx;
+	// TODO: move common params to particle type data structure and store this structure's
+	// handl here instead
+	float mu_s, mu_k;
 };
 
 struct PBDRigidBodyParticleData {
@@ -38,6 +41,8 @@ struct PBDRigidBody{
     vec2 x;
     float angle;
     float angle0;
+    float mu_s; // static friction
+    float mu_k; // kinetic friction
 
     // index and number of particles in PBDRigidBodyParticleData
     int start_part_idx;
@@ -55,6 +60,9 @@ void pbd_unified_sim_reset(struct PBDUnifiedSimulation*);
 int pbd_unified_sim_add_particle(struct PBDUnifiedSimulation* sim, vec2 pos, float density);
 int pbd_unified_sim_add_particle(struct PBDUnifiedSimulation* sim, vec2 pos, vec2 init_vel, float density);
 int pbd_unified_sim_add_box_rigid_body(struct PBDUnifiedSimulation* sim, int size_x, int size_y, vec2 pos, float rot, float density);
+
+// TODO: make it throuht particle type data structure, do not really need per partcle friction
+void pbd_unified_sim_particle_set_friction(int idx, float mu_s, float mu_k);
 
 float pbd_unified_sim_get_particle_radius(const struct PBDUnifiedSimulation* sim);
 int pbd_unified_sim_get_particle_count(const struct PBDUnifiedSimulation*);
