@@ -61,6 +61,7 @@ int pbd_unified_sim_add_particle(struct PBDUnifiedSimulation* sim, vec2 pos, flo
 int pbd_unified_sim_add_particle(struct PBDUnifiedSimulation* sim, vec2 pos, vec2 init_vel, float density);
 int pbd_unified_sim_add_box_rigid_body(struct PBDUnifiedSimulation* sim, int size_x, int size_y, vec2 pos, float rot, float density);
 
+void pbd_unified_sim_rb_add_velocity(struct PBDUnifiedSimulation* sim, int rb_idx, const vec2& vel);
 // TODO: make it throuht particle type data structure, do not really need per partcle friction
 void pbd_unified_sim_particle_set_friction(int idx, float mu_s, float mu_k);
 

@@ -146,6 +146,17 @@ int pbd_unified_sim_add_particle(struct PBDUnifiedSimulation* sim, vec2 pos,
     return idx;
 }
 
+
+void pbd_unified_sim_rb_add_velocity(struct PBDUnifiedSimulation* sim, int rb_idx, const vec2& vel) {
+    assert((int)sim->rigid_bodies_.size() > rb_idx);
+    const int start = sim->rigid_bodies_[rb_idx].start_part_idx;
+    const int end = start + sim->rigid_bodies_[rb_idx].num_part;
+	for (int i = start; i != end; ++i) {
+        int idx = sim->rb_particles_data_[i].index;
+        sim->particles_[idx].v += vel;
+	}
+}
+
 void pbd_unified_sim_particle_set_friction(struct PBDUnifiedSimulation* sim, int idx, float mu_s, float mu_k) {
     assert((int)sim->particles_.size() > idx);
     sim->particles_[idx].mu_s = mu_s;
@@ -496,6 +507,14 @@ void solve_rb_collision_c(const RigidBodyCollisionConstraint& c, PBDUnifiedSimul
         }
     }
 
+//#define MAKE_COLLISIONS_GREAT_AGAIN 1
+// this prefers normal straight along collision line, which works better just because
+// corner particles in rigid bodies have gradients which are not always "correct"
+// Maybe makes sense to query gradient of J RB from position of I particle
+#if MAKE_COLLISIONS_GREAT_AGAIN
+    norm = normalize(-c.x_ij);
+#endif
+
     vec2 gradC = -norm;
     float w0 = sim->inv_scaled_mass_[c.idx0];
     float w1 = sim->inv_scaled_mass_[c.idx1];
@@ -745,7 +764,8 @@ void PBDUnifiedTimestep::Simulate(PBDUnifiedSimulation* sim, float dt) {
 
 				float C = dist_sqr - 2*r;
 				if (C < 0) {
-                    if((p[i].flags&p[j].flags) & PBDParticleFlags::kRigidBody) {
+                    if(((p[i].flags&p[j].flags) & PBDParticleFlags::kRigidBody) ) {
+                        if(p[i].rb_data_idx!=p[j].rb_data_idx)
                         sim->rb_collision_c_.push_back(RigidBodyCollisionConstraint{i,j, vec});
                     } else if(p[i].flags & PBDParticleFlags::kRigidBody) {
                         sim->particle_rb_collision_c_.push_back(ParticleRigidBodyCollisionConstraint{i,j, vec});
