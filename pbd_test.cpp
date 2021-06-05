@@ -33,8 +33,57 @@ void scene_friction_test(PBDUnifiedSimulation* sim) {
 			pbd_unified_sim_add_particle(sim, pos, density0);
 		}
 	}
+}
+
+void scene_rb_friction_test(PBDUnifiedSimulation* sim) {
+
+    const float density0 = 1000;
+    const float radius = pbd_unified_sim_get_particle_radius(sim);
+
+	pbd_unified_sim_add_particle(sim, vec2(0.1f, 1.5f), vec2(7,3.0f), density0);
+
+    vec2 rb_pos = vec2(0.2f, 3.2f);
+    //int rb_idx = pbd_unified_sim_add_box_rigid_body(sim, 5, 4, rb_pos, 1*30.0f* 3.1415f/180.0f, density0);
+    //pbd_unified_sim_rb_add_velocity(sim, rb_idx, vec2(3, 0));
+    
+    int rb2_idx = pbd_unified_sim_add_box_rigid_body(sim, 7, 3, vec2(2,0.3f), 0*30.0f* 3.1415f/180.0f, density0);
+    pbd_unified_sim_rb_add_velocity(sim, rb2_idx, vec2(5, 0));
+
+    int rb3_idx = pbd_unified_sim_add_box_rigid_body(sim, 7, 3, vec2(2,2.0f), 0*30.0f* 3.1415f/180.0f, density0);
+    pbd_unified_sim_rb_add_velocity(sim, rb3_idx, vec2(5, 0));
 
 
+    int rb4_idx = pbd_unified_sim_add_box_rigid_body(sim, 7, 3, vec2(0.6f, 0.7f), -65.0f* 3.1415f/180.0f, density0);
+    pbd_unified_sim_rb_add_velocity(sim, rb2_idx, vec2(5, 0));
+
+}
+
+void scene_rb_friction_test2(PBDUnifiedSimulation* sim) {
+
+    const float density0 = 1000;
+    const float radius = pbd_unified_sim_get_particle_radius(sim);
+
+	//pbd_unified_sim_add_particle(sim, vec2(0.1f, 1.5f), vec2(7,3.0f), density0);
+
+    int rb_dim_x = 4;
+    int rb_dim_y = 4;
+    vec2 rb_size = 2 * vec2(rb_dim_x*radius, rb_dim_y*radius);
+
+    const vec2 world_size = pbd_unified_sim_get_world_bounds(sim);
+	vec2 offset = vec2(0.0f, 0.0f) + 1.0f * vec2(rb_size.x, rb_size.y);
+    const float column_size = 4;
+    const float row_size = 4;
+
+	for (int y = 0; y < row_size; ++y) {
+		for (int x = 0; x < column_size; ++x) {
+
+			float jitter = random(-0.01f, 0.01f);
+			vec2 pos = offset + vec2(x * 1.5f*rb_size.x + jitter, y * 1.5f * rb_size.y);
+            float rot = random(0.0f, 1.0f);
+
+            pbd_unified_sim_add_box_rigid_body(sim, rb_dim_x, rb_dim_y, pos, rot * 2* 3.1415f, density0);
+		}
+	}
 }
 
 void scene_particle_box_collision_test(PBDUnifiedSimulation* sim) {
@@ -72,7 +121,9 @@ PBDTestObject* PBDTestObject::Create() {
     //scene_stacking_particles_and_box_above(o->sim_);
     //scene_complex(o->sim_);
     //scene_particle_box_collision_test(o->sim_);
-    scene_friction_test(o->sim_);
+    //scene_friction_test(o->sim_);
+    //scene_rb_friction_test(o->sim_);
+    scene_rb_friction_test2(o->sim_);
 
 	return o;
 }
