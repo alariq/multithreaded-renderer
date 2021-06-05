@@ -43,6 +43,7 @@ struct BoxBoundaryConstraint {
     //bool b_invert;
     vec2 p_min;
     vec2 p_max;
+    float mu_s, mu_k;
 };
 
 void findNeighboursNaiive(const vec2* x, const int size, float radius,
@@ -104,6 +105,8 @@ struct PBDUnifiedSimulation* pbd_unified_sim_create(vec2& sim_dim) {
 		//.b_invert = false,
 		.p_min = vec2(0),
 		.p_max = sim_dim,
+        .mu_s = 0.7f,
+        .mu_k = 0.4f,
 	});
 	return sim;
 }
@@ -141,6 +144,12 @@ int pbd_unified_sim_add_particle(struct PBDUnifiedSimulation* sim, vec2 pos,
 	int idx = pbd_unified_sim_add_particle(sim, pos, density);
     sim->particles_[idx].v = init_vel;
     return idx;
+}
+
+void pbd_unified_sim_particle_set_friction(struct PBDUnifiedSimulation* sim, int idx, float mu_s, float mu_k) {
+    assert((int)sim->particles_.size() > idx);
+    sim->particles_[idx].mu_s = mu_s;
+    sim->particles_[idx].mu_k = mu_k;
 }
 
 int pbd_unified_sim_add_rb_particle_data(struct PBDUnifiedSimulation* sim, vec2 x0,
@@ -200,6 +209,8 @@ int pbd_unified_sim_add_box_rigid_body(struct PBDUnifiedSimulation* sim, int siz
 		.x = pos,
 		.angle = rot_angle,
 		.angle0 = rot_angle,
+        .mu_s = 0.5f,
+        .mu_k = 0.3f,
 		.start_part_idx = -1,
 		.num_part = size_x * size_y,
 		.flags = 0,
@@ -303,8 +314,11 @@ void solve_solid_particle_collision_c(const SolidParticlesCollisionConstraint& c
 	assert(c.idx0 >= 0 && c.idx0 < (int32_t)sim->particles_.size());
 	assert(c.idx1 >= 0 && c.idx1 < (int32_t)sim->particles_.size());
 
-	assert(sim->particles_[c.idx0].flags & PBDParticleFlags::kSolid);
-	assert(sim->particles_[c.idx1].flags & PBDParticleFlags::kSolid);
+    const PBDParticle& p0 = sim->particles_[c.idx0];
+    const PBDParticle& p1 = sim->particles_[c.idx1];
+
+	assert(p0.flags & PBDParticleFlags::kSolid);
+	assert(p0.flags & PBDParticleFlags::kSolid);
 
     const float x_ij_len = length(c.x_ij);
     const float d = x_ij_len - 2*sim->particle_r_;
@@ -321,17 +335,18 @@ void solve_solid_particle_collision_c(const SolidParticlesCollisionConstraint& c
     sim->dp_[c.idx0] += dp0;
     sim->dp_[c.idx1] += dp1;
      
-    float mu = 0.4f;
+    const float mu_s = 0.5f*(p0.mu_s + p1.mu_s);
+    const float mu_k = 0.5f*(p0.mu_k + p1.mu_k);
 
     // friction
-	vec2 dx = (sim->x_pred_[c.idx0] + dp0 - sim->particles_[c.idx0].x) -
-			  (sim->x_pred_[c.idx1] + dp1 - sim->particles_[c.idx1].x);
+	vec2 dx = (sim->x_pred_[c.idx0] + dp0 - p0.x) -
+			  (sim->x_pred_[c.idx1] + dp1 - p1.x);
 
 	// perp projection
     vec2 dxp = dx - fabsf(dot(dx, gradC))*gradC;
     const float ldxp = length(dxp);
-	if (ldxp > mu * -d) {
-		dxp = dxp * min(mu * -d / ldxp, 1.0f);
+	if (ldxp > mu_s * -d) {
+		dxp = dxp * min(mu_k * -d / ldxp, 1.0f);
 	}
 
 	sim->dp_[c.idx0] += -inv_mass_i/(inv_mass_i + inv_mass_j) * dxp;
@@ -347,8 +362,12 @@ void solve_particle_rb_collision_c(const ParticleRigidBodyCollisionConstraint& c
 
 	assert(c.idx0 >= 0 && c.idx0 < (int32_t)sim->particles_.size());
 	assert(c.idx1 >= 0 && c.idx1 < (int32_t)sim->particles_.size());
-	assert(sim->particles_[c.idx0].flags & PBDParticleFlags::kRigidBody);
-	assert(!(sim->particles_[c.idx1].flags & PBDParticleFlags::kRigidBody));
+
+    const PBDParticle& p0 = sim->particles_[c.idx0];
+    const PBDParticle& p1 = sim->particles_[c.idx1];
+
+	assert(p0.flags & PBDParticleFlags::kRigidBody);
+	assert(!(p1.flags & PBDParticleFlags::kRigidBody));
 
 	int32_t rb_idx = sim->particles_[c.idx0].phase;
 
@@ -356,7 +375,7 @@ void solve_particle_rb_collision_c(const ParticleRigidBodyCollisionConstraint& c
 
 	const PBDRigidBody& rb = sim->rigid_bodies_[rb_idx];
 
-	int32_t rb_data_idx = sim->particles_[c.idx0].rb_data_idx;
+	int32_t rb_data_idx = p0.rb_data_idx;
 
 	assert(rb_data_idx >= 0 && rb_data_idx < (int32_t)sim->rb_particles_data_.size());
 
@@ -391,8 +410,30 @@ void solve_particle_rb_collision_c(const ParticleRigidBodyCollisionConstraint& c
     float w0 = sim->inv_scaled_mass_[c.idx0];
     float w1 = sim->inv_scaled_mass_[c.idx1];
     float s = d / (w0 + w1);
-    sim->dp_[c.idx0] += -s * w0 * gradC;
-    sim->dp_[c.idx1] += s * w1 * gradC;
+    vec2 dp0 = -s * w0 * gradC;
+    vec2 dp1 = s * w1 * gradC;
+    sim->dp_[c.idx0] += dp0;
+    sim->dp_[c.idx1] += dp1;
+
+    ////////////////////////////////////////////////////////////////////////////////
+
+    const float mu_s = 0.5f*(p0.mu_s + p1.mu_s);
+    const float mu_k = 0.5f*(p0.mu_k + p1.mu_k);
+
+    // friction
+	vec2 dx = (sim->x_pred_[c.idx0] + dp0 - p0.x) -
+			  (sim->x_pred_[c.idx1] + dp1 - p1.x);
+
+	// perp projection
+    vec2 dxp = dx - fabsf(dot(dx, gradC))*gradC;
+    const float ldxp = length(dxp);
+	if (ldxp > mu_s * -d) {
+		dxp = dxp * min(mu_k * -d / ldxp, 1.0f);
+	}
+
+	sim->dp_[c.idx0] += -w0/(w0 + w1) * dxp;
+    sim->dp_[c.idx1] += +w1/(w0 + w1) * dxp;
+    ////////////////////////////////////////////////////////////////////////////////
 
 	sim->num_constraints_[c.idx0]++;
     sim->num_constraints_[c.idx1]++;
@@ -402,23 +443,27 @@ void solve_rb_collision_c(const RigidBodyCollisionConstraint& c, PBDUnifiedSimul
 
     assert(length(c.x_ij) <= 2*sim->particle_r_);
 
+    const PBDParticle& p0 = sim->particles_[c.idx0];
+    const PBDParticle& p1 = sim->particles_[c.idx1];
+
 	assert(c.idx0 >= 0 && c.idx0 < (int32_t)sim->particles_.size());
-	assert(sim->particles_[c.idx0].flags & PBDParticleFlags::kRigidBody);
+	assert(p0.flags & PBDParticleFlags::kRigidBody);
 
 	assert(c.idx1 >= 0 && c.idx1 < (int32_t)sim->particles_.size());
-	assert(sim->particles_[c.idx1].flags & PBDParticleFlags::kRigidBody);
+	assert(p1.flags & PBDParticleFlags::kRigidBody);
 
-	int32_t rb0_idx = sim->particles_[c.idx0].phase;
-	int32_t rb1_idx = sim->particles_[c.idx1].phase;
+	int32_t rb0_idx = p0.phase;
+	int32_t rb1_idx = p1.phase;
 
 	assert(rb0_idx >= 0 && rb0_idx < (int32_t)sim->rigid_bodies_.size());
 	assert(rb1_idx >= 0 && rb1_idx < (int32_t)sim->rigid_bodies_.size());
+    assert(rb0_idx != rb1_idx);
 
 	const PBDRigidBody& rb0 = sim->rigid_bodies_[rb0_idx];
 	const PBDRigidBody& rb1 = sim->rigid_bodies_[rb1_idx];
 
-	int32_t rb_data_idx0 = sim->particles_[c.idx0].rb_data_idx;
-	int32_t rb_data_idx1 = sim->particles_[c.idx1].rb_data_idx;
+	int32_t rb_data_idx0 = p0.rb_data_idx;
+	int32_t rb_data_idx1 = p1.rb_data_idx;
 
 	assert(rb_data_idx0 >= 0 && rb_data_idx0 < (int32_t)sim->rb_particles_data_.size());
 	assert(rb_data_idx1 >= 0 && rb_data_idx1 < (int32_t)sim->rb_particles_data_.size());
@@ -455,8 +500,27 @@ void solve_rb_collision_c(const RigidBodyCollisionConstraint& c, PBDUnifiedSimul
     float w0 = sim->inv_scaled_mass_[c.idx0];
     float w1 = sim->inv_scaled_mass_[c.idx1];
     float s = d / (w0 + w1);
-    sim->dp_[c.idx0] += -s * w0 * gradC;
-    sim->dp_[c.idx1] += s * w1 * gradC;
+    vec2 dp0 = -s * w0 * gradC;
+    vec2 dp1 = s * w1 * gradC;
+    sim->dp_[c.idx0] += dp0;
+    sim->dp_[c.idx1] += dp1;
+
+    const float mu_s = 0.5f*(p0.mu_s + p1.mu_s);
+    const float mu_k = 0.5f*(p0.mu_k + p1.mu_k);
+
+    // friction
+	vec2 dx = (sim->x_pred_[c.idx0] + dp0 - p0.x) -
+			  (sim->x_pred_[c.idx1] + dp1 - p1.x);
+
+	// perp projection
+    vec2 dxp = dx - fabsf(dot(dx, gradC))*gradC;
+    const float ldxp = length(dxp);
+	if (ldxp > mu_s * -d) {
+		dxp = dxp * min(mu_k * -d / ldxp, 1.0f);
+	}
+
+	sim->dp_[c.idx0] += -w0/(w0 + w1) * dxp;
+    sim->dp_[c.idx1] += +w1/(w0 + w1) * dxp;
 
 	sim->num_constraints_[c.idx0]++;
     sim->num_constraints_[c.idx1]++;
@@ -505,7 +569,9 @@ void solve_box_boundary(const BoxBoundaryConstraint& c, vec2 pos, int particle_i
 
 	if (sim->num_constraints_[particle_idx] > prev_constraints) {
 
-		float mu = 0.5f;
+		const float mu_s = 0.5f * (c.mu_s + sim->particles_[particle_idx].mu_s);
+        const float mu_k = 0.5f * (c.mu_k + sim->particles_[particle_idx].mu_k);
+
 		float d = length(dx);
 
 		// friction
@@ -513,8 +579,8 @@ void solve_box_boundary(const BoxBoundaryConstraint& c, vec2 pos, int particle_i
 		// perp projection, I think abs is necessary here
 		dxp = dxp - fabsf(dot(dxp, n)) * n;
 		const float ldxp = length(dxp);
-		if (ldxp > mu * d) {
-			dxp = dxp * min(mu * d / ldxp, 1.0f);
+		if (ldxp > mu_s * d) {
+			dxp = dxp * min(mu_k * d / ldxp, 1.0f);
 		}
 		sim->dp_[particle_idx] -= dxp;
 	}
