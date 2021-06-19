@@ -809,11 +809,21 @@ void PBDUnifiedTimestep::Simulate(PBDUnifiedSimulation* sim, float dt) {
         }
 	}
 
+    const float max_vel_ = 0.4f * sim->particle_r_;
 	for (int i = 0; i < num_particles; i++) {
-		// update velocity
-		p[i].v = (x_pred[i] - p[i].x) / dt;
+        vec2 dpv = x_pred[i] - p[i].x;
+        float dp_len = length(dpv);
+        // CFL
+        if(dp_len > max_vel_) {
+            dpv *= max_vel_ / dp_len;
+            p[i].x = p[i].x + dpv;
+        }
+
+		// update velocity (first order)
+		p[i].v = dpv / dt;
+
 		// update position or sleep
-        bool b_sleep = lengthSqr(p[i].x - x_pred[i]) < sleep_eps_sq;
+        bool b_sleep = dp_len < kSleepEpsSq;
         if(!b_sleep) {
 		    p[i].x = x_pred[i];
             p[i].flags &= ~PBDParticleFlags::kSleep;
