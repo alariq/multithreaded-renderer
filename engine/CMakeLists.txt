@@ -32,6 +32,8 @@ set(SOURCES ${SOURCES}
     utils/Image.cpp
     utils/Image.h
     utils/intersection.h
+    utils/kernels.h
+    utils/kernels.cpp
     utils/logging.cpp
     utils/logging.h
     utils/shader_builder.cpp
