@@ -3,8 +3,14 @@
 #include "res_man.h"
 #include "utils/vec.h"
 #include "utils/camera_utils.h" // screen2world_vec
+#include "utils/kernels.h"
+#include "utils/math_utils.h"
 
 void initialize_particle_positions(struct PBDUnifiedSimulation* sim, const vec2& dim, int count, float density0);
+void initialize_fluid_particle_positions(struct PBDUnifiedSimulation* sim,
+										 const vec2& dim, const vec2& offset,
+										 int row_size, int count, int fluid_model_idx);
+
 void pbd_unified_sim_debug_draw(const struct PBDUnifiedSimulation* sim, class RenderList* rl);
 
 void scene_stacking_particles_and_box_above(PBDUnifiedSimulation* sim) {
@@ -38,24 +44,21 @@ void scene_friction_test(PBDUnifiedSimulation* sim) {
 void scene_rb_friction_test(PBDUnifiedSimulation* sim) {
 
     const float density0 = 1000;
-    const float radius = pbd_unified_sim_get_particle_radius(sim);
 
 	pbd_unified_sim_add_particle(sim, vec2(0.1f, 1.5f), vec2(7,3.0f), density0);
 
-    vec2 rb_pos = vec2(0.2f, 3.2f);
+    //vec2 rb_pos = vec2(0.2f, 3.2f);
     //int rb_idx = pbd_unified_sim_add_box_rigid_body(sim, 5, 4, rb_pos, 1*30.0f* 3.1415f/180.0f, density0);
     //pbd_unified_sim_rb_add_velocity(sim, rb_idx, vec2(3, 0));
     
     int rb2_idx = pbd_unified_sim_add_box_rigid_body(sim, 7, 3, vec2(2,0.3f), 0*30.0f* 3.1415f/180.0f, density0);
-    pbd_unified_sim_rb_add_velocity(sim, rb2_idx, vec2(5, 0));
+    pbd_unified_sim_rb_add_velocity(sim, rb2_idx, vec2(10, 0));
 
     int rb3_idx = pbd_unified_sim_add_box_rigid_body(sim, 7, 3, vec2(2,2.0f), 0*30.0f* 3.1415f/180.0f, density0);
     pbd_unified_sim_rb_add_velocity(sim, rb3_idx, vec2(5, 0));
 
 
-    int rb4_idx = pbd_unified_sim_add_box_rigid_body(sim, 7, 3, vec2(0.6f, 0.7f), -65.0f* 3.1415f/180.0f, density0);
-    pbd_unified_sim_rb_add_velocity(sim, rb2_idx, vec2(5, 0));
-
+    pbd_unified_sim_add_box_rigid_body(sim, 7, 3, vec2(0.6f, 0.7f), -65.0f* 3.1415f/180.0f, density0);
 }
 
 void scene_rb_friction_test2(PBDUnifiedSimulation* sim) {
@@ -69,7 +72,6 @@ void scene_rb_friction_test2(PBDUnifiedSimulation* sim) {
     int rb_dim_y = 4;
     vec2 rb_size = 2 * vec2(rb_dim_x*radius, rb_dim_y*radius);
 
-    const vec2 world_size = pbd_unified_sim_get_world_bounds(sim);
 	vec2 offset = vec2(0.0f, 0.0f) + 1.0f * vec2(rb_size.x, rb_size.y);
     const float column_size = 4;
     const float row_size = 4;
@@ -111,6 +113,42 @@ void scene_complex(PBDUnifiedSimulation* sim) {
     }
 }
 
+void scene_fluid_simple(PBDUnifiedSimulation* sim) {
+
+    const vec2 world_size = pbd_unified_sim_get_world_bounds(sim);
+	const float radius = pbd_unified_sim_get_particle_radius(sim);
+
+    float desired_density0 = 100;
+
+    int fm_idx = pbd_unified_sim_add_fluid_model(sim, 0, desired_density0);
+	vec2 offset = vec2(0.5f, 1.0f * radius);
+	int row_size = 16;
+    initialize_fluid_particle_positions(sim, world_size, offset, row_size, 200, fm_idx);
+    vec2 rb_pos = vec2(world_size.x*0.5f, world_size.y - 12*radius-1);
+    pbd_unified_sim_add_box_rigid_body(sim, 3, 3, rb_pos, 0*45.0f* 3.1415f/180.0f, 80);
+
+#if 1
+    vec2 rb_pos2 = vec2(world_size.x*0.5f + 0*(3*2*radius + 0.5f), world_size.y - 3*radius-1);
+    pbd_unified_sim_add_box_rigid_body(sim, 3, 3, rb_pos2, 0*45.0f* 3.1415f/180.0f, 250);
+    
+    vec2 rb_pos3 = vec2(world_size.x*0.1f + 3*2*radius + 0.5f, world_size.y - 3*radius-1);
+    pbd_unified_sim_add_box_rigid_body(sim, 1, 1, rb_pos3, 0*45.0f* 3.1415f/180.0f, 30);
+
+#endif
+#if 0
+
+    for(int i=0; i< 2; i++) {
+        vec2 pos = vec2(1.6f, 4.5f - i*1.4f);
+        float r = 0;//(i%2) ? -15.0f* 3.1415f/180.0f : 15.0f* 3.1415f/180.0f;
+        if(i==0)
+            pbd_unified_sim_add_box_rigid_body(sim, 4 + i, 4, pos, r, 1000);
+        else
+            pbd_unified_sim_add_box_rigid_body(sim, 4 + i, 4, pos, r, 1000);
+    }
+#endif
+}
+
+
 PBDTestObject* PBDTestObject::Create() {
 
     PBDTestObject* o = new PBDTestObject;
@@ -123,7 +161,8 @@ PBDTestObject* PBDTestObject::Create() {
     //scene_particle_box_collision_test(o->sim_);
     //scene_friction_test(o->sim_);
     //scene_rb_friction_test(o->sim_);
-    scene_rb_friction_test2(o->sim_);
+    //scene_rb_friction_test2(o->sim_);
+    scene_fluid_simple(o->sim_);
 
 	return o;
 }
@@ -294,6 +333,26 @@ void initialize_particle_positions(struct PBDUnifiedSimulation* sim, const vec2&
 			vec2 pos = offset + vec2(x * 2.0f * radius + jitter, y * 2.0f * radius);
 
 			pbd_unified_sim_add_particle(sim, pos, density0);
+		}
+	}
+}
+
+void initialize_fluid_particle_positions(struct PBDUnifiedSimulation* sim,
+										 const vec2& dim, const vec2& offset, int row_size, int count,
+										 int fluid_model_idx) {
+
+	const float radius = pbd_unified_sim_get_particle_radius(sim);
+	int column_size = (count + row_size - 1) / row_size;
+	for (int y = 0; y < column_size; ++y) {
+		for (int x = 0; x < row_size; ++x) {
+
+			int idx = y * row_size + x;
+			if (idx >= count) break;
+
+			float jitter = 0; // random(-0.01f, 0.01f);
+			vec2 pos = offset + vec2(x * 2.0f * radius + jitter, y * 2.0f * radius);
+
+			pbd_unified_sim_add_fluid_particle(sim, pos, fluid_model_idx);
 		}
 	}
 }

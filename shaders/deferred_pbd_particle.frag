@@ -17,6 +17,7 @@ layout(location=0) in PsIn {
 } Input;
 
 #define kPBDFlagRigidBody 0x01u
+#define kPBDFlagFluid 0x02u
 #define kPBDFlagSleep 0x10u
 
 layout (binding = 0, location=0) uniform sampler2D tex1;
@@ -26,11 +27,15 @@ void main(void)
 {
 	PREC vec4 albedo = texture(tex1, vec2(Input.texcoord.x, 1-Input.texcoord.y));
 
-    if(uint(Input.flags & kPBDFlagSleep) != 0u)
-        albedo.rgb = vec3(1,1,0);
-
     if(uint(Input.flags & kPBDFlagRigidBody ) != 0u)
-        albedo.rgb = vec3(0,0,1);
+        albedo.rgb = vec3(1,0.5,0.5);
+
+    if(uint(Input.flags & kPBDFlagFluid) != 0u)
+        albedo.rgb = vec3(0.5,0.5,1);
+
+    if(uint(Input.flags & kPBDFlagSleep) != 0u)
+        albedo.rgb *= 0.8;
+
 
     g_buffer_albedo = albedo;
     PREC float scaler = 0.1;
