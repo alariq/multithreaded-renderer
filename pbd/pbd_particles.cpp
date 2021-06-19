@@ -1,10 +1,20 @@
 // Unified Particle Physics for Real-Time Applications
 
 #include "pbd_particles.h"
+#include "engine/utils/kernels.h"
 
 #include <cmath>
 #include <vector>
 #include <cassert>
+
+#define MAKE_COLLISIONS_GREAT_AGAIN 1
+// this prefers normal straight along collision line, which works better just because
+// corner particles in rigid bodies have gradients which are not always "correct"
+// Maybe makes sense to query gradient of J RB from position of I particle
+
+// investigate why particles go nuts and enable after that, because enabling this, will
+// hide the problem
+#define ENABLE_CFL 0
 
 struct Pair {
 	int start;
@@ -62,9 +72,12 @@ void findNeighboursNaiive(const vec2* x, const int size, float radius,
                 continue;
             }
 
-			// phase should be different or -1, maybe leave "j" in neighbours but just use
+			// skip particles of same rigid body, maybe leave "j" in neighbours but just use
 			// this condition when checking constraints?
-			bool b_phase_cond = (particles[i].phase != particles[j].phase) || (particles[i].phase == -1);
+			bool b_is_same_rb = particles[i].phase == particles[j].phase &&
+							  (particles[i].flags & PBDParticleFlags::kRigidBody) &&
+							  (particles[i].flags & PBDParticleFlags::kRigidBody);
+			bool b_phase_cond = !b_is_same_rb;
 			if (b_phase_cond && lengthSqr(x_i - x[j]) < r_sq) {
 				nd->neigh_idx_.push_back(j);
 				offset++;
@@ -89,18 +102,56 @@ struct PBDUnifiedSimulation {
 	std::vector<BoxBoundaryConstraint> box_boundary_c_;
 
 	std::vector<PBDParticle> particles_;
+	std::vector<int> fluid_particle_idxs_;
 	std::vector<PBDRigidBodyParticleData> rb_particles_data_;
+	std::vector<PBDFluidParicleRuntimeData> fluid_particles_data_;  // do we need this?
 	std::vector<PBDRigidBody> rigid_bodies_;
+	std::vector<PBDFluidModel> fluid_models_;
 	std::vector<float> inv_scaled_mass_;
 	std::vector<vec2> dp_;
 	std::vector<int> num_constraints_;
 	std::vector<vec2> x_pred_;
     NeighbourData neigh_data_;
+
+
+    // relaxation parameter, see eq. 10 or 11 in the fluid paper
+	inline static const float e_ = 0.0001f;//1.0e-6f;
+
+    float W_zero_;
+	float (*kernel_fptr_)(const vec3 &);
+	vec3 (*grad_kernel_fptr_)(const vec3& r);
+
+    float W(const vec2& v) const {
+        return kernel_fptr_(vec3(v.x, v.y, 0.0f));
+    }
+
+    vec2 gradW(const vec2& v) const {
+        vec3 grad = grad_kernel_fptr_(vec3(v.x, v.y, 0.0f));
+        return vec2(grad.x, grad.y);
+    }
+
+    float Wzero() const { return W_zero_; }
+
 };
 
 struct PBDUnifiedSimulation* pbd_unified_sim_create(vec2& sim_dim) {
     PBDUnifiedSimulation* sim = new PBDUnifiedSimulation();
     sim->world_size_ = sim_dim;
+
+    float fluid_support_r = sim->particle_r_ * 3.0f;
+	CubicKernel::setRadius(fluid_support_r);
+	CubicKernel2D::setRadius(fluid_support_r);
+	Poly6Kernel::setRadius(fluid_support_r);
+	Poly6Kernel2D::setRadius(fluid_support_r);
+    SpikyKernel::setRadius(fluid_support_r);
+    SpikyKernel2D::setRadius(fluid_support_r);
+
+    sim->kernel_fptr_ = Poly6Kernel2D::W;
+    sim->grad_kernel_fptr_ = 
+        SpikyKernel2D::gradW;
+        //Poly6Kernel2D::gradW;
+    sim->W_zero_ = Poly6Kernel2D::W_zero();
+
 	sim->box_boundary_c_.push_back(BoxBoundaryConstraint{
 		//.b_invert = false,
 		.p_min = vec2(0),
@@ -267,6 +318,64 @@ int pbd_unified_sim_add_box_rigid_body(struct PBDUnifiedSimulation* sim, int siz
     return rb_idx;
 }
 
+int pbd_unified_sim_add_fluid_model(struct PBDUnifiedSimulation* sim, float viscosity, float desired_rest_density) {
+
+    float mass = 1;
+    float density0 = 0;
+
+    // calculate rest density for the mass of 1 
+    vec2 center(0);
+    for(int y=-3; y< 3;++y) {
+        for(int x=-3; x< 3;++x) {
+            vec2 pos = center + vec2(x,y)*(2*sim->particle_r_);
+            density0 += mass * sim->W(center - pos);
+        }
+    }
+
+    // figure out mass based on desired deisity
+    float particle_mass = desired_rest_density / density0;
+
+	sim->fluid_models_.push_back(PBDFluidModel{
+        .density0_ = desired_rest_density,
+        .mass_ = particle_mass,
+		.viscosity_ = viscosity,
+	});
+
+    return (int)sim->fluid_models_.size() - 1;
+}
+
+int pbd_unified_sim_add_fluid_particle(struct PBDUnifiedSimulation* sim, vec2 pos, int fluid_model_idx) {
+
+    assert((int)sim->fluid_models_.size() > fluid_model_idx);
+    const PBDFluidModel& fm = sim->fluid_models_[fluid_model_idx];
+
+    sim->fluid_particles_data_.push_back(PBDFluidParicleRuntimeData());
+    const int fluid_particle_data_idx = (int)sim->fluid_particles_data_.size() - 1;
+
+    float inv_mass = 1.0f/fm.mass_;
+	sim->particles_.emplace_back(PBDParticle{
+		.x = pos,
+		.v = vec2(0),
+		.inv_mass = inv_mass,
+        .flags = PBDParticleFlags::kFluid,
+        .phase = fluid_model_idx,
+        .fluid_data_idx = fluid_particle_data_idx,
+	});
+
+	sim->inv_scaled_mass_.push_back(inv_mass);
+	sim->dp_.push_back(vec2(0));
+	sim->num_constraints_.push_back(0);
+	sim->x_pred_.push_back(vec2(0));
+
+    sim->neigh_data_.neighbour_info_.push_back(Pair{0,0});
+
+    const int added_idx = (int)(sim->particles_.size() - 1);
+    sim->fluid_particle_idxs_.push_back(added_idx);
+
+    return added_idx;
+}
+
+
 // assume all masses are similar
 vec2 rb_calc_com(const PBDRigidBody& rb, const vec2* pred_x, const PBDRigidBodyParticleData* rb_data) {
     
@@ -419,6 +528,10 @@ void solve_particle_rb_collision_c(const ParticleRigidBodyCollisionConstraint& c
         }
     }
 
+#if MAKE_COLLISIONS_GREAT_AGAIN
+    norm = normalize(-c.x_ij);
+#endif
+
     vec2 gradC = -norm;
     float w0 = sim->inv_scaled_mass_[c.idx0];
     float w1 = sim->inv_scaled_mass_[c.idx1];
@@ -428,25 +541,26 @@ void solve_particle_rb_collision_c(const ParticleRigidBodyCollisionConstraint& c
     sim->dp_[c.idx0] += dp0;
     sim->dp_[c.idx1] += dp1;
 
-    ////////////////////////////////////////////////////////////////////////////////
+    // no friction for collision with fluid particle (maybe enable later)
+	if (!(p1.flags & PBDParticleFlags::kFluid)) {
 
-    const float mu_s = 0.5f*(p0.mu_s + p1.mu_s);
-    const float mu_k = 0.5f*(p0.mu_k + p1.mu_k);
+		const float mu_s = 0.5f * (p0.mu_s + p1.mu_s);
+		const float mu_k = 0.5f * (p0.mu_k + p1.mu_k);
 
-    // friction
-	vec2 dx = (sim->x_pred_[c.idx0] + dp0 - p0.x) -
-			  (sim->x_pred_[c.idx1] + dp1 - p1.x);
+		// friction
+		vec2 dx =
+			(sim->x_pred_[c.idx0] + dp0 - p0.x) - (sim->x_pred_[c.idx1] + dp1 - p1.x);
 
-	// perp projection
-    vec2 dxp = dx - fabsf(dot(dx, gradC))*gradC;
-    const float ldxp = length(dxp);
-	if (ldxp > mu_s * -d) {
-		dxp = dxp * min(mu_k * -d / ldxp, 1.0f);
+		// perp projection
+		vec2 dxp = dx - fabsf(dot(dx, gradC)) * gradC;
+		const float ldxp = length(dxp);
+		if (ldxp > mu_s * -d) {
+			dxp = dxp * min(mu_k * -d / ldxp, 1.0f);
+		}
+
+		sim->dp_[c.idx0] += -w0 / (w0 + w1) * dxp;
+		sim->dp_[c.idx1] += +w1 / (w0 + w1) * dxp;
 	}
-
-	sim->dp_[c.idx0] += -w0/(w0 + w1) * dxp;
-    sim->dp_[c.idx1] += +w1/(w0 + w1) * dxp;
-    ////////////////////////////////////////////////////////////////////////////////
 
 	sim->num_constraints_[c.idx0]++;
     sim->num_constraints_[c.idx1]++;
@@ -509,10 +623,6 @@ void solve_rb_collision_c(const RigidBodyCollisionConstraint& c, PBDUnifiedSimul
         }
     }
 
-//#define MAKE_COLLISIONS_GREAT_AGAIN 1
-// this prefers normal straight along collision line, which works better just because
-// corner particles in rigid bodies have gradients which are not always "correct"
-// Maybe makes sense to query gradient of J RB from position of I particle
 #if MAKE_COLLISIONS_GREAT_AGAIN
     norm = normalize(-c.x_ij);
 #endif
@@ -588,7 +698,8 @@ void solve_box_boundary(const BoxBoundaryConstraint& c, vec2 pos, int particle_i
 
     sim->dp_[particle_idx] += dx;
 
-	if (sim->num_constraints_[particle_idx] > prev_constraints) {
+    const bool is_fluid = sim->particles_[particle_idx].flags & PBDParticleFlags::kFluid;
+	if (sim->num_constraints_[particle_idx] > prev_constraints && !is_fluid) {
 
 		const float mu_s = 0.5f * (c.mu_s + sim->particles_[particle_idx].mu_s);
         const float mu_k = 0.5f * (c.mu_k + sim->particles_[particle_idx].mu_k);
@@ -615,14 +726,20 @@ class PBDUnifiedTimestep {
 	static const constexpr float k = 1.5f;
 	static const constexpr float eps = 1e-6f;
     // if movement less than 1% of particle radius
-	static const constexpr float sleep_eps_sq = (0.01f * 0.1f) * (0.01f * 0.1f);
+	static const constexpr float kSleepEpsSq = (0.01f * 0.1f) * (0.01f * 0.1f);
     // successive over-relaxation coefficient
 	static const constexpr float kSOR = 1.0f; // [1,2]
+
+	static const constexpr float kCFL = 0.4f;
 
 	static float h(vec2 pos) { return pos.y; }
 
   public:
 	void Simulate(PBDUnifiedSimulation* sim, float dt);
+    void fluidUpdate(PBDUnifiedSimulation* sim, float dt, const std::vector<vec2>& pos_array);
+    float getBoundaryDensity(PBDUnifiedSimulation* sim, int i, const std::vector<vec2>& pos_array);
+    vec2 getBoundaryGrad(PBDUnifiedSimulation* sim, int i, const std::vector<vec2>& pos_array);
+
 };
 
 void pbd_unified_timestep(PBDUnifiedSimulation* sim, float dt) {
@@ -649,7 +766,7 @@ void PBDUnifiedTimestep::Simulate(PBDUnifiedSimulation* sim, float dt) {
 	findNeighboursNaiive(sim->x_pred_.data(), (int)sim->particles_.size(),
 						 sim->support_r_, sim->particles_.data(), &sim->neigh_data_);
 
-
+    
     const float r = sim->particle_r_;
 	std::vector<vec2>& dp = sim->dp_;
 
@@ -663,6 +780,10 @@ void PBDUnifiedTimestep::Simulate(PBDUnifiedSimulation* sim, float dt) {
             sim->num_constraints_[i] = 0;
             sim->dp_[i] = vec2(0);
         }
+
+		// TODO: this is wrong: should pass p[i].x, but it should be factored out in separate array for
+		// this to make easy
+		fluidUpdate(sim, dt, x_pred);
 
 		for (int i = 0; i < num_particles; i++) {
 
@@ -693,9 +814,15 @@ void PBDUnifiedTimestep::Simulate(PBDUnifiedSimulation* sim, float dt) {
                         sim->particle_rb_collision_c_.push_back(ParticleRigidBodyCollisionConstraint{i,j, vec});
                     } else if(p[j].flags & PBDParticleFlags::kRigidBody) {
                         sim->particle_rb_collision_c_.push_back(ParticleRigidBodyCollisionConstraint{j,i, -vec});
-                    } else if((p[j].flags & p[i].flags) & PBDParticleFlags::kSolid ) {
+                    } else if((p[j].flags & p[i].flags) & PBDParticleFlags::kSolid) {
                         sim->solid_collision_c_.push_back(SolidParticlesCollisionConstraint{i,j, vec});
                         //solve_solid_particle_collision_c(SolidParticlesCollisionConstraint{i,j, vec}, sim);
+                    } else if((p[i].flags & PBDParticleFlags::kSolid) && (p[j].flags & PBDParticleFlags::kFluid)) {
+                        sim->solid_collision_c_.push_back(SolidParticlesCollisionConstraint{i,j, vec});
+                    } else if((p[j].flags & PBDParticleFlags::kSolid) && (p[i].flags & PBDParticleFlags::kFluid)) {
+                        sim->solid_collision_c_.push_back(SolidParticlesCollisionConstraint{i,j, vec});
+                    } else if((p[j].flags & p[i].flags) & PBDParticleFlags::kFluid) {
+                        // handled separately in updateFluid
                     } else {
                         assert(0 && "unsupported contact configuration");
                     }
@@ -744,9 +871,30 @@ void PBDUnifiedTimestep::Simulate(PBDUnifiedSimulation* sim, float dt) {
         }
 
 		for (int i = 0; i < num_particles; i++) {
+            if((p[i].flags & PBDParticleFlags::kFluid)) {
+				for (const BoxBoundaryConstraint& c : sim->box_boundary_c_) {
+					solve_box_boundary(c, x_pred[i], i, sim);
+				}
+			}
+		}
+        fluidUpdate(sim, dt, x_pred);
+
+        for (int i = 0; i < num_particles; i++) {
+            //  adjust x* = x* + dx;
+            // could set num_constraints to 1 during initialization to avoid branch
+            if (sim->num_constraints_[i]) {
+                x_pred[i] = x_pred[i] + (kSOR / sim->num_constraints_[i]) * dp[i];
+                sim->num_constraints_[i] = 0;
+                sim->dp_[i] = vec2(0);
+            }
+        }
+
+		for (int i = 0; i < num_particles; i++) {
 
             for(const BoxBoundaryConstraint& c: sim->box_boundary_c_) {
-                solve_box_boundary(c, x_pred[i], i, sim); 
+                if(0 == (p[i].flags & PBDParticleFlags::kFluid)) {
+                    solve_box_boundary(c, x_pred[i], i, sim); 
+                }
             }
 
 			const auto& neigh_list = sim->neigh_data_.neigh_idx_;
@@ -768,7 +916,7 @@ void PBDUnifiedTimestep::Simulate(PBDUnifiedSimulation* sim, float dt) {
 				if (C < 0) {
                     if(((p[i].flags&p[j].flags) & PBDParticleFlags::kRigidBody) ) {
                         if(p[i].rb_data_idx!=p[j].rb_data_idx)
-                        sim->rb_collision_c_.push_back(RigidBodyCollisionConstraint{i,j, vec});
+                            sim->rb_collision_c_.push_back(RigidBodyCollisionConstraint{i,j, vec});
                     } else if(p[i].flags & PBDParticleFlags::kRigidBody) {
                         sim->particle_rb_collision_c_.push_back(ParticleRigidBodyCollisionConstraint{i,j, vec});
                     } else if(p[j].flags & PBDParticleFlags::kRigidBody) {
@@ -776,6 +924,12 @@ void PBDUnifiedTimestep::Simulate(PBDUnifiedSimulation* sim, float dt) {
                     } else if((p[j].flags & p[i].flags) & PBDParticleFlags::kSolid ) {
                         sim->solid_collision_c_.push_back(SolidParticlesCollisionConstraint{i,j, vec});
                         //solve_solid_particle_collision_c(SolidParticlesCollisionConstraint{i,j, vec}, sim);
+                    } else if((p[i].flags & PBDParticleFlags::kSolid) && (p[j].flags & PBDParticleFlags::kFluid)) {
+                        sim->solid_collision_c_.push_back(SolidParticlesCollisionConstraint{i,j, vec});
+                    } else if((p[j].flags & PBDParticleFlags::kSolid) && (p[i].flags & PBDParticleFlags::kFluid)) {
+                        sim->solid_collision_c_.push_back(SolidParticlesCollisionConstraint{i,j, vec});
+                    } else if((p[j].flags & p[i].flags) & PBDParticleFlags::kFluid) {
+                        // handled separately in updateFluid
                     } else {
                         assert(0 && "unsupported contact configuration");
                     }
@@ -809,15 +963,17 @@ void PBDUnifiedTimestep::Simulate(PBDUnifiedSimulation* sim, float dt) {
         }
 	}
 
-    const float max_vel_ = 0.4f * sim->particle_r_;
 	for (int i = 0; i < num_particles; i++) {
         vec2 dpv = x_pred[i] - p[i].x;
         float dp_len = length(dpv);
+#if ENABLE_CFL
         // CFL
+        const float max_vel_ = kCFL * sim->particle_r_;
         if(dp_len > max_vel_) {
             dpv *= max_vel_ / dp_len;
             p[i].x = p[i].x + dpv;
         }
+#endif
 
 		// update velocity (first order)
 		p[i].v = dpv / dt;
@@ -830,6 +986,177 @@ void PBDUnifiedTimestep::Simulate(PBDUnifiedSimulation* sim, float dt) {
         } else {
             p[i].flags |= PBDParticleFlags::kSleep;
         }
+	}
+}
+
+float PBDUnifiedTimestep::getBoundaryDensity(PBDUnifiedSimulation* sim, int i, const std::vector<vec2>& pos_array) {
+
+	std::vector<PBDParticle>& p = sim->particles_;
+	const std::vector<vec2>& x = pos_array;
+    const float h = 3*sim->particle_r_;
+    const float r = sim->particle_r_;
+    const float m = 1.0f/p[i].inv_mass;
+
+    vec2 pos = pos_array[i];
+    float density = 0;
+	for (const BoxBoundaryConstraint& c : sim->box_boundary_c_) {
+
+		if (pos.x - h < c.p_min.x) {
+            density += m * sim->W(x[i] - vec2(c.p_min.x - r, x[i].y));
+		} else if (pos.x + h > c.p_max.x) {
+            density += m * sim->W(x[i] - vec2(c.p_max.x + r, x[i].y));
+		}
+
+		if (pos.y - h < c.p_min.y) {
+            density += m * sim->W(x[i] - vec2(x[i].x, c.p_min.y - r));
+		} else if (pos.y + h > c.p_max.y) {
+            density += m * sim->W(x[i] - vec2(x[i].x, c.p_max.y + r));
+		}
+	}
+
+    return density;
+}
+
+vec2 PBDUnifiedTimestep::getBoundaryGrad(PBDUnifiedSimulation* sim, int i, const std::vector<vec2>& pos_array) {
+
+	const std::vector<vec2>& x = pos_array;
+    const float r_eps = 0.001f;
+    const float h = 3*sim->particle_r_ + r_eps;
+    const float r = sim->particle_r_;
+
+    vec2 pos = pos_array[i];
+    vec2 grad = vec2(0);
+    float contacts = 0;
+	for (const BoxBoundaryConstraint& c : sim->box_boundary_c_) {
+
+		if (pos.x - h <= c.p_min.x) {
+            grad += sim->gradW(x[i] - vec2(c.p_min.x - r, x[i].y));
+            contacts++;
+		} else if (pos.x + h >= c.p_max.x) {
+            grad += sim->gradW(x[i] - vec2(c.p_max.x + r, x[i].y));
+            contacts++;
+		}
+
+		if (pos.y - h <= c.p_min.y) {
+            grad += sim->gradW(x[i] - vec2(x[i].x, c.p_min.y - r));
+            contacts++;
+		} else if (pos.y + h >= c.p_max.y) {
+            grad += sim->gradW(x[i] - vec2(x[i].x, c.p_max.y + r));
+            contacts++;
+		}
+	}
+
+    //return contacts!=0 ? grad/contacts : vec2(0.0f);
+    return grad;
+}
+
+void PBDUnifiedTimestep::fluidUpdate(PBDUnifiedSimulation* sim, float dt,
+									 const std::vector<vec2>& pos_array) {
+
+	const int num_fluid_particles = (int)sim->fluid_particle_idxs_.size();
+	std::vector<PBDParticle>& p = sim->particles_;
+	const std::vector<vec2>& x = pos_array;
+	const auto& neigh_list = sim->neigh_data_.neigh_idx_;
+	const float bs = 1.0f;
+
+	for (int fi = 0; fi < num_fluid_particles; fi++) {
+
+		const int i = sim->fluid_particle_idxs_[fi];
+		const int n_start = sim->neigh_data_.neighbour_info_[i].start;
+		const int n_cnt = sim->neigh_data_.neighbour_info_[i].num;
+		const PBDFluidModel& fm = sim->fluid_models_[p[i].phase];
+
+		const float fmass = 1.0f / p[i].inv_mass;
+		float density = sim->Wzero() * fmass;
+
+		for (int ni = 0; ni < n_cnt; ni++) {
+			int j = neigh_list[n_start + ni];
+
+			float s = 1.0f;
+			if (0 == (p[j].flags & PBDParticleFlags::kFluid)) {
+				s = 1.0f;
+			}
+
+			// all particles participate in density calculations according to Eq. 27
+			float m = 1.0f / p[j].inv_mass;
+			m = min(m, fmass);
+			density += s * m * sim->W(x[i] - x[j]);
+		}
+
+		density += bs * getBoundaryDensity(sim, i, pos_array);
+
+		sim->fluid_particles_data_[p[i].fluid_data_idx].lambda_ = 0;
+		float C = density / fm.density0_ - 1;
+		if (C > 0) {
+
+			float sum_grad_C_sq = 0;
+			vec2 grad_Ci = vec2(0, 0); // first case when k = i
+
+			for (int ni = 0; ni < n_cnt; ni++) {
+				int j = neigh_list[n_start + ni];
+
+				if (0 == (p[j].flags & PBDParticleFlags::kFluid)) {
+					continue;
+				}
+
+				// looks like Eq. (7) and (8) miss mass multiplier
+				float m = 1.0f / p[j].inv_mass;
+				vec2 grad_Cj = -(m / fm.density0_) * sim->gradW(x[i] - x[j]);
+				sum_grad_C_sq += lengthSqr(grad_Cj);
+				grad_Ci += -grad_Cj;
+			}
+
+			if (1) {
+				float m = 1.0f / p[i].inv_mass;
+				vec2 b_grad_Cj =
+					-bs * (m / fm.density0_) * getBoundaryGrad(sim, i, pos_array);
+				sum_grad_C_sq += lengthSqr(b_grad_Cj);
+				grad_Ci += -b_grad_Cj;
+			}
+
+			float sum_grad_sq = (sum_grad_C_sq + lengthSqr(grad_Ci));
+			float lambda = -C / (sum_grad_sq + sim->e_);
+
+			sim->fluid_particles_data_[p[i].fluid_data_idx].lambda_ = lambda;
+		}
+	}
+
+	// solve fluid constraint
+	for (int fi = 0; fi < num_fluid_particles; fi++) {
+		const int i = sim->fluid_particle_idxs_[fi];
+		const int n_start = sim->neigh_data_.neighbour_info_[i].start;
+		const int n_cnt = sim->neigh_data_.neighbour_info_[i].num;
+		const PBDFluidModel& fm = sim->fluid_models_[p[i].phase];
+
+		vec2 dp = vec2(0, 0);
+		float lambda_i = sim->fluid_particles_data_[p[i].fluid_data_idx].lambda_;
+
+		for (int ni = 0; ni < n_cnt; ni++) {
+			int j = neigh_list[n_start + ni];
+
+			if(0 == (p[j].flags & PBDParticleFlags::kFluid)) {
+				// probably, should not influence fluid from rigid particles as fluid is
+				// not influencing them as well
+				// dp += (1.0f/(p[j].inv_mass*fm.density0_)) * (lambda_i) *
+				// sim->gradW(x[i] - x[j]);
+				continue;
+            }
+
+            assert(p[j].flags & PBDParticleFlags::kFluid);
+			float lambda_j = sim->fluid_particles_data_[p[j].fluid_data_idx].lambda_;
+			dp += (1.0f / (p[i].inv_mass * fm.density0_)) * (lambda_i + lambda_j) *
+				  sim->gradW(x[i] - x[j]);
+		}
+
+		// boundary
+		float b_density = bs * getBoundaryDensity(sim, i, pos_array);
+		vec2 b_grad = bs * getBoundaryGrad(sim, i, pos_array);
+		if (b_density) {
+			dp += bs * (1.0f / (p[i].inv_mass * fm.density0_)) * (lambda_i)*b_grad;
+		}
+
+		sim->num_constraints_[i]++;
+		sim->dp_[i] += dp;
 	}
 }
 
