@@ -122,8 +122,6 @@ set(SOURCES
     "sph.h"
     "sph_editor.cpp"
     "sph_editor.h"
-    "sph_kernels.h"
-    "sph_kernels.cpp"
     "sph_boundary.h"
     "sph_boundary.cpp"
     "sph_polygonize.h"

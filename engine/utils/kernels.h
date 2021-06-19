@@ -1,6 +1,6 @@
 #pragma once
 
-#include "engine/utils/vec.h"
+#include "vec.h"
 
 class CubicKernel {
   protected:
@@ -251,6 +251,139 @@ class Poly6Kernel2D {
 			res = m_l * tmp * tmp * (-2.0f * sqrtf(r2)) * (r2>0?normalize(r):vec3(1,1,1));
 		} else
 			res = vec3(0.0f);
+
+		return res;
+	}
+
+	static float W_zero() { return m_W_zero; }
+};
+
+class SpikyKernel {
+  protected:
+	static float m_radius;
+	static float m_k;
+	static float m_l;
+	static float m_W_zero;
+
+  public:
+	static float getRadius() { return m_radius; }
+	static void setRadius(float val) {
+		m_radius = val;
+		const float radius6 = powf(m_radius, 6.0f);
+		const float pi = static_cast<float>(M_PI);
+		m_k = static_cast<float>(15.0f) / (pi * radius6);
+		m_l = -static_cast<float>(45.0f) / (pi * radius6);
+		m_W_zero = W(vec3(0));
+	}
+
+  public:
+	/**
+	 * W(r,h) = 15/(pi*h^6) * (h-r)^3
+	 */
+	static float W(const float r) {
+		float res = 0.0;
+		const float r2 = r * r;
+		const float radius2 = m_radius * m_radius;
+		if (r2 <= radius2) {
+			const float hr3 = pow(m_radius - r, 3);
+			res = m_k * hr3;
+		}
+		return res;
+	}
+
+	static float W(const vec3& r) {
+		float res = 0.0;
+		const float r2 = lengthSqr(r);
+		const float radius2 = m_radius * m_radius;
+		if (r2 <= radius2) {
+			const float hr3 = powf(m_radius - sqrtf(r2), 3.0f);
+			res = m_k * hr3;
+		}
+		return res;
+	}
+
+	/**
+	 * grad(W(r,h)) = -r(45/(pi*h^6) * (h-r)^2)
+	 */
+	static vec3 gradW(const vec3& r) {
+		vec3 res;
+		const float r2 = lengthSqr(r);
+		const float radius2 = m_radius * m_radius;
+		if (r2 <= radius2) {
+			const float r_l = sqrtf(r2);
+			const float hr = m_radius - r_l;
+			const float hr2 = hr * hr;
+			res = m_l * hr2 * r * (1.0f / r_l);
+		} else
+			res = vec3(0);
+
+		return res;
+	}
+
+	static float W_zero() { return m_W_zero; }
+};
+
+class SpikyKernel2D {
+  protected:
+	static float m_radius;
+	static float m_k;
+	static float m_l;
+	static float m_W_zero;
+
+  public:
+	static float getRadius() { return m_radius; }
+	static void setRadius(float val) {
+		m_radius = val;
+		const float radius5 = powf(m_radius, 5.0f);
+		const float pi = static_cast<float>(M_PI);
+		m_k = static_cast<float>(10.0f) / (pi * radius5);
+		m_l = -static_cast<float>(30.0f) / (pi * radius5);
+		m_W_zero = W(vec3(0));
+	}
+
+  public:
+    // so, square of a circle of "h" is: integral 2pi*1*x*dx, x [0, h]
+    // in our case we put (h-x)^3 for 1. So interal becomes: pi*h^5 / 10
+    // thus we have this normalization component
+    // https://www.wolframalpha.com/input/?i=integrate++2*pi*%28%28a+-+x%29%5E3%29+*%28x%29
+	/**
+	 * W(r,h) = 10/(pi*h^5) * (h-r)^3
+	 */
+	static float W(const float r) {
+		float res = 0.0;
+		const float r2 = r * r;
+		const float radius2 = m_radius * m_radius;
+		if (r2 <= radius2) {
+			const float hr3 = powf(m_radius - r, 3);
+			res = m_k * hr3;
+		}
+		return res;
+	}
+
+	static float W(const vec3& r) {
+		float res = 0.0;
+		const float r2 = lengthSqr(r);
+		const float radius2 = m_radius * m_radius;
+		if (r2 <= radius2) {
+			const float hr3 = powf(m_radius - sqrtf(r2), 3.0f);
+			res = m_k * hr3;
+		}
+		return res;
+	}
+
+	/**
+	 * grad(W(r,h)) = -(30/(pi*h^5) * (h-r)^2)
+	 */
+	static vec3 gradW(const vec3& r) {
+		vec3 res;
+		const float r2 = lengthSqr(r);
+		const float radius2 = m_radius * m_radius;
+		if (r2 <= radius2) {
+			const float r_l = sqrtf(r2);
+			const float hr = m_radius - r_l;
+			res = m_l * hr * hr * r * (1.0f / r_l);
+		} else
+			res = vec3(0);
 
 		return res;
 	}

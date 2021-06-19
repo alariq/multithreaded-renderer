@@ -1,6 +1,6 @@
 #include "sph_boundary.h"
 #include "pbd/pbd.h"
-#include "sph_kernels.h"
+#include "engine/utils/kernels.h"
 #include "engine/gameos.hpp"
 #include "utils/vec.h"
 #include "utils/gl_utils.h"

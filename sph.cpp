@@ -1,5 +1,5 @@
 #include "sph.h"
-#include "sph_kernels.h"
+#include "engine/utils/kernels.h"
 #include "sph_solver_df.h"
 #include "sph_solver_pbd.h"
 #include "sph_boundary.h"

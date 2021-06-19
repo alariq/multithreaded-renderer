@@ -1,7 +1,7 @@
 #pragma once
 
-#include "utils/vec.h"
-#include "sph_kernels.h"
+#include "engine/utils/vec.h"
+#include "engine/utils/kernels.h"
 #include "sph_boundary.h"
 #include <cassert>
 #include <vector>
