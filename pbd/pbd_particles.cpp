@@ -118,7 +118,7 @@ void pbd_unified_sim_destroy(struct PBDUnifiedSimulation* sim) {
 int pbd_unified_sim_add_particle(struct PBDUnifiedSimulation* sim, vec2 pos,
 								  float density) {
 
-    float inv_mass = 1.0f / sim->particle_r_ * sim->particle_r_ * density;
+    float inv_mass = 1.0f / (2 * sim->particle_r_ * 2 * sim->particle_r_ * density);
 	sim->particles_.emplace_back(PBDParticle{
 		.x = pos,
 		.v = vec2(0),
@@ -126,6 +126,8 @@ int pbd_unified_sim_add_particle(struct PBDUnifiedSimulation* sim, vec2 pos,
         .flags = PBDParticleFlags::kSolid,
         .phase = -1,
         .rb_data_idx = -1,
+        .mu_s = 0.0f,
+        .mu_k = 0.0f,
 	});
 
 	sim->inv_scaled_mass_.push_back(inv_mass);
