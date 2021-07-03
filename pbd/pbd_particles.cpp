@@ -1041,7 +1041,7 @@ vec2 PBDUnifiedTimestep::getBoundaryGrad(PBDUnifiedSimulation* sim, int i, const
 void PBDUnifiedTimestep::fluidUpdate(PBDUnifiedSimulation* sim, float dt,
 									 std::vector<vec2>& pos_array) {
 
- //   return fluidUpdate_GS(sim, dt, pos_array);
+    return fluidUpdate_GS(sim, dt, pos_array);
 
 	const int num_fluid_particles = (int)sim->fluid_particle_idxs_.size();
 	std::vector<PBDParticle>& p = sim->particles_;
