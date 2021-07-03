@@ -113,7 +113,7 @@ void scene_complex(PBDUnifiedSimulation* sim) {
     }
 }
 
-void scene_fluid_simple(PBDUnifiedSimulation* sim) {
+void scene_fluid_simple_expose_bug(PBDUnifiedSimulation* sim) {
 
     const vec2 world_size = pbd_unified_sim_get_world_bounds(sim);
 	const float radius = pbd_unified_sim_get_particle_radius(sim);
@@ -124,12 +124,34 @@ void scene_fluid_simple(PBDUnifiedSimulation* sim) {
 	vec2 offset = vec2(0.5f, 1.0f * radius);
 	int row_size = 16;
     initialize_fluid_particle_positions(sim, world_size, offset, row_size, 200, fm_idx);
-    vec2 rb_pos = vec2(world_size.x*0.5f, world_size.y - 12*radius-1);
-    pbd_unified_sim_add_box_rigid_body(sim, 3, 3, rb_pos, 0*45.0f* 3.1415f/180.0f, 80);
 
-#if 1
+    vec2 rb_pos = vec2(world_size.x*0.500f, world_size.y - 12*radius-1);
+    pbd_unified_sim_add_box_rigid_body(sim, 3, 3, rb_pos, 0*45.0f* 3.1415f/180.0f, 50);
+
     vec2 rb_pos2 = vec2(world_size.x*0.5f + 0*(3*2*radius + 0.5f), world_size.y - 3*radius-1);
     pbd_unified_sim_add_box_rigid_body(sim, 3, 3, rb_pos2, 0*45.0f* 3.1415f/180.0f, 250);
+    
+    vec2 rb_pos3 = vec2(world_size.x*0.1f + 3*2*radius + 0.5f, world_size.y - 3*radius-1);
+    pbd_unified_sim_add_box_rigid_body(sim, 1, 1, rb_pos3, 0*45.0f* 3.1415f/180.0f, 30);
+}
+
+void scene_fluid_simple(PBDUnifiedSimulation* sim) {
+
+    const vec2 world_size = pbd_unified_sim_get_world_bounds(sim);
+	const float radius = pbd_unified_sim_get_particle_radius(sim);
+
+    float desired_density0 = 100;//m/(radius*radius*2*2);
+
+    int fm_idx = pbd_unified_sim_add_fluid_model(sim, 0, desired_density0);
+	vec2 offset = vec2(0.5f, 1.0f * radius);
+	int row_size = 16;
+    initialize_fluid_particle_positions(sim, world_size, offset, row_size, 200, fm_idx);
+#if 1
+    vec2 rb_pos = vec2(world_size.x*0.550f, world_size.y - 13*radius-1);
+    pbd_unified_sim_add_box_rigid_body(sim, 3, 3, rb_pos, 0*45.0f* 3.1415f/180.0f, 100);
+
+    //vec2 rb_pos2 = vec2(world_size.x*0.5f + 0*(3*2*radius + 0.5f), world_size.y - 3*radius-1);
+    //pbd_unified_sim_add_box_rigid_body(sim, 3, 3, rb_pos2, 0*45.0f* 3.1415f/180.0f, 250);
     
     vec2 rb_pos3 = vec2(world_size.x*0.1f + 3*2*radius + 0.5f, world_size.y - 3*radius-1);
     pbd_unified_sim_add_box_rigid_body(sim, 1, 1, rb_pos3, 0*45.0f* 3.1415f/180.0f, 30);
@@ -246,8 +268,42 @@ void PBDTestObject::Update(float dt) {
     pbd_unified_timestep(sim_, dt);
 }
 
-extern void render_quad(uint32_t tex_id, const vec4& scale_offset, HGOSRENDERMATERIAL pmat);
-void update_closest_dist_debug_line(struct RenderFrameContext *rfc);
+void select_and_draw_debug_particle(const PBDUnifiedSimulation* sim,
+									RenderFrameContext* rfc) {
+
+	const int particles_count = pbd_unified_sim_get_particle_count(sim);
+	const float particles_r = pbd_unified_sim_get_particle_radius(sim);
+	const PBDParticle* particles = pbd_unified_sim_get_particles(sim);
+
+	static int debug_particle = 104;
+	if (gos_GetKeyStatus(KEY_MINUS) == KEY_PRESSED) {
+		int XDelta, YDelta, WheelDelta;
+		float XPos, YPos;
+		DWORD buttonsPressed;
+		gos_GetMouseInfo(&XPos, &YPos, &XDelta, &YDelta, &WheelDelta, &buttonsPressed);
+
+		const vec2 mouse_screen_pos = 2 * vec2(XPos, 1 - YPos) - vec2(1);
+		const vec3 dir =
+			screen2world_vec(rfc->inv_view_, rfc->inv_proj_, mouse_screen_pos);
+
+		const vec3 ws_cam_pos = (rfc->inv_view_ * vec4(0, 0, 0, 1)).xyz();
+		const vec3 pos = ray_plane_intersect(dir, ws_cam_pos,
+											 make_plane(vec3(0, 0, 1), vec3(0, 0, 0)));
+
+		for (int i = 0; i < particles_count; ++i) {
+			if (lengthSqr(pos.xy() - particles[i].x) < particles_r * particles_r) {
+				debug_particle = i;
+				break;
+			}
+		}
+	}
+
+	if (debug_particle >= 0 && debug_particle < particles_count) {
+		vec2 deb_pos = particles[debug_particle].x;
+		vec3 pos(deb_pos.x, deb_pos.y, -0.1f);
+		rfc->rl_->addDebugPoints(&pos, 1, vec4(1, 1, 0.5f, 1), 4, true);
+	}
+}
 
 void PBDTestObject::AddRenderPackets(struct RenderFrameContext *rfc) const {
 
@@ -255,53 +311,53 @@ void PBDTestObject::AddRenderPackets(struct RenderFrameContext *rfc) const {
 
     pbd_unified_sim_debug_draw(sim_, rfc->rl_);
 
-    //update_closest_dist_debug_line(rfc);
+    select_and_draw_debug_particle(sim_, rfc);
 
 	// update instancing buffer
 	cur_inst_vb_ = (cur_inst_vb_ + 1) % ((int)inst_vb_.size());
 
 	const int num_particles = pbd_unified_sim_get_particle_count(sim_);
 	HGOSBUFFER inst_vb = inst_vb_[cur_inst_vb_];
-	const PBDParticle* particles = pbd_unified_sim_get_particles(sim_);
+    const PBDParticle* particles = pbd_unified_sim_get_particles(sim_);
 
 	if (num_particles) {
-	ScheduleRenderCommand(rfc, [num_particles, inst_vb, particles]() {
-		const size_t bufsize = num_particles * sizeof(PBDParticleVDecl);
-		// TODO: think about typed buffer wrapper
+		ScheduleRenderCommand(rfc, [num_particles, inst_vb, particles]() {
+			const size_t bufsize = num_particles * sizeof(PBDParticleVDecl);
+			// TODO: think about typed buffer wrapper
 			int inst_buf_num_part =
 				(int)(gos_GetBufferSizeBytes(inst_vb) / sizeof(PBDParticleVDecl));
 			if (inst_buf_num_part < num_particles) {
 				gos_ResizeBuffer(inst_vb, (uint32_t)(num_particles * 1.5f));
-        }
+			}
 
 			PBDParticleVDecl* part_data = (PBDParticleVDecl*)gos_MapBuffer(
 				inst_vb, 0, bufsize, gosBUFFER_ACCESS::WRITE);
-		for (int i = 0; i < num_particles; ++i) {
-			PBDParticleVDecl& p = part_data[i];
+			for (int i = 0; i < num_particles; ++i) {
+				PBDParticleVDecl& p = part_data[i];
 
-			p.pos = particles[i].x;
-			p.vel = particles[i].v;
-			p.force = vec2(0);
-			p.density = 1;
-			p.pressure = 1;
-			p.flags = particles[i].flags;
-		}
+				p.pos = particles[i].x;
+				p.vel = particles[i].v;
+				p.force = vec2(0);
+				p.density = 1;
+				p.pressure = 1;
+				p.flags = particles[i].flags;
+			}
 
-		gos_UnmapBuffer(inst_vb);
+			gos_UnmapBuffer(inst_vb);
 
 #ifdef DEBUG_DRAW_PARTICLE_OUTLINE
 			for (int i = 0; i < num_particles; ++i) {
-            vec3 p = vec3(particles[i].pos.x, particles[i].pos.y, 0);
+				vec3 p = vec3(particles[i].pos.x, particles[i].pos.y, 0);
 				// ceneter
 				gos_AddPoints(&p, 1, vec4(1, 1, 1, 1), 4);
 				for (int j = 0; j < 36; ++j) {
 					vec3 dp = p + 0.1 * vec3(sin((float)j * 10 * M_PI / 180.0f),
 											 cos((float)j * 10 * M_PI / 180.0f), 0.0f);
 					gos_AddPoints(&dp, 1, vec4(1, 1, 1, 1), 4);
-            }
-        }
+				}
+			}
 #endif
-	});
+		});
 	}
 
 	class RenderList* rl = rfc->rl_;
