@@ -6,12 +6,19 @@
 
 class ObjIdRenderer {
 
-    GLuint obj_id_fbo_ = 0;
+    const static int num_buffers_ = 3;
 
-    DWORD gos_obj_id_rt = 0;
-    GLuint g_obj_id_rt = 0;
+	typedef struct BufferData {
+		GLuint obj_id_fbo_ = 0;
+		DWORD gos_obj_id_rt = 0;
+		GLuint obj_id_rt = 0;
+        bool has_data_ = false;
+	} BufferData;
 
-    GLuint width_ = 0;
+    BufferData bufs_[num_buffers_];
+    int cur_write_buffer_ = 0;
+
+	GLuint width_ = 0;
     GLuint height_= 0;
 
     public:

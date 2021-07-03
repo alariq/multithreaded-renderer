@@ -9,28 +9,37 @@
 
 bool ObjIdRenderer::Init(uint32_t width, uint32_t height)
 {
-    glGenFramebuffers(1, &obj_id_fbo_);
-
     width_ = width;
     height_ = height;
     uint32_t wh = (height_<<16) | width_;
-
-	// using floating point texture because Nsight can't visualize integer
-    // textures
-    gos_obj_id_rt =
-        gos_NewRenderTarget(gos_Texture_R32F, "obj_id_rt", wh);
-    g_obj_id_rt = gos_TextureGetNativeId(gos_obj_id_rt);
-
     gos_AddRenderMaterial("obj_id");
 
-    return gos_obj_id_rt && obj_id_fbo_;
+	GLuint fbo[num_buffers_] = {0};
+    glGenFramebuffers(num_buffers_, fbo);
+
+    bool success = true;
+	for (int i = 0; i < num_buffers_; ++i) {
+
+		// using floating point texture because Nsight can't visualize integer
+        // textures
+        bufs_[i].gos_obj_id_rt =
+            gos_NewRenderTarget(gos_Texture_R32F, "obj_id_rt", wh);
+        bufs_[i].obj_id_rt = gos_TextureGetNativeId(bufs_[i].gos_obj_id_rt);
+        bufs_[i].obj_id_fbo_ = fbo[i];
+
+        success = success && bufs_[i].gos_obj_id_rt && bufs_[i].obj_id_fbo_;
+	}
+
+    return success;
 }
 
 void ObjIdRenderer::Deinit()
 {
-    gosASSERT(gos_obj_id_rt && obj_id_fbo_);
-    gos_DestroyTexture(gos_obj_id_rt);
-    glDeleteFramebuffers(1, &obj_id_fbo_);
+	for (int i = 0; i < num_buffers_; ++i) {
+        gosASSERT(bufs_[i].gos_obj_id_rt && bufs_[i].obj_id_fbo_);
+        gos_DestroyTexture(bufs_[i].gos_obj_id_rt);
+        glDeleteFramebuffers(1, &bufs_[i].obj_id_fbo_);
+    }
 }
 
 void draw_rp(HGOSRENDERMATERIAL mat, const mat4 &vp, const RenderPacket& rp) {
@@ -59,12 +68,14 @@ void draw_rp(HGOSRENDERMATERIAL mat, const mat4 &vp, const RenderPacket& rp) {
 
 void ObjIdRenderer::Render(struct RenderFrameContext *rfc, GLuint scene_depth)
 {
-    glBindFramebuffer(GL_FRAMEBUFFER, obj_id_fbo_);
+    uint32_t write_idx = cur_write_buffer_;
+    GLuint fbo = bufs_[write_idx].obj_id_fbo_;
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
     {
         GLenum drawBuffers[] = {GL_COLOR_ATTACHMENT0};
         glDrawBuffers(sizeof(drawBuffers)/sizeof(drawBuffers[0]), drawBuffers);
         glReadBuffer(GL_NONE);
-        glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, g_obj_id_rt, 0);
+        glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, bufs_[write_idx].obj_id_rt, 0);
         // if we need ztest
         glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, scene_depth, 0);
         bool status = checkFramebufferStatus();
@@ -116,7 +127,9 @@ void ObjIdRenderer::Render(struct RenderFrameContext *rfc, GLuint scene_depth)
 		draw_rp(mat, vp, *rp);
 	}
 
+    bufs_[cur_write_buffer_].has_data_ = true;
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
 }
 
 uint32_t ObjIdRenderer::Readback(uint32_t x, uint32_t y)
@@ -124,10 +137,15 @@ uint32_t ObjIdRenderer::Readback(uint32_t x, uint32_t y)
 	if (x >= width_ || y >= height_)
 		return 0;
 
-    glBindFramebuffer(GL_FRAMEBUFFER, obj_id_fbo_);
+    int read_idx = uint32_t(cur_write_buffer_ + num_buffers_ - 1) % num_buffers_;
+    if(!bufs_[read_idx].has_data_)
+        return true;
+
+    GLuint fbo = bufs_[read_idx].obj_id_fbo_;
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
     glReadBuffer(GL_COLOR_ATTACHMENT0);
     glDrawBuffer(GL_NONE);
-    glFramebufferTexture2D(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, g_obj_id_rt, 0);
+    glFramebufferTexture2D(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, bufs_[read_idx].obj_id_rt, 0);
     bool status = checkFramebufferStatus();
     assert(status);
 
@@ -137,6 +155,7 @@ uint32_t ObjIdRenderer::Readback(uint32_t x, uint32_t y)
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
+    cur_write_buffer_ = (cur_write_buffer_ + 1) % num_buffers_;
     return (uint32_t)obj_id;
     
 }
