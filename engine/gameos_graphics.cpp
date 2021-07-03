@@ -962,7 +962,7 @@ class gosTexture {
         uint32_t getTextureId() const { return tex_.id; }
         TexType getTextureType() const { return tex_.type_; }
 
-		BYTE *Lock(int mip_level, bool is_read_only, int *pitch) {
+		BYTE *Lock(int mip_level, const gos_LockFlags lock_flags, int *pitch) {
 			gosASSERT(is_locked_ == false);
 			gosASSERT(mip_level == 0);
 			is_locked_ = true;
@@ -970,6 +970,7 @@ class gosTexture {
 			gosASSERT(pitch);
 			*pitch = tex_.w;
 
+            gosASSERT(lock_flags);
 			gosASSERT(!plocked_area_);
 #if 0 
             glBindTexture(GL_TEXTURE_2D, tex_.id);
@@ -980,20 +981,22 @@ class gosTexture {
             glBindTexture(GL_TEXTURE_2D, 0);
 #endif
 			// always return rgba8 formatted data
-			lock_type_read_only_ = is_read_only;
+			lock_type_read_only_ = lock_flags == gosLockFlags_Read;
 			const uint32_t ts = tex_.w * tex_.h * getTexFormatPixelSize(tex_.fmt_);
 			plocked_area_ = new BYTE[ts];
-			getTextureData(tex_, 0, plocked_area_, tex_.fmt_);
-			if (tex_.fmt_ == TF_RGBA8) {
-				for (int y = 0; y < tex_.h; ++y) {
-					for (int x = 0; x < tex_.w; ++x) {
-						DWORD rgba = ((DWORD *)plocked_area_)[tex_.w * y + x];
-						DWORD r = rgba & 0xff;
-						DWORD g = (rgba & 0xff00) >> 8;
-						DWORD b = (rgba & 0xff0000) >> 16;
-						DWORD a = (rgba & 0xff000000) >> 24;
-						DWORD bgra = (a << 24) | (r << 16) | (g << 8) | b;
-						((DWORD *)plocked_area_)[tex_.w * y + x] = bgra;
+			if (lock_flags & gosLockFlags_Read) {
+				getTextureData(tex_, 0, plocked_area_, tex_.fmt_);
+				if (tex_.fmt_ == TF_RGBA8) {
+					for (int y = 0; y < tex_.h; ++y) {
+						for (int x = 0; x < tex_.w; ++x) {
+							DWORD rgba = ((DWORD*)plocked_area_)[tex_.w * y + x];
+							DWORD r = rgba & 0xff;
+							DWORD g = (rgba & 0xff00) >> 8;
+							DWORD b = (rgba & 0xff0000) >> 16;
+							DWORD a = (rgba & 0xff000000) >> 24;
+							DWORD bgra = (a << 24) | (r << 16) | (g << 8) | b;
+							((DWORD*)plocked_area_)[tex_.w * y + x] = bgra;
+						}
 					}
 				}
 			}
@@ -3093,7 +3096,7 @@ void __stdcall gos_DestroyTexture( DWORD Handle )
     g_gos_renderer->deleteTexture(Handle);
 }
 
-void __stdcall gos_LockTexture( DWORD Handle, DWORD MipMapSize, bool ReadOnly, TEXTUREPTR* TextureInfo )
+void __stdcall gos_LockTexture( DWORD Handle, DWORD MipMapSize, gos_LockFlags LockFlags, TEXTUREPTR* TextureInfo )
 {
     // TODO: does not really locks texture
     
@@ -3105,7 +3108,7 @@ void __stdcall gos_LockTexture( DWORD Handle, DWORD MipMapSize, bool ReadOnly, T
     int pitch = 0;
     gosTexture* ptex = g_gos_renderer->getTexture(Handle);
     ptex->getTextureInfo(&info);
-    BYTE* pdata = ptex->Lock(mip_level, ReadOnly, &pitch);
+    BYTE* pdata = ptex->Lock(mip_level, LockFlags, &pitch);
 
     TextureInfo->pTexture = (DWORD*)pdata;
     TextureInfo->Width = info.width_;

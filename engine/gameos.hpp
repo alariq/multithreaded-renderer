@@ -2822,6 +2822,12 @@ enum gos_TextureHints
 	gosHint_Compress1=32768,		// Bit 1 of compression.  00=no compress, 01=some compress 10=very compressed
 };
 
+enum gos_LockFlags {
+    gosLockFlags_Read = 0x01,
+    gosLockFlags_Write = 0x02,
+    gosLockFlags_ReadWrite = 0x03,
+};
+
 //
 // Used when locking and unlocking a texture
 //
@@ -2911,7 +2917,7 @@ void __stdcall gos_DestroyTexture( DWORD Handle );
 //
 // Note that GameOS returns a pointer to an 8888 version of every texture. When you unlock it, it will be format converted and reuploaded in the current pixel format (555/4444 etc...)
 //
-void __stdcall gos_LockTexture( DWORD Handle, DWORD MipMapSize, bool ReadOnly, TEXTUREPTR* TextureInfo );
+void __stdcall gos_LockTexture( DWORD Handle, DWORD MipMapSize, gos_LockFlags LockFlags, TEXTUREPTR* TextureInfo );
 
 //
 // Unlocks and updates a texture (may have to build and upload mipmaps)

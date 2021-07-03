@@ -364,7 +364,7 @@ const char* getStringForSeverity(GLenum type)
 void GLAPIENTRY OpenGLDebugLog(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei /*length*/, const GLchar* message, const GLvoid* userParam)
 {
     (void)userParam;
-	if (severity != GL_DEBUG_SEVERITY_NOTIFICATION && severity != GL_DEBUG_SEVERITY_LOW && type != GL_DEBUG_TYPE_PERFORMANCE)
+	if (severity != GL_DEBUG_SEVERITY_NOTIFICATION && severity != GL_DEBUG_SEVERITY_LOW /*&& type != GL_DEBUG_TYPE_PERFORMANCE*/)
 	{
 		printf("Type: %s; Source: %s; ID: %d; Severity : %s\n",
 			getStringForType(type),
