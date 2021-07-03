@@ -161,6 +161,7 @@ public:
 						float point_size, bool b_two_sided, const mat4* prim_transform = nullptr) {
         // TODO:
 		vec3* vts = new vec3[count];
+        memcpy(vts, pos, sizeof(vec3)*count);
 		DebugPrimitive dp = {.type_ = DebugPrimitive::kPoint,
 							 .b_two_sided_ = b_two_sided,
 							 .point_ = {.size = point_size, .vts = vts, .count = count},
