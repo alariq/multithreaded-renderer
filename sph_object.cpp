@@ -366,7 +366,7 @@ void SPHSceneObject::AddRenderPackets(struct RenderFrameContext *rfc) const {
         gos_AddPoints(vpos+start2, offset - start2, vec4(1,1,0,1), 4);
         delete[] vpos;
     
-        gos_LockTexture(sdf_tex, 0, false, &texinfo);
+        gos_LockTexture(sdf_tex, 0, gosLockFlags_Write, &texinfo);
         for(uint32_t y=0; y<vsy;++y) {
             float* row = (float*)texinfo.pTexture + y*texinfo.Pitch;
             SPHGridVertex* src_row = grid_verts + y*vsy;

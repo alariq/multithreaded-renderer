@@ -395,7 +395,7 @@ void SPHBoundaryModel::UpdateTexturesByData() {
 	TEXTUREPTR texinfo;
     ivec3 res = lattice_->res();
 	{
-		gos_LockTexture(distance_tex_, 0, false, &texinfo);
+		gos_LockTexture(distance_tex_, 0, gosLockFlags_Write, &texinfo);
 		for (int y = 0; y < res.y; ++y) {
 			float *row = (float*)texinfo.pTexture + y * texinfo.Pitch;
 			const float *src_row = lattice_->get<SPHBoundaryModel::kDistanceIdx>() + y * res.x;
@@ -407,7 +407,7 @@ void SPHBoundaryModel::UpdateTexturesByData() {
 	}
 
 	{
-		gos_LockTexture(volume_tex_, 0, false, &texinfo);
+		gos_LockTexture(volume_tex_, 0, gosLockFlags_Write, &texinfo);
 		for (int y = 0; y < res.y; ++y) {
 			float *row = (float*)texinfo.pTexture + y * texinfo.Pitch;
 			const float *src_row = lattice_->get<SPHBoundaryModel::kVolumeIdx>() + y * res.x;
@@ -419,7 +419,7 @@ void SPHBoundaryModel::UpdateTexturesByData() {
 	}
 
 	{
-		gos_LockTexture(normal_tex_, 0, false, &texinfo);
+		gos_LockTexture(normal_tex_, 0, gosLockFlags_Write, &texinfo);
 		for (int y = 0; y < res.y; ++y) {
 			uint8_t* row = (uint8_t*)((uint32_t*)texinfo.pTexture + y * texinfo.Pitch);
 			const vec2* src_row = lattice_->get<SPHBoundaryModel::kNormalIdx>() + y * res.x;
