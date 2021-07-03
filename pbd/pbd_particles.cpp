@@ -927,7 +927,7 @@ void PBDUnifiedTimestep::Simulate(PBDUnifiedSimulation* sim, float dt) {
                     } else if((p[i].flags & PBDParticleFlags::kSolid) && (p[j].flags & PBDParticleFlags::kFluid)) {
                         sim->solid_collision_c_.push_back(SolidParticlesCollisionConstraint{i,j, vec});
                     } else if((p[j].flags & PBDParticleFlags::kSolid) && (p[i].flags & PBDParticleFlags::kFluid)) {
-                        sim->solid_collision_c_.push_back(SolidParticlesCollisionConstraint{i,j, vec});
+                        sim->solid_collision_c_.push_back(SolidParticlesCollisionConstraint{j,i, -vec});
                     } else if((p[j].flags & p[i].flags) & PBDParticleFlags::kFluid) {
                         // handled separately in updateFluid
                     } else {
