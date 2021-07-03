@@ -264,16 +264,18 @@ void PBDTestObject::AddRenderPackets(struct RenderFrameContext *rfc) const {
 	HGOSBUFFER inst_vb = inst_vb_[cur_inst_vb_];
 	const PBDParticle* particles = pbd_unified_sim_get_particles(sim_);
 
+	if (num_particles) {
 	ScheduleRenderCommand(rfc, [num_particles, inst_vb, particles]() {
 		const size_t bufsize = num_particles * sizeof(PBDParticleVDecl);
 		// TODO: think about typed buffer wrapper
-        int inst_buf_num_part = (int)(gos_GetBufferSizeBytes(inst_vb)/sizeof(PBDParticleVDecl));
-        if(inst_buf_num_part < num_particles) {
-            gos_ResizeBuffer(inst_vb, (uint32_t)(num_particles*1.5f));
+			int inst_buf_num_part =
+				(int)(gos_GetBufferSizeBytes(inst_vb) / sizeof(PBDParticleVDecl));
+			if (inst_buf_num_part < num_particles) {
+				gos_ResizeBuffer(inst_vb, (uint32_t)(num_particles * 1.5f));
         }
 
-		PBDParticleVDecl* part_data =
-			(PBDParticleVDecl*)gos_MapBuffer(inst_vb, 0, bufsize, gosBUFFER_ACCESS::WRITE);
+			PBDParticleVDecl* part_data = (PBDParticleVDecl*)gos_MapBuffer(
+				inst_vb, 0, bufsize, gosBUFFER_ACCESS::WRITE);
 		for (int i = 0; i < num_particles; ++i) {
 			PBDParticleVDecl& p = part_data[i];
 
@@ -288,19 +290,19 @@ void PBDTestObject::AddRenderPackets(struct RenderFrameContext *rfc) const {
 		gos_UnmapBuffer(inst_vb);
 
 #ifdef DEBUG_DRAW_PARTICLE_OUTLINE
-        for(int i=0; i<num_particles;++i) {
+			for (int i = 0; i < num_particles; ++i) {
             vec3 p = vec3(particles[i].pos.x, particles[i].pos.y, 0);
-            //ceneter
-            gos_AddPoints(&p, 1, vec4(1,1,1,1), 4);
-            for(int j=0; j<36;++j) {
-                vec3 dp = p + 0.1*vec3(sin((float)j*10*M_PI/180.0f), cos((float)j*10*M_PI/180.0f), 0.0f); 
-                gos_AddPoints(&dp, 1, vec4(1,1,1,1), 4);
+				// ceneter
+				gos_AddPoints(&p, 1, vec4(1, 1, 1, 1), 4);
+				for (int j = 0; j < 36; ++j) {
+					vec3 dp = p + 0.1 * vec3(sin((float)j * 10 * M_PI / 180.0f),
+											 cos((float)j * 10 * M_PI / 180.0f), 0.0f);
+					gos_AddPoints(&dp, 1, vec4(1, 1, 1, 1), 4);
             }
-
         }
 #endif
-
 	});
+	}
 
 	class RenderList* rl = rfc->rl_;
 	RenderPacket *rp = rl->AddPacket();
