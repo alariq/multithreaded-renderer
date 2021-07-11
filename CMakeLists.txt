@@ -69,6 +69,16 @@ if(MSVC)
 	message("Compiling on M$ Windows")
 endif()
 
+set(USE_TRACY TRUE)
+set(USE_REMOTERY FALSE)
+
+if(USE_TRACY)
+    add_definitions(-DTRACY_ENABLE)
+    add_definitions(-DUSE_TRACY)
+elseif(USE_REMOTERY)
+    # no need in any special defines
+endif()
+
 add_definitions(-DUSE_ASSEMBLER_CODE=0)
 add_definitions(-DLINUX_BUILD)
 add_definitions(-DRMT_USE_OPENGL=1)

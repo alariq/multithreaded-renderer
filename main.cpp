@@ -18,7 +18,7 @@
 #include "deferred_renderer.h"
 #include "obj_id_renderer.h"
 
-#include "Remotery/lib/Remotery.h"
+#include "engine/profiler/profiler.h"
 #include <cstdlib>
 #include <cstddef>
 #include <string>
@@ -226,7 +226,7 @@ void __stdcall Update(void)
 
     char listidx_str[32] = {0};
     sprintf(listidx_str, "list_idx: %d", frame_render_list->GetId());
-    rmt_BeginCPUSampleDynamic(listidx_str, 0);
+    BEGIN_ZONE_DYNAMIC_N(list_idx, listidx_str, 0);
 
     if(g_render_initialized_hack)
     {
@@ -235,8 +235,8 @@ void __stdcall Update(void)
 			editor_render_update(rfc);
 	}
 
-    rmt_EndCPUSample();
-
+    END_ZONE(list_idx);
+    
     
     //uint64_t sleep_ms= std::max(33ull - dt, 1ull);
     //timing::sleep(sleep_ms*1000000);
@@ -456,7 +456,7 @@ void __stdcall Render(void)
 
     char rfc_info[128] = {0};
     sprintf(rfc_info, "rfc: %d rl: %d", rfc->frame_number_, rfc->rl_->GetId());
-    rmt_BeginCPUSampleDynamic(rfc_info, 0);
+    BEGIN_ZONE_DYNAMIC_N(rfc_zone, rfc_info, 0);
 
 //#define FORWARD_RENDERING
 #if defined(FORWARD_RENDERING)
@@ -523,7 +523,8 @@ void __stdcall Render(void)
 
 #endif // FORWARD_RENDERING
 
-    rmt_EndCPUSample();
+    //rmt_EndCPUSample();
+    END_ZONE(rfc_zone);
 
     ReleaseRenderList(rfc->rl_);
     delete rfc;
