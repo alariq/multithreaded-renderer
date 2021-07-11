@@ -66,6 +66,8 @@ set(SOURCES ${SOURCES}
     utils/marshingcubes.cpp
     Remotery/lib/Remotery.c
     Remotery/lib/Remotery.h
+    profiler/profiler.h
+    profiler/tracy_wrapper.cpp
     )
 
 include_directories(".")

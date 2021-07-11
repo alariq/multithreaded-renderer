@@ -14,7 +14,7 @@
 #include "utils/threading.h"
 #include "utils/ts_queue.h"
 
-#include "Remotery/lib/Remotery.h"
+#include "profiler/profiler.h"
 
 #include <signal.h>
 
@@ -90,7 +90,7 @@ public:
 
     virtual int exec() override {
         //printf("RT: WAIT FOR EVENT [%d]\n", ev_idx_);
-        rmt_ScopedCPUSample(RT_wait, 0);
+        SCOPED_ZONE_N(RT_wait, 0);
         ev_->Wait();
         //printf("RT: WAIT FOR EVENT DONE [%d]\n", ev_idx_);
         return 0;
@@ -108,7 +108,7 @@ public:
     R_signal_event(threading::Event* ev, int ev_idx):ev_(ev), ev_idx_(ev_idx) {}
 
     virtual int exec() override {
-        rmt_ScopedCPUSample(RT_signal, 0);
+        SCOPED_ZONE_N(RT_signal, 0);
         //printf("RT: SIGNAL EVENT [%d]\n", ev_idx_);
         ev_->Signal();
         //printf("RT: SIGNAL EVENT DONE [%d]\n", ev_idx_);
@@ -124,12 +124,13 @@ public:
         name_(name), sleep_millisec_(sleep_millisec) {}
 
     virtual int exec() override {
-        rmt_ScopedCPUSample(draw, 0);
+        SCOPED_ZONE_N(draw, 0);
         timing::sleep(sleep_millisec_ * 1000000ull);
         return 0;
     }
 };
 
+prof_zone_id RenderFrameScopeZone;
 class R_scope_begin: public R_job {
     std::string name_;
     int frame_num_;
@@ -143,7 +144,8 @@ public:
     virtual int exec() override {
         gRenderFrameNumber = frame_num_;
         gRenderThreadRenderFrameContext = render_frame_context_;
-        rmt_BeginCPUSampleDynamic(name_.c_str(), 0);
+        BEGIN_ZONE_DYNAMIC_N(RenderFrame, name_.c_str(), 0);
+        RenderFrameScopeZone = RenderFrame;
         return 0;
     }
 };
@@ -155,7 +157,7 @@ public:
     virtual int exec() override {
         // render thread render frame context only valid between rendering commands
         gRenderThreadRenderFrameContext = nullptr;
-        rmt_EndCPUSample();
+        END_ZONE(RenderFrameScopeZone);
         return 0;
     }
 };
@@ -168,18 +170,20 @@ public:
 
 	virtual int exec() override {
         {
-            rmt_ScopedCPUSample(make_current_context, 0);
+            SCOPED_ZONE_N(make_current_context, 0);
             graphics::make_current_context(g_ctx);
         }
 
         {
-            rmt_ScopedCPUSample(draw_screen, 0);
+            SCOPED_ZONE_N(draw_screen, 0);
             draw_screen();
         }
         {
-            rmt_ScopedCPUSample(swap_window, 0);
+            SCOPED_ZONE_N(swap_window, 0);
             graphics::swap_window(g_win);
         }
+        FRAME_MARK();
+        PROF_GPU_TICK();
         return 0;
     }
 };
@@ -293,7 +297,7 @@ extern bool g_disable_quads;
 
 static void draw_screen( void )
 {
-    rmt_ScopedOpenGLSample(draw_screen);
+    SCOPED_GPU_ZONE(draw_screen)
 
     g_disable_quads = false;
     glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
@@ -406,8 +410,7 @@ int main(int argc, char** argv)
     int w = Environment.screenWidth;
     int h = Environment.screenHeight;
 
-    Remotery* rmt;
-    rmt_CreateGlobalInstance(&rmt);
+    prof_initialize();
 
     g_render_job_queue = new RenderJobQueue();
 
@@ -429,6 +432,8 @@ int main(int argc, char** argv)
     public:
         R_init_renderer(int w, int h):w_(w), h_(h) {}
         virtual int exec() override {
+
+            PROF_SET_THREAD_NAME("RenderThread");
 
             g_ctx = graphics::init_render_context(g_win);
             if(!g_ctx)
@@ -479,7 +484,7 @@ int main(int argc, char** argv)
 
             gos_CreateRenderer(g_ctx, g_win, w_, h_);
 
-            rmt_BindOpenGL();
+            PROF_INIT_OPENGL();
 
             return 0;
         }
@@ -522,14 +527,14 @@ int main(int argc, char** argv)
 
         char frnum_str[32] = {0};
         sprintf(frnum_str, "Frame: %d", frame_number);
-        rmt_BeginCPUSampleDynamic(frnum_str, 0);
+        BEGIN_ZONE_DYNAMIC_N(Frame, frnum_str, 0);
         gFrameNumber = frame_number;
 
 		uint64_t start_tick = timing::gettickcount();
 		//timing::sleep(10*1000000);
         
         {
-            rmt_ScopedCPUSample(DoGameLogic, 0);
+            SCOPED_ZONE_N(DoGameLogic, 0);
             Environment.DoGameLogic();
 #ifdef SIMULATE_MAIN_THREAD_WORK
 		    timing::sleep(3*1000000);
@@ -541,20 +546,20 @@ int main(int argc, char** argv)
         // wait for frame to which we want to push our render commands
         //SPEW(("SYNC", "Main: sync[%d]->Wait\n", ev_index));
         {
-            rmt_ScopedCPUSample(WaitRender, 0);
+            SCOPED_ZONE_N(WaitRender, 0);
             g_render_event[ev_index]->Wait();
         }
 
         {
 
-            rmt_ScopedCPUSample(RenderFrameCreation, 0);
+            SCOPED_ZONE_N(RenderFrameCreation, 0);
 #ifdef SIMULATE_MAIN_THREAD_WORK
 		    timing::sleep((float(rand()%100)/50.0f)*1000000);
 #endif
 
             // start render frame
-            g_render_job_queue->push( new R_scope_begin(frnum_str, frame_number, gRenderFrameContext) );
-            g_render_job_queue->push( new R_wait_event(g_main_event[ev_index], ev_index) );
+			g_render_job_queue->push( new R_scope_begin(frnum_str, frame_number, gRenderFrameContext) );
+			g_render_job_queue->push( new R_wait_event(g_main_event[ev_index], ev_index) );
 
             class R_handle_events: public R_job {
                 public:
@@ -579,7 +584,7 @@ int main(int argc, char** argv)
 
         //SPEW(("SYNC", "Main sync[%d]->Signal\n", ev_index));
         {
-            rmt_ScopedCPUSample(MainSignal, 0);
+            SCOPED_ZONE_N(MainSignal, 0);
             g_main_event[ev_index]->Signal();
         }
         ev_index = (ev_index+1) % NUM_BUFFERED_FRAMES;
@@ -594,7 +599,7 @@ int main(int argc, char** argv)
 		uint64_t dt = timing::ticks2ms(end_tick - start_tick);
 		frameRate = 1000.0f / (float)dt;
 
-        rmt_EndCPUSample();
+        END_ZONE(Frame);
     }
 
     threading::Event rendering_finished_ev;
@@ -622,7 +627,7 @@ int main(int argc, char** argv)
         ~R_destroy_renderer() {}
 		virtual int exec() override {
 
-            rmt_UnbindOpenGL();
+            PROF_FINALIZE_OPENGL();
             gos_DestroyRenderer();
             graphics::destroy_render_context(g_ctx);
             g_rendering = false;

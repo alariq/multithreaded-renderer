@@ -1,3 +1,6 @@
 [submodule "engine/Remotery"]
 	path = engine/Remotery
 	url = https://github.com/Celtoys/Remotery.git
+[submodule "engine/Tracy"]
+	path = engine/Tracy
+	url = https://github.com/wolfpld/tracy
