@@ -260,11 +260,10 @@ RenderContextHandle init_render_context(RenderWindowHandle render_window)
         SDL_GL_DeleteContext(glcontext);
         return NULL;
     } 
+    SDL_GL_SwapWindow(rw->window_);
 
-    if (ENABLE_VSYNC) {
-        SDL_GL_SetSwapInterval(1);
-    } else {
-        SDL_GL_SetSwapInterval(0);
+    if(SDL_GL_SetSwapInterval(ENABLE_VSYNC ? 1 : 0)) {
+        printf("Failed to set vsync interval!\n");
     }
 
     if(VERBOSE_RENDER) {
