@@ -191,6 +191,8 @@ public:
 typedef TSQueue<R_job*> RenderJobQueue;
 
 RenderJobQueue* g_render_job_queue = 0;
+int g_pending_width = -1;
+int g_pending_height = -1;
 
 input::MouseInfo g_mouse_info;
 input::KeyboardInfo g_keyboard_info;
@@ -226,8 +228,9 @@ static void process_events( void ) {
 				event.window.event == SDL_WINDOWEVENT_RESIZED) {
                     float w = (float)event.window.data1;
                     float h = (float)event.window.data2;
-                    gos_SetScreenMode(w, h);
                     SPEW(("INPUT", "resize event while unfocused: w: %f h:%f\n", w, h));
+                    g_pending_width = w;
+                    g_pending_height = h;
             } else {
                 continue;
             }
@@ -260,8 +263,9 @@ static void process_events( void ) {
             {
                 float w = (float)event.window.data1;
                 float h = (float)event.window.data2;
-                gos_SetScreenMode(w, h);
                 SPEW(("INPUT", "resize event: w: %f h:%f\n", w, h));
+                g_pending_width = w;
+                g_pending_height = h;
                 break;
             }
             case SDL_WINDOWEVENT_FOCUS_LOST:
@@ -561,14 +565,20 @@ int main(int argc, char** argv)
 			g_render_job_queue->push( new R_scope_begin(frnum_str, frame_number, gRenderFrameContext) );
 			g_render_job_queue->push( new R_wait_event(g_main_event[ev_index], ev_index) );
 
-            class R_handle_events: public R_job {
+			class R_handle_events : public R_job {
+				int w_, h_;
                 public:
+				R_handle_events(int w, int h) : w_(w), h_(h) {}
 				  virtual int exec() override {
+                    if(w_>=0 && h_>=0) {
+                        gos_SetScreenMode((uint32_t)w_, (uint32_t)h_);
+                    }
                         gos_RendererHandleEvents();
                         return 0;
                     }
             };
-            g_render_job_queue->push( new R_handle_events() );
+			g_render_job_queue->push( new R_handle_events(g_pending_width, g_pending_height) );
+            g_pending_width = g_pending_height = -1;
 #if SIMULATE_MAIN_THREAD_WORK
             const uint32_t num_draw_calls = (rand()%3) + 1;
             for(uint32_t i=0; i<num_draw_calls;++i) {
