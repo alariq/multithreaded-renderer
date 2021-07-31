@@ -10,6 +10,8 @@
 #include "utils/camera.h"
 #include "utils/math_utils.h"
 #include "utils/timing.h"
+#include "profiler/profiler.h"
+
 #include <mutex>
 #include <list>
 
@@ -82,7 +84,7 @@ void initialize_scene(const struct camera *cam, struct RenderFrameContext *rfc) 
 
         scene_add_game_object(go);
     }
-
+    
     MeshObject* go = MeshObject::Create("column");
     auto* tc = go->GetComponent<TransformComponent>();
     tc->SetPosition(vec3(0, 0, 0));
@@ -183,14 +185,17 @@ void scene_update(const camera *cam, const bool b_update_simulation, const float
     std::list<GameObject *>::const_iterator end = g_world_objects.end();
 
     // update transform components
+    BEGIN_ZONE_N(uc_zone, UpdateComponents,0);
     for(int t=0;t<(int)ComponentType::kCount;++t) {
         for(auto comp: g_components[t]) {
             comp->UpdateComponent(dt);
 		}
 	}
+    END_ZONE(uc_zone);
 
 	if (b_update_simulation) {
 
+        SCOPED_ZONE_N(go_Update,0);
 
 		for (; it != end; ++it) {
 			GameObject *go = *it;
