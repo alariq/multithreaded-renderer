@@ -152,8 +152,9 @@ HGOSHEAP __stdcall gos_CreateMemoryHeap(char const* HeapName, DWORD MaximumSize/
     pheap->pParent = parentHeap;
     pheap->Magic = (DWORD)(reinterpret_cast<size_t>(HeapName) & 0xffffffff);
     if(HeapName) {
-        strncpy(pheap->Name, HeapName, sizeof(pheap->Name)-1);
-        pheap->Name[sizeof(pheap->Name)-1] = '\0';
+        size_t len = strlen(HeapName);
+        pheap->Name = new char[len + 1];
+        strcpy(pheap->Name, HeapName);
     }
 
 #ifdef LAB_ONLY
@@ -166,6 +167,7 @@ HGOSHEAP __stdcall gos_CreateMemoryHeap(char const* HeapName, DWORD MaximumSize/
 void __stdcall gos_DestroyMemoryHeap(HGOSHEAP Heap, bool shouldBeEmpty/* = true*/)
 {
     // shouldBeEmpty ?? should Instances be zero or what?
+    delete[] Heap->Name;
     delete Heap;
     Heap = nullptr;
 }
