@@ -79,4 +79,6 @@ target_compile_definitions(engine PUBLIC $<$<CONFIG:Debug>:_ARMOR _DEBUG BUGLOG 
 # ref. official cmake tutorial
 # ref. https://leimao.github.io/blog/CMake-Public-Private-Interface/
 target_include_directories(engine INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/..)
+# so that we can use: engine/xxx/xxx.h in the engine project as well
+target_include_directories(engine PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/..)
 

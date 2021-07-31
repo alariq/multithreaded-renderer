@@ -192,9 +192,18 @@ void __stdcall Update(void)
 
     // TODO: move to array of systems ?
     if(g_update_simulation) {
-        sph_update(dt_sec);
-        pbd_simulate(dt_sec);
-        ParticleSystemManager::Instance().Update(dt_sec);
+        {
+            SCOPED_ZONE_N(sph_update, 0);
+            sph_update(dt_sec);
+        }
+        {
+            SCOPED_ZONE_N(pbd_simulate, 0);
+            pbd_simulate(dt_sec);
+        }
+        {
+            SCOPED_ZONE_N(ParticleSystemManager_Update, 0);
+            ParticleSystemManager::Instance().Update(dt_sec);
+        }
     }
 
     scene_update(&g_camera, g_update_simulation, dt_sec);
@@ -207,7 +216,9 @@ void __stdcall Update(void)
 	g_obj_under_cursor = scene::kInvalidObjectId;
 
 	// prepare list of objects to render
+    BEGIN_ZONE_N(acq_zone, AcquireRenderList, 0);
     RenderList* frame_render_list = AcquireRenderList();
+    END_ZONE(acq_zone);
 
     // setup render frame context
     CSMInfo csm_info;
@@ -230,16 +241,22 @@ void __stdcall Update(void)
 
     if(g_render_initialized_hack)
     {
-		scene_render_update(rfc, g_is_in_editor);
-		if(g_is_in_editor)
+        {
+            SCOPED_ZONE_N(scene_render_update, 0);
+            scene_render_update(rfc, g_is_in_editor);
+        }
+
+		if(g_is_in_editor) {
+            SCOPED_ZONE_N(editor_render_update, 0);
 			editor_render_update(rfc);
+        }
 	}
 
     END_ZONE(list_idx);
+
     
-    
-    //uint64_t sleep_ms= std::max(33ull - dt, 1ull);
-    //timing::sleep(sleep_ms*1000000);
+	//uint64_t sleep_ms = std::max(33ll - (long long)(dt_sec * 1000), 1ll);
+	//timing::sleep(sleep_ms*1000000);
     //timing::sleep(32000000ull);
 }
 
@@ -360,6 +377,7 @@ void render_fullscreen_quad(uint32_t tex_id)
 
 void __stdcall Render(void)
 {
+    SCOPED_ZONE_NAMED(RenderZ, 0);
     static bool initialized = false;
     // should this be a command added by Update to render thread?
     if(!initialized)
@@ -396,27 +414,34 @@ void __stdcall Render(void)
     ParticleSystemManager::Instance().Render(rfc_nonconst_because_of_partiles);
     RenderFrameContext* rfc = rfc_nonconst_because_of_partiles;
 
-    for(auto& dp: rfc->rl_->GetDebugPrimitives()) {
-        switch(dp.type_) {
-            case DebugPrimitive::kLine:
-                gos_AddLine(dp.line_.s, dp.line_.e, dp.colour_, &dp.transform_);
-                break;
-            case DebugPrimitive::kPoint:
-                gos_AddPoints(dp.point_.vts, dp.point_.count, dp.colour_, dp.point_.size, &dp.transform_);
-                delete[] dp.point_.vts;
-                break;
-            case DebugPrimitive::kQuad:
-                gos_AddQuad(dp.quad_.size, dp.colour_, dp.quad_.tex_id, &dp.transform_, dp.b_two_sided_);
-                break;
+	{
+		SCOPED_ZONE_N(DebugDraw, 0);
+		for (auto& dp : rfc->rl_->GetDebugPrimitives()) {
+			switch (dp.type_) {
+			case DebugPrimitive::kLine:
+				gos_AddLine(dp.line_.s, dp.line_.e, dp.colour_, &dp.transform_);
+				break;
+			case DebugPrimitive::kPoint:
+				gos_AddPoints(dp.point_.vts, dp.point_.count, dp.colour_, dp.point_.size,
+							  &dp.transform_);
+				delete[] dp.point_.vts;
+				break;
+			case DebugPrimitive::kQuad:
+				gos_AddQuad(dp.quad_.size, dp.colour_, dp.quad_.tex_id, &dp.transform_,
+							dp.b_two_sided_);
+				break;
+			}
+		}
+	}
 
-        }
-    }
-
-    // process all scheduled commands
-    for(auto& cmd : rfc->commands_) {
-        cmd();
-    }
-    rfc->commands_.clear();
+	// process all scheduled commands
+	{
+		SCOPED_ZONE_N(Commands, 0);
+		for (auto& cmd : rfc->commands_) {
+			cmd();
+		}
+	}
+	rfc->commands_.clear();
 
     const CSMInfo& csm_info = rfc->csm_info_;
 
@@ -523,7 +548,6 @@ void __stdcall Render(void)
 
 #endif // FORWARD_RENDERING
 
-    //rmt_EndCPUSample();
     END_ZONE(rfc_zone);
 
     ReleaseRenderList(rfc->rl_);

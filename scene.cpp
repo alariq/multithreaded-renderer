@@ -2,6 +2,7 @@
 #include "particle_system.h"
 #include "sph_object.h"
 #include "sph.h"
+#include "pbd_test.h"
 #include "res_man.h"
 #include "obj_model.h"
 #include "rigid_body_object.h"
@@ -12,6 +13,8 @@
 #include "utils/camera.h"
 #include "utils/math_utils.h"
 #include "utils/timing.h"
+#include "profiler/profiler.h"
+
 #include <mutex>
 #include <list>
 
@@ -82,7 +85,7 @@ void initialize_scene(const struct camera *cam, struct RenderFrameContext *rfc) 
 
         g_world_objects.push_back(go);
     }
-
+    
     MeshObject* go = MeshObject::Create("column");
     auto* tc = go->GetComponent<TransformComponent>();
     tc->SetPosition(vec3(0, 0, 0));
@@ -117,8 +120,12 @@ void initialize_scene(const struct camera *cam, struct RenderFrameContext *rfc) 
     ParticleSystemObject *pso = ParticleSystemObject::Create();
     g_world_objects.push_back(pso);
 #endif
+
     SPHSceneObject* sph = SPHSceneObject::Create(vec2(1, 8), 1, vec3(0, 0, 0));
     scene_add_game_object(sph);
+
+    PBDTestObject* pbd = PBDTestObject::Create();
+    scene_add_game_object(pbd);
 
 #if PRESET_RIGIT_BODIES
 	RigidBodyObject *rb_floor = RigidBodyObject::Create(vec3(4.5f, 1, 4.5f));
@@ -188,14 +195,17 @@ void scene_update(const camera *cam, const bool b_update_simulation, const float
     std::list<GameObject *>::const_iterator end = g_world_objects.end();
 
     // update transform components
+    BEGIN_ZONE_N(uc_zone, UpdateComponents,0);
     for(int t=0;t<(int)ComponentType::kCount;++t) {
         for(auto comp: g_components[t]) {
             comp->UpdateComponent(dt);
 		}
 	}
+    END_ZONE(uc_zone);
 
 	if (b_update_simulation) {
 
+        SCOPED_ZONE_N(go_Update,0);
 
 		for (; it != end; ++it) {
 			GameObject *go = *it;

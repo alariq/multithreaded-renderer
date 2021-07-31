@@ -6,6 +6,8 @@
 #include "utils/kernels.h"
 #include "utils/math_utils.h"
 
+#include "engine/profiler/profiler.h"
+
 void initialize_particle_positions(struct PBDUnifiedSimulation* sim, const vec2& dim, int count, float density0);
 void initialize_fluid_particle_positions(struct PBDUnifiedSimulation* sim,
 										 const vec2& dim, const vec2& offset,
@@ -265,7 +267,10 @@ void PBDTestObject::Update(float dt) {
         // add particle
     }
 
-    pbd_unified_timestep(sim_, dt);
+	{
+		SCOPED_ZONE_N(pbd_unified_timestep, 0);
+		pbd_unified_timestep(sim_, dt);
+	}
 }
 
 void select_and_draw_debug_particle(const PBDUnifiedSimulation* sim,
@@ -307,6 +312,8 @@ void select_and_draw_debug_particle(const PBDUnifiedSimulation* sim,
 
 void PBDTestObject::AddRenderPackets(struct RenderFrameContext *rfc) const {
 
+    SCOPED_ZONE_N(PBDTestObject_AddRenderPackets, 0);
+
 	if (!b_initalized_rendering_resources) return;
 
     pbd_unified_sim_debug_draw(sim_, rfc->rl_);
@@ -316,6 +323,11 @@ void PBDTestObject::AddRenderPackets(struct RenderFrameContext *rfc) const {
 	// update instancing buffer
 	cur_inst_vb_ = (cur_inst_vb_ + 1) % ((int)inst_vb_.size());
 
+    char buf[128];
+    sprintf(buf, "particle buf idx: %d", cur_inst_vb_);
+    BEGIN_ZONE_DYNAMIC_N(part_draw, buf, 0);
+
+    const int cur_part_buf_idx = cur_inst_vb_;
 	const int num_particles = pbd_unified_sim_get_particle_count(sim_);
 	HGOSBUFFER inst_vb = inst_vb_[cur_inst_vb_];
     const PBDParticle* particles = pbd_unified_sim_get_particles(sim_);
@@ -327,6 +339,10 @@ void PBDTestObject::AddRenderPackets(struct RenderFrameContext *rfc) const {
 	if (num_particles) {
 		ScheduleRenderCommand(rfc, [num_particles, inst_vb, temp_buf, cur_part_buf_idx ]() {
         
+            char render_buf[128];
+            sprintf(render_buf, "particle buf idx: %d", cur_part_buf_idx );
+            BEGIN_ZONE_DYNAMIC_N(render_part_draw, render_buf, 0);
+
 			const size_t bufsize = num_particles * sizeof(PBDParticleVDecl);
 			// TODO: think about typed buffer wrapper
 			int inst_buf_num_part =
@@ -364,6 +380,7 @@ void PBDTestObject::AddRenderPackets(struct RenderFrameContext *rfc) const {
 				}
 			}
 #endif
+            END_ZONE(render_part_draw);
 		});
 	}
 
@@ -379,6 +396,8 @@ void PBDTestObject::AddRenderPackets(struct RenderFrameContext *rfc) const {
 	rp->mesh_.inst_vb_ = inst_vb_[cur_inst_vb_];
     rp->mesh_.vdecl_ = vdecl_;
     rp->mesh_.num_instances = num_particles;
+
+    END_ZONE(part_draw);
 }
 
 void initialize_particle_positions(struct PBDUnifiedSimulation* sim, const vec2& dim, int count,

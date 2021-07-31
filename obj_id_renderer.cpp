@@ -3,8 +3,10 @@
 #include "gameos.hpp"
 
 #include "engine/utils/gl_fbo.h"
+#include "engine/profiler/profiler.h"
 #include "utils/logging.h"
 #include "scene.h"
+
 #include <algorithm>
 
 bool ObjIdRenderer::Init(uint32_t width, uint32_t height)
@@ -134,6 +136,9 @@ void ObjIdRenderer::Render(struct RenderFrameContext *rfc, GLuint scene_depth)
 
 uint32_t ObjIdRenderer::Readback(uint32_t x, uint32_t y)
 {
+    SCOPED_GPU_ZONE(Readback);
+    SCOPED_ZONE_N(Readback, 0);
+
 	if (x >= width_ || y >= height_)
 		return 0;
 

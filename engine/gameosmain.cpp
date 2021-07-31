@@ -302,21 +302,27 @@ extern bool g_disable_quads;
 static void draw_screen( void )
 {
     SCOPED_GPU_ZONE(draw_screen)
+    SCOPED_ZONE_NAMED(draw_screen_cpu, 0);
 
-    g_disable_quads = false;
-    glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
-    glCullFace(GL_FRONT);
-    
+	g_disable_quads = false;
+	glCullFace(GL_FRONT);
+
 	const int viewport_w = Environment.drawableWidth;
 	const int viewport_h = Environment.drawableHeight;
     glViewport(0, 0, viewport_w, viewport_h);
     CHECK_GL_ERROR;
 
-    // TODO: reset all states to sane defaults!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    glDepthMask(GL_TRUE);
-    glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
+	{
+		SCOPED_ZONE_NAMED(depth_mask, 0);
+		// TODO: reset all states to sane defaults!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+		glDepthMask(GL_TRUE);
+    }
+    {
+		SCOPED_ZONE_NAMED(clear_screen2, 0);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	}
 
-    gos_RendererBeginFrame();
+	gos_RendererBeginFrame();
     Environment.UpdateRenderers();
     gos_RendererEndFrame();
 
@@ -567,16 +573,16 @@ int main(int argc, char** argv)
 
 			class R_handle_events : public R_job {
 				int w_, h_;
-                public:
+			  public:
 				R_handle_events(int w, int h) : w_(w), h_(h) {}
-				  virtual int exec() override {
+				virtual int exec() override {
                     if(w_>=0 && h_>=0) {
                         gos_SetScreenMode((uint32_t)w_, (uint32_t)h_);
                     }
-                        gos_RendererHandleEvents();
-                        return 0;
-                    }
-            };
+					gos_RendererHandleEvents();
+					return 0;
+				}
+			};
 			g_render_job_queue->push( new R_handle_events(g_pending_width, g_pending_height) );
             g_pending_width = g_pending_height = -1;
 #if SIMULATE_MAIN_THREAD_WORK

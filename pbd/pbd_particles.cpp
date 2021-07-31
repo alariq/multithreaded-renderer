@@ -2,6 +2,7 @@
 
 #include "pbd_particles.h"
 #include "engine/utils/kernels.h"
+#include "engine/profiler/profiler.h"
 
 #include <cmath>
 #include <vector>
@@ -58,6 +59,8 @@ struct BoxBoundaryConstraint {
 
 void findNeighboursNaiive(const vec2* x, const int size, float radius,
 						  PBDParticle* particles, NeighbourData* nd) {
+    SCOPED_ZONE_N(findNeighboursNaiive, 0);
+
 	nd->neigh_idx_.resize(0);
 
 	int offset = 0;
@@ -872,6 +875,8 @@ void PBDUnifiedTimestep::Simulate(PBDUnifiedSimulation* sim, float dt) {
     // solve constraints 
 	for (int iter = 0; iter < sim_iter_count; iter++) {
 
+        SCOPED_ZONE_N(sim_iter, 0);
+
         sim->rb_collision_c_.resize(0);
         sim->particle_rb_collision_c_.resize(0);
         sim->solid_collision_c_.resize(0);
@@ -1045,6 +1050,7 @@ vec2 PBDUnifiedTimestep::getBoundaryGrad(PBDUnifiedSimulation* sim, int i, const
 
 void PBDUnifiedTimestep::fluidUpdate(PBDUnifiedSimulation* sim, float dt,
 									 std::vector<vec2>& pos_array) {
+    SCOPED_ZONE_N(fluidUpdate, 0);
 	if (1)
 	{
 		return fluidUpdate_GS(sim, dt, pos_array);
