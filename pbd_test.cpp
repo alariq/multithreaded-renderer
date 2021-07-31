@@ -320,8 +320,13 @@ void PBDTestObject::AddRenderPackets(struct RenderFrameContext *rfc) const {
 	HGOSBUFFER inst_vb = inst_vb_[cur_inst_vb_];
     const PBDParticle* particles = pbd_unified_sim_get_particles(sim_);
 
+    // TODO: reuse buffers
+    PBDParticle* temp_buf = new PBDParticle[num_particles];
+    memcpy(temp_buf, particles, sizeof(PBDParticle)*num_particles);
+
 	if (num_particles) {
-		ScheduleRenderCommand(rfc, [num_particles, inst_vb, particles]() {
+		ScheduleRenderCommand(rfc, [num_particles, inst_vb, temp_buf, cur_part_buf_idx ]() {
+        
 			const size_t bufsize = num_particles * sizeof(PBDParticleVDecl);
 			// TODO: think about typed buffer wrapper
 			int inst_buf_num_part =
@@ -335,13 +340,15 @@ void PBDTestObject::AddRenderPackets(struct RenderFrameContext *rfc) const {
 			for (int i = 0; i < num_particles; ++i) {
 				PBDParticleVDecl& p = part_data[i];
 
-				p.pos = particles[i].x;
-				p.vel = particles[i].v;
+				p.pos = temp_buf[i].x;
+				p.vel = temp_buf[i].v;
 				p.force = vec2(0);
 				p.density = 1;
 				p.pressure = 1;
-				p.flags = particles[i].flags;
+				p.flags = temp_buf[i].flags;
 			}
+
+            delete[] temp_buf;
 
 			gos_UnmapBuffer(inst_vb);
 
