@@ -738,7 +738,7 @@ class PBDUnifiedTimestep {
 	static const constexpr float k = 1.5f;
 	static const constexpr float eps = 1e-6f;
     // if movement less than 1% of particle radius
-	static const constexpr float kSleepEpsSq = (0.01f * 0.1f) * (0.01f * 0.1f);
+	static const constexpr float kSleepEps = 0.001f;
     // successive over-relaxation coefficient
 	static const constexpr float kSOR = 1.0f; // [1,2]
 
@@ -977,7 +977,7 @@ void PBDUnifiedTimestep::Simulate(PBDUnifiedSimulation* sim, float dt) {
 		p[i].v = dpv / dt;
 
 		// update position or sleep
-        bool b_sleep = dp_len < kSleepEpsSq;
+        bool b_sleep = dp_len < kSleepEps;
         if(!b_sleep) {
 		    p[i].x = x_pred[i];
             p[i].flags &= ~PBDParticleFlags::kSleep;
