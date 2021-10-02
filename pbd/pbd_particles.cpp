@@ -28,6 +28,11 @@ struct NeighbourData {
 	std::vector<Pair> neighbour_info_;
 };
 
+struct DistanceConstraint {
+    int idx0, idx1;
+    float dist;
+};
+
 struct ShapeMatchingConstraint {
     int rb_index;
 };
@@ -100,6 +105,7 @@ struct PBDUnifiedSimulation {
 
     vec2 world_size_ = vec2(5,5);
 
+	std::vector<DistanceConstraint> distance_c_;
 	std::vector<SolidParticlesCollisionConstraint> solid_collision_c_;
 	std::vector<ShapeMatchingConstraint> shape_matching_c_;
 	std::vector<RigidBodyCollisionConstraint> rb_collision_c_;
@@ -393,6 +399,15 @@ int pbd_unified_sim_add_fluid_particle(struct PBDUnifiedSimulation* sim, vec2 po
     return added_idx;
 }
 
+int pbd_unified_sim_add_distance_constraint(struct PBDUnifiedSimulation* sim, int p0_idx, int p1_idx, float dist) {
+    sim->distance_c_.push_back(DistanceConstraint{p0_idx, p1_idx, dist});
+    return (int)sim->distance_c_.size();
+}
+
+int pbd_unified_sim_remove_distance_constraint(struct PBDUnifiedSimulation* sim, int c_idx) {
+    assert("removing distance constraints is not supported yet" && 0);
+    return -1;
+}
 
 // assume all masses are similar
 vec2 rb_calc_com(const PBDRigidBody& rb, const vec2* pred_x, const PBDRigidBodyParticleData* rb_data) {
@@ -420,6 +435,33 @@ mat2 calculateQ(const mat2 m, float* angle) {
     return mat2(c, -s, s, c);
 }
 
+void solve_distance_c(const DistanceConstraint& c, PBDUnifiedSimulation* sim, const vec2* x_pred) {
+
+	assert(c.idx0 >= 0 && c.idx0 < (int32_t)sim->particles_.size());
+	assert(c.idx1 >= 0 && c.idx1 < (int32_t)sim->particles_.size());
+
+    const PBDParticle& p0 = sim->particles_[c.idx0];
+    const PBDParticle& p1 = sim->particles_[c.idx1];
+
+	assert(p0.flags & PBDParticleFlags::kSolid);
+	assert(p1.flags & PBDParticleFlags::kSolid);
+
+    const float len01 = length(x_pred[c.idx0] - x_pred[c.idx1]);
+
+	vec2 gradC = (x_pred[c.idx0] - x_pred[c.idx1]) / len01;
+    const float inv_mass_i = 0 ? sim->inv_scaled_mass_[c.idx0] : p0.inv_mass;
+    const float inv_mass_j = 0 ? sim->inv_scaled_mass_[c.idx1] : p1.inv_mass;
+
+    float C = len01 - c.dist;
+    float s = C / (inv_mass_i + inv_mass_j);
+    vec2 dp0 = -s * inv_mass_i * gradC;
+    vec2 dp1 = +s * inv_mass_j * gradC;
+    sim->dp_[c.idx0] += dp0;
+    sim->dp_[c.idx1] += dp1;
+     
+	sim->num_constraints_[c.idx0]++;
+    sim->num_constraints_[c.idx1]++;
+}
 
 void solve_shape_matching_c(const ShapeMatchingConstraint& c,
 						  const PBDRigidBodyParticleData* rb_data,
