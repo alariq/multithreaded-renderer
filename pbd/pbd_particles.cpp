@@ -842,95 +842,95 @@ void PBDUnifiedTimestep::SimulateIteration(PBDUnifiedSimulation* sim, float dt, 
 		fluidUpdate(sim, dt, x_pred);
     }
 
-		for (int i = 0; i < num_particles; i++) {
+    for (int i = 0; i < num_particles; i++) {
 
-            for(const BoxBoundaryConstraint& c: sim->box_boundary_c_) {
+        for(const BoxBoundaryConstraint& c: sim->box_boundary_c_) {
             if(!(p[i].flags & PBDParticleFlags::kFluid)) {
                 solve_box_boundary(c, x_pred[i], i, sim); 
             }
         }
 
-			const auto& neigh_list = sim->neigh_data_.neigh_idx_;
-			const int n_start = sim->neigh_data_.neighbour_info_[i].start;
-			const int n_cnt = sim->neigh_data_.neighbour_info_[i].num;
+        const auto& neigh_list = sim->neigh_data_.neigh_idx_;
+        const int n_start = sim->neigh_data_.neighbour_info_[i].start;
+        const int n_cnt = sim->neigh_data_.neighbour_info_[i].num;
 
-			for (int ni = 0; ni < n_cnt; ni++) {
-				int j = neigh_list[n_start + ni];
+        for (int ni = 0; ni < n_cnt; ni++) {
+            int j = neigh_list[n_start + ni];
 
 
             // because we project constraint for 2 particles
-				if (j < i) {
-					continue;
-				}
+            if (j < i) {
+                continue;
+            }
 
             vec2 vec = x_pred[i] - x_pred[j];
             float dist_sqr = length(vec);
 
             float C = dist_sqr - 2*r;
-				if (C < 0) {
+            if (C < 0) {
                 if(((p[i].flags&p[j].flags) & PBDParticleFlags::kRigidBody) ) {
                     if(p[i].rb_data_idx!=p[j].rb_data_idx)
                         sim->rb_collision_c_.push_back(RigidBodyCollisionConstraint{i,j, vec});
-                    } else if(p[i].flags & PBDParticleFlags::kRigidBody) {
-                        sim->particle_rb_collision_c_.push_back(ParticleRigidBodyCollisionConstraint{i,j, vec});
-                    } else if(p[j].flags & PBDParticleFlags::kRigidBody) {
-                        sim->particle_rb_collision_c_.push_back(ParticleRigidBodyCollisionConstraint{j,i, -vec});
+                } else if(p[i].flags & PBDParticleFlags::kRigidBody) {
+                    sim->particle_rb_collision_c_.push_back(ParticleRigidBodyCollisionConstraint{i,j, vec});
+                } else if(p[j].flags & PBDParticleFlags::kRigidBody) {
+                    sim->particle_rb_collision_c_.push_back(ParticleRigidBodyCollisionConstraint{j,i, -vec});
                 } else if((p[j].flags & p[i].flags) & PBDParticleFlags::kSolid ) {
-                        sim->solid_collision_c_.push_back(SolidParticlesCollisionConstraint{i,j, vec});
-                        //solve_solid_particle_collision_c(SolidParticlesCollisionConstraint{i,j, vec}, sim);
-                    } else if((p[i].flags & PBDParticleFlags::kSolid) && (p[j].flags & PBDParticleFlags::kFluid)) {
-                        sim->solid_collision_c_.push_back(SolidParticlesCollisionConstraint{i,j, vec});
-                    } else if((p[j].flags & PBDParticleFlags::kSolid) && (p[i].flags & PBDParticleFlags::kFluid)) {
+                    sim->solid_collision_c_.push_back(SolidParticlesCollisionConstraint{i,j, vec});
+                    //solve_solid_particle_collision_c(SolidParticlesCollisionConstraint{i,j, vec}, sim);
+                } else if((p[i].flags & PBDParticleFlags::kSolid) && (p[j].flags & PBDParticleFlags::kFluid)) {
+                    sim->solid_collision_c_.push_back(SolidParticlesCollisionConstraint{i,j, vec});
+                } else if((p[j].flags & PBDParticleFlags::kSolid) && (p[i].flags & PBDParticleFlags::kFluid)) {
                     sim->solid_collision_c_.push_back(SolidParticlesCollisionConstraint{j,i, -vec});
-                    } else if((p[j].flags & p[i].flags) & PBDParticleFlags::kFluid) {
-                        // handled separately in updateFluid
-                    } else {
-                        assert(0 && "unsupported contact configuration");
-                    }
-				}
-			}
+                } else if((p[j].flags & p[i].flags) & PBDParticleFlags::kFluid) {
+                    // handled separately in updateFluid
+                } else {
+                    assert(0 && "unsupported contact configuration");
+                }
+            }
+        }
 
-		}
+    }
 
     for(auto c: sim->distance_c_) {
         solve_distance_c(c, sim, x_pred.data());
     }
 
-        for(auto c: sim->solid_collision_c_) {
-            solve_solid_particle_collision_c(c, sim);
-        }
+    for(auto c: sim->solid_collision_c_) {
+        solve_solid_particle_collision_c(c, sim);
+    }
 
-        for(auto c: sim->rb_collision_c_) {
-            solve_rb_collision_c(c, sim);
-        }
+    for(auto c: sim->rb_collision_c_) {
+        solve_rb_collision_c(c, sim);
+    }
 
-        for(auto c: sim->particle_rb_collision_c_) {
-            solve_particle_rb_collision_c(c, sim);
-        }
+    for(auto c: sim->particle_rb_collision_c_) {
+        solve_particle_rb_collision_c(c, sim);
+    }
 
-        for(auto c: sim->shape_matching_c_) {
-            solve_shape_matching_c(c, sim->rb_particles_data_.data(), sim);
-        }
+    for(auto c: sim->shape_matching_c_) {
+        solve_shape_matching_c(c, sim->rb_particles_data_.data(), sim);
+    }
 
-            //  adjust x* = x* + dx;
-            // could set num_constraints to 1 during initialization to avoid branch
+	//  adjust x* = x* + dx;
+	// could set num_constraints to 1 during initialization to avoid branch
 	if (b_stabilization) {
 		for (int i = 0; i < num_particles; i++) {
-            if (sim->num_constraints_[i]) {
-                vec2 dp_i = (kSOR / sim->num_constraints_[i]) * dp[i];
-                p[i].x += dp_i;
-                x_pred[i] += dp_i;
-            }
-        }
+			if (sim->num_constraints_[i]) {
+				vec2 dp_i = (kSOR / sim->num_constraints_[i]) * dp[i];
+				p[i].x += dp_i;
+				x_pred[i] += dp_i;
+			}
+		}
 	} else {
-	    for (int i = 0; i < num_particles; i++) {
+		for (int i = 0; i < num_particles; i++) {
 			if (sim->num_constraints_[i]) {
 				vec2 dp_i = (kSOR / sim->num_constraints_[i]) * dp[i];
 				x_pred[i] += dp_i;
-        }
-                }
-            }
-				}
+			}
+		}
+	}
+}
 
 void PBDUnifiedTimestep::Simulate(PBDUnifiedSimulation* sim, float dt) {
 
@@ -946,7 +946,7 @@ void PBDUnifiedTimestep::Simulate(PBDUnifiedSimulation* sim, float dt) {
 		p[i].v = p[i].v + dt * g;
 		x_pred[i] = p[i].x + dt * p[i].v;
 		scaled_mass[i] = p[i].inv_mass * exp(k * h(p[i].x)); // h(x_pred[i]) ?
-        }
+	}
 
 	findNeighboursNaiive(sim->x_pred_.data(), (int)sim->particles_.size(),
 						 sim->support_r_, sim->particles_.data(), &sim->neigh_data_);
@@ -954,7 +954,7 @@ void PBDUnifiedTimestep::Simulate(PBDUnifiedSimulation* sim, float dt) {
 
 	for (int iter = 0; iter < stab_iter_count; iter++) {
         SimulateIteration(sim, dt, true);
-        }
+    }
 
 	for (int iter = 0; iter < sim_iter_count; iter++) {
         SimulateIteration(sim, dt, false);
