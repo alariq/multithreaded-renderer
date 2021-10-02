@@ -4,6 +4,7 @@
 #include "quaternion.h"
 #include <cstdlib>
 #include <cfloat>
+#include <stdint.h>
 
 // [s, e]
 inline float random(float s, float e) {
@@ -17,6 +18,15 @@ inline int random(int s, int e) {
     return s + v;
 }
 
+uint32_t vec4_to_uint32(const vec4& v);
+inline uint32_t random_colour() {
+    vec4 colour;
+    colour.x = random(0.0f, 1.0f);
+    colour.y = random(0.0f, 1.0f);
+    colour.z = random(0.0f, 1.0f);
+    colour.w = random(0.0f, 1.0f);
+    return vec4_to_uint32(colour);
+}
 
 inline vec3 random_vec(const vec3& s, const vec3& e) {
     return vec3(random(s.x, e.x), random(s.y, e.y), random(s.z, e.z));
@@ -144,5 +154,27 @@ inline vec3 pose_w2l(const pose_s& tr, const vec3& wp) {
 
 inline vec3 pose_l2w(const pose_s& tr, const vec3& lp) {
 	return quat_rotate(tr.rot, lp) + tr.pos;
+}
+
+
+inline uint32_t vec4_to_uint32(const vec4& v) {
+
+    uint32_t x = (uint32_t)(clamp(v.x, 0.0f, 1.0f) * 255.0f);
+    uint32_t y = (uint32_t)(clamp(v.y, 0.0f, 1.0f) * 255.0f);
+    uint32_t z = (uint32_t)(clamp(v.z, 0.0f, 1.0f) * 255.0f);
+    uint32_t w = (uint32_t)(clamp(v.w, 0.0f, 1.0f) * 255.0f);
+
+    uint32_t res = x | (y<<8) | (z<<16) | (w<<24);
+    return res;
+}
+
+inline vec4 uint32_to_vec4(uint32_t v) {
+
+	float x = (float)(v & 0xff);
+	float y = (float)((v>>8) & 0xff);
+	float z = (float)((v>>16) & 0xff);
+	float w = (float)((v>>24) & 0xff);
+
+	return (1.0f / 255.0f) * vec4(x, y, z, w);
 }
 
