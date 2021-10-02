@@ -58,6 +58,7 @@ struct PBDFluidModel {
     float density0_;
     float mass_;
     float viscosity_;
+    uint32_t debug_color_;
 };
 
 struct PBDFluidParicleRuntimeData {
@@ -78,10 +79,12 @@ int pbd_unified_sim_add_box_rigid_body(struct PBDUnifiedSimulation* sim, int siz
 
 int pbd_unified_sim_add_fluid_model(struct PBDUnifiedSimulation* sim, float viscosity, float density);
 int pbd_unified_sim_add_fluid_particle(struct PBDUnifiedSimulation* sim, vec2 pos, int fluid_model_idx);
+uint32_t pbd_unified_sim_get_fluid_model_debug_color(struct PBDUnifiedSimulation* sim, int fm_idx);
 
 void pbd_unified_sim_rb_add_velocity(struct PBDUnifiedSimulation* sim, int rb_idx, const vec2& vel);
-// TODO: make it throuht particle type data structure, do not really need per partcle friction
-void pbd_unified_sim_particle_set_friction(int idx, float mu_s, float mu_k);
+void pbd_unified_sim_rb_set_density(struct PBDUnifiedSimulation* sim, int rb_idx, float density);
+// TODO: make it through particle type data structure, do not really need per partcle friction
+void pbd_unified_sim_particle_set_friction(struct PBDUnifiedSimulation* sim, int idx, float mu_s, float mu_k);
 
 float pbd_unified_sim_get_particle_radius(const struct PBDUnifiedSimulation* sim);
 int pbd_unified_sim_get_particle_count(const struct PBDUnifiedSimulation*);
@@ -89,5 +92,7 @@ const PBDParticle* pbd_unified_sim_get_particles(const struct PBDUnifiedSimulati
 
 // TODO: this was a workaround for debug output
 const PBDRigidBodyParticleData* pbd_unified_sim_get_rb_particle_data(const struct PBDUnifiedSimulation*);
+const PBDFluidModel* pbd_unified_sim_get_fluid_particle_model(const struct PBDUnifiedSimulation*, int idx);
+uint32_t pbd_unified_sim_get_particle_flags(const struct PBDUnifiedSimulation* sim, int idx);
 const PBDRigidBody* pbd_unified_sim_get_rigid_bodies(const struct PBDUnifiedSimulation*);
 vec2 pbd_unified_sim_get_world_bounds(const struct PBDUnifiedSimulation*);

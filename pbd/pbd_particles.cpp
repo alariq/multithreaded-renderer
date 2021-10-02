@@ -214,6 +214,19 @@ void pbd_unified_sim_rb_add_velocity(struct PBDUnifiedSimulation* sim, int rb_id
 	}
 }
 
+void pbd_unified_sim_rb_set_density(struct PBDUnifiedSimulation* sim, int rb_idx, float density) {
+    assert((int)sim->rigid_bodies_.size() > rb_idx);
+
+    const float inv_mass = 1.0f / (2 * sim->particle_r_ * 2 * sim->particle_r_ * density);
+    const int start = sim->rigid_bodies_[rb_idx].start_part_idx;
+    const int end = start + sim->rigid_bodies_[rb_idx].num_part;
+	for (int i = start; i != end; ++i) {
+        int idx = sim->rb_particles_data_[i].index;
+
+        sim->particles_[idx].inv_mass = inv_mass;
+	}
+}
+
 void pbd_unified_sim_particle_set_friction(struct PBDUnifiedSimulation* sim, int idx, float mu_s, float mu_k) {
     assert((int)sim->particles_.size() > idx);
     sim->particles_[idx].mu_s = mu_s;
@@ -343,6 +356,7 @@ int pbd_unified_sim_add_fluid_model(struct PBDUnifiedSimulation* sim, float visc
         .density0_ = desired_rest_density,
         .mass_ = particle_mass,
 		.viscosity_ = viscosity,
+        .debug_color_ = random_colour(),
 	});
 
     return (int)sim->fluid_models_.size() - 1;
@@ -1299,6 +1313,14 @@ void PBDUnifiedTimestep::fluidUpdate_GS(PBDUnifiedSimulation* sim, float dt,
 
 const PBDRigidBodyParticleData* pbd_unified_sim_get_rb_particle_data(const struct PBDUnifiedSimulation* sim) {
     return sim->rb_particles_data_.data();
+}
+
+uint32_t pbd_unified_sim_get_particle_flags(const struct PBDUnifiedSimulation* sim, int idx) {
+    return sim->particles_[idx].flags;
+}
+
+const PBDFluidModel* pbd_unified_sim_get_fluid_particle_model(const struct PBDUnifiedSimulation* sim, int idx) {
+    return &sim->fluid_models_[idx];
 }
 
 const PBDRigidBody* pbd_unified_sim_get_rigid_bodies(const struct PBDUnifiedSimulation* sim) {
