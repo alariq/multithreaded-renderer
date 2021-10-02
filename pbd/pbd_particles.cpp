@@ -752,7 +752,7 @@ class PBDUnifiedTimestep {
     void SimulateIteration(PBDUnifiedSimulation* sim, float dt, bool b_stabilization);
     void fluidUpdate(PBDUnifiedSimulation* sim, float dt, std::vector<vec2>& pos_array);
     void fluidUpdate_GS(PBDUnifiedSimulation* sim, float dt, const std::vector<vec2>& pos_array);
-    float getBoundaryDensity(PBDUnifiedSimulation* sim, int i, const std::vector<vec2>& pos_array);
+    float getBoundaryDensity(PBDUnifiedSimulation* sim, int i, const std::vector<vec2>& pos_array, float boundary_mass);
     vec2 getBoundaryGrad(PBDUnifiedSimulation* sim, int i, const std::vector<vec2>& pos_array);
 
 };
@@ -930,32 +930,40 @@ void PBDUnifiedTimestep::Simulate(PBDUnifiedSimulation* sim, float dt) {
 	}
 }
 
-float PBDUnifiedTimestep::getBoundaryDensity(PBDUnifiedSimulation* sim, int i, const std::vector<vec2>& pos_array) {
+float PBDUnifiedTimestep::getBoundaryDensity(PBDUnifiedSimulation* sim, int i, const std::vector<vec2>& pos_array, float boundary_mass) {
 
-	std::vector<PBDParticle>& p = sim->particles_;
+	//std::vector<PBDParticle>& p = sim->particles_;
 	const std::vector<vec2>& x = pos_array;
     const float h = 3*sim->particle_r_;
     const float r = sim->particle_r_;
-    const float m = 1.0f/p[i].inv_mass;
+    const float m = boundary_mass;//1.0f/p[i].inv_mass;
 
     vec2 pos = pos_array[i];
     float density = 0;
+	// if particle is in corner koeff will equal 2.0f and thus compensate for lack of
+	// density of corner particles, still not mathematically correct, in practice need to
+	// do density integration
+	float koeff = 0.0f;
 	for (const BoxBoundaryConstraint& c : sim->box_boundary_c_) {
 
 		if (pos.x - h < c.p_min.x) {
             density += m * sim->W(x[i] - vec2(c.p_min.x - r, x[i].y));
+            koeff += 1.0f;
 		} else if (pos.x + h > c.p_max.x) {
             density += m * sim->W(x[i] - vec2(c.p_max.x + r, x[i].y));
+            koeff += 1.0f;
 		}
 
 		if (pos.y - h < c.p_min.y) {
             density += m * sim->W(x[i] - vec2(x[i].x, c.p_min.y - r));
+            koeff += 1.0f;
 		} else if (pos.y + h > c.p_max.y) {
             density += m * sim->W(x[i] - vec2(x[i].x, c.p_max.y + r));
+            koeff += 1.0f;
 		}
 	}
 
-    return density;
+	return koeff * density;
 }
 
 vec2 PBDUnifiedTimestep::getBoundaryGrad(PBDUnifiedSimulation* sim, int i, const std::vector<vec2>& pos_array) {
@@ -1036,7 +1044,7 @@ void PBDUnifiedTimestep::fluidUpdate(PBDUnifiedSimulation* sim, float dt,
 			density += s * m * sim->W(x[i] - x[j]);
 		}
 
-		density += bs * getBoundaryDensity(sim, i, pos_array);
+		density += bs * getBoundaryDensity(sim, i, pos_array, fm.mass_);
 
 		sim->fluid_particles_data_[p[i].fluid_data_idx].lambda_ = 0;
 		const float mi = 1.0f / p[i].inv_mass;
@@ -1101,7 +1109,7 @@ void PBDUnifiedTimestep::fluidUpdate(PBDUnifiedSimulation* sim, float dt,
 		}
 
 		// boundary
-		float b_density = bs * getBoundaryDensity(sim, i, pos_array);
+		float b_density = bs * getBoundaryDensity(sim, i, pos_array, fm.mass_);
 		vec2 b_grad = bs * getBoundaryGrad(sim, i, pos_array);
 		if (b_density) {
 			dp += bs * (1.0f / (p[i].inv_mass * fm.density0_)) * (lambda_i)*b_grad;
@@ -1122,21 +1130,53 @@ void PBDUnifiedTimestep::fluidUpdate(PBDUnifiedSimulation* sim, float dt,
 
 // so calles Gauss-Seidel style, when we update position right after calculating it, this
 // make algorithm serial, but I think we can still parallelize this using atomics
+//
+// Note: for better buoyancy, we can scale down solid objects mass a bit 
 void PBDUnifiedTimestep::fluidUpdate_GS(PBDUnifiedSimulation* sim, float dt,
 									 const std::vector<vec2>& pos_array) {
+
+    // precalculate denominator for lambda using min mass to make adjustments conservative
+    vec2 center(0);
+    float prec_sum_grad_C_sq = 0.0f;
+    vec2 prec_grad_Ci(0.0f);
+
+	if (0 == sim->fluid_models_.size()) return;
+
+	float min_fluid_mass = sim->fluid_models_[0].mass_;
+    float max_fluid_mass = sim->fluid_models_[0].mass_;
+    for(const PBDFluidModel& fm:sim->fluid_models_) {
+        min_fluid_mass = min(fm.mass_, min_fluid_mass);
+        max_fluid_mass = max(fm.mass_, max_fluid_mass);
+    }
+
+    for(int y=-3; y< 3;++y) {
+        for(int x=-3; x< 3;++x) {
+            vec2 pos = center + vec2(x,y)*(2*sim->particle_r_);
+
+            float m = sim->fluid_models_[0].mass_;
+            float density = sim->fluid_models_[0].density0_;
+			vec2 grad_Cj = -(m / density) * sim->gradW(center - pos);
+			prec_sum_grad_C_sq += lengthSqr(grad_Cj);
+            prec_grad_Ci += -grad_Cj;
+        }
+    }
+	float prec_sum_grad_sq = (prec_sum_grad_C_sq + lengthSqr(prec_grad_Ci));
+    (void)prec_sum_grad_sq;
 
 	const int num_fluid_particles = (int)sim->fluid_particle_idxs_.size();
 	std::vector<PBDParticle>& p = sim->particles_;
 	const std::vector<vec2>& x = pos_array;
 	const auto& neigh_list = sim->neigh_data_.neigh_idx_;
-	const float bs = 0.0f;
+
+    // better for stability of corner particles than if using 1, anyway right now boundary density is very approx
+	const float bs = .5f;
 
 	for (int fi = 0; fi < num_fluid_particles; fi++) {
 
 		const int i = sim->fluid_particle_idxs_[fi];
 
         solve_box_boundary(sim->box_boundary_c_[0], sim->x_pred_[i], i, sim);
-        sim->x_pred_[i] = sim->x_pred_[i] + sim->dp_[i];
+        sim->x_pred_[i] += sim->dp_[i];
         sim->num_constraints_[i] = 0;
         sim->dp_[i] = vec2(0);
 
@@ -1153,13 +1193,14 @@ void PBDUnifiedTimestep::fluidUpdate_GS(PBDUnifiedSimulation* sim, float dt,
 			// all particles participate in density calculations according to Eq. 27
 			float s = (p[j].flags & PBDParticleFlags::kFluid) ? 1.0f : 1.0f;
             
+			float m = 1.0f / p[j].inv_mass;
 			// do not select min mass as (instead use real) it prevents simulation to
 			// converge (looks like)
-			float m = 1.0f / p[j].inv_mass;
+			//m = min(fmass, m);
 			density += s * m * sim->W(x[i] - x[j]);
 		}
 
-		density += bs * getBoundaryDensity(sim, i, pos_array);
+		density += bs * getBoundaryDensity(sim, i, pos_array, max_fluid_mass);
 
 		sim->fluid_particles_data_[p[i].fluid_data_idx].lambda_ = 0;
 		const float C = density / fm.density0_ - 1;
@@ -1180,12 +1221,13 @@ void PBDUnifiedTimestep::fluidUpdate_GS(PBDUnifiedSimulation* sim, float dt,
 
 			if (1) {
 				vec2 b_grad_Cj =
-					-bs * (mi / fm.density0_) * getBoundaryGrad(sim, i, pos_array);
+					-bs * (/*max_fluid_mass*/mi / fm.density0_) * getBoundaryGrad(sim, i, pos_array);
 				sum_grad_C_sq += lengthSqr(b_grad_Cj);
 				grad_Ci += -b_grad_Cj;
 			}
 
 			float sum_grad_sq = (sum_grad_C_sq + lengthSqr(grad_Ci));
+			//sum_grad_sq = prec_sum_grad_sq;
 			float lambda = -C / (sum_grad_sq + sim->e_);
 
 			sim->fluid_particles_data_[p[i].fluid_data_idx].lambda_ = lambda;
@@ -1208,7 +1250,7 @@ void PBDUnifiedTimestep::fluidUpdate_GS(PBDUnifiedSimulation* sim, float dt,
             } 
 			// TBH, having "else" is more correct, but adding pressure from fluid to all particles
 			// (not only fluid ones) makes sim better
-            /*else*/
+            //else
             {
 				// for some precision reason using gr2 form instead of gr makes simulation
 				// behave worse with a specially crafted scene
@@ -1233,15 +1275,25 @@ void PBDUnifiedTimestep::fluidUpdate_GS(PBDUnifiedSimulation* sim, float dt,
 		sim->x_pred_[i] = sim->x_pred_[i] + lambda_i * grad_Ci;
 
 		// boundary
-		float b_density = bs * getBoundaryDensity(sim, i, pos_array);
+		float b_density = bs * getBoundaryDensity(sim, i, pos_array, max_fluid_mass);
 		vec2 b_grad = bs * getBoundaryGrad(sim, i, pos_array);
 		if (b_density) {
-            const vec2 dp = bs * (1.0f / (p[i].inv_mass * fm.density0_)) * (lambda_i)*b_grad;
+            //const vec2 dp = bs * (1.0f / (p[i].inv_mass * fm.density0_)) * (lambda_i)*b_grad;
+            const vec2 dp = bs * (/*max_fluid_mass*/mi / (fm.density0_)) * (lambda_i)*b_grad;
 		    sim->x_pred_[i] = sim->x_pred_[i] + dp;
 		}
 
         assert(sim->num_constraints_[i] == 0);
         assert(sim->dp_[i] == vec2(0));
+
+	}
+
+	for (int fi = 0; fi < num_fluid_particles; fi++) {
+		const int i = sim->fluid_particle_idxs_[fi];
+        solve_box_boundary(sim->box_boundary_c_[0], sim->x_pred_[i], i, sim);
+        sim->x_pred_[i] += sim->dp_[i];
+        sim->num_constraints_[i] = 0;
+        sim->dp_[i] = vec2(0);
 	}
 }
 
