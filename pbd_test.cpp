@@ -212,6 +212,29 @@ void scene_two_fluids(PBDUnifiedSimulation* sim) {
     initialize_fluid_particle_positions(sim, world_size, offset_h, row_size, num_light, fm_light_idx);
 }
 
+void scene_distant_constraint(PBDUnifiedSimulation* sim) {
+
+    const vec2 world_size = pbd_unified_sim_get_world_bounds(sim);
+	const float radius = pbd_unified_sim_get_particle_radius(sim);
+
+    const float density = 100;
+
+    const vec2 pos_a = 0.5f * world_size;
+    const vec2 pos_b = pos_a + vec2(3.0f*radius, 10.0f*radius);
+
+    const int idx_a = pbd_unified_sim_add_particle(sim, pos_a, density);
+    const int idx_b = pbd_unified_sim_add_particle(sim, pos_b, density);
+
+    pbd_unified_sim_particle_set_friction(sim, idx_a, 0.0f, 0.0f);
+    pbd_unified_sim_particle_set_friction(sim, idx_b, 0.0f, 0.0f);
+    
+    const float len_ab = length(pos_a - pos_b);
+
+    /*const int c_a2b_idx = */pbd_unified_sim_add_distance_constraint(sim, idx_a, idx_b, len_ab);
+    // nail down particle A
+    //const int c_a_idx = pbd_unified_sim_add_distance_constraint(sim, idx_a, -1, 0.0f);
+
+}
 
 PBDTestObject* PBDTestObject::Create() {
 
@@ -228,7 +251,8 @@ PBDTestObject* PBDTestObject::Create() {
     //scene_rb_friction_test(o->sim_);
     //scene_rb_friction_test2(o->sim_);
     //scene_fluid_simple(o->sim_);
-    scene_two_fluids(o->sim_);
+    //scene_two_fluids(o->sim_);
+    scene_distant_constraint(o->sim_);
 
 	return o;
 }
