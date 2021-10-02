@@ -449,7 +449,7 @@ void solve_solid_particle_collision_c(const SolidParticlesCollisionConstraint& c
     const PBDParticle& p1 = sim->particles_[c.idx1];
 
 	assert(p0.flags & PBDParticleFlags::kSolid);
-	assert(p0.flags & PBDParticleFlags::kSolid);
+	assert(p1.flags & PBDParticleFlags::kSolid);
 
     const float x_ij_len = length(c.x_ij);
     const float d = x_ij_len - 2*sim->particle_r_;
