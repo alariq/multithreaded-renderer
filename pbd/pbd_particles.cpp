@@ -33,6 +33,13 @@ struct DistanceConstraint {
     float dist;
 };
 
+// not needed if we have static particles (infinite mass)
+struct DistanceConstraint2 {
+    int idx0;
+    vec2 pos;
+    float dist;
+};
+
 struct ShapeMatchingConstraint {
     int rb_index;
 };
@@ -106,6 +113,7 @@ struct PBDUnifiedSimulation {
     vec2 world_size_ = vec2(5,5);
 
 	std::vector<DistanceConstraint> distance_c_;
+	std::vector<DistanceConstraint2> distance2_c_;
 	std::vector<SolidParticlesCollisionConstraint> solid_collision_c_;
 	std::vector<SolidParticlesCollisionConstraint> solid_fluid_c_;
 	std::vector<ShapeMatchingConstraint> shape_matching_c_;
@@ -402,7 +410,14 @@ int pbd_unified_sim_add_fluid_particle(struct PBDUnifiedSimulation* sim, vec2 po
 
 int pbd_unified_sim_add_distance_constraint(struct PBDUnifiedSimulation* sim, int p0_idx, int p1_idx, float dist) {
     sim->distance_c_.push_back(DistanceConstraint{p0_idx, p1_idx, dist});
-    return (int)sim->distance_c_.size();
+    return (int)sim->distance_c_.size() - 1;
+}
+
+int pbd_unified_sim_add_distance2_constraint(struct PBDUnifiedSimulation* sim, int p0_idx, vec2 pos, float dist) {
+    sim->distance2_c_.push_back(DistanceConstraint2{p0_idx, pos, dist});
+    return (int)sim->distance2_c_.size() - 1;
+}
+
 }
 
 int pbd_unified_sim_remove_distance_constraint(struct PBDUnifiedSimulation* sim, int c_idx) {
@@ -462,6 +477,30 @@ void solve_distance_c(const DistanceConstraint& c, PBDUnifiedSimulation* sim, co
      
 	sim->num_constraints_[c.idx0]++;
     sim->num_constraints_[c.idx1]++;
+}
+
+void solve_distance2_c(const DistanceConstraint2& c, PBDUnifiedSimulation* sim, const vec2* x_pred) {
+
+	assert(c.idx0 >= 0 && c.idx0 < (int32_t)sim->particles_.size());
+
+    const PBDParticle& p0 = sim->particles_[c.idx0];
+
+	assert(p0.flags & PBDParticleFlags::kSolid);
+
+    const float len01 = length(x_pred[c.idx0] - c.pos);
+
+	vec2 gradC = (x_pred[c.idx0] - c.pos) / len01;
+    const float inv_mass_i = 0 ? sim->inv_scaled_mass_[c.idx0] : p0.inv_mass;
+    const float inv_mass_j = 0;
+
+    float C = len01 - c.dist;
+    float s = C / (inv_mass_i + inv_mass_j);
+    vec2 dp0 = -s * inv_mass_i * gradC;
+    sim->dp_[c.idx0] += dp0;
+
+    //x_pred[c.idx0] += dp0*0.5f;
+     
+	sim->num_constraints_[c.idx0]++;
 }
 
 void solve_shape_matching_c(const ShapeMatchingConstraint& c,
@@ -931,6 +970,10 @@ void PBDUnifiedTimestep::SimulateIteration(PBDUnifiedSimulation* sim, float dt, 
 
     for(auto c: sim->distance_c_) {
         solve_distance_c(c, sim, x_pred.data());
+    }
+
+    for(auto c: sim->distance2_c_) {
+        solve_distance2_c(c, sim, x_pred.data());
     }
 
     for(auto c: sim->solid_collision_c_) {
