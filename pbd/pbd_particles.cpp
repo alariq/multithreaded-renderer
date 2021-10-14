@@ -107,6 +107,7 @@ struct PBDUnifiedSimulation {
 
 	std::vector<DistanceConstraint> distance_c_;
 	std::vector<SolidParticlesCollisionConstraint> solid_collision_c_;
+	std::vector<SolidParticlesCollisionConstraint> solid_fluid_c_;
 	std::vector<ShapeMatchingConstraint> shape_matching_c_;
 	std::vector<RigidBodyCollisionConstraint> rb_collision_c_;
 	std::vector<ParticleRigidBodyCollisionConstraint> particle_rb_collision_c_;
@@ -494,6 +495,39 @@ void solve_shape_matching_c(const ShapeMatchingConstraint& c,
 	}
 }
 
+void solve_solid_fluid_collision_c(const SolidParticlesCollisionConstraint& c, PBDUnifiedSimulation* sim) {
+
+    assert(length(c.x_ij) <= 2*sim->particle_r_);
+
+	assert(c.idx0 >= 0 && c.idx0 < (int32_t)sim->particles_.size());
+	assert(c.idx1 >= 0 && c.idx1 < (int32_t)sim->particles_.size());
+
+    const PBDParticle& p0 = sim->particles_[c.idx0];
+    const PBDParticle& p1 = sim->particles_[c.idx1];
+
+	assert(p0.flags & PBDParticleFlags::kSolid);
+	assert(p1.flags & PBDParticleFlags::kFluid);
+
+    const float x_ij_len = length(c.x_ij);
+    const float d = x_ij_len - 2*sim->particle_r_;
+    assert(d < 0);
+
+	vec2 gradC = c.x_ij / x_ij_len;
+	float inv_mass_i = sim->inv_scaled_mass_[c.idx0];
+    float inv_mass_j = sim->inv_scaled_mass_[c.idx1];
+
+    float C = d;
+    float s = C / (inv_mass_i + inv_mass_j);
+    vec2 dp0 = -s * inv_mass_i * gradC;
+    vec2 dp1 = +s * inv_mass_j * gradC;
+    sim->dp_[c.idx0] += dp0;
+    sim->dp_[c.idx1] += dp1;
+     
+	sim->num_constraints_[c.idx0]++;
+    sim->num_constraints_[c.idx1]++;
+}
+
+
 void solve_solid_particle_collision_c(const SolidParticlesCollisionConstraint& c, PBDUnifiedSimulation* sim) {
 
     assert(length(c.x_ij) <= 2*sim->particle_r_);
@@ -833,6 +867,7 @@ void PBDUnifiedTimestep::SimulateIteration(PBDUnifiedSimulation* sim, float dt, 
         sim->rb_collision_c_.resize(0);
         sim->particle_rb_collision_c_.resize(0);
         sim->solid_collision_c_.resize(0);
+	sim->solid_fluid_c_.resize(0);
 	    for (int i = 0; i < num_particles; i++) {
             sim->num_constraints_[i] = 0;
             sim->dp_[i] = vec2(0);
@@ -868,20 +903,23 @@ void PBDUnifiedTimestep::SimulateIteration(PBDUnifiedSimulation* sim, float dt, 
 
             float C = dist_sqr - 2*r;
             if (C < 0) {
+                // rb - rb
                 if(((p[i].flags&p[j].flags) & PBDParticleFlags::kRigidBody) ) {
                     if(p[i].rb_data_idx!=p[j].rb_data_idx)
                         sim->rb_collision_c_.push_back(RigidBodyCollisionConstraint{i,j, vec});
-                } else if(p[i].flags & PBDParticleFlags::kRigidBody) {
+                // rb - solid/fluid
+                } else if((p[i].flags & PBDParticleFlags::kRigidBody) /*&& (p[j].flags & PBDParticleFlags::kSolid)*/) {
                     sim->particle_rb_collision_c_.push_back(ParticleRigidBodyCollisionConstraint{i,j, vec});
-                } else if(p[j].flags & PBDParticleFlags::kRigidBody) {
+                } else if((p[j].flags & PBDParticleFlags::kRigidBody) /*&& (p[i].flags & PBDParticleFlags::kSolid)*/) {
                     sim->particle_rb_collision_c_.push_back(ParticleRigidBodyCollisionConstraint{j,i, -vec});
+                // solid - solid
                 } else if((p[j].flags & p[i].flags) & PBDParticleFlags::kSolid ) {
                     sim->solid_collision_c_.push_back(SolidParticlesCollisionConstraint{i,j, vec});
-                    //solve_solid_particle_collision_c(SolidParticlesCollisionConstraint{i,j, vec}, sim);
+                // solid - fluid
                 } else if((p[i].flags & PBDParticleFlags::kSolid) && (p[j].flags & PBDParticleFlags::kFluid)) {
-                    sim->solid_collision_c_.push_back(SolidParticlesCollisionConstraint{i,j, vec});
+                    //sim->solid_fluid_c_.push_back(SolidParticlesCollisionConstraint{i,j, vec});
                 } else if((p[j].flags & PBDParticleFlags::kSolid) && (p[i].flags & PBDParticleFlags::kFluid)) {
-                    sim->solid_collision_c_.push_back(SolidParticlesCollisionConstraint{j,i, -vec});
+                    //sim->solid_fluid_c_.push_back(SolidParticlesCollisionConstraint{j,i, -vec});
                 } else if((p[j].flags & p[i].flags) & PBDParticleFlags::kFluid) {
                     // handled separately in updateFluid
                 } else {
@@ -889,7 +927,6 @@ void PBDUnifiedTimestep::SimulateIteration(PBDUnifiedSimulation* sim, float dt, 
                 }
             }
         }
-
     }
 
     for(auto c: sim->distance_c_) {
@@ -898,6 +935,10 @@ void PBDUnifiedTimestep::SimulateIteration(PBDUnifiedSimulation* sim, float dt, 
 
     for(auto c: sim->solid_collision_c_) {
         solve_solid_particle_collision_c(c, sim);
+    }
+
+    for(auto c: sim->solid_fluid_c_) {
+        solve_solid_fluid_collision_c(c, sim);
     }
 
     for(auto c: sim->rb_collision_c_) {
