@@ -22,6 +22,12 @@ void scene_stacking_particles_and_box_above(PBDUnifiedSimulation* sim) {
     initialize_particle_positions(sim, world_size, 10, 1000);
 }
 
+void scene_stacking_particles(PBDUnifiedSimulation* sim) {
+
+    vec2 world_size = pbd_unified_sim_get_world_bounds(sim);
+    initialize_particle_positions(sim, world_size, 10, 1000);
+}
+
 void scene_friction_test(PBDUnifiedSimulation* sim) {
 
     const float density0 = 1000;
@@ -188,6 +194,26 @@ void scene_fluid_simple(PBDUnifiedSimulation* sim) {
 #endif
 }
 
+void scene_fluid_and_solids(PBDUnifiedSimulation* sim) {
+
+    const vec2 world_size = pbd_unified_sim_get_world_bounds(sim);
+	const float radius = pbd_unified_sim_get_particle_radius(sim);
+
+    float desired_density0 = 100;//m/(radius*radius*2*2);
+
+    int fm_idx = pbd_unified_sim_add_fluid_model(sim, 0, desired_density0);
+	vec2 offset = vec2(0.5f, 1.0f * radius);
+	int row_size = 16;
+    int num_fluid_particles = 200;
+    initialize_fluid_particle_positions(sim, world_size, offset, row_size, num_fluid_particles, fm_idx);
+
+    vec2 rb_pos = vec2(world_size.x*0.550f, world_size.y - 13*radius-1);
+    pbd_unified_sim_add_particle(sim,rb_pos, desired_density0/2.0f);
+    pbd_unified_sim_add_particle(sim, rb_pos + vec2(5*radius, 0.0f), desired_density0);
+    pbd_unified_sim_add_particle(sim, rb_pos + vec2(10*radius, 0.0f), desired_density0*2.0f);
+}
+
+
 void scene_two_fluids(PBDUnifiedSimulation* sim) {
 
     const vec2 world_size = pbd_unified_sim_get_world_bounds(sim);
@@ -212,7 +238,7 @@ void scene_two_fluids(PBDUnifiedSimulation* sim) {
     initialize_fluid_particle_positions(sim, world_size, offset_h, row_size, num_light, fm_light_idx);
 }
 
-void scene_distant_constraint(PBDUnifiedSimulation* sim) {
+void scene_distant_constraint_simple(PBDUnifiedSimulation* sim) {
 
     const vec2 world_size = pbd_unified_sim_get_world_bounds(sim);
 	const float radius = pbd_unified_sim_get_particle_radius(sim);
@@ -229,11 +255,61 @@ void scene_distant_constraint(PBDUnifiedSimulation* sim) {
     pbd_unified_sim_particle_set_friction(sim, idx_b, 0.0f, 0.0f);
     
     const float len_ab = length(pos_a - pos_b);
+    pbd_unified_sim_add_distance_constraint(sim, idx_a, idx_b, len_ab);
 
-    /*const int c_a2b_idx = */pbd_unified_sim_add_distance_constraint(sim, idx_a, idx_b, len_ab);
-    // nail down particle A
-    //const int c_a_idx = pbd_unified_sim_add_distance_constraint(sim, idx_a, -1, 0.0f);
+}
 
+int g_anchor1_c = 0;
+int g_anchor2_c = 0;
+void scene_distant_constraint_two_ropes(PBDUnifiedSimulation* sim) {
+
+    const vec2 world_size = pbd_unified_sim_get_world_bounds(sim);
+	const float radius = pbd_unified_sim_get_particle_radius(sim);
+
+
+
+    {
+    float density = 100;
+    const vec2 pos_a = vec2(0.45f * world_size.x, 0.9f*world_size.x);
+    const int anchor_idx = pbd_unified_sim_add_particle(sim, pos_a, density);
+    g_anchor1_c = pbd_unified_sim_add_distance2_constraint(sim, anchor_idx, pos_a, 0.0f*radius);
+
+    constexpr const int num_links = 18;
+    //int chain[num_links];
+    int prev_link_idx = anchor_idx;
+    vec2 prev_link_pos = pos_a;
+    for(int i=0; i<num_links; ++i) {
+        //if(i==num_links-1)
+            //density -= 9;
+        const vec2 pos = prev_link_pos + vec2(2.0f*radius, 0.0f);
+        const int idx = pbd_unified_sim_add_particle(sim, pos, density);
+        const float len_ab = length(pos - prev_link_pos);
+        /*const int c_a2b_idx = */pbd_unified_sim_add_distance_constraint(sim, idx, prev_link_idx, len_ab);
+        prev_link_idx = idx;
+        prev_link_pos = pos;
+    }
+    }
+
+    if(1)
+    {
+    const float density = 1000;
+    const vec2 pos_a = vec2(0.40f * world_size.x - 5*radius, 0.9f*world_size.x);
+    const int anchor_idx = pbd_unified_sim_add_particle(sim, pos_a, density);
+    g_anchor2_c = pbd_unified_sim_add_distance2_constraint(sim, anchor_idx, pos_a, 0.0f*radius);
+
+    constexpr const int num_links = 10;
+    //int chain[num_links];
+    int prev_link_idx = anchor_idx;
+    vec2 prev_link_pos = pos_a;
+    for(int i=0; i<num_links; ++i) {
+        const vec2 pos = prev_link_pos - vec2(2.0f*radius, 0.0f);
+        const int idx = pbd_unified_sim_add_particle(sim, pos, density);
+        const float len_ab = length(pos - prev_link_pos);
+        /*const int c_a2b_idx = */pbd_unified_sim_add_distance_constraint(sim, idx, prev_link_idx, len_ab);
+        prev_link_idx = idx;
+        prev_link_pos = pos;
+    }
+    }
 }
 
 PBDTestObject* PBDTestObject::Create() {
@@ -243,6 +319,7 @@ PBDTestObject* PBDTestObject::Create() {
     o->sim_origin_ = vec2(0,0);
     o->sim_ = pbd_unified_sim_create(o->sim_dim_);
 
+    //scene_stacking_particles(o->sim_);
     //scene_stacking_particles_and_box_above(o->sim_);
     //scene_complex(o->sim_);
     //scene_particle_box_collision_test(o->sim_);
@@ -251,8 +328,10 @@ PBDTestObject* PBDTestObject::Create() {
     //scene_rb_friction_test(o->sim_);
     //scene_rb_friction_test2(o->sim_);
     //scene_fluid_simple(o->sim_);
+    //scene_fluid_and_solids(o->sim_);
     //scene_two_fluids(o->sim_);
-    scene_distant_constraint(o->sim_);
+    //scene_distant_constraint_simple(o->sim_);
+    scene_distant_constraint_two_ropes(o->sim_);
 
 	return o;
 }
@@ -342,6 +421,15 @@ void PBDTestObject::Update(float dt) {
 			pbd_unified_sim_rb_set_density(sim_, g_rb, density);
 		}
 	}
+// disabled until remove function implemented
+#if 0
+	if (g_anchor1_c >= 0 && g_anchor2_c>=0) {
+		if (gos_GetKeyStatus(KEY_R) == KEY_PRESSED) {
+            pbd_unified_sim_remove_distance2_constraint(sim_, 0);//g_anchor1_c);
+            pbd_unified_sim_remove_distance2_constraint(sim_, 0);//g_anchor2_c);
+        }
+    }
+#endif
 
 	{
 		SCOPED_ZONE_N(pbd_unified_timestep, 0);
