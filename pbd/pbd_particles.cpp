@@ -878,6 +878,7 @@ class PBDUnifiedTimestep {
 
   public:
 	void Simulate(PBDUnifiedSimulation* sim, float dt);
+	void SimulateXPBD(PBDUnifiedSimulation* sim, float dt);
     void SimulateIteration(PBDUnifiedSimulation* sim, float dt, bool b_stabilization);
     void fluidUpdate(PBDUnifiedSimulation* sim, float dt, std::vector<vec2>& pos_array);
     void fluidUpdate_GS(PBDUnifiedSimulation* sim, float dt, const std::vector<vec2>& pos_array);
@@ -888,13 +889,13 @@ class PBDUnifiedTimestep {
 
 void pbd_unified_timestep(PBDUnifiedSimulation* sim, float dt) {
     PBDUnifiedTimestep uts;
-    uts.Simulate(sim, dt);
+    dt = 0.016f;
+    //uts.Simulate(sim, dt);
+    uts.SimulateXPBD(sim, dt);
 }
 
 void PBDUnifiedTimestep::SimulateIteration(PBDUnifiedSimulation* sim, float dt, bool b_stabilization) {
     SCOPED_ZONE_N(sim_iter, 0);
-
-    dt = 0.016f;
 
     const float r = sim->particle_r_;
 	const int num_particles = (int)sim->particles_.size();
@@ -1018,8 +1019,6 @@ void PBDUnifiedTimestep::SimulateIteration(PBDUnifiedSimulation* sim, float dt, 
 
 void PBDUnifiedTimestep::Simulate(PBDUnifiedSimulation* sim, float dt) {
 
-    dt = 0.016f;
-
 	const int num_particles = (int)sim->particles_.size();
 	std::vector<PBDParticle>& p = sim->particles_;
 	std::vector<float>& scaled_mass = sim->inv_scaled_mass_;
@@ -1067,6 +1066,64 @@ void PBDUnifiedTimestep::Simulate(PBDUnifiedSimulation* sim, float dt) {
         } else {
             p[i].flags |= PBDParticleFlags::kSleep;
         }
+	}
+}
+
+void PBDUnifiedTimestep::SimulateXPBD(PBDUnifiedSimulation* sim, float dt) {
+
+	const int num_particles = (int)sim->particles_.size();
+	std::vector<PBDParticle>& p = sim->particles_;
+	std::vector<float>& scaled_mass = sim->inv_scaled_mass_;
+	std::vector<vec2>& x_pred = sim->x_pred_;
+
+    // expand neighbour search because we do it only once per iteration
+    float neighbour_r = 2.0f*sim->support_r_;
+	findNeighboursNaiive(sim->x_pred_.data(), (int)sim->particles_.size(),
+						 neighbour_r, sim->particles_.data(), &sim->neigh_data_);
+
+	dt = dt / sim_iter_count;
+
+	for (int iter = 0; iter < sim_iter_count; iter++) {
+
+		// predict
+		for (int i = 0; i < num_particles; i++) {
+			p[i].v = p[i].v + dt * g;
+			x_pred[i] = p[i].x + dt * p[i].v;
+			scaled_mass[i] = p[i].inv_mass * exp(k * h(p[i].x)); // h(x_pred[i]) ?
+		}
+
+		if (iter == 0) {
+			SimulateIteration(sim, dt, true);
+		}
+
+		SimulateIteration(sim, dt, false);
+
+		for (int i = 0; i < num_particles; i++) {
+			vec2 dpv = x_pred[i] - p[i].x;
+			float dp_len = length(dpv);
+#if ENABLE_CFL
+			// CFL
+			const float max_vel_ = kCFL * sim->particle_r_;
+			if (dp_len > max_vel_) {
+				dpv *= max_vel_ / dp_len;
+				p[i].x = p[i].x + dpv;
+			}
+#endif
+
+			// update velocity (first order)
+			p[i].v = dpv / dt;
+
+			// update position or sleep (should probably take into account number of
+			// frames as well) or remember pos at the beginning of iterations if using
+			// dt/num_iter
+			bool b_sleep = dp_len < 0.25f*kSleepEps;
+			if (!b_sleep) {
+				p[i].x = x_pred[i];
+				p[i].flags &= ~PBDParticleFlags::kSleep;
+			} else {
+				p[i].flags |= PBDParticleFlags::kSleep;
+			}
+		}
 	}
 }
 
