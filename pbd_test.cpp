@@ -312,6 +312,75 @@ void scene_distant_constraint_two_ropes(PBDUnifiedSimulation* sim) {
     }
 }
 
+void scene_rope_and_rigid_body(PBDUnifiedSimulation* sim) {
+
+	const vec2 world_size = pbd_unified_sim_get_world_bounds(sim);
+	const float radius = pbd_unified_sim_get_particle_radius(sim);
+
+	{
+		float density = 100;
+		const vec2 pos_a = vec2(0.45f * world_size.x, 0.9f * world_size.x);
+		const int anchor_idx = pbd_unified_sim_add_particle(sim, pos_a, density);
+		g_anchor1_c = pbd_unified_sim_add_distance2_constraint(sim, anchor_idx, pos_a,
+															   0.0f * radius);
+
+		constexpr const int num_links = 8;
+		// int chain[num_links];
+		int prev_link_idx = anchor_idx;
+		vec2 prev_link_pos = pos_a;
+		for (int i = 0; i < num_links; ++i) {
+			// if(i==num_links-1)
+			// density -= 9;
+			const vec2 pos = prev_link_pos + vec2(2.0f * radius, 0.0f);
+			const int idx = pbd_unified_sim_add_particle(sim, pos, density);
+			const float len_ab = length(pos - prev_link_pos);
+			/*const int c_a2b_idx = */ pbd_unified_sim_add_distance_constraint(
+				sim, idx, prev_link_idx, len_ab);
+			prev_link_idx = idx;
+			prev_link_pos = pos;
+		}
+
+		vec2 rb_pos = vec2(prev_link_pos.x, world_size.y - 3 * radius);
+		const float len_rb_rope = length(rb_pos - prev_link_pos);
+		const int rb_idx = pbd_unified_sim_add_box_rigid_body(
+			sim, 2, 2, rb_pos, 0 * 45.0f * 3.1415f / 180.0f, 80);
+
+		const PBDRigidBody* rb = pbd_unified_sim_get_rigid_bodies(sim);
+		const int rb_part_data_start_idx = rb[rb_idx].start_part_idx;
+		const int rb_part_data_count = rb[rb_idx].num_part;
+		const PBDRigidBodyParticleData* part_data =
+			pbd_unified_sim_get_rb_particle_data(sim);
+
+		for (int i = 0; i < rb_part_data_count; ++i) {
+			int rb_particle_idx = part_data[i + rb_part_data_start_idx].index;
+			pbd_unified_sim_add_distance_constraint(sim, rb_particle_idx, prev_link_idx,
+													len_rb_rope);
+			// add constraint to only one particle in a rigid body
+			break;
+		}
+	}
+
+	if(0)
+    {
+    const float density = 1000;
+    const vec2 pos_a = vec2(0.40f * world_size.x - 5*radius, 0.9f*world_size.x);
+    const int anchor_idx = pbd_unified_sim_add_particle(sim, pos_a, density);
+    g_anchor2_c = pbd_unified_sim_add_distance2_constraint(sim, anchor_idx, pos_a, 0.0f*radius);
+
+    constexpr const int num_links = 10;
+    //int chain[num_links];
+    int prev_link_idx = anchor_idx;
+    vec2 prev_link_pos = pos_a;
+    for(int i=0; i<num_links; ++i) {
+        const vec2 pos = prev_link_pos - vec2(2.0f*radius, 0.0f);
+        const int idx = pbd_unified_sim_add_particle(sim, pos, density);
+        const float len_ab = length(pos - prev_link_pos);
+        /*const int c_a2b_idx = */pbd_unified_sim_add_distance_constraint(sim, idx, prev_link_idx, len_ab);
+        prev_link_idx = idx; prev_link_pos = pos; }
+    }
+}
+
+
 PBDTestObject* PBDTestObject::Create() {
 
     PBDTestObject* o = new PBDTestObject;
@@ -331,7 +400,8 @@ PBDTestObject* PBDTestObject::Create() {
     //scene_fluid_and_solids(o->sim_);
     //scene_two_fluids(o->sim_);
     //scene_distant_constraint_simple(o->sim_);
-    scene_distant_constraint_two_ropes(o->sim_);
+    //scene_distant_constraint_two_ropes(o->sim_);
+    scene_rope_and_rigid_body(o->sim_);
 
 	return o;
 }
