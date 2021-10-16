@@ -418,13 +418,6 @@ int pbd_unified_sim_add_distance2_constraint(struct PBDUnifiedSimulation* sim, i
     return (int)sim->distance2_c_.size() - 1;
 }
 
-}
-
-int pbd_unified_sim_remove_distance_constraint(struct PBDUnifiedSimulation* sim, int c_idx) {
-    assert("removing distance constraints is not supported yet" && 0);
-    return -1;
-}
-
 // assume all masses are similar
 vec2 rb_calc_com(const PBDRigidBody& rb, const vec2* pred_x, const PBDRigidBodyParticleData* rb_data) {
     
