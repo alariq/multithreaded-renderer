@@ -1,5 +1,6 @@
 #include "pbd_test.h"
 #include "pbd/pbd_particles.h"
+#include "pbd/pbd_particles_collision.h"
 #include "res_man.h"
 #include "utils/vec.h"
 #include "utils/camera_utils.h" // screen2world_vec
@@ -14,6 +15,7 @@ void initialize_fluid_particle_positions(struct PBDUnifiedSimulation* sim,
 										 int row_size, int count, int fluid_model_idx);
 
 void pbd_unified_sim_debug_draw(const struct PBDUnifiedSimulation* sim, class RenderList* rl);
+void collision_debug_draw(const struct CollisionWorld* cworld, RenderList* rl);
 
 void scene_stacking_particles_and_box_above(PBDUnifiedSimulation* sim) {
 
@@ -388,6 +390,29 @@ void scene_rope_and_rigid_body(PBDUnifiedSimulation* sim) {
 	}
 }
 
+void scene_rb_static_collision(PBDUnifiedSimulation* sim) {
+
+	const vec2 world_size = pbd_unified_sim_get_world_bounds(sim);
+	const float radius = pbd_unified_sim_get_particle_radius(sim);
+
+    CollisionWorld* cworld = collision_create_world();
+    pbd_unified_sim_set_collision_world(sim, cworld);
+    
+    SDFBoxCollision box;
+    box.pos = vec2(world_size.x*0.5, radius*3);
+    box.size = vec2(5*radius, 3*radius);
+    //int cbox_idx = 
+      //collision_add_box(cworld, box);
+
+    const float density0 = 1000;
+    /*int rb2_idx = */pbd_unified_sim_add_box_rigid_body(sim, 10, 2, world_size*0.5f, 0*30.0f* 3.1415f/180.0f, density0);
+    //pbd_unified_sim_rb_add_velocity(sim, rb2_idx, vec2(10, 0));
+    
+    vec2 ppos = vec2(world_size.x*0.25, radius*30);
+	pbd_unified_sim_add_particle(sim, ppos, density0);
+}
+
+
 PBDTestObject* PBDTestObject::Create() {
 
     PBDTestObject* o = new PBDTestObject;
@@ -408,7 +433,8 @@ PBDTestObject* PBDTestObject::Create() {
     //scene_two_fluids(o->sim_);
     //scene_distant_constraint_simple(o->sim_);
     //scene_distant_constraint_two_ropes(o->sim_);
-    scene_rope_and_rigid_body(o->sim_);
+    //scene_rope_and_rigid_body(o->sim_);
+    scene_rb_static_collision(o->sim_);
 
 	return o;
 }
@@ -560,6 +586,7 @@ void PBDTestObject::AddRenderPackets(struct RenderFrameContext *rfc) const {
     pbd_unified_sim_debug_draw(sim_, rfc->rl_);
 
     select_and_draw_debug_particle(sim_, rfc);
+    collision_debug_draw(pbd_unified_sim_get_collision_world(sim_), rfc->rl_);
 
 	// update instancing buffer
 	cur_inst_vb_ = (cur_inst_vb_ + 1) % ((int)inst_vb_.size());
@@ -690,6 +717,32 @@ void initialize_fluid_particle_positions(struct PBDUnifiedSimulation* sim,
 			pbd_unified_sim_add_fluid_particle(sim, pos, fluid_model_idx);
 		}
 	}
+}
+
+void collision_debug_draw(const struct CollisionWorld* cworld, RenderList* rl) {
+
+    if(!cworld)
+        return;
+
+    const float z = -0.1f;
+    int count;
+    const SDFBoxCollision* boxes = collision_world_get_box(cworld, &count);
+    for(int i=0; i<count;++i) {
+        const SDFBoxCollision* box = boxes  + i;
+        vec3 s = vec3(box->size.x, box->size.y, 0.0f);
+        vec3 c = vec3(box->pos.x, box->pos.y, z);
+        vec3 rt = vec3(c.x + s.x, c.y + s.y, z);
+        vec3 lt = vec3(c.x - s.x, c.y + s.y, z);
+
+        vec3 rb = vec3(c.x + s.x, c.y - s.y, z);
+        vec3 lb = vec3(c.x - s.x, c.y - s.y, z);
+	
+        rl->addDebugLine(rt, lt, vec4(1));
+        rl->addDebugLine(lt, lb, vec4(1));
+        rl->addDebugLine(lb, rb, vec4(1));
+        rl->addDebugLine(rb, rt, vec4(1));
+    }
+
 }
 
 void pbd_unified_sim_debug_draw(const struct PBDUnifiedSimulation* sim, RenderList* rl) {
