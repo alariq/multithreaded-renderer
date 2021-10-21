@@ -5,6 +5,7 @@
 #include "engine/utils/intersection.h" // aabb
 #include "engine/utils/quaternion.h"
 #include "engine/utils/vec.h"
+#include "engine/utils/sdf.h"
 
 #include <vector>
 #include <utility>
@@ -14,20 +15,6 @@ enum CollisionObjectType: int {
     kDistanceFieldBox = 0,
     kDistanceFieldSphere
 };
-
-// TODO: move to common place
-inline float distance_box(const vec3& box, const vec3 &p, const float invert, const float tolerance)
-{
-	const vec3 d = vec3(abs(p) - box);
-	const vec3 max_d = max(d, vec3(0.0f));
-	return invert*(min(max(d.x, max(d.y, d.z)), 0.0f) + length(max_d)) - tolerance;
-}
-
-inline float distance_sphere(const float radius, const vec3& p, const float invert, const float tolerance)
-{
-	return invert*(length(p) - radius) - tolerance;
-}
-
 
 struct ICollisionObject {
 

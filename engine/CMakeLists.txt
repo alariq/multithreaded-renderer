@@ -64,6 +64,8 @@ set(SOURCES ${SOURCES}
     #utils/simple_quadrature.cpp
     utils/marshingcubes.h
     utils/marshingcubes.cpp
+    utils/sdf.h
+    utils/sdf.cpp
     Remotery/lib/Remotery.c
     Remotery/lib/Remotery.h
     profiler/profiler.h
