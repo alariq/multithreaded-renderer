@@ -2,6 +2,7 @@
 
 #include <immintrin.h> 
 #include "utils/vec.h"
+#include "utils/defines.h"
 
 extern const int edgeTable[256];
 extern const int triTable[256][16];
@@ -54,7 +55,6 @@ typedef struct {
    float* value[8];
 } GRIDCELL_SOA;
 
-#define FORCE_INLINE inline
 
 #ifdef USE_SSE
 FORCE_INLINE void vec_set(aVector& v, float* farr)
