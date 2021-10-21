@@ -73,6 +73,9 @@ struct PBDUnifiedSimulation* pbd_unified_sim_create(vec2& sim_dim);
 void pbd_unified_sim_destroy(struct PBDUnifiedSimulation* sim);
 void pbd_unified_sim_reset(struct PBDUnifiedSimulation*);
 
+void pbd_unified_sim_set_collision_world(struct PBDUnifiedSimulation* sim, struct CollisionWorld* cworld);
+struct CollisionWorld* pbd_unified_sim_get_collision_world(const struct PBDUnifiedSimulation* sim);
+
 int pbd_unified_sim_add_particle(struct PBDUnifiedSimulation* sim, vec2 pos, float density);
 int pbd_unified_sim_add_particle(struct PBDUnifiedSimulation* sim, vec2 pos, vec2 init_vel, float density);
 int pbd_unified_sim_add_box_rigid_body(struct PBDUnifiedSimulation* sim, int size_x, int size_y, vec2 pos, float rot, float density);

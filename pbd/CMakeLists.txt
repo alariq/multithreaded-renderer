@@ -12,6 +12,8 @@ set(SOURCES ${SOURCES}
     pbd_collision.h
     pbd_particles.cpp
     pbd_particles.h
+    pbd_particles_collision.cpp
+    pbd_particles_collision.h
 )
 
 add_library(pbd ${SOURCES})

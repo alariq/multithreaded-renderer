@@ -1,6 +1,7 @@
 // Unified Particle Physics for Real-Time Applications
 
 #include "pbd_particles.h"
+#include "pbd_particles_collision.h"
 #include "engine/utils/kernels.h"
 #include "engine/profiler/profiler.h"
 #include "engine/utils/math_utils.h"
@@ -112,6 +113,8 @@ struct PBDUnifiedSimulation {
 
     vec2 world_size_ = vec2(5,5);
 
+    struct CollisionWorld* collision_world_;
+
 	std::vector<DistanceConstraint> distance_c_;
 	std::vector<DistanceConstraint2> distance2_c_;
 	std::vector<SolidParticlesCollisionConstraint> solid_collision_c_;
@@ -183,6 +186,15 @@ struct PBDUnifiedSimulation* pbd_unified_sim_create(vec2& sim_dim) {
 
 void pbd_unified_sim_destroy(struct PBDUnifiedSimulation* sim) {
     delete sim;
+}
+
+void pbd_unified_sim_set_collision_world(struct PBDUnifiedSimulation* sim, struct CollisionWorld* cworld) {
+    assert(!sim->collision_world_);
+    sim->collision_world_ = cworld;
+}
+
+struct CollisionWorld* pbd_unified_sim_get_collision_world(const struct PBDUnifiedSimulation* sim) {
+    return sim->collision_world_;
 }
 
 int pbd_unified_sim_add_particle(struct PBDUnifiedSimulation* sim, vec2 pos,
@@ -853,6 +865,16 @@ void solve_box_boundary(const BoxBoundaryConstraint& c, vec2 pos, int particle_i
 	}
 }
 
+void solve_collision_constraint(CollisionContact& cc, PBDUnifiedSimulation* sim,
+								const CollisionWorld* cword, const vec2* x_pred) {
+
+    const int particle_idx = cc.idx;
+    vec2 dx = cc.dist * cc.n;
+
+    sim->dp_[particle_idx] += dx;
+    sim->num_constraints_[particle_idx]++;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 class PBDUnifiedTimestep {
 	static const int stab_iter_count = 0;
@@ -908,6 +930,17 @@ void PBDUnifiedTimestep::SimulateIteration(PBDUnifiedSimulation* sim, float dt, 
 
     if(!b_stabilization) {
 		fluidUpdate(sim, dt, x_pred);
+    }
+
+
+	std::vector<CollisionContact> ccs;
+	if (sim->collision_world_) {
+		ccs = collision_world_check_collision(sim->collision_world_, x_pred.data(),
+											  num_particles, r);
+	}
+
+    for(auto c: ccs) {
+        solve_collision_constraint(c, sim, sim->collision_world_, x_pred.data());
     }
 
     for (int i = 0; i < num_particles; i++) {
