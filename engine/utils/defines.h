@@ -26,3 +26,6 @@
 #else
     #error Unknown compiler used
 #endif
+
+
+#define FORCE_INLINE inline
