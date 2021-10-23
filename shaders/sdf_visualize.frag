@@ -14,7 +14,7 @@ in PREC vec2 o_uv;
 
 void main(void)
 {
-	PREC vec4 c = texture2D(tex, o_uv).rgba;
+	PREC vec4 c = texture(tex, o_uv).rgba;
     PREC float part_radius = 0.1;
 
     //PREC float v = clamp(0.5* (c.x / part_radius)+0.5, 0.0f, 1.0f);
