@@ -24,6 +24,22 @@ void scene_stacking_particles_and_box_above(PBDUnifiedSimulation* sim) {
     initialize_particle_positions(sim, world_size, 10, 1000);
 }
 
+void scene_restitution_test(PBDUnifiedSimulation* sim) {
+    const float r = pbd_unified_sim_get_particle_radius(sim);
+    vec2 world_size = pbd_unified_sim_get_world_bounds(sim);
+
+    const int num_particles = 10;
+    float e = 1.0f;
+    vec2 dp = vec2(4.0f*r, 0.0f);
+	vec2 pos = vec2(3.0f * r, world_size.y * 0.5f);
+	for (int i = 0; i < num_particles; ++i) {
+		int idx = pbd_unified_sim_add_particle(sim, pos, 1000);
+		pbd_unified_sim_particle_set_params(sim, idx, 0.0f, 0.0f, e);
+        pos += dp;
+        e -= 1.0f/num_particles;
+	}
+}
+
 void scene_stacking_particles(PBDUnifiedSimulation* sim) {
 
     vec2 world_size = pbd_unified_sim_get_world_bounds(sim);
@@ -253,8 +269,8 @@ void scene_distant_constraint_simple(PBDUnifiedSimulation* sim) {
     const int idx_a = pbd_unified_sim_add_particle(sim, pos_a, density);
     const int idx_b = pbd_unified_sim_add_particle(sim, pos_b, density);
 
-    pbd_unified_sim_particle_set_friction(sim, idx_a, 0.0f, 0.0f);
-    pbd_unified_sim_particle_set_friction(sim, idx_b, 0.0f, 0.0f);
+    pbd_unified_sim_particle_set_params(sim, idx_a, 0.0f, 0.0f, 0.0f);
+    pbd_unified_sim_particle_set_params(sim, idx_b, 0.0f, 0.0f, 0.0f);
     
     const float len_ab = length(pos_a - pos_b);
     pbd_unified_sim_add_distance_constraint(sim, idx_a, idx_b, len_ab);
@@ -420,6 +436,7 @@ PBDTestObject* PBDTestObject::Create() {
     o->sim_origin_ = vec2(0,0);
     o->sim_ = pbd_unified_sim_create(o->sim_dim_);
 
+    scene_restitution_test(o->sim_);
     //scene_stacking_particles(o->sim_);
     //scene_stacking_particles_and_box_above(o->sim_);
     //scene_complex(o->sim_);
@@ -434,7 +451,7 @@ PBDTestObject* PBDTestObject::Create() {
     //scene_distant_constraint_simple(o->sim_);
     //scene_distant_constraint_two_ropes(o->sim_);
     //scene_rope_and_rigid_body(o->sim_);
-    scene_rb_static_collision(o->sim_);
+    //scene_rb_static_collision(o->sim_);
 
 	return o;
 }
