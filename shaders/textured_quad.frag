@@ -9,6 +9,6 @@ in PREC vec2 o_uv;
 
 void main(void)
 {
-	PREC vec3 c = texture2D(tex, o_uv).rgb;
+	PREC vec3 c = texture(tex, o_uv).rgb;
 	FragColor = vec4(c, 1.0);
 }
