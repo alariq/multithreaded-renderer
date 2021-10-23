@@ -28,6 +28,8 @@ struct PBDParticle {
 	// TODO: move common params to particle type data structure and store this structure's
 	// handl here instead
 	float mu_s, mu_k;
+    // restitution coefficient
+    float e;
 };
 
 struct PBDRigidBodyParticleData {
@@ -92,7 +94,7 @@ uint32_t pbd_unified_sim_get_fluid_model_debug_color(struct PBDUnifiedSimulation
 void pbd_unified_sim_rb_add_velocity(struct PBDUnifiedSimulation* sim, int rb_idx, const vec2& vel);
 void pbd_unified_sim_rb_set_density(struct PBDUnifiedSimulation* sim, int rb_idx, float density);
 // TODO: make it through particle type data structure, do not really need per partcle friction
-void pbd_unified_sim_particle_set_friction(struct PBDUnifiedSimulation* sim, int idx, float mu_s, float mu_k);
+void pbd_unified_sim_particle_set_params(struct PBDUnifiedSimulation* sim, int idx, float mu_s, float mu_k, float e);
 
 float pbd_unified_sim_get_particle_radius(const struct PBDUnifiedSimulation* sim);
 int pbd_unified_sim_get_particle_count(const struct PBDUnifiedSimulation*);
