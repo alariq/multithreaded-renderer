@@ -85,6 +85,7 @@ struct ContactInfo {
 
     // kinetic friction (a.k.a. dynamic friction)
 	float mu_d;
+	float e;
 	// always r2's (i.e. normal of body 2)
 	vec2 n;
 	// delta lambda (in normal direction) which for 1 positin solve iteration is same as just lambda
@@ -251,6 +252,11 @@ int pbd_unified_sim_add_particle(struct PBDUnifiedSimulation* sim, vec2 pos,
 	int idx = pbd_unified_sim_add_particle(sim, pos, density);
     sim->particles_[idx].v = init_vel;
     return idx;
+}
+
+void pbd_unified_sim_particle_add_velocity(struct PBDUnifiedSimulation* sim, int idx, const vec2& vel) {
+    assert((int)sim->particles_.size() > idx);
+    sim->particles_[idx].v += vel;
 }
 
 void pbd_unified_sim_rb_add_velocity(struct PBDUnifiedSimulation* sim, int rb_idx, const vec2& vel) {
@@ -627,21 +633,36 @@ void solve_solid_particle_collision_c(const SolidParticlesCollisionConstraint& c
     const float mu_k = 0.5f*(p0.mu_k + p1.mu_k);
 
     // friction
-	vec2 dx = (sim->x_pred_[c.idx0] + dp0 - p0.x) -
+	const vec2 dx = (sim->x_pred_[c.idx0] + dp0 - p0.x) -
 			  (sim->x_pred_[c.idx1] + dp1 - p1.x);
 
 	// perp projection
-    vec2 dxp = dx - fabsf(dot(dx, gradC))*gradC;
+    vec2 dxp = dx - (dot(dx, gradC))*gradC;
     const float ldxp = length(dxp);
-	if (ldxp > mu_s * -d) {
-		dxp = dxp * min(mu_k * -d / ldxp, 1.0f);
-	}
+    // part of velocity update pass
+	//if (ldxp > mu_s * -d) {
+	//	dxp = dxp * min(mu_k * -d / ldxp, 1.0f);
+	//}
 
-	sim->dp_[c.idx0] += -inv_mass_i/(inv_mass_i + inv_mass_j) * dxp;
-    sim->dp_[c.idx1] += +inv_mass_j/(inv_mass_i + inv_mass_j) * dxp;
+	if (ldxp < mu_s * -d) {
+		sim->dp_[c.idx0] += -inv_mass_i / (inv_mass_i + inv_mass_j) * dxp;
+		sim->dp_[c.idx1] += +inv_mass_j / (inv_mass_i + inv_mass_j) * dxp;
+	}
 
 	sim->num_constraints_[c.idx0]++;
     sim->num_constraints_[c.idx1]++;
+
+    ContactInfo ci;
+    ci.n = gradC;
+    ci.idx1 = c.idx0;
+    ci.v1_pre = p0.v;
+    ci.idx2 = c.idx1;
+    ci.v2_pre = p1.v;
+    ci.mu_d = mu_k;
+    ci.d_lambda_n = dot(dx, ci.n);
+
+    sim->contacts_info_.push_back(ci);
+
 }
 
 void solve_particle_rb_collision_c(const ParticleRigidBodyCollisionConstraint& c, PBDUnifiedSimulation* sim) {
@@ -838,7 +859,6 @@ void solve_box_boundary(const BoxBoundaryConstraint& c, vec2 pos, int particle_i
 
     // case when width or height is less than a particle radius is not handled
     // we can change 'else if' for just 'if' but then still it would not work
-
 	if (pos.x - r < c.p_min.x) {
 
         dx.x = c.p_min.x - (pos.x - r);
@@ -922,6 +942,25 @@ void solve_collision_constraint(CollisionContact& cc, PBDUnifiedSimulation* sim,
 
     sim->dp_[particle_idx] += dx;
     sim->num_constraints_[particle_idx]++;
+
+    ContactInfo ci;
+    ci.idx1 = particle_idx;
+    ci.v1_pre = sim->particles_[particle_idx].v;
+    ci.idx2 = -1;
+    ci.v2_pre = vec2(0);
+    ci.n = cc.n;
+    //ci.mu_d = 0.5f * (c.mu_k + sim->particles_[particle_idx].mu_k);
+    ci.mu_d = sim->particles_[particle_idx].mu_k;
+
+    vec2 dxp = (sim->x_pred_[particle_idx] + dx) - sim->particles_[particle_idx].x;
+    ci.d_lambda_n = dot(dxp, ci.n);
+
+    // needs check:
+    vec2 pos = sim->x_pred_[particle_idx];
+	ci.r1 = pos - cc.n*sim->particle_r_;
+	ci.r2 = pos - cc.n*cc.dist;
+
+    sim->contacts_info_.push_back(ci);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1100,15 +1139,17 @@ constexpr const float very_small_float = 1e-12;
 void PBDUnifiedTimestep::VelocityUpdate(PBDUnifiedSimulation* sim, const float h) {
     SCOPED_ZONE_N(VelocityUpdate, 0);
 
+    const int num_particles = (int)sim->particles_.size();
 	std::vector<PBDParticle>& particles = sim->particles_;
 
 	for (const ContactInfo& ci : sim->contacts_info_) {
-        assert(ci.idx1 < (int)sim->particles_.size());
-        assert(ci.idx2==-1 || (ci.idx2 < (int)sim->particles_.size()));
+        assert(ci.idx1 < num_particles);
+        assert(ci.idx2==-1 || ci.idx2 < num_particles);
 		assert(0 == (particles[ci.idx1].flags & PBDParticleFlags::kFluid));
+		assert(ci.idx2==-1 || (0 == (particles[ci.idx2].flags & PBDParticleFlags::kFluid)));
 
-		// this is simplified for static boundary
-
+		// these velocities are calculated after sim iteration, so we do not know them at
+		// the moment of collision check, so cannot store in ContactInfo
 		const vec2 v1 = particles[ci.idx1].v;
 		const vec2 v2 = ci.idx2 != -1 ? particles[ci.idx2].v : vec2(0.0f);
 		const vec2 v = v1 - v2;
@@ -1117,25 +1158,35 @@ void PBDUnifiedTimestep::VelocityUpdate(PBDUnifiedSimulation* sim, const float h
 
 		// friction force (dynamic friction)
 		const float vt_len = length(vt);
-		float fn = ci.d_lambda_n / (h * h);
+		const float fn = fabsf(ci.d_lambda_n / (h * h));
 		// Eq. 30
-		vec2 dv = vt_len > very_small_float ? -(vt / vt_len) * min(h * ci.mu_d * fabsf(fn), vt_len) : vec2(0.0f);
+		const vec2 dv = vt_len > very_small_float
+							? -(vt / vt_len) * min(h * ci.mu_d * fn, vt_len)
+							: vec2(0.0f);
+
 
 		// restitution, Eq. 34
 		const vec2 v_prev = ci.v1_pre - ci.v2_pre;
 		const float v_prev_n = dot(v_prev, ci.n);
 		const float e = particles[ci.idx1].e;
         // !NB: original paper has: min() but probably it is an error
-		vec2 restitution_dv = ci.n * (-vn + max(-e * v_prev_n, 0.0f));
+		vec2 restitution_dv1 = ci.n * (-vn + max(-e * v_prev_n, 0.0f));
 
 		// apply delta velocity
-		// NOTE: probably should first apply dv and then claculate restitution_dv and
+		// NOTE: probably should first apply dv and then calculate restitution_dv and
 		// apply it again?
 		const float w1 = particles[ci.idx1].inv_mass;
-		const float m1 = 1.0 / w1;
-		const float w2 = 0; // assume static boundary
-		vec2 p = (dv + restitution_dv) / (w1 + w2);
-		particles[ci.idx1].v += p / m1;
+		const float w2 = ci.idx2==-1 ? 0.0f : particles[ci.idx2].inv_mass;
+
+		vec2 p = (dv + restitution_dv1) / (w1 + w2);
+		particles[ci.idx1].v += p * w1;
+		// NOTE: can use fake index to avoid 'if'
+		if (ci.idx2 != -1) {
+			const float e2 = particles[ci.idx2].e;
+			const vec2 restitution_dv2 = ci.n * (-vn + max(-e2 * v_prev_n, 0.0f));
+			const vec2 p2 = (dv + restitution_dv2) / (w1 + w2);
+			particles[ci.idx2].v -= p2 * w2;
+		}
 	}
 }
 

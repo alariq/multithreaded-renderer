@@ -91,6 +91,7 @@ int pbd_unified_sim_add_fluid_model(struct PBDUnifiedSimulation* sim, float visc
 int pbd_unified_sim_add_fluid_particle(struct PBDUnifiedSimulation* sim, vec2 pos, int fluid_model_idx);
 uint32_t pbd_unified_sim_get_fluid_model_debug_color(struct PBDUnifiedSimulation* sim, int fm_idx);
 
+void pbd_unified_sim_particle_add_velocity(struct PBDUnifiedSimulation* sim, int idx, const vec2& vel);
 void pbd_unified_sim_rb_add_velocity(struct PBDUnifiedSimulation* sim, int rb_idx, const vec2& vel);
 void pbd_unified_sim_rb_set_density(struct PBDUnifiedSimulation* sim, int rb_idx, float density);
 // TODO: make it through particle type data structure, do not really need per partcle friction
