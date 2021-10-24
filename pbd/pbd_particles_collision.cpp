@@ -84,10 +84,11 @@ std::vector<CollisionContact> CollisionWorld::CheckCollisions(const vec2* part_p
 
 	for (int i = 0; i < num_particles; i++) {
 		for (int j = 0; j < num_boxes; j++) {
-			vec2 bpos = boxes_[j].pos - part_positions[i]; // TODO: transform to world, or inverse transform particle
+			vec2 bpos = transpose(boxes_[j].rot) * (boxes_[j].pos - part_positions[i]); 
 			CollisionContact cc;
 			if (collision_box_particle(part_positions[i], bpos, boxes_[j].size, radius,
 									   &cc.cp, &cc.n, &cc.dist, 0.0f)) {
+                cc.n = boxes_[j].rot * cc.n;
                 cc.idx = i;
                 cc.coll_idx = j;
 				ccs.push_back(cc);
