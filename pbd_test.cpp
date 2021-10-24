@@ -851,19 +851,23 @@ void collision_debug_draw(const struct CollisionWorld* cworld, RenderList* rl) {
     int count;
     const SDFBoxCollision* boxes = collision_world_get_box(cworld, &count);
     for(int i=0; i<count;++i) {
-        const SDFBoxCollision* box = boxes  + i;
-        vec3 s = vec3(box->size.x, box->size.y, 0.0f);
-        vec3 c = vec3(box->pos.x, box->pos.y, z);
-        vec3 rt = vec3(c.x + s.x, c.y + s.y, z);
-        vec3 lt = vec3(c.x - s.x, c.y + s.y, z);
+        const SDFBoxCollision& box = boxes[i];
+        vec2 s = vec2(box.size.x, box.size.y);
+        vec2 rt = vec2(s.x, s.y);
+        vec2 lt = vec2(-s.x, s.y);
 
-        vec3 rb = vec3(c.x + s.x, c.y - s.y, z);
-        vec3 lb = vec3(c.x - s.x, c.y - s.y, z);
+        vec2 rb = vec2(s.x, -s.y);
+        vec2 lb = vec2(-s.x, -s.y);
+
+        rt = box.rot*rt + box.pos;
+        lt = box.rot*lt + box.pos;
+        rb = box.rot*rb + box.pos;
+        lb = box.rot*lb + box.pos;
 	
-        rl->addDebugLine(rt, lt, vec4(1));
-        rl->addDebugLine(lt, lb, vec4(1));
-        rl->addDebugLine(lb, rb, vec4(1));
-        rl->addDebugLine(rb, rt, vec4(1));
+        rl->addDebugLine(vec3(rt.x, rt.y, z), vec3(lt.x, lt.y, z), vec4(1));
+        rl->addDebugLine(vec3(lt.x, lt.y, z), vec3(lb.x, lb.y, z), vec4(1));
+        rl->addDebugLine(vec3(lb.x, lb.y, z), vec3(rb.x, rb.y, z), vec4(1));
+        rl->addDebugLine(vec3(rb.x, rb.y, z), vec3(rt.x, rt.y, z), vec4(1));
     }
 
 }
