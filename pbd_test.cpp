@@ -9,19 +9,30 @@
 
 #include "engine/profiler/profiler.h"
 
-void initialize_particle_positions(struct PBDUnifiedSimulation* sim, const vec2& dim, int count, float density0);
+void initialize_particle_positions(struct PBDUnifiedSimulation* sim,
+								   const ivec2& row_column, const vec2 offset,
+								   float density0);
+
 void initialize_fluid_particle_positions(struct PBDUnifiedSimulation* sim,
 										 const vec2& dim, const vec2& offset,
 										 int row_size, int count, int fluid_model_idx);
 
-void pbd_unified_sim_debug_draw(const struct PBDUnifiedSimulation* sim, class RenderList* rl);
+void initialize_particle_positions2(struct PBDUnifiedSimulation* sim, const vec2& offset,
+									int count, float density0, float mu_s, float mu_k,
+									float e);
+
+void pbd_unified_sim_debug_draw(const struct PBDUnifiedSimulation* sim,
+								class RenderList* rl);
 void collision_debug_draw(const struct CollisionWorld* cworld, RenderList* rl);
 
-void scene_stacking_particles_and_box_above(PBDUnifiedSimulation* sim) {
 
-    pbd_unified_sim_add_box_rigid_body(sim, 5, 4, vec2(1.0, 4), 0, 1000);
+void scene_initial_penetration(PBDUnifiedSimulation* sim) {
     vec2 world_size = pbd_unified_sim_get_world_bounds(sim);
-    initialize_particle_positions(sim, world_size, 10, 1000);
+	vec2 ppos = vec2(0.55f * world_size.x, 0.0f);
+
+	int idx = pbd_unified_sim_add_particle(sim, ppos, 1000);
+	const float e = 0.75f;
+	pbd_unified_sim_particle_set_params(sim, idx, 0.0f, 0.0f, e);
 }
 
 void scene_restitution_test(PBDUnifiedSimulation* sim) {
@@ -30,20 +41,90 @@ void scene_restitution_test(PBDUnifiedSimulation* sim) {
 
     const int num_particles = 10;
     float e = 1.0f;
-    vec2 dp = vec2(4.0f*r, 0.0f);
+	vec2 dp = vec2(4.0f * r, 0.0f);
 	vec2 pos = vec2(3.0f * r, world_size.y * 0.5f);
 	for (int i = 0; i < num_particles; ++i) {
 		int idx = pbd_unified_sim_add_particle(sim, pos, 1000);
 		pbd_unified_sim_particle_set_params(sim, idx, 0.0f, 0.0f, e);
         pos += dp;
-        e -= 1.0f/num_particles;
+		e -= 1.0f / num_particles;
+	}
+}
+
+void scene_static_dynamic_friction_test(PBDUnifiedSimulation* sim) {
+	const float r = pbd_unified_sim_get_particle_radius(sim);
+	vec2 world_size = pbd_unified_sim_get_world_bounds(sim);
+	CollisionWorld* cworld = collision_create_world();
+	pbd_unified_sim_set_collision_world(sim, cworld);
+
+	vec2 ppos = vec2(0.35f * world_size.x, 0.5f * world_size.y);
+	int idx = pbd_unified_sim_add_particle(sim, ppos, 1000);
+	const float e = 0.75f;
+	pbd_unified_sim_particle_set_params(sim, idx, 0.0f, 0.0f, e);
+
+	// initialize_particle_positions2(sim, world_size * 0.25f, 20, 1000, 0.0f, 0.0f, e);
+
+	{
+		SDFBoxCollision box;
+		box.pos = vec2(world_size.x * 0.25f, r * 3);
+		box.rot = rotate2(30.0f * M_PI / 180.0f);
+		box.size = vec2(5 * r, 3 * r);
+		collision_add_box(cworld, box);
+	}
+
+	if (0) {
+		SDFBoxCollision box;
+		box.pos = vec2(world_size.x * 0.75f, r * 3);
+		box.rot = rotate2(100.0f * M_PI / 180.0f);
+		box.size = vec2(5 * r, 7 * r);
+		collision_add_box(cworld, box);
+	}
+}
+
+// !NB: for exact effect need to remove sleeping functionality
+void scene_restitution_chain_of_bodies(PBDUnifiedSimulation* sim) {
+	const float r = pbd_unified_sim_get_particle_radius(sim);
+	vec2 world_size = pbd_unified_sim_get_world_bounds(sim);
+
+	// striker
+	vec2 pos0 = vec2(world_size.x * 0.2f, 1.0f * r);
+	// still particles
+	vec2 pos1 = vec2(world_size.x * 0.5f, 1.0f * r);
+	vec2 pos2 = vec2(world_size.x * 0.5f + 2.0f * r, 1.0f * r);
+	vec2 pos3 = vec2(world_size.x * 0.5f + 4.0f * r, 1.0f * r);
+
+	int idx0 = pbd_unified_sim_add_particle(sim, pos0, 1000);
+	int idx1 = pbd_unified_sim_add_particle(sim, pos1, 1000);
+	int idx2 = pbd_unified_sim_add_particle(sim, pos2, 1000);
+	int idx3 = pbd_unified_sim_add_particle(sim, pos3, 1000);
+
+	const float e = 1.0f; // try 1.0f and 0.0f
+	pbd_unified_sim_particle_set_params(sim, idx0, 0.0f, 0.0f, e);
+	pbd_unified_sim_particle_set_params(sim, idx1, 0.0f, 0.0f, e);
+	pbd_unified_sim_particle_set_params(sim, idx2, 0.0f, 0.0f, e);
+	pbd_unified_sim_particle_set_params(sim, idx3, 0.0f, 0.0f, e);
+
+	// shoot
+	pbd_unified_sim_particle_add_velocity(sim, idx0, vec2(3.0f, 0.0f));
+}
 	}
 }
 
 void scene_stacking_particles(PBDUnifiedSimulation* sim) {
 
-    vec2 world_size = pbd_unified_sim_get_world_bounds(sim);
-    initialize_particle_positions(sim, world_size, 10, 1000);
+    const float radius = pbd_unified_sim_get_particle_radius(sim);
+	vec2 offset = vec2(1.2f, 1.0f * radius+ 1);
+    initialize_particle_positions(sim, ivec2(10, 1), offset, 1000);
+}
+
+void scene_stacking_particles_and_box_above(PBDUnifiedSimulation* sim) {
+
+    const float radius = pbd_unified_sim_get_particle_radius(sim);
+
+	pbd_unified_sim_add_box_rigid_body(sim, 5, 4, vec2(1.0, 4), 0, 1000);
+
+	vec2 offset = vec2(1.2f, 1.0f * radius+ 1);
+	initialize_particle_positions(sim, ivec2(10, 1), offset, 1000);
 }
 
 void scene_friction_test(PBDUnifiedSimulation* sim) {
@@ -62,7 +143,8 @@ void scene_friction_test(PBDUnifiedSimulation* sim) {
 			float jitter = 0; // random(-0.01f, 0.01f);
 			vec2 pos = offset + vec2(x * 2.0f * radius + jitter, y * 2.0f * radius);
 
-			pbd_unified_sim_add_particle(sim, pos, density0);
+			int pidx = pbd_unified_sim_add_particle(sim, pos, density0 - y*100);
+            pbd_unified_sim_particle_set_params(sim, pidx, .4f, 0.1f, 0.0f);
 		}
 	}
 }
@@ -130,8 +212,9 @@ void scene_particle_box_collision_test(PBDUnifiedSimulation* sim) {
 }
 
 void scene_complex(PBDUnifiedSimulation* sim) {
-    vec2 world_size = pbd_unified_sim_get_world_bounds(sim);
-    initialize_particle_positions(sim, world_size, 10, 1000);
+	const float radius = pbd_unified_sim_get_particle_radius(sim);
+	vec2 offset = vec2(1.2f, 1.0f * radius+ 1);
+    initialize_particle_positions(sim, ivec2(10, 0), offset, 1000);
 
     vec2 rb_pos = vec2(0.2f, 3.2f);
     pbd_unified_sim_add_box_rigid_body(sim, 3, 1, rb_pos, 0*45.0f* 3.1415f/180.0f, 1000);
@@ -421,10 +504,12 @@ void scene_rb_static_collision(PBDUnifiedSimulation* sim) {
       //collision_add_box(cworld, box);
 
     const float density0 = 1000;
-    /*int rb2_idx = */pbd_unified_sim_add_box_rigid_body(sim, 10, 2, world_size*0.5f, 0*30.0f* 3.1415f/180.0f, density0);
+    /*int rb2_idx = */pbd_unified_sim_add_box_rigid_body(sim, 5, 2, vec2(25*radius, world_size.y*0.5f), 0*30.0f* 3.1415f/180.0f, density0);
     //pbd_unified_sim_rb_add_velocity(sim, rb2_idx, vec2(10, 0));
     
-    vec2 ppos = vec2(world_size.x*0.25, radius*30);
+    pbd_unified_sim_add_box_rigid_body(sim, 5, 1, vec2(10*radius, world_size.y*0.5f), 0*30.0f* 3.1415f/180.0f, density0);
+    
+    vec2 ppos = vec2(2*radius, radius*30);
 	pbd_unified_sim_add_particle(sim, ppos, density0);
 }
 
@@ -436,7 +521,10 @@ PBDTestObject* PBDTestObject::Create() {
     o->sim_origin_ = vec2(0,0);
     o->sim_ = pbd_unified_sim_create(o->sim_dim_);
 
-    scene_restitution_test(o->sim_);
+    //scene_initial_penetration(o->sim_);
+    //scene_restitution_test(o->sim_);
+    //scene_static_dynamic_friction_test(o->sim_);
+    //scene_restitution_chain_of_bodies(o->sim_);
     //scene_stacking_particles(o->sim_);
     //scene_stacking_particles_and_box_above(o->sim_);
     //scene_complex(o->sim_);
@@ -451,7 +539,7 @@ PBDTestObject* PBDTestObject::Create() {
     //scene_distant_constraint_simple(o->sim_);
     //scene_distant_constraint_two_ropes(o->sim_);
     //scene_rope_and_rigid_body(o->sim_);
-    //scene_rb_static_collision(o->sim_);
+    scene_rb_static_collision(o->sim_);
 
 	return o;
 }
@@ -695,12 +783,29 @@ void PBDTestObject::AddRenderPackets(struct RenderFrameContext *rfc) const {
     END_ZONE(part_draw);
 }
 
-void initialize_particle_positions(struct PBDUnifiedSimulation* sim, const vec2& dim, int count,
+void initialize_particle_positions(struct PBDUnifiedSimulation* sim,
+								   const ivec2& row_column, const vec2 offset,
 								   float density0) {
 
 	const float radius = pbd_unified_sim_get_particle_radius(sim);
-	vec2 offset = vec2(1.2f, 1.0f * radius+ 1);
-	int row_size = 1;//(int)(sqrtf((float)count) + 1.5f);
+	int row_size = row_column.x;
+	int column_size = row_column.y;
+	for (int y = 0; y < row_size; ++y) {
+		for (int x = 0; x < column_size; ++x) {
+
+			float jitter = 0; // random(-0.01f, 0.01f);
+			vec2 pos = offset + vec2(x * 2.0f * radius + jitter, y * 2.0f * radius);
+
+			pbd_unified_sim_add_particle(sim, pos, density0);
+		}
+	}
+}
+
+void initialize_particle_positions2(struct PBDUnifiedSimulation* sim, const vec2& offset, int count,
+								   float density0, float mu_s, float mu_k, float e) {
+
+	const float radius = pbd_unified_sim_get_particle_radius(sim);
+	int row_size = (int)(sqrtf((float)count) + 1.5f);
 	int column_size = (count + row_size - 1) / row_size;
 	for (int y = 0; y < column_size; ++y) {
 		for (int x = 0; x < row_size; ++x) {
@@ -711,7 +816,8 @@ void initialize_particle_positions(struct PBDUnifiedSimulation* sim, const vec2&
 			float jitter = 0; // random(-0.01f, 0.01f);
 			vec2 pos = offset + vec2(x * 2.0f * radius + jitter, y * 2.0f * radius);
 
-			pbd_unified_sim_add_particle(sim, pos, density0);
+			int p_idx = pbd_unified_sim_add_particle(sim, pos, density0);
+            pbd_unified_sim_particle_set_params(sim, p_idx, 0.0f, 0.0f, e);
 		}
 	}
 }
