@@ -107,8 +107,6 @@ void scene_restitution_chain_of_bodies(PBDUnifiedSimulation* sim) {
 	// shoot
 	pbd_unified_sim_particle_add_velocity(sim, idx0, vec2(3.0f, 0.0f));
 }
-	}
-}
 
 void scene_stacking_particles(PBDUnifiedSimulation* sim) {
 
