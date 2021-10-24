@@ -1,3 +1,4 @@
+#include "renderer.h"
 #include "sph_object.h"
 #include "sph.h"
 #include "sph_boundary.h"
@@ -9,6 +10,8 @@
 #include "utils/vec.h"
 #include "utils/quaternion.h"
 #include "utils/camera_utils.h" // screen2world_vec
+
+#include <cstddef> // offsetof
 
 SPHBoundaryComponent* SPHBoundaryComponent::Create(const SPHSimulation *sim, const vec2 &dim, bool b_invert, bool b_dynamic) {
 
