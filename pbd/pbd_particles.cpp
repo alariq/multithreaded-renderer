@@ -871,6 +871,7 @@ void solve_box_boundary(const BoxBoundaryConstraint& c, vec2 pos, int particle_i
 
         dx.x = c.p_max.x - (pos.x + r);
         sim->num_constraints_[particle_idx]++;
+        n = vec2(1,0);
 		ci.r1 = vec2(pos.x + r, pos.y);
 		ci.r2 = vec2(c.p_max.x, pos.y);
     }
