@@ -6,6 +6,7 @@
 
 struct SDFBoxCollision {
     vec2 pos;
+    mat2 rot;
     vec2 size;
     // flags etc..
 };
