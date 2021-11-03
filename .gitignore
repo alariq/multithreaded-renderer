@@ -1,9 +1,17 @@
 .vscode/
 .clangd/
 .ccls-cache/
+.cache/
+.vs/
+build-msvc-x64/
+build-nmake-clang/
+build-nmake-msvc/
+build-nmake-msvc-x64/
+cmake-nmake/
 dump/
 *.swp
 *.dll
+*.plist
 build/
 build-rel/
 build-x64/
