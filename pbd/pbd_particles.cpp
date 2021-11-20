@@ -571,6 +571,10 @@ void solve_shape_matching_c(const ShapeMatchingConstraint& c,
 
     float delta_angle;
     mat2 Q = calculateQ(A, &delta_angle);
+    if(fabsf(delta_angle)< 1e-6) {
+        delta_angle = 0.0f;
+    }
+
     rb.angle = rb.angle0 + delta_angle;
     // test
     mat2 rot_m = rotate2(rb.angle);
@@ -578,10 +582,21 @@ void solve_shape_matching_c(const ShapeMatchingConstraint& c,
 
 	for (int di = rb.start_part_idx; di < rb.start_part_idx + rb.num_part; ++di) {
         int pi = rb_data[di].index;
-		vec2 dx = (Q * rb_data[di].x0 + com) - x_pred[pi];
+        vec2 dx = vec2(0.0f);
+        if(delta_angle!=0.0f) {
+            dx = (Q * rb_data[di].x0 + com) - x_pred[pi];
+        } else {
+            dx = (rb_data[di].x0 + com) - x_pred[pi];
+        }
+
+        if(fabsf(dx.x)>1e-6 || fabsf(dx.y)>1e-6) {
+			//sim->dp_[pi] += vec2(fabs(dx.x) > 1e-6 ? dx.x : 0.0f, fabsf(dx.y) > 1e-6 ? dx.y : 0.0f);
+            
         sim->dp_[pi] += dx;
         sim->num_constraints_[pi]++;
+	    
 	    //x_pred[pi] += dx;
+        }
 	}
 }
 
@@ -1114,6 +1129,8 @@ void pbd_unified_timestep(PBDUnifiedSimulation* sim, float dt) {
     uts.SimulateXPBD(sim, dt);
 }
 
+//#define SHAPE_MATCHING_FIX
+
 void PBDUnifiedTimestep::SimulateIteration(PBDUnifiedSimulation* sim, float dt, bool b_stabilization) {
     SCOPED_ZONE_N(sim_iter, 0);
 
@@ -1137,6 +1154,28 @@ void PBDUnifiedTimestep::SimulateIteration(PBDUnifiedSimulation* sim, float dt, 
     if(!b_stabilization) {
 		fluidUpdate(sim, dt, x_pred);
     }
+
+#if defined(SHAPE_MATCHING_FIX)
+    for(auto c: sim->shape_matching_c_) {
+        solve_shape_matching_c(c, sim->rb_particles_data_.data(), sim);
+
+        // update immediately, helps with bouncing
+        const PBDRigidBody& rb = sim->rigid_bodies_[c.rb_index];
+	    for (int di = rb.start_part_idx; di < rb.start_part_idx + rb.num_part; ++di) {
+            int i = sim->rb_particles_data_[di].index;
+        
+            if (sim->num_constraints_[i]) {
+                vec2 dp_i = (kSOR / sim->num_constraints_[i]) * dp[i];
+                if (b_stabilization) {
+                    p[i].x += dp_i;
+                }
+                x_pred[i] += dp_i;
+                sim->num_constraints_[i] = 0;
+                sim->dp_[i] = vec2(0);
+            }
+        }
+    }
+#endif
 
 
 	std::vector<CollisionContact> ccs;
@@ -1225,9 +1264,21 @@ void PBDUnifiedTimestep::SimulateIteration(PBDUnifiedSimulation* sim, float dt, 
         solve_particle_rb_collision_c(c, sim);
     }
 
+#if !defined(SHAPE_MATCHING_FIX)
     for(auto c: sim->shape_matching_c_) {
         solve_shape_matching_c(c, sim->rb_particles_data_.data(), sim);
     }
+#endif
+#if 0
+	for (int i = 0; i < num_particles; i++) {
+        for(const BoxBoundaryConstraint& c: sim->box_boundary_c_) {
+            if(!(p[i].flags & PBDParticleFlags::kFluid)) {
+                solve_box_boundary(c, x_pred[i], i, sim); 
+            }
+        }
+    }
+#endif
+
 
 	//  adjust x* = x* + dx;
 	// could set num_constraints to 1 during initialization to avoid branch
