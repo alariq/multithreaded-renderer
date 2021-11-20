@@ -498,7 +498,9 @@ void solve_distance_c(const DistanceConstraint& c, PBDUnifiedSimulation* sim, co
 
     const float len01 = length(x_pred[c.idx0] - x_pred[c.idx1]);
 
-	vec2 gradC = (x_pred[c.idx0] - x_pred[c.idx1]) / len01;
+	// len can be 0 often if initialy particles are inside collision geometry and then get
+	// adjusted same distance outwards
+	vec2 gradC = len01==0 ? vec2(0) : (x_pred[c.idx0] - x_pred[c.idx1]) / len01;
     const float inv_mass_i = 0 ? sim->inv_scaled_mass_[c.idx0] : p0.inv_mass;
     const float inv_mass_j = 0 ? sim->inv_scaled_mass_[c.idx1] : p1.inv_mass;
 
@@ -1281,7 +1283,7 @@ void PBDUnifiedTimestep::SimulateXPBD(PBDUnifiedSimulation* sim, const float dt)
 			const float max_vel_ = kCFL * sim->particle_r_;
 			if (dp_len > max_vel_) {
 				dpv *= max_vel_ / dp_len;
-				p[i].x = p[i].x + dpv;
+				x_pred[i] = p[i].x + dpv;
 			}
 #endif
 
