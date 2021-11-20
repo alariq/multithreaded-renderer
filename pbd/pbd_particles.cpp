@@ -1111,6 +1111,7 @@ class PBDUnifiedTimestep {
 
     void SimulateIteration(PBDUnifiedSimulation* sim, float dt, bool b_stabilization);
     void VelocityUpdate(PBDUnifiedSimulation* sim, const float h);
+    void VelocityUpdateRigidBody(PBDUnifiedSimulation* sim, const float h);
     void fluidUpdate(PBDUnifiedSimulation* sim, float dt, std::vector<vec2>& pos_array);
     void fluidUpdate_GS(PBDUnifiedSimulation* sim, float dt, const std::vector<vec2>& pos_array);
     float getBoundaryDensity(PBDUnifiedSimulation* sim, int i, const std::vector<vec2>& pos_array, float boundary_mass);
@@ -1305,6 +1306,8 @@ constexpr const float very_small_float = 1e-12;
 void PBDUnifiedTimestep::VelocityUpdate(PBDUnifiedSimulation* sim, const float h) {
     SCOPED_ZONE_N(VelocityUpdate, 0);
 
+    //return VelocityUpdateRigidBody(sim, h);
+
     const int num_particles = (int)sim->particles_.size();
 	std::vector<PBDParticle>& particles = sim->particles_;
 
@@ -1330,12 +1333,13 @@ void PBDUnifiedTimestep::VelocityUpdate(PBDUnifiedSimulation* sim, const float h
 							? -(vt / vt_len) * min(h * ci.mu_d * fn, vt_len)
 							: vec2(0.0f);
 
-
 		// restitution, Eq. 34
 		const vec2 v_prev = ci.v1_pre - ci.v2_pre;
 		const float v_prev_n = dot(v_prev, ci.n);
-		const float e = particles[ci.idx1].e;
-        // !NB: original paper has: min() but probably it is an error
+		const float e = fabsf(v_prev_n) < 2 * 9.81f * h ? 0.0f : particles[ci.idx1].e;
+		// !NB: original paper has: min() in the last term, but probably it is an error or
+		// their normal faces in other direction. Also maybe it makes sense to substitute
+		// vn for min(vn,0) to not remove velocity if object moves avay from a contact
 		vec2 restitution_dv1 = ci.n * (-vn + max(-e * v_prev_n, 0.0f));
 
 		// apply delta velocity
@@ -1343,15 +1347,132 @@ void PBDUnifiedTimestep::VelocityUpdate(PBDUnifiedSimulation* sim, const float h
 		// apply it again?
 		const float w1 = particles[ci.idx1].inv_mass;
 		const float w2 = ci.idx2==-1 ? 0.0f : particles[ci.idx2].inv_mass;
-
 		vec2 p = (dv + restitution_dv1) / (w1 + w2);
 		particles[ci.idx1].v += p * w1;
+
+		// NOTE: can use fake index to avoid 'if'
+		if (ci.idx2 != -1) {
+			float e2 = fabsf(v_prev_n)<2*9.81f*h ? 0.0f : particles[ci.idx2].e;
+		    const vec2 restitution_dv2 = ci.n * (-vn + max(-e2 * v_prev_n, 0.0f));
+			const vec2 p2 = (dv + restitution_dv2) / (w1 + w2);
+			particles[ci.idx2].v -= p2 * w2;
+		}
+	}
+}
+
+void PBDUnifiedTimestep::VelocityUpdateRigidBody(PBDUnifiedSimulation* sim, const float h) {
+    SCOPED_ZONE_N(VelocityUpdateRigidBody, 0);
+
+#if 1
+    vec2 rb_v = vec2(0.0f, 0.0f);
+    float rb_omega= 0.0f;
+    int count = 0;
+    int rb_idx = -1;
+    vec2 com;
+    vec2 n;
+    constexpr const int MAX_PART = 256;
+    //int arr[MAX_PART] = {};
+#endif
+
+    const int num_particles = (int)sim->particles_.size();
+	std::vector<PBDParticle>& particles = sim->particles_;
+
+	for (const ContactInfo& ci : sim->contacts_info_) {
+        assert(ci.idx1 < num_particles);
+        assert(ci.idx2==-1 || ci.idx2 < num_particles);
+		assert(0 == (particles[ci.idx1].flags & PBDParticleFlags::kFluid));
+		assert(ci.idx2==-1 || (0 == (particles[ci.idx2].flags & PBDParticleFlags::kFluid)));
+
+		// these velocities are calculated after sim iteration, so we do not know them at
+		// the moment of collision check, so cannot store in ContactInfo
+		const vec2 v1 = particles[ci.idx1].v;
+		const vec2 v2 = ci.idx2 != -1 ? particles[ci.idx2].v : vec2(0.0f);
+		const vec2 v = v1 - v2;
+		const float vn = dot(ci.n, v);
+		const vec2 vt = v - vn * ci.n;
+
+        // maybe just do not nullify velocity (reflect: -vn) but still resolve contact?
+        //if(vn>0)
+         //   continue;
+
+		// friction force (dynamic friction)
+		const float vt_len = length(vt);
+		const float fn = fabsf(ci.d_lambda_n / (h * h));
+		// Eq. 30
+		const vec2 dv = vt_len > very_small_float
+							? -(vt / vt_len) * min(h * ci.mu_d * fn, vt_len)
+							: vec2(0.0f);
+
+
+		// restitution, Eq. 34
+		const vec2 v_prev = ci.v1_pre - ci.v2_pre;
+		const float v_prev_n = dot(v_prev, ci.n);
+		const float e = particles[ci.idx1].e;
+        // !NB: original paper has: min() in the first term, but probably it is an error
+        // min() in the first term is added to not push particle back inside if it is already moving in the normal direction
+        // though, probably will have to separately calculate restitution_dv2 
+		vec2 restitution_dv1 = ci.n * (-min(vn,0.0f) - min(e * v_prev_n, 0.0f));
+
+		// apply delta velocity
+		// NOTE: probably should first apply dv and then calculate restitution_dv and
+		// apply it again?
+		const float w1 = particles[ci.idx1].inv_mass;
+		const float w2 = ci.idx2==-1 ? 0.0f : particles[ci.idx2].inv_mass;
+
+        rb_idx = particles[ci.idx1].phase;
+        const float Iinv = sim->rigid_bodies_[rb_idx].Iinv;
+        com = rb_calc_com(sim->rigid_bodies_[rb_idx], sim->x_pred_.data(), sim->rb_particles_data_.data());
+        vec2 r = sim->x_pred_[ci.idx1] - com;
+        const int npart = sim->rigid_bodies_[rb_idx].num_part;
+		const float rb_inv_mass = sim->particles_[0].inv_mass / npart;
+
+        vec3 temp = cross(vec3(r, 0), vec3(ci.n,0));
+        const float gw1 = rb_inv_mass + dot(temp, Iinv*temp);
+
+		vec2 p = (dv + restitution_dv1) / (gw1 + w2);
+		//particles[ci.idx1].v += p * w1;
+#if 1
+
+        rb_v += ((dv + restitution_dv1 + 0*vn*ci.n) / (gw1 + w2))*rb_inv_mass; // should be the whole mass of rb
+        n = ci.n;
+        assert(ci.idx1<MAX_PART);
+        //arr[ci.idx1] = 1;
+        //const PBDRigidBodyParticleData& data = sim->rb_particles_data_[particles[ci.idx1].rb_data_idx];
+        vec3 c = cross(vec3(r,0), vec3(p, 0.0f));
+        assert(c.x==0 && c.y == 0);
+        rb_omega += Iinv * c.z;
+        count++;
+#endif
 		// NOTE: can use fake index to avoid 'if'
 		if (ci.idx2 != -1) {
 			const float e2 = particles[ci.idx2].e;
 			const vec2 restitution_dv2 = ci.n * (-vn + max(-e2 * v_prev_n, 0.0f));
 			const vec2 p2 = (dv + restitution_dv2) / (w1 + w2);
 			particles[ci.idx2].v -= p2 * w2;
+		}
+	}
+
+	if (count) {
+		// apply velocity to all rb particles according to impulse
+		const int start = sim->rigid_bodies_[rb_idx].start_part_idx;
+        const int npart = sim->rigid_bodies_[rb_idx].num_part;
+		const int end = start + npart;
+		for (int i = start; i != end; ++i) {
+			int idx = sim->rb_particles_data_[i].index;
+            vec2 r = sim->x_pred_[idx] - com;
+
+
+			vec3 cr = cross(vec3(0, 0, rb_omega), vec3(r, 0));
+            /*
+			assert(idx < MAX_PART);
+			if (arr[idx]) {
+				const vec2 v = particles[idx].v;
+				const float vn = dot(n, v);
+				sim->particles_[idx].v += -n * vn;
+			}
+            */
+
+			sim->particles_[idx].v += rb_v/count + cr.xy()/count;
 		}
 	}
 }
