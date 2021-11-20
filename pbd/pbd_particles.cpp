@@ -18,6 +18,7 @@
 // investigate why particles go nuts and enable after that, because enabling this, will
 // hide the problem
 #define ENABLE_CFL 1
+#define VELOCITY_UPDATE 1
 
 struct Pair {
 	int start;
@@ -656,11 +657,16 @@ void solve_solid_particle_collision_c(const SolidParticlesCollisionConstraint& c
     vec2 dxp = dx - (dot(dx, gradC))*gradC;
     const float ldxp = length(dxp);
     // part of velocity update pass
-	//if (ldxp > mu_s * -d) {
-	//	dxp = dxp * min(mu_k * -d / ldxp, 1.0f);
-	//}
+	if (ldxp > mu_s * -d) {
+		dxp = dxp * min(mu_k * -d / ldxp, 1.0f);
+	}
 
-	if (ldxp < mu_s * -d) {
+// if velocity update is present then apply only static friction here, as dynamic friction
+// is calculated there
+#if VELOCITY_UPDATE 
+	if (ldxp < mu_s * -d)
+#endif
+    {
 		sim->dp_[c.idx0] += -inv_mass_i / (inv_mass_i + inv_mass_j) * dxp;
 		sim->dp_[c.idx1] += +inv_mass_j / (inv_mass_i + inv_mass_j) * dxp;
 	}
@@ -676,7 +682,6 @@ void solve_solid_particle_collision_c(const SolidParticlesCollisionConstraint& c
     ci.v2_pre = p1.v;
     ci.mu_d = mu_k;
     ci.d_lambda_n = dot(dx, ci.n);
-
     sim->contacts_info_.push_back(ci);
 
 }
@@ -759,14 +764,30 @@ void solve_particle_rb_collision_c(const ParticleRigidBodyCollisionConstraint& c
 			(sim->x_pred_[c.idx0] + dp0 - p0.x) - (sim->x_pred_[c.idx1] + dp1 - p1.x);
 
 		// perp projection
-		vec2 dxp = dx - fabsf(dot(dx, gradC)) * gradC;
+		vec2 dxp = dx - dot(dx, gradC) * gradC;
 		const float ldxp = length(dxp);
 		if (ldxp > mu_s * -d) {
 			dxp = dxp * min(mu_k * -d / ldxp, 1.0f);
 		}
-
+// if velocity update is present then apply only static friction here, as dynamic friction
+// is calculated there
+#if VELOCITY_UPDATE 
+		if (ldxp < mu_s * -d)
+#endif
+		{
 		sim->dp_[c.idx0] += -w0 / (w0 + w1) * dxp;
 		sim->dp_[c.idx1] += +w1 / (w0 + w1) * dxp;
+	}
+
+        ContactInfo ci;
+        ci.n = gradC;
+        ci.idx1 = c.idx0;
+        ci.v1_pre = p0.v;
+        ci.idx2 = c.idx1;
+        ci.v2_pre = p1.v;
+        ci.mu_d = mu_k;
+        ci.d_lambda_n = dot(dx, ci.n);
+        sim->contacts_info_.push_back(ci);
 	}
 
 	sim->num_constraints_[c.idx0]++;
@@ -856,9 +877,25 @@ void solve_rb_collision_c(const RigidBodyCollisionConstraint& c, PBDUnifiedSimul
 	if (ldxp > mu_s * -d) {
 		dxp = dxp * min(mu_k * -d / ldxp, 1.0f);
 	}
-
+// if velocity update is present then apply only static friction here, as dynamic friction
+// is calculated there
+#if VELOCITY_UPDATE 
+	if (ldxp < mu_s * -d)
+#endif
+    {
 	sim->dp_[c.idx0] += -w0/(w0 + w1) * dxp;
     sim->dp_[c.idx1] += +w1/(w0 + w1) * dxp;
+    }
+
+    ContactInfo ci;
+    ci.n = gradC;
+    ci.idx1 = c.idx0;
+    ci.v1_pre = p0.v;
+    ci.idx2 = c.idx1;
+    ci.v2_pre = p1.v;
+    ci.mu_d = mu_k;
+    ci.d_lambda_n = dot(dx, ci.n);
+    sim->contacts_info_.push_back(ci);
 
 	sim->num_constraints_[c.idx0]++;
     sim->num_constraints_[c.idx1]++;
@@ -987,46 +1024,6 @@ void solve_box_boundary(const BoxBoundaryConstraint& c, vec2 pos, int particle_i
     }
 }
 
-    sim->dp_[particle_idx] += dx;
-    const bool had_collision = sim->num_constraints_[particle_idx] > prev_constraints;
-
-    const bool is_fluid = sim->particles_[particle_idx].flags & PBDParticleFlags::kFluid;
-	if (had_collision && !is_fluid) {
-
-		const float mu_s = 0.5f * (c.mu_s + sim->particles_[particle_idx].mu_s);
-        //const float mu_k = 0.5f * (c.mu_k + sim->particles_[particle_idx].mu_k);
-
-		float d = length(dx);
-
-		// friction
-		vec2 dxp = (sim->x_pred_[particle_idx] + dx) - sim->particles_[particle_idx].x;
-		// perp projection, I think abs is necessary here
-		dxp = dxp - fabsf(dot(dxp, n)) * n;
-		const float ldxp = length(dxp);
-        // see 3.5 in Detailed RB Simulation ... paper
-		if (ldxp > mu_s * d) {
-			//dxp = dxp * min(mu_k * d / ldxp, 1.0f);
-            // dynamic friction is handled in update velocity
-		}
-        if(ldxp < mu_s * d)
-		sim->dp_[particle_idx] -= dxp;
-	}
-
-    if(had_collision) {
-        ci.idx1 = particle_idx;
-        ci.v1_pre = sim->particles_[particle_idx].v;
-        ci.idx2 = -1;
-        ci.v2_pre = vec2(0);
-        ci.n = -n;
-        ci.mu_d = 0.5f * (c.mu_k + sim->particles_[particle_idx].mu_k);
-
-		vec2 dxp = (sim->x_pred_[particle_idx] + dx) - sim->particles_[particle_idx].x;
-        ci.d_lambda_n = dot(dxp, ci.n);
-
-        sim->contacts_info_.push_back(ci);
-    }
-}
-
 void solve_collision_constraint(CollisionContact& cc, PBDUnifiedSimulation* sim,
 								const CollisionWorld* cword, const vec2* x_pred) {
 
@@ -1036,17 +1033,42 @@ void solve_collision_constraint(CollisionContact& cc, PBDUnifiedSimulation* sim,
     sim->dp_[particle_idx] += dx;
     sim->num_constraints_[particle_idx]++;
 
+    // TODO: provide collision material as well
+    const float mu_s = sim->particles_[particle_idx].mu_s;
+    const float mu_k = sim->particles_[particle_idx].mu_k;
+
+		// friction
+    vec2 dxp = (sim->x_pred_[particle_idx] ) - sim->particles_[particle_idx].x + dx;
+    float dxn = dot(dxp, cc.n);
+		// perp projection, I think abs is necessary here
+    dxp = dxp - dxn * cc.n;
+		const float ldxp = length(dxp);
+        // see 3.5 in Detailed RB Simulation ... paper
+    if (ldxp >= mu_s * cc.dist) {
+            // dynamic friction is handled in update velocity
+        dxp = dxp * min(mu_k * cc.dist / ldxp, 1.0f);
+		}
+    // if velocity update is present then apply only static friction here, as dynamic friction
+    // is calculated there
+#if VELOCITY_UPDATE 
+    // looks like using dxn/dxp is better, at least they are related
+    if(ldxp < mu_s * cc.dist)
+#endif
+    {
+        // apply static friction
+		sim->dp_[particle_idx] -= dxp;
+	}
+
     ContactInfo ci;
     ci.idx1 = particle_idx;
     ci.v1_pre = sim->particles_[particle_idx].v;
     ci.idx2 = -1;
     ci.v2_pre = vec2(0);
     ci.n = cc.n;
-    //ci.mu_d = 0.5f * (c.mu_k + sim->particles_[particle_idx].mu_k);
-    ci.mu_d = sim->particles_[particle_idx].mu_k;
+    ci.mu_d = mu_k;
 
-    vec2 dxp = (sim->x_pred_[particle_idx] + dx) - sim->particles_[particle_idx].x;
-    ci.d_lambda_n = dot(dxp, ci.n);
+    vec2 path = (sim->x_pred_[particle_idx] + dx) - sim->particles_[particle_idx].x;
+    ci.d_lambda_n = dot(path, ci.n);
 
     // needs check:
     vec2 pos = sim->x_pred_[particle_idx];
@@ -1392,7 +1414,9 @@ void PBDUnifiedTimestep::SimulateXPBD(PBDUnifiedSimulation* sim, const float dt)
 			}
 		}
 
+        if(VELOCITY_UPDATE) {
         VelocityUpdate(sim, h);
+        }
 
 	}
 }
