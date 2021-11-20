@@ -51,32 +51,66 @@ void scene_restitution_test(PBDUnifiedSimulation* sim) {
 	}
 }
 
-void scene_static_dynamic_friction_test(PBDUnifiedSimulation* sim) {
+void scene_static_particle_friction_test(PBDUnifiedSimulation* sim) {
 	const float r = pbd_unified_sim_get_particle_radius(sim);
 	vec2 world_size = pbd_unified_sim_get_world_bounds(sim);
 	CollisionWorld* cworld = collision_create_world();
 	pbd_unified_sim_set_collision_world(sim, cworld);
 
-	vec2 ppos = vec2(0.35f * world_size.x, 0.5f * world_size.y);
-	int idx = pbd_unified_sim_add_particle(sim, ppos, 1000);
-	const float e = 0.75f;
-	pbd_unified_sim_particle_set_params(sim, idx, 0.0f, 0.0f, e);
+	vec2 ppos = vec2(0.35f * world_size.x, 0.3f * world_size.y);
+	int idx0 = pbd_unified_sim_add_particle(sim, ppos, 1000);
+	int idx1 = pbd_unified_sim_add_particle(sim, ppos + vec2(30*r,0), 1000);
+	pbd_unified_sim_particle_set_params(sim, idx0, 0.1f, 0.0f, 0.0);
+	pbd_unified_sim_particle_set_params(sim, idx1, 0.9f, 0.0f, 0.0);
 
 	// initialize_particle_positions2(sim, world_size * 0.25f, 20, 1000, 0.0f, 0.0f, e);
 
 	{
 		SDFBoxCollision box;
-		box.pos = vec2(world_size.x * 0.25f, r * 3);
-		box.rot = rotate2(30.0f * M_PI / 180.0f);
-		box.size = vec2(5 * r, 3 * r);
+		box.pos = vec2(world_size.x * 0.3f, r * 3);
+		box.rot = rotate2(5.0f * M_PI / 180.0f);
+		box.size = vec2(15 * r, 3 * r);
 		collision_add_box(cworld, box);
 	}
 
-	if (0) {
+	if (1) {
 		SDFBoxCollision box;
-		box.pos = vec2(world_size.x * 0.75f, r * 3);
-		box.rot = rotate2(100.0f * M_PI / 180.0f);
-		box.size = vec2(5 * r, 7 * r);
+		box.pos = vec2(world_size.x * 0.3f + 30.0f*r, r * 3);
+		box.rot = rotate2(5.0f * M_PI / 180.0f);
+		box.size = vec2(15 * r, 3 * r);
+		collision_add_box(cworld, box);
+	}
+}
+
+
+void scene_dynamic_particle_friction_test(PBDUnifiedSimulation* sim) {
+	const float r = pbd_unified_sim_get_particle_radius(sim);
+	vec2 world_size = pbd_unified_sim_get_world_bounds(sim);
+	CollisionWorld* cworld = collision_create_world();
+	pbd_unified_sim_set_collision_world(sim, cworld);
+
+	vec2 ppos = vec2(0.35f * world_size.x, 0.3f * world_size.y);
+	int idx0 = pbd_unified_sim_add_particle(sim, ppos, 1000);
+	int idx1 = pbd_unified_sim_add_particle(sim, ppos + vec2(30*r,0), 1000);
+    // first particle should reach end first because of less dynamic friction
+	pbd_unified_sim_particle_set_params(sim, idx0, 0.1f, 0.0f, 0.0);
+	pbd_unified_sim_particle_set_params(sim, idx1, 0.1f, 0.6f, 0.0);
+
+	// initialize_particle_positions2(sim, world_size * 0.25f, 20, 1000, 0.0f, 0.0f, e);
+
+	{
+		SDFBoxCollision box;
+		box.pos = vec2(world_size.x * 0.3f, r * 3);
+		box.rot = rotate2(5.0f * M_PI / 180.0f);
+		box.size = vec2(15 * r, 3 * r);
+		collision_add_box(cworld, box);
+	}
+
+	if (1) {
+		SDFBoxCollision box;
+		box.pos = vec2(world_size.x * 0.3f + 30.0f*r, r * 3);
+		box.rot = rotate2(5.0f * M_PI / 180.0f);
+		box.size = vec2(15 * r, 3 * r);
 		collision_add_box(cworld, box);
 	}
 }
@@ -150,7 +184,7 @@ void scene_friction_test(PBDUnifiedSimulation* sim) {
 void scene_single_rb_friction_test(PBDUnifiedSimulation* sim) {
 
     const float density0 = 1000;
-
+    // TODO: add functin to set material params (as for particles)
     int rb2_idx = pbd_unified_sim_add_box_rigid_body(sim, 7, 3, vec2(2,0.3f), 0*30.0f* 3.1415f/180.0f, density0);
     pbd_unified_sim_rb_add_velocity(sim, rb2_idx, vec2(10, 0));
 }
@@ -496,16 +530,17 @@ void scene_rb_static_collision(PBDUnifiedSimulation* sim) {
     pbd_unified_sim_set_collision_world(sim, cworld);
     
     SDFBoxCollision box;
-    box.pos = vec2(world_size.x*0.5, radius*3);
+    box.pos = vec2(world_size.x*0.9, radius*3);
+    box.rot = identity2();
     box.size = vec2(5*radius, 3*radius);
     //int cbox_idx = 
-      //collision_add_box(cworld, box);
+      collision_add_box(cworld, box);
 
     const float density0 = 1000;
-    /*int rb2_idx = */pbd_unified_sim_add_box_rigid_body(sim, 5, 2, vec2(25*radius, world_size.y*0.5f), 0*30.0f* 3.1415f/180.0f, density0);
-    //pbd_unified_sim_rb_add_velocity(sim, rb2_idx, vec2(10, 0));
+    int rb2_idx = pbd_unified_sim_add_box_rigid_body(sim, 5, 2, vec2(25*radius, world_size.y*0.5f), -0*65.0f* 3.1415f/180.0f, density0);
+    pbd_unified_sim_rb_add_velocity(sim, rb2_idx, vec2(2, 0));
     
-    pbd_unified_sim_add_box_rigid_body(sim, 5, 1, vec2(10*radius, world_size.y*0.5f), 0*30.0f* 3.1415f/180.0f, density0);
+    //pbd_unified_sim_add_box_rigid_body(sim, 5, 1, vec2(10*radius, world_size.y*0.5f), 0*30.0f* 3.1415f/180.0f, density0);
     
     vec2 ppos = vec2(2*radius, radius*30);
 	pbd_unified_sim_add_particle(sim, ppos, density0);
@@ -521,7 +556,8 @@ PBDTestObject* PBDTestObject::Create() {
 
     //scene_initial_penetration(o->sim_);
     //scene_restitution_test(o->sim_);
-    //scene_static_dynamic_friction_test(o->sim_);
+    //scene_static_particle_friction_test(o->sim_);
+    //scene_dynamic_particle_friction_test(o->sim_);
     //scene_restitution_chain_of_bodies(o->sim_);
     //scene_stacking_particles(o->sim_);
     //scene_stacking_particles_and_box_above(o->sim_);
