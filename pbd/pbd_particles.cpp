@@ -1553,7 +1553,8 @@ void PBDUnifiedTimestep::SimulateXPBD(PBDUnifiedSimulation* sim, const float dt)
 			scaled_mass[i] = p[i].inv_mass * exp(k * H(p[i].x)); // h(x_pred[i]) ?
 		}
 
-		if (iter < 1) {
+
+		if (!VELOCITY_UPDATE && iter < 0) {
 			SimulateIteration(sim, h, true);
 		} else {
             SimulateIteration(sim, h, false);
