@@ -42,13 +42,15 @@ struct PBDRigidBodyParticleData {
     uint32_t b_is_boundary: 1; // could be in flags;
 };
 
-struct PBDRigidBody{
+struct PBDRigidBody {
     // move to other struct as those are changing?
     vec2 x;
     float angle;
     float angle0;
     float mu_s; // static friction
     float mu_k; // kinetic friction
+    float e; // restitution
+    float Iinv; // invesrse inertia tensor
 
     // index and number of particles in PBDRigidBodyParticleData
     int start_part_idx;
