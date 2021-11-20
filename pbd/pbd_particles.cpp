@@ -348,11 +348,14 @@ int pbd_unified_sim_add_box_rigid_body(struct PBDUnifiedSimulation* sim, int siz
 		.angle0 = rot_angle,
         .mu_s = 0.5f,
         .mu_k = 0.3f,
+        .e = 0.5f,
+        .Iinv = 0.0f,
 		.start_part_idx = -1,
 		.num_part = size_x * size_y,
 		.flags = 0,
 	});
     const int rb_idx = (int)(sim->rigid_bodies_.size() - 1);
+    PBDRigidBody& rb = sim->rigid_bodies_[rb_idx];
 
 	const float r = sim->particle_r_;
     const vec2 rb_size = 2.0f * r * vec2(size_x, size_y);
@@ -368,6 +371,12 @@ int pbd_unified_sim_add_box_rigid_body(struct PBDUnifiedSimulation* sim, int siz
 
             x0 = rotate2(rot_angle) * x0;
 			int idx = pbd_unified_sim_add_particle(sim, pos + x0, density);
+
+            // velocity pass does not work with rigid bodies for now... 
+            // probably due to shape matching... only if all particles had collision
+            // so have to somehow pass velocity to other particles, but to which ones?
+            pbd_unified_sim_particle_set_params(sim, idx, rb.mu_s, rb.mu_k, rb.e);
+
             vec2 grad_norm = normalize(dist_grad.yz());
 			bool b_is_boundary = y == 0 || x == 0 || y == size_y - 1 || x == size_x - 1;
 			int data_idx = pbd_unified_sim_add_rb_particle_data(
@@ -384,7 +393,13 @@ int pbd_unified_sim_add_box_rigid_body(struct PBDUnifiedSimulation* sim, int siz
         }
     }
 
-    sim->rigid_bodies_[rb_idx].start_part_idx = start_idx;
+    rb.start_part_idx = start_idx;
+
+    // calc inertia tensor
+    const float mass = (2 * sim->particle_r_ * 2 * sim->particle_r_ * density);
+    const float rb_mass = mass * size_x * size_y;
+	const float I = (rb_mass / 12.0f) * lengthSqr(rb_size);
+	rb.Iinv = 1.0f/I;
 
     sim->shape_matching_c_.push_back(ShapeMatchingConstraint{rb_idx});
 
