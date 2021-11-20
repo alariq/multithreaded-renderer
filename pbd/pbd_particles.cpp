@@ -200,9 +200,8 @@ struct PBDUnifiedSimulation* pbd_unified_sim_create(vec2& sim_dim) {
 		//.b_invert = false,
 		.p_min = vec2(0),
 		.p_max = sim_dim,
-        .mu_s = 0.7f,
-        .mu_k = 0.4f,
-        // TODO: should this have 'e' as well? to represent e.g. rubber?
+        .mu_s = 1.0f,
+        .mu_k = 1.0f,
 	});
 	return sim;
 }
@@ -865,52 +864,128 @@ void solve_rb_collision_c(const RigidBodyCollisionConstraint& c, PBDUnifiedSimul
     sim->num_constraints_[c.idx1]++;
 }
 
+// resolves a contact of a particle and a static environment
+// TODO: maybe pass all params about environment as a material inistead of separate function parameters
+void resolve_contact(vec2 dx, const vec2 n, const int particle_idx,
+					 const float cont_mu_s, const float cont_mu_k, PBDUnifiedSimulation* sim) {
+
+    
+    const vec2 path = (sim->x_pred_[particle_idx] + dx) - sim->particles_[particle_idx].x;
+
+    const bool is_fluid = sim->particles_[particle_idx].flags & PBDParticleFlags::kFluid;
+	if (!is_fluid) {
+
+		const float mu_s = 0.5f * (cont_mu_s + sim->particles_[particle_idx].mu_s);
+        const float mu_k = 0.5f * (cont_mu_k + sim->particles_[particle_idx].mu_k);
+
+		float d = length(dx);
+
+		// friction
+		// perp projection, I think abs is necessary here
+		vec2 dxp = path - dot(path, n) * n;
+		const float ldxp = length(dxp);
+        // see 3.5 in Detailed RB Simulation ... paper
+		if (ldxp >= mu_s * d) {
+            // dynamic friction is handled in update velocity
+			dxp = dxp * min(mu_k * d / ldxp, 1.0f);
+		}
+
+// if velocity update is present then apply only static friction here, as dynamic friction
+// is calculated there
+#if VELOCITY_UPDATE 
+		if(ldxp < mu_s * d)
+#endif
+        {
+            // apply static friction
+            dx -= dxp;
+        }
+
+        if(VELOCITY_UPDATE) { 
+            ContactInfo ci;
+            ci.idx1 = particle_idx;
+            ci.v1_pre = sim->particles_[particle_idx].v;
+            ci.idx2 = -1;
+            ci.v2_pre = vec2(0);
+            ci.n = n;
+            ci.mu_d = mu_k;
+            ci.d_lambda_n = dot(dxp, ci.n);
+
+            sim->contacts_info_.push_back(ci);
+        }
+	}
+
+    const bool b_is_gauss_sidel_style = true;
+    if(b_is_gauss_sidel_style) {
+	    sim->x_pred_[particle_idx] += dx;
+    } else {
+        sim->num_constraints_[particle_idx]++;
+	    sim->dp_[particle_idx] += dx;
+    }
+
+}
+
 void solve_box_boundary(const BoxBoundaryConstraint& c, vec2 pos, int particle_idx, PBDUnifiedSimulation* sim) {
 
 	const float r = sim->particle_r_;
     vec2 dx = vec2(0);
-    vec2 n;
+    vec2 n = vec2(0);
 
-    const int prev_constraints = sim->num_constraints_[particle_idx];
-    ContactInfo ci;
+    bool b_collided = false;
 
     // case when width or height is less than a particle radius is not handled
     // we can change 'else if' for just 'if' but then still it would not work
 	if (pos.x - r < c.p_min.x) {
 
         dx.x = c.p_min.x - (pos.x - r);
-        sim->num_constraints_[particle_idx]++;
         n = vec2(-1,0);
-		ci.r1 = vec2(pos.x - r, pos.y);
-		ci.r2 = vec2(c.p_min.x, pos.y);
+        b_collided = true;
+        // TODO: those are part of a contact structure
+		//ci.r1 = vec2(pos.x - r, pos.y);
+		//ci.r2 = vec2(c.p_min.x, pos.y);
 
     } else if (pos.x + r > c.p_max.x) {
 
         dx.x = c.p_max.x - (pos.x + r);
-        sim->num_constraints_[particle_idx]++;
         n = vec2(1,0);
-		ci.r1 = vec2(pos.x + r, pos.y);
-		ci.r2 = vec2(c.p_max.x, pos.y);
+        b_collided = true;
+        // TODO: those are part of a contact structure
+		//ci.r1 = vec2(pos.x + r, pos.y);
+		//ci.r2 = vec2(c.p_max.x, pos.y);
     }
+
+    if(b_collided) {
+        // n - points to the gradient increase
+        resolve_contact(dx, -n, particle_idx, c.mu_s, c.mu_k, sim);
+        pos = sim->x_pred_[particle_idx];
+    }
+
+    b_collided = false;
+    dx = vec2(0);
 
     if (pos.y - r < c.p_min.y) {
 
         dx.y = c.p_min.y - (pos.y - r);
-        sim->num_constraints_[particle_idx]++;
         n = vec2(0,-1);
-		ci.r1 = vec2(pos.x, pos.y - r);
-		ci.r2 = vec2(pos.x, c.p_min.y);
+        b_collided = true;
+        // TODO: those are part of a contact structure
+		//ci.r1 = vec2(pos.x, pos.y - r);
+		//ci.r2 = vec2(pos.x, c.p_min.y);
 
     } else if (pos.y + r > c.p_max.y) {
 
         dx.y = c.p_max.y - (pos.y + r);
-        sim->num_constraints_[particle_idx]++;
         n = vec2(0,1);
-		ci.r1 = vec2(pos.x, pos.y + r);
-		ci.r2 = vec2(pos.x, c.p_max.y);
+        b_collided = true;
+        // TODO: those are part of a contact structure
+		//ci.r1 = vec2(pos.x, pos.y + r);
+		//ci.r2 = vec2(pos.x, c.p_max.y);
     }
 
+    if(b_collided) {
     // n - points to the gradient increase
+        resolve_contact(dx, -n, particle_idx, c.mu_s, c.mu_k, sim);
+    }
+}
 
     sim->dp_[particle_idx] += dx;
     const bool had_collision = sim->num_constraints_[particle_idx] > prev_constraints;
