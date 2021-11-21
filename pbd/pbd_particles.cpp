@@ -306,13 +306,38 @@ int pbd_unified_sim_add_rb_particle_data(struct PBDUnifiedSimulation* sim, vec2 
 }
 
 void pbd_unified_sim_reset(PBDUnifiedSimulation* sim) {
+
+    sim->collision_world_ = nullptr;
+
+	sim->distance_c_.resize(0);
+	sim->distance2_c_.resize(0);
+	sim->solid_collision_c_.resize(0);
+	sim->solid_fluid_c_.resize(0);
+	sim->shape_matching_c_.resize(0);
+	sim->rb_collision_c_.resize(0);
+	sim->particle_rb_collision_c_.resize(0);
+	sim->box_boundary_c_.resize(0);
+
 	sim->particles_.resize(0);
+	sim->fluid_particle_idxs_.resize(0);
+	sim->rb_particles_data_.resize(0);
+	sim->fluid_particles_data_.resize(0);  // do we need this?
+	sim->rigid_bodies_.resize(0);
+	sim->fluid_models_.resize(0);
 	sim->inv_scaled_mass_.resize(0);
 	sim->dp_.resize(0);
 	sim->num_constraints_.resize(0);
 	sim->x_pred_.resize(0);
-
     sim->neigh_data_.neighbour_info_.resize(0);
+	sim->contacts_info_.resize(0);
+
+	sim->box_boundary_c_.push_back(BoxBoundaryConstraint{
+		.p_min = vec2(0),
+		.p_max = sim->world_size_,
+        .mu_s = 1.0f,
+        .mu_k = 1.0f,
+	});
+
 }
 
 float pbd_unified_sim_get_particle_radius(const PBDUnifiedSimulation* sim) {
