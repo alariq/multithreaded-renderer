@@ -960,7 +960,7 @@ void resolve_contact(vec2 dx, const vec2 n, const int particle_idx,
             ci.v2_pre = vec2(0);
             ci.n = n;
             ci.mu_d = mu_k;
-            ci.d_lambda_n = dot(dxp, ci.n);
+            ci.d_lambda_n = dot(path, ci.n);
 
             sim->contacts_info_.push_back(ci);
         }
