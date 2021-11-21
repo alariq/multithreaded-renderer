@@ -546,6 +546,34 @@ void scene_rb_static_collision(PBDUnifiedSimulation* sim) {
 	pbd_unified_sim_add_particle(sim, ppos, density0);
 }
 
+typedef void(*phys_scene_constructor_fptr)(struct PBDUnifiedSimulation* );
+
+int g_cur_phys_scene_index = 0;
+phys_scene_constructor_fptr phys_scenes[] = {
+    scene_initial_penetration,
+    scene_restitution_test,
+    scene_static_particle_friction_test,
+    scene_dynamic_particle_friction_test,
+    scene_restitution_chain_of_bodies,
+    scene_stacking_particles,
+    scene_stacking_particles_and_box_above,
+    scene_complex,
+    scene_particle_box_collision_test,
+    scene_friction_test,
+    scene_single_rb_friction_test,
+    scene_rb_friction_test,
+    scene_rb_friction_test2,
+    scene_fluid_simple,
+    scene_fluid_and_solids,
+    scene_two_fluids,
+    scene_distant_constraint_simple,
+    scene_distant_constraint_two_ropes,
+    scene_rope_and_rigid_body,
+    scene_rb_static_collision,
+    scene_rigid_body_restitution_test
+};
+
+
 
 PBDTestObject* PBDTestObject::Create() {
 
@@ -554,26 +582,7 @@ PBDTestObject* PBDTestObject::Create() {
     o->sim_origin_ = vec2(0,0);
     o->sim_ = pbd_unified_sim_create(o->sim_dim_);
 
-    //scene_initial_penetration(o->sim_);
-    //scene_restitution_test(o->sim_);
-    //scene_static_particle_friction_test(o->sim_);
-    //scene_dynamic_particle_friction_test(o->sim_);
-    //scene_restitution_chain_of_bodies(o->sim_);
-    //scene_stacking_particles(o->sim_);
-    //scene_stacking_particles_and_box_above(o->sim_);
-    //scene_complex(o->sim_);
-    //scene_particle_box_collision_test(o->sim_);
-    //scene_friction_test(o->sim_);
-    //scene_single_rb_friction_test(o->sim_);
-    //scene_rb_friction_test(o->sim_);
-    //scene_rb_friction_test2(o->sim_);
-    //scene_fluid_simple(o->sim_);
-    //scene_fluid_and_solids(o->sim_);
-    //scene_two_fluids(o->sim_);
-    //scene_distant_constraint_simple(o->sim_);
-    //scene_distant_constraint_two_ropes(o->sim_);
-    //scene_rope_and_rigid_body(o->sim_);
-    scene_rb_static_collision(o->sim_);
+    (phys_scenes[g_cur_phys_scene_index])(o->sim_);
 
 	return o;
 }
@@ -663,6 +672,24 @@ void PBDTestObject::Update(float dt) {
 			pbd_unified_sim_rb_set_density(sim_, g_rb, density);
 		}
 	}
+
+    bool b_change_scene = false;
+	if (gos_GetKeyStatus(KEY_PERIOD) == KEY_PRESSED) {
+        g_cur_phys_scene_index = (g_cur_phys_scene_index + 1) % (sizeof(phys_scenes)/sizeof(phys_scenes[0]));
+        b_change_scene = true;
+    }
+	if (gos_GetKeyStatus(KEY_COMMA) == KEY_PRESSED) {
+        size_t num_scenes = sizeof(phys_scenes)/sizeof(phys_scenes[0]);
+        g_cur_phys_scene_index = (g_cur_phys_scene_index - 1) % num_scenes;
+        b_change_scene = true;
+    }
+    if(b_change_scene) {
+        CollisionWorld* cw = pbd_unified_sim_get_collision_world(sim_);
+        collision_destroy_world(cw);
+        pbd_unified_sim_reset(sim_);
+        phys_scenes[g_cur_phys_scene_index](sim_);
+    }
+
 // disabled until remove function implemented
 #if 0
 	if (g_anchor1_c >= 0 && g_anchor2_c>=0) {
