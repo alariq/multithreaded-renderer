@@ -93,6 +93,10 @@ struct ContactInfo {
 	float d_lambda_n;
 };
 
+// internal debug functionality 
+void add_dbg_info(int p0_idx, int p1_idx, vec2 norm, vec2 dp0, vec2 dp1, vec2 p0, vec2 p1, PBDUnifiedSimulation* sim);
+//
+
 void findNeighboursNaiive(const vec2* x, const int size, float radius,
 						  PBDParticle* particles, NeighbourData* nd) {
     SCOPED_ZONE_N(findNeighboursNaiive, 0);
@@ -159,6 +163,8 @@ struct PBDUnifiedSimulation {
     NeighbourData neigh_data_;
 
 	std::vector<ContactInfo> contacts_info_;
+
+	std::vector<DbgContactInfo> dbg_contacts_;
 
     // relaxation parameter, see eq. 10 or 11 in the fluid paper
 	inline static const float e_ = 0.0001f;//1.0e-6f;
@@ -330,6 +336,7 @@ void pbd_unified_sim_reset(PBDUnifiedSimulation* sim) {
 	sim->x_pred_.resize(0);
     sim->neigh_data_.neighbour_info_.resize(0);
 	sim->contacts_info_.resize(0);
+	sim->dbg_contacts_.resize(0);
 
 	sim->box_boundary_c_.push_back(BoxBoundaryConstraint{
 		.p_min = vec2(0),
@@ -910,6 +917,8 @@ void solve_rb_collision_c(const RigidBodyCollisionConstraint& c, PBDUnifiedSimul
     vec2 dp1 = s * w1 * gradC;
     sim->dp_[c.idx0] += dp0;
     sim->dp_[c.idx1] += dp1;
+
+    add_dbg_info(c.idx0, c.idx1, gradC, dp0, dp1, sim->x_pred_[c.idx0], sim->x_pred_[c.idx1], sim);
 
     const float mu_s = 0.5f*(p0.mu_s + p1.mu_s);
     const float mu_k = 0.5f*(p0.mu_k + p1.mu_k);
@@ -1568,6 +1577,8 @@ void PBDUnifiedTimestep::SimulateXPBD(PBDUnifiedSimulation* sim, const float dt)
 	std::vector<float>& scaled_mass = sim->inv_scaled_mass_;
 	std::vector<vec2>& x_pred = sim->x_pred_;
 
+	sim->dbg_contacts_.resize(0);
+
     // expand neighbour search because we do it only once per iteration
     float neighbour_r = 2.0f*sim->support_r_;
 	findNeighboursNaiive(sim->x_pred_.data(), (int)sim->particles_.size(),
@@ -2011,4 +2022,14 @@ const PBDRigidBody* pbd_unified_sim_get_rigid_bodies(const struct PBDUnifiedSimu
 
 vec2 pbd_unified_sim_get_world_bounds(const struct PBDUnifiedSimulation* sim) {
     return sim->world_size_;
+}
+
+void add_dbg_info(int p0_idx, int p1_idx, vec2 norm, vec2 dp0, vec2 dp1, vec2 p0, vec2 p1, PBDUnifiedSimulation* sim) {
+    sim->dbg_contacts_.emplace_back(DbgContactInfo{p0_idx, p1_idx, norm, dp0, dp1, p0, p1});
+}
+
+const DbgContactInfo* pbd_unified_sim_get_dbg_contacts(const struct PBDUnifiedSimulation* sim, int* count) {
+    assert(count && sim);
+    *count = (int)sim->dbg_contacts_.size();
+    return sim->dbg_contacts_.data();
 }
