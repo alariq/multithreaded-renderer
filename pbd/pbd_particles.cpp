@@ -869,7 +869,8 @@ void solve_rb_collision_c(const RigidBodyCollisionConstraint& c, PBDUnifiedSimul
     const float d0 = -rb_part_data0.sdf_value;
     const float d1 = -rb_part_data1.sdf_value;
 
-	float d = length(c.x_ij) - (d0 + d1);
+    float cij_len = length(c.x_ij);
+	float d = cij_len - (d0 + d1);
 	// no rb collision
     if(d >= 0) {
         return;
@@ -882,17 +883,23 @@ void solve_rb_collision_c(const RigidBodyCollisionConstraint& c, PBDUnifiedSimul
 		norm = -rotate2(rb1.angle) * rb_part_data1.sdf_grad;
 	}
 
+    // division by 0 "fix"
+    vec2 x_ij = c.x_ij;
+	if (cij_len == 0) {
+		x_ij = vec2(1e-6, 0);
+	}
+
 	// Unified Particle Physics: one sided normals (Ch. 5 Rigid Bodies)
 	if(rb_part_data0.b_is_boundary) {
-        if(dot(-c.x_ij, norm) < 0) {
-            norm = normalize(reflect(-c.x_ij, norm));
+        if(dot(-x_ij, norm) < 0) {
+            norm = normalize(reflect(-normalize(x_ij), norm));
         } else {
-            norm = normalize(-c.x_ij);
+            norm = normalize(-x_ij);
         }
     }
 
 #if MAKE_COLLISIONS_GREAT_AGAIN
-    norm = normalize(-c.x_ij);
+    norm = normalize(-x_ij);
 #endif
 
     vec2 gradC = -norm;
