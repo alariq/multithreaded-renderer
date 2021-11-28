@@ -37,8 +37,8 @@ void handleMouseMotion(const SDL_Event* event, MouseInfo* mi) {
 
     mi->x_ = (float)event->motion.x;
     mi->y_ = (float)event->motion.y;
-    mi->rel_x_ = (float)event->motion.xrel;
-    mi->rel_y_ = (float)event->motion.yrel;
+    mi->rel_x_ += (float)event->motion.xrel;
+    mi->rel_y_ += (float)event->motion.yrel;
 }
 
 void handleMouseButton(const SDL_Event* event, MouseInfo* mi) {
