@@ -23,6 +23,8 @@ class PBDTestObject: public GameObject {
 
     std::atomic_bool b_initalized_rendering_resources;
 
+    bool b_draw_debug_contacts_ = true;
+
 public:
     static PBDTestObject* Create();
 

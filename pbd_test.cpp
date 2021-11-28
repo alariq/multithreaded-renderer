@@ -9,6 +9,9 @@
 
 #include "engine/profiler/profiler.h"
 
+// TODO: move to input utils?
+static vec3 get_ws_mouse_pos(RenderFrameContext* rfc);
+
 void initialize_particle_positions(struct PBDUnifiedSimulation* sim,
 								   const ivec2& row_column, const vec2 offset,
 								   float density0);
@@ -21,13 +24,13 @@ void initialize_particle_positions2(struct PBDUnifiedSimulation* sim, const vec2
 									int count, float density0, float mu_s, float mu_k,
 									float e);
 
-void pbd_unified_sim_debug_draw(const struct PBDUnifiedSimulation* sim,
-								class RenderList* rl);
+void pbd_unified_sim_debug_draw_world(const struct PBDUnifiedSimulation* sim,
+									  struct RenderFrameContext* rfc, bool draw_contacts);
 void collision_debug_draw(const struct CollisionWorld* cworld, RenderList* rl);
 
 
 void scene_initial_penetration(PBDUnifiedSimulation* sim) {
-    vec2 world_size = pbd_unified_sim_get_world_bounds(sim);
+	vec2 world_size = pbd_unified_sim_get_world_bounds(sim);
 	vec2 ppos = vec2(0.55f * world_size.x, 0.0f);
 
 	int idx = pbd_unified_sim_add_particle(sim, ppos, 1000);
@@ -36,17 +39,17 @@ void scene_initial_penetration(PBDUnifiedSimulation* sim) {
 }
 
 void scene_restitution_test(PBDUnifiedSimulation* sim) {
-    const float r = pbd_unified_sim_get_particle_radius(sim);
-    vec2 world_size = pbd_unified_sim_get_world_bounds(sim);
+	const float r = pbd_unified_sim_get_particle_radius(sim);
+	vec2 world_size = pbd_unified_sim_get_world_bounds(sim);
 
-    const int num_particles = 10;
-    float e = 1.0f;
+	const int num_particles = 10;
+	float e = 1.0f;
 	vec2 dp = vec2(4.0f * r, 0.0f);
 	vec2 pos = vec2(3.0f * r, world_size.y * 0.5f);
 	for (int i = 0; i < num_particles; ++i) {
 		int idx = pbd_unified_sim_add_particle(sim, pos, 1000);
 		pbd_unified_sim_particle_set_params(sim, idx, 0.0f, 0.0f, e);
-        pos += dp;
+		pos += dp;
 		e -= 1.0f / num_particles;
 	}
 }
@@ -141,6 +144,23 @@ void scene_restitution_chain_of_bodies(PBDUnifiedSimulation* sim) {
 	// shoot
 	pbd_unified_sim_particle_add_velocity(sim, idx0, vec2(3.0f, 0.0f));
 }
+#if 1
+void scene_rigid_body_restitution_test(PBDUnifiedSimulation* sim) {
+    const float r = pbd_unified_sim_get_particle_radius(sim);
+    vec2 world_size = pbd_unified_sim_get_world_bounds(sim);
+
+    const int num_rb = 4;
+    float e = 1.0f;
+    vec2 dp = vec2(5.0f*r, 0.0f);
+	vec2 pos = vec2(13.0f * r, world_size.y * 0.5f);
+	for (int i = 0; i < num_rb; ++i) {
+		/*int idx = */pbd_unified_sim_add_box_rigid_body(sim, 3, 2, pos, 0, 1000);
+		//pbd_unified_sim_particle_set_params(sim, idx, 0.0f, 0.0f, e);
+        pos += dp;
+		e -= 1.0f / num_rb;
+	}
+}
+#endif
 
 void scene_stacking_particles(PBDUnifiedSimulation* sim) {
 
@@ -581,7 +601,7 @@ PBDTestObject* PBDTestObject::Create() {
     o->sim_dim_ = vec2(5,5);
     o->sim_origin_ = vec2(0,0);
     o->sim_ = pbd_unified_sim_create(o->sim_dim_);
-
+    
     (phys_scenes[g_cur_phys_scene_index])(o->sim_);
 
 	return o;
@@ -715,18 +735,8 @@ void select_and_draw_debug_particle(const PBDUnifiedSimulation* sim,
 
 	static int debug_particle = 104;
 	if (gos_GetKeyStatus(KEY_MINUS) == KEY_PRESSED) {
-		int XDelta, YDelta, WheelDelta;
-		float XPos, YPos;
-		DWORD buttonsPressed;
-		gos_GetMouseInfo(&XPos, &YPos, &XDelta, &YDelta, &WheelDelta, &buttonsPressed);
 
-		const vec2 mouse_screen_pos = 2 * vec2(XPos, 1 - YPos) - vec2(1);
-		const vec3 dir =
-			screen2world_vec(rfc->inv_view_, rfc->inv_proj_, mouse_screen_pos);
-
-		const vec3 ws_cam_pos = (rfc->inv_view_ * vec4(0, 0, 0, 1)).xyz();
-		const vec3 pos = ray_plane_intersect(dir, ws_cam_pos,
-											 make_plane(vec3(0, 0, 1), vec3(0, 0, 0)));
+        const vec3 pos = get_ws_mouse_pos(rfc);
 
 		for (int i = 0; i < particles_count; ++i) {
 			if (lengthSqr(pos.xy() - particles[i].x) < particles_r * particles_r) {
@@ -749,7 +759,7 @@ void PBDTestObject::AddRenderPackets(struct RenderFrameContext *rfc) const {
 
 	if (!b_initalized_rendering_resources) return;
 
-    pbd_unified_sim_debug_draw(sim_, rfc->rl_);
+    pbd_unified_sim_debug_draw_world(sim_, rfc, b_draw_debug_contacts_);
 
     select_and_draw_debug_particle(sim_, rfc);
     collision_debug_draw(pbd_unified_sim_get_collision_world(sim_), rfc->rl_);
@@ -933,7 +943,9 @@ void collision_debug_draw(const struct CollisionWorld* cworld, RenderList* rl) {
 
 }
 
-void pbd_unified_sim_debug_draw(const struct PBDUnifiedSimulation* sim, RenderList* rl) {
+void pbd_unified_sim_debug_draw_world(const struct PBDUnifiedSimulation* sim, RenderFrameContext* rfc, bool b_draw_contacts) {
+
+    RenderList* rl = rfc->rl_;
 
     const PBDRigidBodyParticleData* data = pbd_unified_sim_get_rb_particle_data(sim);
     const PBDRigidBody* rb = pbd_unified_sim_get_rigid_bodies(sim);
@@ -962,4 +974,64 @@ void pbd_unified_sim_debug_draw(const struct PBDUnifiedSimulation* sim, RenderLi
 
 	//for(auto rb: sim->rigid_bodies_) {
     //}
+
+    // draw contacts
+	if (b_draw_contacts) {
+		const float r = pbd_unified_sim_get_particle_radius(sim);
+		int num_contacts = 0;
+		const DbgContactInfo* pcontacts =
+			pbd_unified_sim_get_dbg_contacts(sim, &num_contacts);
+		for (int i = 0; i < num_contacts; ++i) {
+			const DbgContactInfo& c = pcontacts[i];
+			vec3 p0(c.p0.x, c.p0.y, z);
+			vec3 p1(c.p1.x, c.p1.y, z);
+			rl->addDebugPoints(&p0, 1, vec4(1, 1, 0, 1), 1.0f, false, nullptr);
+			rl->addDebugPoints(&p1, 1, vec4(1, 1, 0, 1), 1.0f, false, nullptr);
+
+			vec3 e0 = p0 + vec3(c.dp0, 0);
+			vec3 e1 = p1 - vec3(c.dp1, 0);
+			rl->addDebugLine(p0, e0, vec4(1));
+			rl->addDebugLine(p1, e1, vec4(1));
+
+			e0 = p0 + 0.8f * r * vec3(c.n, 0);
+			e1 = p1 - 0.8f * r * vec3(c.n, 0);
+			rl->addDebugLine(p0, e0, vec4(0.3f, 0.3f, 1.0f, 1.0f));
+			rl->addDebugLine(p1, e1, vec4(0.3f, 0.3f, 1.0f, 1.0f));
+		}
+	}
+
+	vec2 mouse = get_ws_mouse_pos(rfc).xy();
+    vec3 mp = vec3(mouse, z);
+    rl->addDebugPoints(&mp,1, vec4(1), 3.0f, false, nullptr);
+
+#if TEST_REFLECTION 
+
+    static vec3 g_n = vec3(0.1, 0.7, 0);
+    static vec3 g_v = vec3(1,0, 0);
+
+    g_n = vec3(normalize(g_n.xy()), 0);
+    vec3 c = vec3(3,1,z);
+    g_v = vec3(mp.x - c.x, mp.y - c.y, 0);
+    rl->addDebugPoints(&c,1, vec4(0,1,0,1), 2.0f, false, nullptr);
+	rl->addDebugLine(c, c + g_n, vec4(0.3f, 0.3f, 1.0f, 1.0f));
+	rl->addDebugLine(c, c + g_v, vec4(0.3f, 0.1f, 0.3f, 1.0f));
+    vec3 refl = vec3(reflect(g_v.xy(), g_n.xy()), 0);
+	rl->addDebugLine(c, c + refl, vec4(1.0f, 0, 0, 1));
+#endif
+    
+}
+
+vec3 get_ws_mouse_pos(RenderFrameContext* rfc) {
+	int XDelta, YDelta, WheelDelta;
+	float XPos, YPos;
+	DWORD buttonsPressed;
+	gos_GetMouseInfo(&XPos, &YPos, &XDelta, &YDelta, &WheelDelta, &buttonsPressed);
+
+	const vec2 mouse_screen_pos = 2 * vec2(XPos, 1 - YPos) - vec2(1);
+	const vec3 dir = screen2world_vec(rfc->inv_view_, rfc->inv_proj_, mouse_screen_pos);
+
+	const vec3 ws_cam_pos = (rfc->inv_view_ * vec4(0, 0, 0, 1)).xyz();
+	const vec3 pos =
+		ray_plane_intersect(dir, ws_cam_pos, make_plane(vec3(0, 0, 1), vec3(0, 0, 0)));
+	return pos;
 }
