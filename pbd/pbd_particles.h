@@ -109,3 +109,14 @@ const PBDFluidModel* pbd_unified_sim_get_fluid_particle_model(const struct PBDUn
 uint32_t pbd_unified_sim_get_particle_flags(const struct PBDUnifiedSimulation* sim, int idx);
 const PBDRigidBody* pbd_unified_sim_get_rigid_bodies(const struct PBDUnifiedSimulation*);
 vec2 pbd_unified_sim_get_world_bounds(const struct PBDUnifiedSimulation*);
+
+
+struct DbgContactInfo {
+    int i0, i1;
+    vec2 n;
+    vec2 dp0, dp1;
+    vec2 p0, p1;
+};
+
+const DbgContactInfo* pbd_unified_sim_get_dbg_contacts(const struct PBDUnifiedSimulation*, int* count);
+
