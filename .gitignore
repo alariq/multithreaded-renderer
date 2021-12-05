@@ -16,3 +16,8 @@ tools/
 cachegrind.*
 callgrind.*
 *.plist
+tools/
+Session.vim
+.vimspector.session
+.vimspector.json
+
