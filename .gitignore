@@ -13,4 +13,7 @@ cmake-*/
 cachegrind.*
 callgrind.*
 tools/
+Session.vim
+.vimspector.session
+.vimspector.json
 
