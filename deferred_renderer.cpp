@@ -97,7 +97,7 @@ bool DeferredRenderer::Init(uint32_t width, uint32_t height)
         glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, g_buffer_depth, 0);
         if(use_stencil)
             glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_TEXTURE_2D, g_buffer_depth, 0);
-        status = checkFramebufferStatus();
+        status = checkFramebufferStatus(GL_FRAMEBUFFER);
         assert(status);
     }
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -108,7 +108,7 @@ bool DeferredRenderer::Init(uint32_t width, uint32_t height)
         GLuint drawBuffers[] = { GL_COLOR_ATTACHMENT0 };
         glDrawBuffers(sizeof(drawBuffers)/sizeof(drawBuffers[0]), drawBuffers);
         glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, backbuffer, 0);
-        status = checkFramebufferStatus();
+        status = checkFramebufferStatus(GL_FRAMEBUFFER);
         assert(status);
     }
 
@@ -121,7 +121,7 @@ bool DeferredRenderer::Init(uint32_t width, uint32_t height)
         glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, g_buffer_depth, 0);
         if(use_stencil)
             glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_TEXTURE_2D, g_buffer_depth, 0);
-        status = checkFramebufferStatus();
+        status = checkFramebufferStatus(GL_FRAMEBUFFER);
         assert(status);
     }
 
@@ -133,7 +133,7 @@ bool DeferredRenderer::Init(uint32_t width, uint32_t height)
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, g_buffer_depth, 0);
         if(use_stencil)
             glFramebufferTexture2D(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_TEXTURE_2D, g_buffer_depth, 0);
-        status = checkFramebufferStatus();
+        status = checkFramebufferStatus(GL_FRAMEBUFFER);
         assert(status);
     }
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -146,7 +146,7 @@ bool DeferredRenderer::Init(uint32_t width, uint32_t height)
         glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, downsampled_depth, 0);
         if(use_stencil)
             glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_TEXTURE_2D, downsampled_depth, 0);
-        status = checkFramebufferStatus();
+        status = checkFramebufferStatus(GL_FRAMEBUFFER);
         assert(status);
     }
     glBindFramebuffer(GL_FRAMEBUFFER, 0);

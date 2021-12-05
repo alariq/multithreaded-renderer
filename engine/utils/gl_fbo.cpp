@@ -9,6 +9,7 @@
 #include <cassert>
 
 #include "utils/gl_fbo.h"
+#include "utils/gl_utils.h" // CHECK_GL_ERROR
 
 GLuint createRenderTexture(uint32_t w, uint32_t h, int int_fmt, uint32_t levels)
 {
@@ -92,10 +93,10 @@ void setFrameBuffer(GLuint fb)
 ///////////////////////////////////////////////////////////////////////////////
 // check FBO completeness
 ///////////////////////////////////////////////////////////////////////////////
-bool checkFramebufferStatus()
+bool checkFramebufferStatus(GLenum target)
 {
     // check FBO status
-    GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+    GLenum status = glCheckFramebufferStatus(target);
     switch(status)
     {
     case GL_FRAMEBUFFER_COMPLETE:
@@ -188,4 +189,42 @@ void  draw_quad(GLuint texture, float aspect)
 	}
 }
 
+// copies
+void copyFramebuffer(GLuint src_fbo, GLuint dst_fbo, GLenum mode, uint32_t w, uint32_t h)
+{
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, src_fbo);
+    checkFramebufferStatus(GL_READ_FRAMEBUFFER);
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, dst_fbo);
+    checkFramebufferStatus(GL_DRAW_FRAMEBUFFER);
+
+    // setup read from ...
+    glReadBuffer(mode);
+    // strup write to ...
+    glDrawBuffers(1, &mode);
+
+    GLenum mask =   mode == GL_DEPTH_ATTACHMENT ?       GL_DEPTH_BUFFER_BIT :
+                    (mode == GL_STENCIL_ATTACHMENT ?    GL_STENCIL_BUFFER_BIT :
+                     GL_COLOR_BUFFER_BIT);
+
+    glBlitFramebuffer(0, 0, w, h, 0, 0, w, h, mask, GL_NEAREST);
+
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+    CHECK_GL_ERROR;
+}
+
+
+void copyFramebufferToCPU(GLuint framebuffer_id, GLenum mode, TexFormat fmt, int width,
+						  int height, void* out_data) {
+
+	glBindFramebuffer(GL_READ_FRAMEBUFFER, framebuffer_id);
+	glReadBuffer(mode);
+
+	GLenum gl_format = getInternalTextureFormat(fmt);
+	GLenum gl_ch_type = textureFormatChannelType[fmt];
+
+	glReadPixels(0, 0, width, height, gl_format, gl_ch_type, out_data);
+
+	glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
+}
 

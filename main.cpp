@@ -522,7 +522,6 @@ void __stdcall Render(void)
 		DWORD buttonspressed;
 		gos_GetMouseInfo(&xpos, &ypos, &xdelta, &ydelta, &wheeldelta, &buttonspressed);
 
-		// TODO: this stalls GPU, make is async through FBO
 		g_obj_under_cursor =
 			g_obj_id_renderer.Readback((uint32_t)(SCREEN_W * xpos),
 									   (uint32_t)(SCREEN_H * (1 - ypos)));

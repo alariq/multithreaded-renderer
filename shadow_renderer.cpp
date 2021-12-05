@@ -240,7 +240,7 @@ mat4 ShadowRenderPass::Render(const struct CSMInfo *csm_info,
         glDrawBuffer(GL_NONE);
         glReadBuffer(GL_NONE);
 
-        checkFramebufferStatus();
+        checkFramebufferStatus(GL_DRAW_FRAMEBUFFER);
 
         glClear(GL_DEPTH_BUFFER_BIT);
 
