@@ -112,7 +112,7 @@ void UpdateCamera(float dt)
 {
     static float fov = 45.0f;
     static float moveSpeedK = 10.0f;
-    static float angularSpeedK = 1.f * 3.1415f / 180.0f; // 0.25 degree per pixel
+    static float angularSpeedK = 0.25f * 3.1415f / 180.0f; // 0.25 degree per pixel
 
     g_camera.dx += gos_GetKeyStatus(KEY_D) ? dt*moveSpeedK : 0.0f;
     g_camera.dx -= gos_GetKeyStatus(KEY_A) ? dt*moveSpeedK : 0.0f;
