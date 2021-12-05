@@ -158,5 +158,6 @@ else()
 endif()
 
 add_executable(mt-renderer ${SOURCES})
+target_compile_definitions(mt-renderer PUBLIC $<$<CONFIG:Debug>:_ARMOR _DEBUG BUGLOG LAB_ONLY>)
 target_link_libraries(mt-renderer engine pbd platform GLEW::GLEW ${ADDITIONAL_LIBS} OpenGL::GL)
 
