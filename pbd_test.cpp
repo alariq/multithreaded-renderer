@@ -64,10 +64,8 @@ void scene_static_particle_friction_test(PBDUnifiedSimulation* sim) {
 	vec2 ppos = vec2(0.35f * world_size.x, 0.3f * world_size.y);
 	int idx0 = pbd_unified_sim_add_particle(sim, ppos, 1000);
 	int idx1 = pbd_unified_sim_add_particle(sim, ppos + vec2(30*r,0), 1000);
-	pbd_unified_sim_particle_set_params(sim, idx0, 0.1f, 0.0f, 0.0);
-	pbd_unified_sim_particle_set_params(sim, idx1, 0.9f, 0.0f, 0.0);
-
-	// initialize_particle_positions2(sim, world_size * 0.25f, 20, 1000, 0.0f, 0.0f, e);
+	pbd_unified_sim_particle_set_params(sim, idx0, 0.3f, 0.09f, 0.0);
+	pbd_unified_sim_particle_set_params(sim, idx1, 0.7f, 0.09f, 0.0);
 
 	{
 		SDFBoxCollision box;
@@ -98,9 +96,7 @@ void scene_dynamic_particle_friction_test(PBDUnifiedSimulation* sim) {
 	int idx1 = pbd_unified_sim_add_particle(sim, ppos + vec2(30*r,0), 1000);
     // first particle should reach end first because of less dynamic friction
 	pbd_unified_sim_particle_set_params(sim, idx0, 0.1f, 0.0f, 0.0);
-	pbd_unified_sim_particle_set_params(sim, idx1, 0.1f, 0.6f, 0.0);
-
-	// initialize_particle_positions2(sim, world_size * 0.25f, 20, 1000, 0.0f, 0.0f, e);
+	pbd_unified_sim_particle_set_params(sim, idx1, 0.1f, 0.09f, 0.0);
 
 	{
 		SDFBoxCollision box;
