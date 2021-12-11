@@ -8,6 +8,15 @@
 void initialize_particle_positions(class SPHSceneObject* o);
 
 class PBDTestObject: public GameObject {
+public:
+    typedef struct {
+        uint32_t contacts: 1;
+        uint32_t friction: 1;
+    } DDFlags;
+    DDFlags dbg_flags_;
+
+private:
+
     TransformComponent* transform_ = nullptr;
 
     struct PBDUnifiedSimulation* sim_;
@@ -22,8 +31,6 @@ class PBDTestObject: public GameObject {
     HGOSRENDERMATERIAL  mat_;
 
     std::atomic_bool b_initalized_rendering_resources;
-
-    bool b_draw_debug_contacts_ = true;
 
 public:
     static PBDTestObject* Create();

@@ -25,7 +25,8 @@ void initialize_particle_positions2(struct PBDUnifiedSimulation* sim, const vec2
 									float e);
 
 void pbd_unified_sim_debug_draw_world(const struct PBDUnifiedSimulation* sim,
-									  struct RenderFrameContext* rfc, bool draw_contacts);
+									  struct RenderFrameContext* rfc, PBDTestObject::DDFlags flags);
+
 void collision_debug_draw(const struct CollisionWorld* cworld, RenderList* rl);
 
 
@@ -601,6 +602,8 @@ PBDTestObject* PBDTestObject::Create() {
     o->sim_dim_ = vec2(5,5);
     o->sim_origin_ = vec2(0,0);
     o->sim_ = pbd_unified_sim_create(o->sim_dim_);
+    o->dbg_flags_.contacts = false;
+    o->dbg_flags_.friction = true;
     
     (phys_scenes[g_cur_phys_scene_index])(o->sim_);
 
@@ -759,7 +762,7 @@ void PBDTestObject::AddRenderPackets(struct RenderFrameContext *rfc) const {
 
 	if (!b_initalized_rendering_resources) return;
 
-    pbd_unified_sim_debug_draw_world(sim_, rfc, b_draw_debug_contacts_);
+    pbd_unified_sim_debug_draw_world(sim_, rfc, dbg_flags_);
 
     select_and_draw_debug_particle(sim_, rfc);
     collision_debug_draw(pbd_unified_sim_get_collision_world(sim_), rfc->rl_);
@@ -943,7 +946,7 @@ void collision_debug_draw(const struct CollisionWorld* cworld, RenderList* rl) {
 
 }
 
-void pbd_unified_sim_debug_draw_world(const struct PBDUnifiedSimulation* sim, RenderFrameContext* rfc, bool b_draw_contacts) {
+void pbd_unified_sim_debug_draw_world(const struct PBDUnifiedSimulation* sim, RenderFrameContext* rfc, PBDTestObject::DDFlags draw_flags) {
 
     RenderList* rl = rfc->rl_;
 
@@ -975,9 +978,9 @@ void pbd_unified_sim_debug_draw_world(const struct PBDUnifiedSimulation* sim, Re
 	//for(auto rb: sim->rigid_bodies_) {
     //}
 
-    // draw contacts
-	if (b_draw_contacts) {
-		const float r = pbd_unified_sim_get_particle_radius(sim);
+	const float r = pbd_unified_sim_get_particle_radius(sim);
+
+	if (draw_flags.contacts) {
 		int num_contacts = 0;
 		const DbgContactInfo* pcontacts =
 			pbd_unified_sim_get_dbg_contacts(sim, &num_contacts);
@@ -997,6 +1000,37 @@ void pbd_unified_sim_debug_draw_world(const struct PBDUnifiedSimulation* sim, Re
 			e1 = p1 - 0.8f * r * vec3(c.n, 0);
 			rl->addDebugLine(p0, e0, vec4(0.3f, 0.3f, 1.0f, 1.0f));
 			rl->addDebugLine(p1, e1, vec4(0.3f, 0.3f, 1.0f, 1.0f));
+		}
+	}
+
+	if (draw_flags.friction) {
+		static float scale = 100.0f; // can autonormalize scale depending on path len
+		int num_contacts = 0;
+        vec4 red = vec4(1, 0, 0, 1);
+        vec4 blue = vec4(0, 0, 1, 1);
+        vec4 green = vec4(0, 1, 1, 1);
+
+		const DbgFrictionInfo* pcontacts =
+			pbd_unified_sim_get_dbg_friction(sim, &num_contacts);
+		for (int i = 0; i < num_contacts; ++i) {
+			const DbgFrictionInfo& c = pcontacts[i];
+            // path
+			vec3 p0(c.s_path.x, c.s_path.y, z);
+            vec3 path_len = scale*(vec3(c.d_path.x, c.d_path.y, z) - p0);
+			vec3 p1 = p0 + path_len;
+			rl->addDebugLine(p0, p1, vec4(1));
+
+            // dx
+			vec3 dx = scale*vec3(c.dx.x, c.dx.y, 0);
+			rl->addDebugLine(p1, p1 + dx, red);
+			rl->addDebugLine(p1, p1 + c.mu_s * dx, blue);
+
+            // dxp
+            vec2 path = c.d_path + c.dx - c.s_path;
+            float dxn = dot(path, c.n);
+            vec2 dxp = path - dxn * c.n;
+			vec3 dxp_pt = p0 + scale*vec3(dxp.x, dxp.y, 0);
+			rl->addDebugLine(p0, dxp_pt, green);
 		}
 	}
 
