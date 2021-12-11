@@ -94,7 +94,8 @@ struct ContactInfo {
 };
 
 // internal debug functionality 
-void add_dbg_info(int p0_idx, int p1_idx, vec2 norm, vec2 dp0, vec2 dp1, vec2 p0, vec2 p1, PBDUnifiedSimulation* sim);
+static void add_dbg_info(int p0_idx, int p1_idx, vec2 norm, vec2 dp0, vec2 dp1, vec2 p0, vec2 p1, PBDUnifiedSimulation* sim);
+static void add_dbg_friction_info(int i, vec2 n, vec2 dx, float mu_s, float mu_k, vec2 s_path, vec2 d_path, PBDUnifiedSimulation* sim);
 //
 
 void findNeighboursNaiive(const vec2* x, const int size, float radius,
@@ -165,6 +166,7 @@ struct PBDUnifiedSimulation {
 	std::vector<ContactInfo> contacts_info_;
 
 	std::vector<DbgContactInfo> dbg_contacts_;
+	std::vector<DbgFrictionInfo> dbg_friction_;
 
     // relaxation parameter, see eq. 10 or 11 in the fluid paper
 	inline static const float e_ = 0.0001f;//1.0e-6f;
@@ -337,6 +339,7 @@ void pbd_unified_sim_reset(PBDUnifiedSimulation* sim) {
     sim->neigh_data_.neighbour_info_.resize(0);
 	sim->contacts_info_.resize(0);
 	sim->dbg_contacts_.resize(0);
+	sim->dbg_friction_.resize(0);
 
 	sim->box_boundary_c_.push_back(BoxBoundaryConstraint{
 		.p_min = vec2(0),
@@ -1089,41 +1092,42 @@ void solve_collision_constraint(CollisionContact& cc, PBDUnifiedSimulation* sim,
     sim->dp_[particle_idx] += dx;
     sim->num_constraints_[particle_idx]++;
 
-    // TODO: provide collision material as well
-    const float mu_s = sim->particles_[particle_idx].mu_s;
-    const float mu_k = sim->particles_[particle_idx].mu_k;
+	// TODO: provide collision material as well
+	const float mu_s = sim->particles_[particle_idx].mu_s;
+	const float mu_k = sim->particles_[particle_idx].mu_k;
 
-		// friction
-    vec2 dxp = (sim->x_pred_[particle_idx] ) - sim->particles_[particle_idx].x + dx;
-    float dxn = dot(dxp, cc.n);
-		// perp projection, I think abs is necessary here
-    dxp = dxp - dxn * cc.n;
-		const float ldxp = length(dxp);
-        // see 3.5 in Detailed RB Simulation ... paper
-    if (ldxp >= mu_s * cc.dist) {
-            // dynamic friction is handled in update velocity
-        dxp = dxp * min(mu_k * cc.dist / ldxp, 1.0f);
-		}
-    // if velocity update is present then apply only static friction here, as dynamic friction
-    // is calculated there
-#if VELOCITY_UPDATE 
-    // looks like using dxn/dxp is better, at least they are related
-    if(ldxp < mu_s * cc.dist)
+	// friction
+	const vec2 path = (sim->x_pred_[particle_idx] + dx) - sim->particles_[particle_idx].x;
+	float dxn = dot(path, cc.n);
+	vec2 dxp = path - dxn * cc.n;
+	const float ldxp = length(dxp);
+	// see 3.5 in Detailed RB Simulation ... paper
+	if (ldxp >= mu_s * cc.dist) {
+		// dynamic friction is handled in update velocity
+		dxp = dxp * min(mu_k * cc.dist / ldxp, 1.0f);
+	}
+	// if velocity update is present then apply only static friction here, as dynamic
+	// friction is calculated there
+#if VELOCITY_UPDATE
+	// looks like using dxn/dxp is better, at least they are related
+	if (ldxp < mu_s * cc.dist)
 #endif
-    {
-        // apply static friction
+	{
+		// apply static friction
 		sim->dp_[particle_idx] -= dxp;
 	}
 
-    ContactInfo ci;
+	add_dbg_friction_info(particle_idx, cc.n, dx, mu_s, mu_k,
+						  sim->particles_[particle_idx].x,
+						  sim->x_pred_[particle_idx], sim);
+
+	ContactInfo ci;
     ci.idx1 = particle_idx;
     ci.v1_pre = sim->particles_[particle_idx].v;
     ci.idx2 = -1;
     ci.v2_pre = vec2(0);
     ci.n = cc.n;
     ci.mu_d = mu_k;
-
-    vec2 path = (sim->x_pred_[particle_idx] + dx) - sim->particles_[particle_idx].x;
     ci.d_lambda_n = dot(path, ci.n);
 
     // needs check:
@@ -1578,6 +1582,7 @@ void PBDUnifiedTimestep::SimulateXPBD(PBDUnifiedSimulation* sim, const float dt)
 	std::vector<vec2>& x_pred = sim->x_pred_;
 
 	sim->dbg_contacts_.resize(0);
+	sim->dbg_friction_.resize(0);
 
     // expand neighbour search because we do it only once per iteration
     float neighbour_r = 2.0f*sim->support_r_;
@@ -2024,8 +2029,12 @@ vec2 pbd_unified_sim_get_world_bounds(const struct PBDUnifiedSimulation* sim) {
     return sim->world_size_;
 }
 
-void add_dbg_info(int p0_idx, int p1_idx, vec2 norm, vec2 dp0, vec2 dp1, vec2 p0, vec2 p1, PBDUnifiedSimulation* sim) {
+static void add_dbg_info(int p0_idx, int p1_idx, vec2 norm, vec2 dp0, vec2 dp1, vec2 p0, vec2 p1, PBDUnifiedSimulation* sim) {
     sim->dbg_contacts_.emplace_back(DbgContactInfo{p0_idx, p1_idx, norm, dp0, dp1, p0, p1});
+}
+
+static void add_dbg_friction_info(int i, vec2 n, vec2 dx, float mu_s, float mu_k, vec2 s_path, vec2 d_path, PBDUnifiedSimulation* sim) {
+    sim->dbg_friction_.emplace_back(DbgFrictionInfo{i, n, dx, mu_s, mu_k, s_path, d_path});
 }
 
 const DbgContactInfo* pbd_unified_sim_get_dbg_contacts(const struct PBDUnifiedSimulation* sim, int* count) {
@@ -2033,3 +2042,10 @@ const DbgContactInfo* pbd_unified_sim_get_dbg_contacts(const struct PBDUnifiedSi
     *count = (int)sim->dbg_contacts_.size();
     return sim->dbg_contacts_.data();
 }
+
+const DbgFrictionInfo* pbd_unified_sim_get_dbg_friction(const struct PBDUnifiedSimulation* sim, int* count) {
+    assert(count && sim);
+    *count = (int)sim->dbg_friction_.size();
+    return sim->dbg_friction_.data();
+}
+
