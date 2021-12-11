@@ -118,5 +118,15 @@ struct DbgContactInfo {
     vec2 p0, p1;
 };
 
+struct DbgFrictionInfo {
+    int i;
+    vec2 n;
+    vec2 dx;
+    float mu_s, mu_k;
+    vec2 s_path;
+    vec2 d_path;
+};
+
 const DbgContactInfo* pbd_unified_sim_get_dbg_contacts(const struct PBDUnifiedSimulation*, int* count);
+const DbgFrictionInfo* pbd_unified_sim_get_dbg_friction(const struct PBDUnifiedSimulation*, int* count);
 
