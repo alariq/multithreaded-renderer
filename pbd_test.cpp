@@ -842,8 +842,10 @@ void PBDTestObject::AddRenderPackets(struct RenderFrameContext *rfc) const {
 	memset(rp, 0, sizeof(RenderPacket));
 	rp->id_ = GetId();
 	rp->is_opaque_pass = 1;
-	rp->is_selection_pass = 1;
-    rp->m_ = mat4::identity();//transform_->GetTransform(); //mat4::scale(vec3(radius_));
+	// NOTE: should we render it into selection pass? maybe.. but only when it will support
+	// instaced vert shader
+	rp->is_selection_pass = 0;
+    rp->m_ = mat4::identity();
 	rp->mesh_ = *sphere_mesh_;
 	rp->mesh_.mat_ = mat_;
 	rp->mesh_.inst_vb_ = inst_vb_[cur_inst_vb_];

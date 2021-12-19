@@ -400,7 +400,11 @@ void SPHSceneObject::AddRenderPackets(struct RenderFrameContext *rfc) const {
 	memset(rp, 0, sizeof(RenderPacket));
 	rp->id_ = GetId();
 	rp->is_opaque_pass = 1;
-	rp->is_selection_pass = 1;
+	// should we draw spheres into selection pass? does not work right now
+	// need vertex shader variant which supports reading instance attribute(s)
+	// see deferred_sph or better add define to deferred_sph which will be enabled in obj
+	// is pass and will write to obj_id render target
+	rp->is_selection_pass = 0;
     rp->m_ = transform_->GetTransform(); //mat4::scale(vec3(radius_));
 	rp->mesh_ = *sphere_mesh_;
 	rp->mesh_.mat_ = mat_;
