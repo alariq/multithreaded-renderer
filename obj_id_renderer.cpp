@@ -55,7 +55,11 @@ void draw_rp(HGOSRENDERMATERIAL mat, const mat4 &vp, const RenderPacket& rp) {
 		gos_SetRenderState(gos_State_ZCompare, 1); // less equal, equal should be enough
 
 	if (ro.ib_) {
-		gos_RenderIndexedArray(ro.ib_, ro.vb_, ro.vdecl_, ro.prim_type_);
+        if (ro.inst_vb_) {
+            gos_RenderIndexedInstanced(ro.ib_, ro.vb_, ro.inst_vb_, ro.num_instances, ro.vdecl_, ro.prim_type_);
+        } else {
+		    gos_RenderIndexedArray(ro.ib_, ro.vb_, ro.vdecl_, ro.prim_type_);
+        }
 	} else if (ro.inst_vb_) {
 		gos_RenderArrayInstanced(ro.vb_, ro.inst_vb_, ro.num_instances, ro.vdecl_, ro.prim_type_);
 	} else {
