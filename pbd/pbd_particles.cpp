@@ -510,6 +510,21 @@ int pbd_unified_sim_add_distance2_constraint(struct PBDUnifiedSimulation* sim, i
     return (int)sim->distance2_c_.size() - 1;
 }
 
+// !NB: use with care otherwise this will crash application
+bool pbd_unified_sim_remove_distance_constraint(struct PBDUnifiedSimulation* sim, int c_idx) {
+    assert((int)sim->distance_c_.size() > c_idx);
+    sim->distance_c_[c_idx] = sim->distance_c_.back();
+    sim->distance_c_.erase(sim->distance_c_.begin() + c_idx);
+    return true;
+}
+// !NB: use with care otherwise this will crash application
+bool pbd_unified_sim_remove_distance2_constraint(struct PBDUnifiedSimulation* sim, int c_idx) {
+    assert((int)sim->distance2_c_.size() > c_idx);
+    sim->distance2_c_[c_idx] = sim->distance2_c_.back();
+    sim->distance2_c_.erase(sim->distance2_c_.begin() + c_idx);
+    return true;
+}
+
 // assume all masses are similar
 vec2 rb_calc_com(const PBDRigidBody& rb, const vec2* pred_x, const PBDRigidBodyParticleData* rb_data) {
     
@@ -788,19 +803,22 @@ void solve_particle_rb_collision_c(const ParticleRigidBodyCollisionConstraint& c
 	assert(!(p1.flags & PBDParticleFlags::kRigidBody));
 
 	int32_t rb_idx = sim->particles_[c.idx0].phase;
-
 	assert(rb_idx >= 0 && rb_idx < (int32_t)sim->rigid_bodies_.size());
 
 	const PBDRigidBody& rb = sim->rigid_bodies_[rb_idx];
 
 	int32_t rb_data_idx = p0.rb_data_idx;
-
 	assert(rb_data_idx >= 0 && rb_data_idx < (int32_t)sim->rb_particles_data_.size());
 
 	PBDRigidBodyParticleData& rb_part_data = sim->rb_particles_data_[rb_data_idx];
 	assert(rb_part_data.sdf_value <=
 		   0); // otherwise not much sense to have a particle whoose center will be
 			   // outside of the rigid body
+    
+    const float d = length(c.x_ij) - (sim->particle_r_ + (-rb_part_data.sdf_value));
+    if(d >= 0) {
+        return;
+    }
 
     vec2 norm;
     // maybe makes sense to always use grad in case rb vs. single particle?
@@ -809,11 +827,6 @@ void solve_particle_rb_collision_c(const ParticleRigidBodyCollisionConstraint& c
     } else {
 		norm = -normalize(c.x_ij);
 	}
-
-    const float d = length(c.x_ij) - (sim->particle_r_ + (-rb_part_data.sdf_value));
-    if(d >= 0) {
-        return;
-    }
 
 	// Unified Particle Physics: one sided normals (Ch. 5 Rigid Bodies)
 	if(rb_part_data.b_is_boundary) {
@@ -1348,11 +1361,12 @@ void PBDUnifiedTimestep::VelocityUpdateRigidBody(PBDUnifiedSimulation* sim, cons
         assert(ci.idx2==-1 || ci.idx2 < num_particles);
 		assert(0 == (particles[ci.idx1].flags & PBDParticleFlags::kFluid));
 		assert(ci.idx2==-1 || (0 == (particles[ci.idx2].flags & PBDParticleFlags::kFluid)));
+        bool b_is_static_boundary = ci.idx2==-1; 
 
 		// these velocities are calculated after sim iteration, so we do not know them at
 		// the moment of collision check, so cannot store in ContactInfo
 		const vec2 v1 = particles[ci.idx1].v;
-		const vec2 v2 = ci.idx2 != -1 ? particles[ci.idx2].v : vec2(0.0f);
+		const vec2 v2 = b_is_static_boundary ? vec2(0.0f) : particles[ci.idx2].v;
 		const vec2 v = v1 - v2;
 		const float vn = dot(ci.n, v);
 		const vec2 vt = v - vn * ci.n;
@@ -1383,7 +1397,7 @@ void PBDUnifiedTimestep::VelocityUpdateRigidBody(PBDUnifiedSimulation* sim, cons
 		// NOTE: probably should first apply dv and then calculate restitution_dv and
 		// apply it again?
 		const float w1 = particles[ci.idx1].inv_mass;
-		const float w2 = ci.idx2==-1 ? 0.0f : particles[ci.idx2].inv_mass;
+		const float w2 = b_is_static_boundary ? 0.0f : particles[ci.idx2].inv_mass;
 
         rb_idx = particles[ci.idx1].phase;
         const float Iinv = sim->rigid_bodies_[rb_idx].Iinv;
@@ -1410,7 +1424,7 @@ void PBDUnifiedTimestep::VelocityUpdateRigidBody(PBDUnifiedSimulation* sim, cons
         count++;
 #endif
 		// NOTE: can use fake index to avoid 'if'
-		if (ci.idx2 != -1) {
+		if (!b_is_static_boundary) {
 			const float e2 = particles[ci.idx2].e;
 			const vec2 restitution_dv2 = ci.n * (-vn + max(-e2 * v_prev_n, 0.0f));
 			const vec2 p2 = (dv + restitution_dv2) / (w1 + w2);
