@@ -47,6 +47,10 @@ struct ShapeMatchingConstraint {
     int rb_index;
 };
 
+struct SoftShapeMatchingConstraint {
+    int sb_index;
+};
+
 struct RigidBodyCollisionConstraint {
     int idx0, idx1;
     vec2 x_ij;
@@ -147,7 +151,10 @@ struct PBDUnifiedSimulation {
 	std::vector<DistanceConstraint2> distance2_c_;
 	std::vector<SolidParticlesCollisionConstraint> solid_collision_c_;
 	std::vector<SolidParticlesCollisionConstraint> solid_fluid_c_;
+    // maybe just iterate over rigid / soft bodies instead of having separate array for those?
 	std::vector<ShapeMatchingConstraint> shape_matching_c_;
+	std::vector<SoftShapeMatchingConstraint> soft_shape_matching_c_;
+
 	std::vector<RigidBodyCollisionConstraint> rb_collision_c_;
 	std::vector<ParticleRigidBodyCollisionConstraint> particle_rb_collision_c_;
 	std::vector<BoxBoundaryConstraint> box_boundary_c_;
@@ -155,8 +162,13 @@ struct PBDUnifiedSimulation {
 	std::vector<PBDParticle> particles_;
 	std::vector<int> fluid_particle_idxs_;
 	std::vector<PBDRigidBodyParticleData> rb_particles_data_;
+	std::vector<PBDSoftBodyParticleData> sb_particles_data_;
 	std::vector<PBDFluidParicleRuntimeData> fluid_particles_data_;  // do we need this?
 	std::vector<PBDRigidBody> rigid_bodies_;
+	std::vector<PBDSoftBody> soft_bodies_;
+	std::vector<PBDRegion> sb_regions_;
+	std::vector<uint32_t> sb_particles_per_region_;
+	std::vector<uint32_t> sb_regions_per_particle_;
 	std::vector<PBDFluidModel> fluid_models_;
 	std::vector<float> inv_scaled_mass_;
 	std::vector<vec2> dp_;
@@ -270,7 +282,7 @@ void pbd_unified_sim_particle_add_velocity(struct PBDUnifiedSimulation* sim, int
 
 void pbd_unified_sim_rb_add_velocity(struct PBDUnifiedSimulation* sim, int rb_idx, const vec2& vel) {
     assert((int)sim->rigid_bodies_.size() > rb_idx);
-    const int start = sim->rigid_bodies_[rb_idx].start_part_idx;
+    const int start = sim->rigid_bodies_[rb_idx].start_pdata_idx;
     const int end = start + sim->rigid_bodies_[rb_idx].num_part;
 	for (int i = start; i != end; ++i) {
         int idx = sim->rb_particles_data_[i].index;
@@ -282,7 +294,7 @@ void pbd_unified_sim_rb_set_density(struct PBDUnifiedSimulation* sim, int rb_idx
     assert((int)sim->rigid_bodies_.size() > rb_idx);
 
     const float inv_mass = 1.0f / (2 * sim->particle_r_ * 2 * sim->particle_r_ * density);
-    const int start = sim->rigid_bodies_[rb_idx].start_part_idx;
+    const int start = sim->rigid_bodies_[rb_idx].start_pdata_idx;
     const int end = start + sim->rigid_bodies_[rb_idx].num_part;
 	for (int i = start; i != end; ++i) {
         int idx = sim->rb_particles_data_[i].index;
@@ -298,7 +310,7 @@ void pbd_unified_sim_particle_set_params(struct PBDUnifiedSimulation* sim, int i
     sim->particles_[idx].e = e;
 }
 
-int pbd_unified_sim_add_rb_particle_data(struct PBDUnifiedSimulation* sim, vec2 x0,
+static int pbd_unified_sim_add_rb_particle_data(struct PBDUnifiedSimulation* sim, vec2 x0,
 										 float sdf_value, vec2 sdf_grad,
 										 int particle_index, bool b_is_boundary,
 										 float density) {
@@ -314,6 +326,23 @@ int pbd_unified_sim_add_rb_particle_data(struct PBDUnifiedSimulation* sim, vec2 
     return (int)(sim->rb_particles_data_.size() - 1);
 }
 
+static int pbd_unified_sim_add_sb_particle_data(struct PBDUnifiedSimulation* sim, vec2 x0,
+										 float sdf_value, vec2 sdf_grad,
+										 int particle_index, bool b_is_boundary,
+										 float density, int x, int y) {
+
+	sim->sb_particles_data_.emplace_back(PBDSoftBodyParticleData{
+		.base = PBDRigidBodyParticleData{.x0 = x0,
+										 .sdf_value = sdf_value,
+										 .sdf_grad = sdf_grad,
+										 .index = particle_index,
+										 .b_is_boundary = b_is_boundary},
+		.x = x,
+		.y = y});
+
+	return (int)(sim->sb_particles_data_.size() - 1);
+}
+
 void pbd_unified_sim_reset(PBDUnifiedSimulation* sim) {
 
     sim->collision_world_ = nullptr;
@@ -323,6 +352,7 @@ void pbd_unified_sim_reset(PBDUnifiedSimulation* sim) {
 	sim->solid_collision_c_.resize(0);
 	sim->solid_fluid_c_.resize(0);
 	sim->shape_matching_c_.resize(0);
+	sim->soft_shape_matching_c_.resize(0);
 	sim->rb_collision_c_.resize(0);
 	sim->particle_rb_collision_c_.resize(0);
 	sim->box_boundary_c_.resize(0);
@@ -330,8 +360,13 @@ void pbd_unified_sim_reset(PBDUnifiedSimulation* sim) {
 	sim->particles_.resize(0);
 	sim->fluid_particle_idxs_.resize(0);
 	sim->rb_particles_data_.resize(0);
+	sim->sb_particles_data_.resize(0);
 	sim->fluid_particles_data_.resize(0);  // do we need this?
 	sim->rigid_bodies_.resize(0);
+	sim->soft_bodies_.resize(0);
+	sim->sb_regions_.resize(0);
+	sim->sb_particles_per_region_.resize(0);
+    sim->sb_regions_per_particle_.resize(0);
 	sim->fluid_models_.resize(0);
 	sim->inv_scaled_mass_.resize(0);
 	sim->dp_.resize(0);
@@ -386,7 +421,7 @@ int pbd_unified_sim_add_box_rigid_body(struct PBDUnifiedSimulation* sim, int siz
         .mu_k = 0.3f,
         .e = 0.5f,
         .Iinv = 0.0f,
-		.start_part_idx = -1,
+		.start_pdata_idx = -1,
 		.num_part = size_x * size_y,
 		.flags = 0,
 	});
@@ -429,7 +464,7 @@ int pbd_unified_sim_add_box_rigid_body(struct PBDUnifiedSimulation* sim, int siz
         }
     }
 
-    rb.start_part_idx = start_idx;
+    rb.start_pdata_idx = start_idx;
 
     // calc inertia tensor
     const float mass = (2 * sim->particle_r_ * 2 * sim->particle_r_ * density);
@@ -440,6 +475,198 @@ int pbd_unified_sim_add_box_rigid_body(struct PBDUnifiedSimulation* sim, int siz
     sim->shape_matching_c_.push_back(ShapeMatchingConstraint{rb_idx});
 
     return rb_idx;
+}
+
+template <int SX>
+static PBDRegion calc_region(int x, int y, int sy, int w, const uint8_t (*flags)[SX],
+							 const uint32_t (*l2i)[SX],
+							 std::vector<uint32_t>& region_pidx);
+
+int pbd_unified_sim_add_box_soft_body(struct PBDUnifiedSimulation* sim, int size_x,
+										int size_y, vec2 pos, float rot_angle, float density, int w, float alpha) {
+    const constexpr int BOX_MAX_SIZE = 32;
+	assert(size_x > 0 && size_y > 0);
+	assert(size_x <= BOX_MAX_SIZE && size_y <= BOX_MAX_SIZE);
+
+	sim->soft_bodies_.push_back(PBDSoftBody{
+		.base =
+			PBDRigidBody{
+				.x = pos,
+				.angle = rot_angle,
+				.angle0 = rot_angle,
+				.mu_s = 0.5f,
+				.mu_k = 0.3f,
+				.e = 0.5f,
+				.Iinv = 0.0f,
+				.start_pdata_idx = -1,
+				.num_part = size_x * size_y,
+				.flags = 0,
+			},
+		.w = w,
+        .alpha = alpha,
+		.start_region_idx = 0xFFFFFFFFu,
+		.num_regions = 0,
+	});
+	const int sb_idx = (int)(sim->soft_bodies_.size() - 1);
+    PBDSoftBody& sb = sim->soft_bodies_[sb_idx];
+
+	const float r = sim->particle_r_;
+    const vec2 sb_size = 2.0f * r * vec2(size_x, size_y);
+	const vec2 center = 0.5f * sb_size;
+    
+    uint32_t lattice2idx[BOX_MAX_SIZE][BOX_MAX_SIZE] = {{0}};
+    uint8_t flags[BOX_MAX_SIZE][BOX_MAX_SIZE] = {{0}};
+
+    int start_idx = -1;
+    for(int y=0;y<size_y;++y) {
+        for(int x=0;x<size_x;++x) {
+
+			vec2 x0 = (vec2(r) + vec2(x, y) * 2 * r) - center;
+			// in local coords (center is 0,0 no rotation, etc)
+            // !NB: why 0.98?
+			vec3 dist_grad = sdgBox2D(x0, 0.5f * sb_size*vec2(1,0.98f));
+
+            x0 = rotate2(rot_angle) * x0;
+			int idx = pbd_unified_sim_add_particle(sim, pos + x0, density);
+
+            // velocity pass does not work with rigid bodies for now... 
+            // probably due to shape matching... only if all particles had collision
+            // so have to somehow pass velocity to other particles, but to which ones?
+            pbd_unified_sim_particle_set_params(sim, idx, sb.base.mu_s, sb.base.mu_k, sb.base.e);
+
+            vec2 grad_norm = normalize(dist_grad.yz());
+			bool b_is_boundary = y == 0 || x == 0 || y == size_y - 1 || x == size_x - 1;
+			int data_idx = pbd_unified_sim_add_sb_particle_data(
+				sim, x0, dist_grad.x, grad_norm, idx, b_is_boundary, density, x, y);
+
+            sim->particles_[idx].flags |= PBDParticleFlags::kSoftBody;
+            sim->particles_[idx].phase = sb_idx;
+            sim->particles_[idx].sb_data_idx = data_idx;
+
+			if(x==0 && y==0) {
+                start_idx = data_idx;
+            }
+
+            lattice2idx[x][y] = idx;
+            flags[x][y] = 1; // mark that particle exists here
+        }
+    }
+
+    sb.base.start_pdata_idx = start_idx;
+
+    // calc inertia tensor
+    const float mass = (2 * sim->particle_r_ * 2 * sim->particle_r_ * density);
+    const float rb_mass = mass * size_x * size_y;
+	const float I = (rb_mass / 12.0f) * lengthSqr(sb_size);
+	sb.base.Iinv = 1.0f/I;
+
+    // calculate region data
+    std::vector<uint32_t> region_pidx;
+    std::vector<PBDRegion> regions;
+    std::vector<ivec2> region_start_xy; // for each region
+    for(int y=0;y<size_y;++y) {
+        for(int x=0;x<size_x;++x) {
+            PBDRegion reg = calc_region(x, y, size_y, sb.w, flags, lattice2idx, region_pidx);
+            auto s_it = region_pidx.begin() + reg.start_part_idx;
+            auto e_it = region_pidx.begin() + reg.start_part_idx + reg.num_part;
+			std::sort(s_it, e_it);
+			// TODO: also maybe remove regions which are not bringin any new information,
+			// that is ones that are completely contained inside other region
+			bool b_is_unique = true;
+            for(const PBDRegion& ri : regions) {
+                if(ri.num_part != reg.num_part) {
+                    continue;
+				}
+
+                bool b_equal = true;
+				for(uint32_t i=0;i<reg.num_part;++i) {
+                    if(region_pidx[ri.start_part_idx + i]!= region_pidx[reg.start_part_idx + i]) {
+                        b_equal = false;
+                        break;
+                    }
+                }
+                if(b_equal) {
+                    b_is_unique = false;
+                    break;
+                }
+            }
+
+            if(b_is_unique) {
+                const uint32_t off = reg.start_part_idx;
+                reg.mass = reg.num_part;
+                vec2 cm0 = vec2(0);
+                for(uint32_t i=0;i<reg.num_part;++i) {
+                    const uint32_t sb_data_idx = sim->particles_[region_pidx[i + off]].sb_data_idx;
+                    const PBDSoftBodyParticleData& sd = sim->sb_particles_data_[sb_data_idx];
+                    cm0 += sd.base.x0;
+                }
+                cm0 /= reg.num_part;
+                reg.cm0 = cm0;
+			    regions.push_back(reg);
+                region_start_xy.push_back(ivec2(x,y));
+            } else {
+                region_pidx.erase(s_it, e_it);
+            }
+		}
+    }
+
+    // add new regions' particle indices
+    uint32_t start_sb_p = (uint32_t)sim->sb_particles_per_region_.size();
+    sim->sb_particles_per_region_.insert(sim->sb_particles_per_region_.end(), region_pidx.begin(), region_pidx.end());
+    for(int i=0;i<(int)regions.size();++i) {
+        regions[i].start_part_idx += start_sb_p;
+    }
+    // add regions themselves
+    uint32_t start_sb_reg = (uint32_t)sim->sb_regions_.size();
+    sim->sb_regions_.insert(sim->sb_regions_.end(), regions.begin(), regions.end());
+	sb.start_region_idx = start_sb_reg;
+    sb.num_regions = (uint32_t)regions.size();
+
+    // for each particle in soft body
+    for(int i=0;i<sb.base.num_part;++i) {
+        PBDSoftBodyParticleData& pd = sim->sb_particles_data_[sb.base.start_pdata_idx + i];
+		pd.num_regions = 0;
+        pd.start_region_idx = -1;
+		uint32_t cur_part_idx = pd.base.index;
+        // check which regions contain it 
+        for(int ri = 0; ri < (int)regions.size(); ++ri) {
+            for(uint32_t pi = 0; pi<regions[ri].num_part; ++pi) {
+                uint32_t rp = sim->sb_particles_per_region_[regions[ri].start_part_idx + pi];
+                // and add if it is contained
+                if(rp == cur_part_idx) {
+                    if(0 == pd.num_regions) { 
+                        pd.start_region_idx = (uint32_t)sim->sb_regions_per_particle_.size();
+                    }
+                    pd.num_regions++;
+                    sim->sb_regions_per_particle_.push_back(start_sb_reg + ri);
+                    break;
+                }
+            }
+        }
+    }
+
+    sim->soft_shape_matching_c_.push_back(SoftShapeMatchingConstraint{sb_idx});
+
+    return sb_idx;
+}
+
+
+template<int SX>
+static PBDRegion calc_region(int x, int y, int sy, int w, const uint8_t (*flags)[SX],
+                                const uint32_t (*l2i)[SX], std::vector<uint32_t>& region_pidx) {
+
+	const uint32_t s = (uint32_t)region_pidx.size();
+	for (int i = -w; i <= w; ++i) {
+		for (int j = -w; j <= w; ++j) {
+			int cx = x + i;
+			int cy = y + j;
+			if (cx >= 0 && cx < SX && cy >= 0 && cy < sy && flags[cx][cy]) {
+				region_pidx.push_back(l2i[cx][cy]);
+			}
+		}
+	}
+	uint32_t count = (uint32_t)region_pidx.size() - s;
+	return PBDRegion{s, count};
 }
 
 int pbd_unified_sim_add_fluid_model(struct PBDUnifiedSimulation* sim, float viscosity, float desired_rest_density) {
@@ -529,11 +756,21 @@ bool pbd_unified_sim_remove_distance2_constraint(struct PBDUnifiedSimulation* si
 vec2 rb_calc_com(const PBDRigidBody& rb, const vec2* pred_x, const PBDRigidBodyParticleData* rb_data) {
     
     vec2 com = vec2(0,0);
-    for(int di = rb.start_part_idx; di < rb.start_part_idx + rb.num_part; ++di) {
+    for(int di = rb.start_pdata_idx; di < rb.start_pdata_idx + rb.num_part; ++di) {
         int pi = rb_data[di].index;
         com = com + pred_x[pi];
     }
 	com *= 1.0f / (float)rb.num_part;
+    return com;
+}
+
+vec2 calc_com(const vec2* pred_x, const uint32_t* const indices, const uint32_t count) {
+    
+    vec2 com = vec2(0,0);
+    for(uint32_t i = 0; i < count; ++i) {
+        com = com + pred_x[indices[i]];
+    }
+	com *= 1.0f / (float)count;
     return com;
 }
 
@@ -682,7 +919,7 @@ void solve_shape_matching_c(const ShapeMatchingConstraint& c,
 
     mat2 A(0,0,0,0);
     vec2* x_pred = sim->x_pred_.data();
-	for (int di = rb.start_part_idx; di < rb.start_part_idx + rb.num_part; ++di) {
+	for (int di = rb.start_pdata_idx; di < rb.start_pdata_idx + rb.num_part; ++di) {
         int pi = rb_data[di].index;
         A = A + outer(x_pred[pi] - com, rb_data[di].x0);
 	}
@@ -698,7 +935,9 @@ void solve_shape_matching_c(const ShapeMatchingConstraint& c,
     mat2 rot_m = rotate2(rb.angle);
     (void)rot_m;
 
-	for (int di = rb.start_part_idx; di < rb.start_part_idx + rb.num_part; ++di) {
+    static float alpha = 1;
+
+	for (int di = rb.start_pdata_idx; di < rb.start_pdata_idx + rb.num_part; ++di) {
         int pi = rb_data[di].index;
         vec2 dx = vec2(0.0f);
         if(delta_angle!=0.0f) {
@@ -710,11 +949,70 @@ void solve_shape_matching_c(const ShapeMatchingConstraint& c,
         if(fabsf(dx.x)>1e-6 || fabsf(dx.y)>1e-6) {
 			//sim->dp_[pi] += vec2(fabs(dx.x) > 1e-6 ? dx.x : 0.0f, fabsf(dx.y) > 1e-6 ? dx.y : 0.0f);
             
-        sim->dp_[pi] += dx;
+        sim->dp_[pi] += alpha*dx;
         sim->num_constraints_[pi]++;
 	    
 	    //x_pred[pi] += dx;
         }
+	}
+}
+
+void solve_soft_shape_matching_c(const SoftShapeMatchingConstraint& c,
+						  const PBDSoftBodyParticleData* sb_data,
+						  PBDUnifiedSimulation* sim) {
+
+	const int sb_index = c.sb_index;
+    const PBDSoftBody& sb = sim->soft_bodies_[sb_index];
+    const PBDRigidBody& rb = sb.base;
+
+	const vec2* const x_pred = sim->x_pred_.data();
+	const uint32_t off = sb.start_region_idx;
+	for (uint32_t ri = 0; ri < sb.num_regions; ri++) {
+		PBDRegion& reg = sim->sb_regions_[off + ri];
+        assert(reg.start_part_idx + reg.num_part <= sim->sb_particles_per_region_.size());
+        const uint32_t* const reg_pidxs = &sim->sb_particles_per_region_[reg.start_part_idx];
+	    const vec2 com_r = calc_com(sim->x_pred_.data(), reg_pidxs, reg.num_part);
+
+        mat2 Ar(0,0,0,0);
+        for (uint32_t i = 0; i < reg.num_part; ++i) {
+            int pi = reg_pidxs[i];
+            int di = sim->particles_[pi].sb_data_idx;
+            Ar = Ar + outer(x_pred[pi] - com_r, sb_data[di].base.x0);
+        }
+
+        float delta_angle;
+        mat2 Q = calculateQ(Ar, &delta_angle);
+
+        reg.A = Ar;
+        reg.R = Q;
+        reg.cm = com_r;
+        reg.angle = rb.angle0 + delta_angle;
+	}
+
+    const float alpha = sb.alpha;
+
+	for (int di = rb.start_pdata_idx; di < rb.start_pdata_idx + rb.num_part; ++di) {
+        const int pi = sb_data[di].base.index;
+        const int32_t sb_data_idx = sim->particles_[pi].sb_data_idx;
+        const PBDSoftBodyParticleData& sp_data = sim->sb_particles_data_[sb_data_idx];
+        const uint32_t roff = sp_data.start_region_idx;
+
+        vec2 dx(0);
+        for(uint32_t pri = roff; pri < roff + sp_data.num_regions; pri++) {
+            uint32_t ri = sim->sb_regions_per_particle_[pri];
+
+            vec2 x0r = sp_data.base.x0 - sim->sb_regions_[ri].cm0;
+            mat2 rR = sim->sb_regions_[ri].R;
+            vec2 r_cm = sim->sb_regions_[ri].cm;
+			vec2 r_dx = (rR * x0r + r_cm);
+            dx += r_dx;
+		}
+
+        dx /= sp_data.num_regions;
+        dx -= x_pred[pi];
+
+        sim->dp_[pi] += alpha*dx;
+        sim->num_constraints_[pi]++;
 	}
 }
 
@@ -1203,6 +1501,10 @@ void PBDUnifiedTimestep::SimulateIteration(PBDUnifiedSimulation* sim, float dt, 
                     sim->particle_rb_collision_c_.push_back(ParticleRigidBodyCollisionConstraint{i,j, vec});
                 } else if((p[j].flags & PBDParticleFlags::kRigidBody) /*&& (p[i].flags & PBDParticleFlags::kSolid)*/) {
                     sim->particle_rb_collision_c_.push_back(ParticleRigidBodyCollisionConstraint{j,i, -vec});
+                } else if(((p[i].flags&p[j].flags) & PBDParticleFlags::kSoftBody) ) {
+                    if(p[i].sb_data_idx!=p[j].sb_data_idx) {
+                        // TODO: add collision code
+                    }
                 // solid - solid
                 } else if((p[j].flags & p[i].flags) & PBDParticleFlags::kSolid ) {
                     sim->solid_collision_c_.push_back(SolidParticlesCollisionConstraint{i,j, vec});
@@ -1258,6 +1560,10 @@ void PBDUnifiedTimestep::SimulateIteration(PBDUnifiedSimulation* sim, float dt, 
         }
     }
 #endif
+
+    for(auto c: sim->soft_shape_matching_c_) {
+        solve_soft_shape_matching_c(c, sim->sb_particles_data_.data(), sim);
+    }
 
 
 	//  adjust x* = x* + dx;
@@ -1434,7 +1740,7 @@ void PBDUnifiedTimestep::VelocityUpdateRigidBody(PBDUnifiedSimulation* sim, cons
 
 	if (count) {
 		// apply velocity to all rb particles according to impulse
-		const int start = sim->rigid_bodies_[rb_idx].start_part_idx;
+		const int start = sim->rigid_bodies_[rb_idx].start_pdata_idx;
         const int npart = sim->rigid_bodies_[rb_idx].num_part;
 		const int end = start + npart;
 		for (int i = start; i != end; ++i) {

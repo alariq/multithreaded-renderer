@@ -29,6 +29,32 @@ void pbd_unified_sim_debug_draw_world(const struct PBDUnifiedSimulation* sim,
 
 void collision_debug_draw(const struct CollisionWorld* cworld, RenderList* rl);
 
+void scene_soft_body(PBDUnifiedSimulation* sim) {
+
+	const float r = pbd_unified_sim_get_particle_radius(sim);
+	vec2 world_size = pbd_unified_sim_get_world_bounds(sim);
+	vec2 ppos = vec2(0.45f * world_size.x, 0.2f*world_size.y);
+    int w = 1;
+    float stiffness = 0.125f;
+	pbd_unified_sim_add_box_soft_body(sim, 8, 2, ppos, 0.0f, 1000, w, stiffness);
+
+	CollisionWorld* cworld = collision_create_world();
+	pbd_unified_sim_set_collision_world(sim, cworld);
+
+    {
+    SDFBoxCollision box;
+    box.pos = vec2(world_size.x * 0.27f, r * 3.0f);
+    box.rot = identity2();
+    box.size = vec2(3.0f * r, 3.0f * r);
+    collision_add_box(cworld, box);
+    }
+
+    SDFBoxCollision box;
+    box.pos = vec2(world_size.x * 0.63f, r * 3.0f);
+    box.rot = identity2();
+    box.size = vec2(3.0f * r, 3.0f * r);
+    collision_add_box(cworld, box);
+}
 
 void scene_initial_penetration(PBDUnifiedSimulation* sim) {
 	vec2 world_size = pbd_unified_sim_get_world_bounds(sim);
@@ -498,7 +524,7 @@ void scene_rope_and_rigid_body(PBDUnifiedSimulation* sim) {
 			sim, 2, 2, rb_pos, 0 * 45.0f * 3.1415f / 180.0f, 80);
 
 		const PBDRigidBody* rb = pbd_unified_sim_get_rigid_bodies(sim);
-		const int rb_part_data_start_idx = rb[rb_idx].start_part_idx;
+		const int rb_part_data_start_idx = rb[rb_idx].start_pdata_idx;
 		const int rb_part_data_count = rb[rb_idx].num_part;
 		const PBDRigidBodyParticleData* part_data =
 			pbd_unified_sim_get_rb_particle_data(sim);
@@ -567,6 +593,7 @@ typedef void(*phys_scene_constructor_fptr)(struct PBDUnifiedSimulation* );
 
 int g_cur_phys_scene_index = 0;
 phys_scene_constructor_fptr phys_scenes[] = {
+    scene_soft_body,
     scene_initial_penetration,
     scene_restitution_test,
     scene_static_particle_friction_test,
