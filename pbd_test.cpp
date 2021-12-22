@@ -699,7 +699,7 @@ void PBDTestObject::Update(float dt) {
     }
 	if (gos_GetKeyStatus(KEY_COMMA) == KEY_PRESSED) {
         size_t num_scenes = sizeof(phys_scenes)/sizeof(phys_scenes[0]);
-        g_cur_phys_scene_index = (g_cur_phys_scene_index - 1) % num_scenes;
+        g_cur_phys_scene_index = (g_cur_phys_scene_index + num_scenes - 1) % num_scenes;
         b_change_scene = true;
     }
     if(b_change_scene) {
