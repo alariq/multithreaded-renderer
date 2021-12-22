@@ -11,6 +11,7 @@ struct PBDParticleFlags {
 		kFluid = 0x02,
 		kSolid = 0x04,
 		kSleep = 0x10,
+		kSoftBody = 0x20,
 	};
 };
 
@@ -22,6 +23,8 @@ struct PBDParticle {
     union {
         // only valid if flags say it is rigid body particle
         int32_t rb_data_idx;
+        // only valid if flags say it is soft body particle
+        int32_t sb_data_idx;
         // only valid if flags say it is fluid partice
         int32_t fluid_data_idx;
     };
@@ -50,10 +53,10 @@ struct PBDRigidBody {
     float mu_s; // static friction
     float mu_k; // kinetic friction
     float e; // restitution
-    float Iinv; // invesrse inertia tensor
+    float Iinv; // inverse inertia tensor
 
     // index and number of particles in PBDRigidBodyParticleData
-    int start_part_idx;
+    int start_pdata_idx;
     int num_part;
     uint32_t flags;
 };
@@ -70,6 +73,38 @@ struct PBDFluidParicleRuntimeData {
     float lambda_;
 };
 
+struct PBDRegion {
+	uint32_t start_part_idx;
+	uint32_t num_part;
+	float mass; // mass of the region (depends on the amount of prticles there), basically = num_part
+	vec2 cm0;	// non deformed center of mass
+
+    // runtime data
+	vec2 cm;	 // deformed
+	float angle; // rotation
+	mat2 A;		 // A = R*U
+	mat2 R;		 // rotation decomposed
+};
+
+struct PBDSoftBodyParticleData {
+    PBDRigidBodyParticleData base;
+    int x, y; // topology index, used in region calculations
+    // need to think how to store it
+    uint32_t num_regions;
+    uint32_t start_region_idx;
+};
+
+struct PBDSoftBody {
+    PBDRigidBody base;
+
+    int w; // region size: 2*w + 1 x 2w + 1
+    float alpha; // stiffness
+    int sx, sy; // grid size
+    uint32_t start_region_idx;
+    uint32_t num_regions;
+
+    uint32_t flags;
+};
 
 void pbd_unified_timestep(struct PBDUnifiedSimulation* sim, float dt);
 
@@ -83,6 +118,9 @@ struct CollisionWorld* pbd_unified_sim_get_collision_world(const struct PBDUnifi
 int pbd_unified_sim_add_particle(struct PBDUnifiedSimulation* sim, vec2 pos, float density);
 int pbd_unified_sim_add_particle(struct PBDUnifiedSimulation* sim, vec2 pos, vec2 init_vel, float density);
 int pbd_unified_sim_add_box_rigid_body(struct PBDUnifiedSimulation* sim, int size_x, int size_y, vec2 pos, float rot, float density);
+int pbd_unified_sim_add_box_soft_body(struct PBDUnifiedSimulation* sim, int size_x,
+									  int size_y, vec2 pos, float rot, float density,
+									  int w, float alpha);
 
 int pbd_unified_sim_add_distance_constraint(struct PBDUnifiedSimulation* sim, int p0_idx, int p1_idx, float dist);
 int pbd_unified_sim_add_distance2_constraint(struct PBDUnifiedSimulation* sim, int p0_idx, vec2 pos, float dist);
