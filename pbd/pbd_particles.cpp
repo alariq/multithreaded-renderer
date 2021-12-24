@@ -19,7 +19,8 @@
 // hide the problem
 #define ENABLE_CFL 1
 #define VELOCITY_UPDATE 1
-#define GAUSS_SEIDEL_STATIC_COLLISION 1
+#define GAUSS_SEIDEL_UPDATE() 1
+#define GAUSS_SEIDEL_STATIC_COLLISION() (1 || GAUSS_SEIDEL_UPDATE())
 
 struct Pair {
 	int start;
@@ -855,7 +856,39 @@ vec2 process_friction(const vec2 path, const vec2 n, const float d, const int i0
     return fd;
 }
 
-void solve_distance_c(const DistanceConstraint& c, PBDUnifiedSimulation* sim, const vec2* x_pred) {
+void update_positions(uint32_t i0, uint32_t i1, vec2 dp0, vec2 dp1, PBDUnifiedSimulation* sim) {
+	if (GAUSS_SEIDEL_UPDATE()) {
+		sim->x_pred_[i0] += dp0;
+		sim->x_pred_[i1] += dp1;
+	} else {
+		sim->dp_[i0] += dp0;
+		sim->dp_[i1] += dp1;
+
+		sim->num_constraints_[i0]++;
+		sim->num_constraints_[i1]++;
+	}
+}
+
+void update_position(uint32_t i0, vec2 dp0, PBDUnifiedSimulation* sim) {
+    if(GAUSS_SEIDEL_UPDATE()) {
+		sim->x_pred_[i0] += dp0;
+	} else {
+		sim->dp_[i0] += dp0;
+		sim->num_constraints_[i0]++;
+	}
+}
+
+void update_collision(uint32_t i0, vec2 dp0, PBDUnifiedSimulation* sim) {
+    if(GAUSS_SEIDEL_STATIC_COLLISION()) {
+    //if(GAUSS_SEIDEL_UPDATE()) {
+		sim->x_pred_[i0] += dp0;
+	} else {
+		sim->dp_[i0] += dp0;
+		sim->num_constraints_[i0]++;
+	}
+}
+
+void solve_distance_c(const DistanceConstraint& c, PBDUnifiedSimulation* sim, /*const*/ vec2* x_pred) {
 
 	assert(c.idx0 >= 0 && c.idx0 < (int32_t)sim->particles_.size());
 	assert(c.idx1 >= 0 && c.idx1 < (int32_t)sim->particles_.size());
@@ -868,21 +901,26 @@ void solve_distance_c(const DistanceConstraint& c, PBDUnifiedSimulation* sim, co
 
     const float len01 = length(x_pred[c.idx0] - x_pred[c.idx1]);
 
-	// len can be 0 often if initialy particles are inside collision geometry and then get
+	// len can be 0 often if initially particles are inside collision geometry and then get
 	// adjusted same distance outwards
 	vec2 gradC = len01==0 ? vec2(0) : (x_pred[c.idx0] - x_pred[c.idx1]) / len01;
     const float inv_mass_i = 0 ? sim->inv_scaled_mass_[c.idx0] : p0.inv_mass;
     const float inv_mass_j = 0 ? sim->inv_scaled_mass_[c.idx1] : p1.inv_mass;
 
-    float C = len01 - c.dist;
-    float s = C / (inv_mass_i + inv_mass_j);
+	// TODO: add it to distance constraint instead?
+	// we use compliance a !=0 to avoid selfpenetration when inisially rope is inside
+	// collision boundary (which usually should not happen, but one of our scenes has such
+	// configuration on purpose)
+	float h = 0.016/5;// dt/sim_iter_count
+    float a = 0.000000001f; // compliance
+	float a_ = a / (h * h);
+
+	float C = len01 - c.dist;
+    float s = C / (inv_mass_i + inv_mass_j + a_);
     vec2 dp0 = -s * inv_mass_i * gradC;
     vec2 dp1 = +s * inv_mass_j * gradC;
-    sim->dp_[c.idx0] += dp0;
-    sim->dp_[c.idx1] += dp1;
-     
-	sim->num_constraints_[c.idx0]++;
-    sim->num_constraints_[c.idx1]++;
+
+    update_positions(c.idx0, c.idx1, dp0, dp1, sim);
 }
 
 void solve_distance2_c(const DistanceConstraint2& c, PBDUnifiedSimulation* sim, const vec2* x_pred) {
@@ -902,11 +940,8 @@ void solve_distance2_c(const DistanceConstraint2& c, PBDUnifiedSimulation* sim, 
     float C = len01 - c.dist;
     float s = C / (inv_mass_i + inv_mass_j);
     vec2 dp0 = -s * inv_mass_i * gradC;
-    sim->dp_[c.idx0] += dp0;
 
-    //x_pred[c.idx0] += dp0*0.5f;
-     
-	sim->num_constraints_[c.idx0]++;
+    update_position(c.idx0, dp0, sim);
 }
 
 void solve_shape_matching_c(const ShapeMatchingConstraint& c,
@@ -926,34 +961,31 @@ void solve_shape_matching_c(const ShapeMatchingConstraint& c,
 
     float delta_angle;
     mat2 Q = calculateQ(A, &delta_angle);
+#if 0 
     if(fabsf(delta_angle)< 1e-6) {
         delta_angle = 0.0f;
     }
+#endif
 
     rb.angle = rb.angle0 + delta_angle;
     // test
     mat2 rot_m = rotate2(rb.angle);
     (void)rot_m;
 
-    static float alpha = 1;
+    static float alpha = 1.0f;
 
 	for (int di = rb.start_pdata_idx; di < rb.start_pdata_idx + rb.num_part; ++di) {
         int pi = rb_data[di].index;
         vec2 dx = vec2(0.0f);
-        if(delta_angle!=0.0f) {
+        //if(delta_angle!=0.0f) {
             dx = (Q * rb_data[di].x0 + com) - x_pred[pi];
-        } else {
-            dx = (rb_data[di].x0 + com) - x_pred[pi];
-        }
+        //} else {
+        //    dx = (rb_data[di].x0 + com) - x_pred[pi];
+        //}
 
-        if(fabsf(dx.x)>1e-6 || fabsf(dx.y)>1e-6) {
-			//sim->dp_[pi] += vec2(fabs(dx.x) > 1e-6 ? dx.x : 0.0f, fabsf(dx.y) > 1e-6 ? dx.y : 0.0f);
-            
-        sim->dp_[pi] += alpha*dx;
-        sim->num_constraints_[pi]++;
-	    
-	    //x_pred[pi] += dx;
-        }
+        //if(fabsf(dx.x)>1e-6 || fabsf(dx.y)>1e-6) {
+            update_position(pi, alpha*dx, sim);
+        //}
 	}
 }
 
@@ -1010,15 +1042,19 @@ void solve_soft_shape_matching_c(const SoftShapeMatchingConstraint& c,
 
         dx /= sp_data.num_regions;
         dx -= x_pred[pi];
-
-        sim->dp_[pi] += alpha*dx;
-        sim->num_constraints_[pi]++;
+        update_position(pi, alpha*dx, sim);
 	}
 }
 
 void solve_solid_fluid_collision_c(const SolidParticlesCollisionConstraint& c, PBDUnifiedSimulation* sim) {
 
     assert(length(c.x_ij) <= 2*sim->particle_r_);
+
+	const vec2 x_ij = sim->x_pred_[c.idx0] - sim->x_pred_[c.idx1];
+    const float x_ij_len = length(x_ij);
+    if(x_ij_len > 2*sim->particle_r_) {
+        return;
+    }
 
 	assert(c.idx0 >= 0 && c.idx0 < (int32_t)sim->particles_.size());
 	assert(c.idx1 >= 0 && c.idx1 < (int32_t)sim->particles_.size());
@@ -1029,11 +1065,10 @@ void solve_solid_fluid_collision_c(const SolidParticlesCollisionConstraint& c, P
 	assert(p0.flags & PBDParticleFlags::kSolid);
 	assert(p1.flags & PBDParticleFlags::kFluid);
 
-    const float x_ij_len = length(c.x_ij);
     const float d = x_ij_len - 2*sim->particle_r_;
     assert(d < 0);
 
-	vec2 gradC = c.x_ij / x_ij_len;
+	vec2 gradC = x_ij / max(x_ij_len, 1e-9f);
 	float inv_mass_i = sim->inv_scaled_mass_[c.idx0];
     float inv_mass_j = sim->inv_scaled_mass_[c.idx1];
 
@@ -1041,11 +1076,8 @@ void solve_solid_fluid_collision_c(const SolidParticlesCollisionConstraint& c, P
     float s = C / (inv_mass_i + inv_mass_j);
     vec2 dp0 = -s * inv_mass_i * gradC;
     vec2 dp1 = +s * inv_mass_j * gradC;
-    sim->dp_[c.idx0] += dp0;
-    sim->dp_[c.idx1] += dp1;
-     
-	sim->num_constraints_[c.idx0]++;
-    sim->num_constraints_[c.idx1]++;
+
+    update_positions(c.idx0, c.idx1, dp0, dp1, sim);
 }
 
 
@@ -1062,11 +1094,14 @@ void solve_solid_particle_collision_c(const SolidParticlesCollisionConstraint& c
 	assert(p0.flags & PBDParticleFlags::kSolid);
 	assert(p1.flags & PBDParticleFlags::kSolid);
 
-    const float x_ij_len = length(c.x_ij);
+	const vec2 x_ij = sim->x_pred_[c.idx0] - sim->x_pred_[c.idx1];
+	const float x_ij_len = max(length(x_ij), 1e-9f);
     const float d = x_ij_len - 2*sim->particle_r_;
-    assert(d < 0);
+    if(d>=0) { // can happen if using gauss seidel style
+        return;
+    }
 
-	vec2 gradC = c.x_ij / x_ij_len;
+	vec2 gradC = x_ij / x_ij_len;
 	float wi = sim->inv_scaled_mass_[c.idx0];
     float wj = sim->inv_scaled_mass_[c.idx1];
 
@@ -1079,12 +1114,10 @@ void solve_solid_particle_collision_c(const SolidParticlesCollisionConstraint& c
 	const vec2 path = (sim->x_pred_[c.idx0] + dp0 - p0.x) -
 			  (sim->x_pred_[c.idx1] + dp1 - p1.x);
     vec2 fd = process_friction(path, gradC, -d, c.idx0, c.idx1, p0, p1, sim); 
+	dp0 -= wi / (wi + wj) * fd;
+	dp1 += wj / (wi + wj) * fd;
 
-	sim->dp_[c.idx0] += dp0 - wi / (wi + wj) * fd;
-	sim->dp_[c.idx1] += dp1 + wj / (wi + wj) * fd;
-
-	sim->num_constraints_[c.idx0]++;
-    sim->num_constraints_[c.idx1]++;
+    update_positions(c.idx0, c.idx1, dp0, dp1, sim);
 }
 
 void solve_particle_rb_collision_c(const ParticleRigidBodyCollisionConstraint& c, PBDUnifiedSimulation* sim) {
@@ -1113,7 +1146,10 @@ void solve_particle_rb_collision_c(const ParticleRigidBodyCollisionConstraint& c
 		   0); // otherwise not much sense to have a particle whoose center will be
 			   // outside of the rigid body
     
-    const float d = length(c.x_ij) - (sim->particle_r_ + (-rb_part_data.sdf_value));
+    
+    const vec2 x_ij = sim->x_pred_[c.idx0] - sim->x_pred_[c.idx1];
+    const float x_ij_len = length(x_ij);
+    const float d = x_ij_len - (sim->particle_r_ + (-rb_part_data.sdf_value));
     if(d >= 0) {
         return;
     }
@@ -1123,20 +1159,20 @@ void solve_particle_rb_collision_c(const ParticleRigidBodyCollisionConstraint& c
     if(fabsf(rb_part_data.sdf_value) < sim->particle_r_) {
         norm = rotate2(rb.angle) * rb_part_data.sdf_grad;
     } else {
-		norm = -normalize(c.x_ij);
+		norm = -normalize(x_ij);
 	}
 
 	// Unified Particle Physics: one sided normals (Ch. 5 Rigid Bodies)
 	if(rb_part_data.b_is_boundary) {
-        if(dot(-c.x_ij, norm) < 0) {
-            norm = normalize(reflect(-c.x_ij, norm));
+        if(dot(-x_ij, norm) < 0) {
+            norm = normalize(reflect(-x_ij, norm));
         } else {
-            norm = normalize(-c.x_ij);
+            norm = normalize(-x_ij);
         }
     }
 
 #if MAKE_COLLISIONS_GREAT_AGAIN
-    norm = normalize(-c.x_ij);
+    norm = normalize(-x_ij);
 #endif
 
     // fluid will always be p1
@@ -1159,11 +1195,7 @@ void solve_particle_rb_collision_c(const ParticleRigidBodyCollisionConstraint& c
         dp1 += +w1 / (w0 + w1) * fd;
     }
 
-    sim->dp_[c.idx0] += dp0;
-    sim->dp_[c.idx1] += dp1;
-
-	sim->num_constraints_[c.idx0]++;
-    sim->num_constraints_[c.idx1]++;
+    update_positions(c.idx0, c.idx1, dp0, dp1, sim);
 }
 
 void solve_rb_collision_c(const RigidBodyCollisionConstraint& c, PBDUnifiedSimulation* sim) {
@@ -1201,8 +1233,9 @@ void solve_rb_collision_c(const RigidBodyCollisionConstraint& c, PBDUnifiedSimul
     const float d0 = -rb_part_data0.sdf_value;
     const float d1 = -rb_part_data1.sdf_value;
 
-    float cij_len = length(c.x_ij);
-	float d = cij_len - (d0 + d1);
+    vec2 x_ij = sim->x_pred_[c.idx0] - sim->x_pred_[c.idx1];
+    float x_ij_len = length(x_ij);
+	float d = x_ij_len - (d0 + d1);
 	// no rb collision
     if(d >= 0) {
         return;
@@ -1215,23 +1248,19 @@ void solve_rb_collision_c(const RigidBodyCollisionConstraint& c, PBDUnifiedSimul
 		norm = -rotate2(rb1.angle) * rb_part_data1.sdf_grad;
 	}
 
-    // division by 0 "fix"
-    vec2 x_ij = c.x_ij;
-	if (cij_len == 0) {
-		x_ij = vec2(1e-6, 0);
-	}
+    const vec2 norm_x_ij = x_ij_len==0 ? vec2(0) : x_ij/x_ij_len;
 
 	// Unified Particle Physics: one sided normals (Ch. 5 Rigid Bodies)
 	if(rb_part_data0.b_is_boundary) {
         if(dot(-x_ij, norm) < 0) {
-            norm = normalize(reflect(-normalize(x_ij), norm));
+            norm = normalize(reflect(-norm_x_ij, norm));
         } else {
-            norm = normalize(-x_ij);
+            norm = -norm_x_ij;
         }
     }
 
 #if MAKE_COLLISIONS_GREAT_AGAIN
-    norm = normalize(-x_ij);
+    norm = -norm_x_ij;
 #endif
 
     vec2 gradC = -norm;
@@ -1246,12 +1275,10 @@ void solve_rb_collision_c(const RigidBodyCollisionConstraint& c, PBDUnifiedSimul
 	vec2 dx = (sim->x_pred_[c.idx0] + dp0 - p0.x) -
 			  (sim->x_pred_[c.idx1] + dp1 - p1.x);
     vec2 fd = process_friction(dx, gradC, -d, c.idx0, c.idx1, p0, p1, sim);
+	dp0 -= w0 / (w0 + w1) * fd;
+	dp1 += w1 / (w0 + w1) * fd;
 
-	sim->dp_[c.idx0] += dp0 - w0 / (w0 + w1) * fd;
-	sim->dp_[c.idx1] += dp1 + w1 / (w0 + w1) * fd;
-
-	sim->num_constraints_[c.idx0]++;
-    sim->num_constraints_[c.idx1]++;
+    update_positions(c.idx0, c.idx1, dp0, dp1, sim);
 }
 
 // resolves a contact of a particle and a static environment
@@ -1270,14 +1297,7 @@ void resolve_contact(vec2 dx, const vec2 n, const int particle_idx,
         dx -= fd;
 	}
 
-    // TODO: move this part to be general part of every collision?
-    if(GAUSS_SEIDEL_STATIC_COLLISION) {
-	    sim->x_pred_[particle_idx] += dx;
-    } else {
-        sim->num_constraints_[particle_idx]++;
-	    sim->dp_[particle_idx] += dx;
-    }
-
+    update_collision(particle_idx, dx, sim);
 }
 
 void solve_box_boundary(const BoxBoundaryConstraint& c, vec2 pos, int particle_idx, PBDUnifiedSimulation* sim) {
@@ -1360,14 +1380,9 @@ void solve_collision_constraint(CollisionContact& cc, PBDUnifiedSimulation* sim,
 	const float mu_k = sim->particles_[particle_idx].mu_k;
 	vec2 fd = process_friction(path, cc.n, cc.dist, particle_idx,
 							sim->particles_[particle_idx], mu_s, mu_k, sim);
+    dx -= fd;
 
-    // TODO: move this part to be general part of every collision?
-    if(GAUSS_SEIDEL_STATIC_COLLISION) {
-	    sim->x_pred_[particle_idx] += dx - fd;
-    } else {
-        sim->num_constraints_[particle_idx]++;
-	    sim->dp_[particle_idx] += dx - fd;
-    }
+    update_collision(particle_idx, dx, sim);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
