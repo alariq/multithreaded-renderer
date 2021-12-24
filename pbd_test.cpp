@@ -37,6 +37,9 @@ void scene_soft_body(PBDUnifiedSimulation* sim) {
     int w = 1;
     float stiffness = 0.125f;
 	pbd_unified_sim_add_box_soft_body(sim, 8, 2, ppos, 0.0f, 1000, w, stiffness);
+    vec2 off(0,10*r);
+	pbd_unified_sim_add_box_rigid_body(sim, 2, 2, ppos + off + 1*vec2(r,0), 0.0f, 1000);
+	pbd_unified_sim_add_box_rigid_body(sim, 2, 2, ppos + off*2, 0.0f, 1000);
 
 	CollisionWorld* cworld = collision_create_world();
 	pbd_unified_sim_set_collision_world(sim, cworld);
@@ -263,18 +266,32 @@ void scene_rb_friction_test2(PBDUnifiedSimulation* sim) {
     int rb_dim_y = 4;
     vec2 rb_size = 2 * vec2(rb_dim_x*radius, rb_dim_y*radius);
 
-	vec2 offset = vec2(0.0f, 0.0f) + 1.0f * vec2(rb_size.x, rb_size.y);
-    const float column_size = 4;
-    const float row_size = 4;
+    constexpr const int column_size = 4;
+    constexpr const int row_size = 4;
+	constexpr int num_boxes = column_size * row_size;
 
+	// made so that multiple calls of this scene will give same results
+	// could do with setting random seed, but then need to restore it
+	static bool b_is_initialized = false;
+	static float rotations[num_boxes] = {};
+	static float jitters[num_boxes] = {};
+	if (!b_is_initialized) {
+		for (int i = 0; i < num_boxes; ++i) {
+			rotations[i] = random(0.0f, 1.0f);
+			jitters[i] = random(-0.01f, 0.01f);
+		}
+		b_is_initialized = true;
+	}
+
+	vec2 offset = vec2(0.0f, 0.0f) + 1.0f * vec2(rb_size.x, rb_size.y);
 	for (int y = 0; y < row_size; ++y) {
 		for (int x = 0; x < column_size; ++x) {
 
-			float jitter = random(-0.01f, 0.01f);
-			vec2 pos = offset + vec2(x * 1.5f*rb_size.x + jitter, y * 1.5f * rb_size.y);
-            float rot = random(0.0f, 1.0f);
+			float jitter = jitters[y * column_size + x];
+			float rot = rotations[y * column_size + x];
+			vec2 pos = offset + vec2(x * 1.5f * rb_size.x + jitter, y * 1.5f * rb_size.y);
 
-            pbd_unified_sim_add_box_rigid_body(sim, rb_dim_x, rb_dim_y, pos, rot * 2* 3.1415f, density0);
+			pbd_unified_sim_add_box_rigid_body(sim, rb_dim_x, rb_dim_y, pos, rot * 2 * 3.1415f, density0);
 		}
 	}
 }
@@ -741,7 +758,8 @@ void PBDTestObject::Update(float dt) {
 	if (g_anchor1_c >= 0 && g_anchor2_c>=0) {
 		if (gos_GetKeyStatus(KEY_R) == KEY_PRESSED) {
             pbd_unified_sim_remove_distance2_constraint(sim_, 0);//g_anchor1_c);
-            pbd_unified_sim_remove_distance2_constraint(sim_, 0);//g_anchor2_c);
+			// drop one at a time
+            //pbd_unified_sim_remove_distance2_constraint(sim_, 0);//g_anchor2_c);
         }
     }
 #endif
