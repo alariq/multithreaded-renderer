@@ -4,6 +4,8 @@
 #include <vector>
 #include <stdint.h>
 
+enum: uint32_t { kPBDInvalidIndex = 0xFFFFFFFFu };
+
 // TODO: remove constrants which are not flags ( e.g. fluid, solid, move them to phase?)
 struct PBDParticleFlags {
 	enum : uint32_t {
@@ -97,13 +99,20 @@ struct PBDSoftBodyParticleData {
 struct PBDSoftBody {
     PBDRigidBody base;
 
-    int w; // region size: 2*w + 1 x 2w + 1
+    uint32_t w; // region size: 2*w + 1 x 2w + 1
     float alpha; // stiffness
     int sx, sy; // grid size
     uint32_t start_region_idx;
     uint32_t num_regions;
+    uint32_t parent_breakable_idx; // if part of breakable, otherwise kPBDInvalidIndex
+};
 
-    uint32_t flags;
+struct PBDBreakableSoftBody {
+    uint32_t w; // region size: 2*w + 1 x 2w + 1
+    float alpha; // stiffness
+    int sx, sy; // grid size
+    uint32_t start_soft_body;
+    uint32_t num_bodies;
 };
 
 void pbd_unified_timestep(struct PBDUnifiedSimulation* sim, float dt);
@@ -120,7 +129,13 @@ int pbd_unified_sim_add_particle(struct PBDUnifiedSimulation* sim, vec2 pos, vec
 int pbd_unified_sim_add_box_rigid_body(struct PBDUnifiedSimulation* sim, int size_x, int size_y, vec2 pos, float rot, float density);
 int pbd_unified_sim_add_box_soft_body(struct PBDUnifiedSimulation* sim, int size_x,
 									  int size_y, vec2 pos, float rot, float density,
-									  int w, float alpha);
+									  uint32_t w, float alpha);
+int pbd_unified_sim_add_soft_body(struct PBDUnifiedSimulation* sim, uint32_t size_x,
+								  uint32_t size_y, const uint8_t* blueprint, vec2 pos,
+								  float density, uint32_t w, float alpha);
+int pbd_unified_sim_add_breakable_soft_body(struct PBDUnifiedSimulation* sim, uint32_t size_x,
+											uint32_t size_y, const uint8_t* blueprint, vec2 pos,
+											float density, int w, float compliance);
 
 int pbd_unified_sim_add_distance_constraint(struct PBDUnifiedSimulation* sim, int p0_idx, int p1_idx, float dist);
 int pbd_unified_sim_add_distance2_constraint(struct PBDUnifiedSimulation* sim, int p0_idx, vec2 pos, float dist);
