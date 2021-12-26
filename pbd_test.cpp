@@ -59,6 +59,41 @@ void scene_soft_body(PBDUnifiedSimulation* sim) {
     collision_add_box(cworld, box);
 }
 
+void scene_soft_body_from_lattice(PBDUnifiedSimulation* sim) {
+
+	const float r = pbd_unified_sim_get_particle_radius(sim);
+	vec2 world_size = pbd_unified_sim_get_world_bounds(sim);
+	vec2 ppos = vec2(0.45f * world_size.x, 0.2f*world_size.y);
+    int w = 1;
+    float stiffness = 0.125f;
+#if 0
+    const constexpr uint32_t sx = 7;
+    const constexpr uint32_t sy = 4;
+	uint8_t bp[sy][sx] = {
+		{1, 1, 1, 1, 1, 1, 1},
+		{1, 0, 0, 1, 0, 0, 1},
+		{1, 0, 0, 1, 0, 0, 1},
+		{1, 1, 1, 1, 1, 1, 1},
+	};
+#else
+    const constexpr uint32_t sx = 6;
+    const constexpr uint32_t sy = 5;
+	uint8_t bp[sy][sx] = {
+		{0, 0, 1, 1, 0, 0},
+		{0, 1, 0, 0, 1, 0},
+		{1, 0, 0, 0, 0, 1},
+		{0, 1, 0, 0, 1, 0},
+		{0, 0, 1, 1, 0, 0},
+	};
+#endif
+
+	pbd_unified_sim_add_soft_body(sim, sx, sy, &bp[0][0], ppos, 1000, w, stiffness);
+
+    vec2 off(0,10*r);
+	pbd_unified_sim_add_box_rigid_body(sim, 2, 2, ppos + off + 1*vec2(r,0), 0.0f, 100);
+}
+
+
 void scene_initial_penetration(PBDUnifiedSimulation* sim) {
 	vec2 world_size = pbd_unified_sim_get_world_bounds(sim);
 	vec2 ppos = vec2(0.55f * world_size.x, 0.0f);
@@ -610,6 +645,7 @@ typedef void(*phys_scene_constructor_fptr)(struct PBDUnifiedSimulation* );
 
 int g_cur_phys_scene_index = 0;
 phys_scene_constructor_fptr phys_scenes[] = {
+    scene_soft_body_from_lattice,
     scene_soft_body,
     scene_initial_penetration,
     scene_restitution_test,
