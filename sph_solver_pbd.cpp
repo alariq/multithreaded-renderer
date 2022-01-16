@@ -360,7 +360,6 @@ struct PBD_TimeStep {
 			num_iterations++;
 		}
 
-		printf("num iterations: %d\n", num_iterations);
 
     }
 
