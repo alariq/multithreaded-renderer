@@ -18,6 +18,7 @@ set(SOURCES ${SOURCES}
     gos_input.cpp
     gos_input.h
 
+    utils/adt.h
     utils/defines.h
     utils/stream.cpp
     utils/stream.h
