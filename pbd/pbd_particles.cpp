@@ -31,6 +31,12 @@ static const u16 kRB = 0x80;
 static const u16 kExists = 0x100;
 static const u16 kVisited = 0x200;
 
+u32 get_debug_colour() {
+	static const u32 debug_colours[4] = {0xFFAA00FF, 0x55AA00FF, 0x007700FF, 0xAABB33FF};
+    static u8 i = 0;
+    return debug_colours[i++%4];
+}
+
 #define MAKE_COLLISIONS_GREAT_AGAIN 1
 // this prefers normal straight along collision line, which works better just because
 // corner particles in rigid bodies have gradients which are not always "correct"
@@ -1032,7 +1038,7 @@ int pbd_unified_sim_add_fluid_model(struct PBDUnifiedSimulation* sim, float visc
         .density0_ = desired_rest_density,
         .mass_ = particle_mass,
 		.viscosity_ = viscosity,
-        .debug_color_ = random_colour(),
+        .debug_color_ = get_debug_colour(),
 	});
 
     return (int)sim->fluid_models_.size() - 1;
