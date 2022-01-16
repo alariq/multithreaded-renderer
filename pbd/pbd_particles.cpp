@@ -1850,7 +1850,7 @@ void PBDUnifiedTimestep::SimulateIteration(PBDUnifiedSimulation* sim, float dt, 
             if (C < 0) {
                 // rb - rb
                 if(((p[i].flags&p[j].flags) & PBDParticleFlags::kRigidBody) ) {
-                    if(p[i].rb_data_idx!=p[j].rb_data_idx)
+                    if(p[i].phase!=p[j].phase)
                         sim->rb_collision_c_.push_back(RigidBodyCollisionConstraint{i,j, vec});
                 // rb - solid/fluid
                 } else if((p[i].flags & PBDParticleFlags::kRigidBody) /*&& (p[j].flags & PBDParticleFlags::kSolid)*/) {
