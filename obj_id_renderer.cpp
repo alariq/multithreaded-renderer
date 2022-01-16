@@ -164,7 +164,6 @@ uint32_t ObjIdRenderer::Readback(uint32_t x, uint32_t y) {
 	if (data) {
 		obj_id = (uint32_t)*data;
 	}
-	printf("obj_id: %d\n", obj_id);
 	glUnmapBuffer(GL_PIXEL_PACK_BUFFER);
 	glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
 
