@@ -9,6 +9,34 @@
 
 #include "engine/profiler/profiler.h"
 
+template<int N>
+struct RandArray {
+	float random_floats[N];
+	unsigned int i;
+    
+    RandArray(float mmin, float mmax):i(0) {
+        for(int ii=0;ii<N;ii++) {
+            random_floats[ii] = random(mmin, mmax);
+        }
+    }
+
+    float operator[](int idx) const { return random_floats[idx%N]; }
+    
+    void reset() { i = 0; }
+	float get_next() { return random_floats[i++%N]; }
+	vec3 get_next_vec() {
+		vec3 r;
+		r.x = get_next();
+		r.y = get_next();
+		r.z = get_next();
+		return r;
+	}
+};
+
+static RandArray<1024> r_rotations(0, 1);
+static RandArray<1024> r_jitters(-0.01f, 0.01f);
+static RandArray<1024> r_offsets(-0.01f, 0.01f);
+
 // TODO: move to input utils?
 static vec3 get_ws_mouse_pos(RenderFrameContext* rfc);
 
@@ -253,7 +281,7 @@ void scene_friction_test(PBDUnifiedSimulation* sim) {
 	for (int y = 0; y < row_size; ++y) {
 		for (int x = 0; x < column_size; ++x) {
 
-			float jitter = 0; // random(-0.01f, 0.01f);
+			float jitter = 0;
 			vec2 pos = offset + vec2(x * 2.0f * radius + jitter, y * 2.0f * radius);
 
 			int pidx = pbd_unified_sim_add_particle(sim, pos, density0 - y*100);
@@ -303,27 +331,13 @@ void scene_rb_friction_test2(PBDUnifiedSimulation* sim) {
 
     constexpr const int column_size = 4;
     constexpr const int row_size = 4;
-	constexpr int num_boxes = column_size * row_size;
-
-	// made so that multiple calls of this scene will give same results
-	// could do with setting random seed, but then need to restore it
-	static bool b_is_initialized = false;
-	static float rotations[num_boxes] = {};
-	static float jitters[num_boxes] = {};
-	if (!b_is_initialized) {
-		for (int i = 0; i < num_boxes; ++i) {
-			rotations[i] = random(0.0f, 1.0f);
-			jitters[i] = random(-0.01f, 0.01f);
-		}
-		b_is_initialized = true;
-	}
 
 	vec2 offset = vec2(0.0f, 0.0f) + 1.0f * vec2(rb_size.x, rb_size.y);
 	for (int y = 0; y < row_size; ++y) {
 		for (int x = 0; x < column_size; ++x) {
 
-			float jitter = jitters[y * column_size + x];
-			float rot = rotations[y * column_size + x];
+			float jitter = r_jitters[y * column_size + x];
+			float rot = r_rotations[y * column_size + x];
 			vec2 pos = offset + vec2(x * 1.5f * rb_size.x + jitter, y * 1.5f * rb_size.y);
 
 			pbd_unified_sim_add_box_rigid_body(sim, rb_dim_x, rb_dim_y, pos, rot * 2 * 3.1415f, density0);
@@ -946,7 +960,7 @@ void initialize_particle_positions(struct PBDUnifiedSimulation* sim,
 	for (int y = 0; y < row_size; ++y) {
 		for (int x = 0; x < column_size; ++x) {
 
-			float jitter = 0; // random(-0.01f, 0.01f);
+			float jitter = 0;
 			vec2 pos = offset + vec2(x * 2.0f * radius + jitter, y * 2.0f * radius);
 
 			pbd_unified_sim_add_particle(sim, pos, density0);
@@ -966,7 +980,7 @@ void initialize_particle_positions2(struct PBDUnifiedSimulation* sim, const vec2
 			int idx = y * row_size + x;
 			if (idx >= count) break;
 
-			float jitter = 0; // random(-0.01f, 0.01f);
+			float jitter = 0;
 			vec2 pos = offset + vec2(x * 2.0f * radius + jitter, y * 2.0f * radius);
 
 			int p_idx = pbd_unified_sim_add_particle(sim, pos, density0);
@@ -987,7 +1001,7 @@ void initialize_fluid_particle_positions(struct PBDUnifiedSimulation* sim,
 			int idx = y * row_size + x;
 			if (idx >= count) break;
 
-			float jitter = 0; // random(-0.01f, 0.01f);
+			float jitter = 0;
 			vec2 pos = offset + vec2(x * 2.0f * radius + jitter, y * 2.0f * radius);
 
 			pbd_unified_sim_add_fluid_particle(sim, pos, fluid_model_idx);
