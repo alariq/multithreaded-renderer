@@ -12,6 +12,8 @@ public:
     typedef struct {
         uint32_t contacts: 1;
         uint32_t friction: 1;
+        // rotation of soft body particle
+        uint32_t sb_part_rot: 1;
     } DDFlags;
     DDFlags dbg_flags_;
 

@@ -57,6 +57,18 @@ void pbd_unified_sim_debug_draw_world(const struct PBDUnifiedSimulation* sim,
 
 void collision_debug_draw(const struct CollisionWorld* cworld, RenderList* rl);
 
+int add_soft_body(struct PBDUnifiedSimulation* sim, uint32_t sx, uint32_t sy,
+				  const uint8_t* blueprint, vec2 pos, float density, uint32_t w, float alpha) {
+
+	const constexpr int BP_MAX_SIZE = 32;// blueprint max size
+	assert(sx > 0 && sy > 0);
+	assert(sx <= BP_MAX_SIZE && sy <= BP_MAX_SIZE);
+
+    PBDBodyLatticeData lattice[BP_MAX_SIZE*BP_MAX_SIZE] = {{0}};
+    pbd_util_build_connectivity_lattice(sx, sy, blueprint, lattice);
+	return pbd_unified_sim_add_soft_body(sim, sx, sy, lattice, -1, pos, density, w, alpha);
+}
+
 void scene_soft_body(PBDUnifiedSimulation* sim) {
 
 	const float r = pbd_unified_sim_get_particle_radius(sim);
@@ -87,40 +99,199 @@ void scene_soft_body(PBDUnifiedSimulation* sim) {
     collision_add_box(cworld, box);
 }
 
-void scene_soft_body_from_lattice(PBDUnifiedSimulation* sim) {
+void scene_soft_body_from_lattice(PBDUnifiedSimulation* sim, int body_type) {
 
 	const float r = pbd_unified_sim_get_particle_radius(sim);
 	vec2 world_size = pbd_unified_sim_get_world_bounds(sim);
-	vec2 ppos = vec2(0.45f * world_size.x, 0.2f*world_size.y);
-    int w = 1;
+	vec2 ppos = vec2(0.45f * world_size.x, 0.3f*world_size.y);
+    const PBDSettings* settings = pbd_unified_sim_settings(sim);
+    int w = 2;//1;
     float stiffness = 0.125f;
-#if 0
-    const constexpr uint32_t sx = 7;
-    const constexpr uint32_t sy = 4;
-	uint8_t bp[sy][sx] = {
+
+	uint8_t bp0[4][7] = {
 		{1, 1, 1, 1, 1, 1, 1},
 		{1, 0, 0, 1, 0, 0, 1},
 		{1, 0, 0, 1, 0, 0, 1},
 		{1, 1, 1, 1, 1, 1, 1},
 	};
-#else
-    const constexpr uint32_t sx = 6;
-    const constexpr uint32_t sy = 5;
-	uint8_t bp[sy][sx] = {
+	uint8_t bp1a[5][6] = {
 		{0, 0, 1, 1, 0, 0},
 		{0, 1, 0, 0, 1, 0},
 		{1, 0, 0, 0, 0, 1},
 		{0, 1, 0, 0, 1, 0},
 		{0, 0, 1, 1, 0, 0},
 	};
+	uint8_t bp1b[5][6] = {
+		{0, 0, 1, 1, 0, 0},
+		{0, 1, 1, 1, 1, 0},
+		{1, 1, 0, 0, 1, 1},
+		{0, 1, 1, 1, 1, 0},
+		{0, 0, 1, 1, 0, 0},
+	};
+	uint8_t bp2[3][4] = {
+		{1, 1, 1, 1},
+		{1, 1, 1, 1},
+		{1, 1, 1, 1},
+	};
+
+    uint32_t sx = 0;
+    uint32_t sy = 0;
+    uint8_t* bp = nullptr;
+    
+    if(body_type == 0) {
+        sx = 7;
+        sy = 4;
+        bp = &bp0[0][0];
+    } else if(body_type==1) {
+        sx = 6;
+        sy = 5;
+        bp = settings->supports_diag_links ? &bp1a[0][0]: &bp1b[0][0];
+    } else if(body_type==2) {
+        sx = 4;
+        sy = 3;
+        bp = &bp2[0][0];
+    } else {
+        assert(0);
+    }
+
+	//pbd_unified_sim_add_soft_body(sim, sx, sy, &bp[0][0], ppos, 1000, w, stiffness);
+
+	const constexpr int BP_MAX_SIZE = 32;// blueprint max size
+	assert(sx > 0 && sy > 0);
+	assert(sx <= BP_MAX_SIZE && sy <= BP_MAX_SIZE);
+
+
+    PBDBodyLatticeData lattice[BP_MAX_SIZE*BP_MAX_SIZE] = {{0}};
+    pbd_util_build_connectivity_lattice(sx, sy, bp, lattice);
+#if 0
+    static const uint16_t kL = 0x1;
+    static const uint16_t kR = 0x2;
+    lattice[1*sx + 1].nflags &= ~kR;
+    lattice[1*sx + 2].nflags &= ~kL;
+    lattice[2*sx + 1].nflags &= ~kR;
+    lattice[2*sx + 2].nflags &= ~kL;
 #endif
 
-	pbd_unified_sim_add_soft_body(sim, sx, sy, &bp[0][0], ppos, 1000, w, stiffness);
+	pbd_unified_sim_add_soft_body(sim, sx, sy, lattice, -1, ppos, 1000, w, stiffness);
 
     vec2 off(0,10*r);
 	pbd_unified_sim_add_box_rigid_body(sim, 2, 2, ppos + off + 1*vec2(r,0), 0.0f, 100);
+
+	CollisionWorld* cworld = collision_create_world();
+	pbd_unified_sim_set_collision_world(sim, cworld);
+    SDFBoxCollision box;
+    box.pos = vec2(world_size.x * 0.45f, r * 3.0f);
+    box.rot = identity2();
+    box.size = vec2(1.0f * r, 3.0f * r);
+    collision_add_box(cworld, box);
 }
 
+void scene_soft_body_from_lattice0(PBDUnifiedSimulation* sim) {
+    scene_soft_body_from_lattice(sim, 0);
+}
+void scene_soft_body_from_lattice1(PBDUnifiedSimulation* sim) {
+    scene_soft_body_from_lattice(sim, 1);
+}
+void scene_soft_body_from_lattice2(PBDUnifiedSimulation* sim) {
+    scene_soft_body_from_lattice(sim, 2);
+}
+
+void scene_breakable_body(PBDUnifiedSimulation* sim) {
+
+	const float r = pbd_unified_sim_get_particle_radius(sim);
+	vec2 world_size = pbd_unified_sim_get_world_bounds(sim);
+	vec2 ppos = vec2(0.45f * world_size.x, 0.2f*world_size.y);
+    int w = 1;
+    float stiffness = .5;//0.125f;
+    float fr_angle = 35.0f*3.1415f/180.0f;
+    float fr_rel_len = 1.9f;
+    const constexpr uint32_t sx = 8;
+    const constexpr uint32_t sy = 1;
+	uint8_t bp[sy][sx] = {
+		{1, 1, 1, 1, 1, 1, 1, 1},
+		//{1, 1, 1, 1, 1, 1, 1, 1},
+	};
+	pbd_unified_sim_add_breakable_soft_body(sim, sx, sy, &bp[0][0], ppos, 1000, w, stiffness, fr_rel_len, fr_angle);
+    vec2 off(0,10*r);
+	pbd_unified_sim_add_box_rigid_body(sim, 2, 2, ppos + off + 1*vec2(r,0), 0.0f, 1000);
+	pbd_unified_sim_add_box_rigid_body(sim, 2, 2, ppos + off*2, 0.0f, 1000);
+#if 0
+    for(int i=1;i<3;i++) {
+	    pbd_unified_sim_add_breakable_soft_body(sim, sx, sy, &bp[0][0], ppos + off*2 + i*vec2(0, 2*r), 1000, w, stiffness);
+    }
+#endif
+
+	CollisionWorld* cworld = collision_create_world();
+	pbd_unified_sim_set_collision_world(sim, cworld);
+
+    SDFBoxCollision box;
+    box.pos = vec2(world_size.x * 0.45f, r * 3.0f);
+    box.rot = identity2();
+    box.size = vec2(1.0f * r, 3.0f * r);
+    collision_add_box(cworld, box);
+
+}
+
+// nice config if body is not breaking, cool scene
+void scene_breakable_generic(PBDUnifiedSimulation* sim, bool b_with_rb) {
+
+	const float r = pbd_unified_sim_get_particle_radius(sim);
+	vec2 world_size = pbd_unified_sim_get_world_bounds(sim);
+	vec2 ppos = vec2(0.45f * world_size.x, 0.4f*world_size.y);
+    int w = 1;
+    float stiffness = .25f;//0.125f;
+    float fr_angle = 20.0f*3.1415f/180.0f;
+    float fr_rel_len = 1.1f;
+    const constexpr uint32_t sx = 13;
+    const constexpr uint32_t sy = 2;
+	const uint8_t bp[sy][sx] = {
+		{1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+		{1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+	};
+	pbd_unified_sim_add_breakable_soft_body(sim, sx, sy, &bp[0][0], ppos, 1000, w, stiffness, fr_rel_len, fr_angle);
+
+	//pbd_unified_sim_add_box_rigid_body(sim, 3, 2, ppos, 0.0f, 1000);
+    vec2 off(0,10*r);
+    if(b_with_rb) {
+	    pbd_unified_sim_add_box_rigid_body(sim, 2, 2, ppos + off + 1*vec2(r,0), 0.0f, 1000);
+	    pbd_unified_sim_add_box_rigid_body(sim, 2, 2, ppos + off*2, 0.0f, 1000);
+    }
+#if 0
+    for(int i=0;i<3;i++) {
+		pbd_unified_sim_add_breakable_soft_body(sim, sx, sy, &bp[0][0],
+												ppos + off * 2 + (i+0) * vec2(0, 2 * r), 1000,
+												w, stiffness, fr_rel_len, fr_angle);
+	}
+#endif
+
+	CollisionWorld* cworld = collision_create_world();
+	pbd_unified_sim_set_collision_world(sim, cworld);
+
+    { SDFBoxCollision box;
+    box.pos = vec2(world_size.x * 0.13f, r * 3.0f);
+    box.rot = identity2();
+    box.size = vec2(1.0f * r, 3.0f * r);
+    collision_add_box(cworld, box); }
+
+    { SDFBoxCollision box;
+    box.pos = vec2(world_size.x * 0.77f, r * 3.0f);
+    box.rot = identity2();
+    box.size = vec2(1.0f * r, 3.0f * r);
+    collision_add_box(cworld, box); }
+
+    { SDFBoxCollision box;
+    box.pos = vec2(world_size.x * 0.45f, r * 3.0f);
+    box.rot = identity2();
+    box.size = vec2(1.0f * r, 10.0f * r);
+    collision_add_box(cworld, box); }
+}
+
+void scene_breakable_twice(PBDUnifiedSimulation* sim) {
+    scene_breakable_generic(sim, false);
+}
+void scene_breakable_with_rb(PBDUnifiedSimulation* sim) {
+    scene_breakable_generic(sim, true);
+}
 
 void scene_initial_penetration(PBDUnifiedSimulation* sim) {
 	vec2 world_size = pbd_unified_sim_get_world_bounds(sim);
@@ -659,7 +830,12 @@ typedef void(*phys_scene_constructor_fptr)(struct PBDUnifiedSimulation* );
 
 int g_cur_phys_scene_index = 0;
 phys_scene_constructor_fptr phys_scenes[] = {
-    scene_soft_body_from_lattice,
+    scene_breakable_twice,
+    scene_breakable_with_rb,
+    scene_breakable_body,
+    scene_soft_body_from_lattice0,
+    scene_soft_body_from_lattice1,
+    scene_soft_body_from_lattice2,
     scene_soft_body,
     scene_initial_penetration,
     scene_restitution_test,
@@ -684,8 +860,6 @@ phys_scene_constructor_fptr phys_scenes[] = {
     scene_rigid_body_restitution_test
 };
 
-
-
 PBDTestObject* PBDTestObject::Create() {
 
     PBDTestObject* o = new PBDTestObject;
@@ -693,7 +867,8 @@ PBDTestObject* PBDTestObject::Create() {
     o->sim_origin_ = vec2(0,0);
     o->sim_ = pbd_unified_sim_create(o->sim_dim_);
     o->dbg_flags_.contacts = false;
-    o->dbg_flags_.friction = true;
+    o->dbg_flags_.friction = false;
+    o->dbg_flags_.sb_part_rot = true;
     
     (phys_scenes[g_cur_phys_scene_index])(o->sim_);
 
@@ -820,6 +995,7 @@ void PBDTestObject::Update(float dt) {
 	}
 }
 
+static int g_debug_particle = 104;
 void select_and_draw_debug_particle(const PBDUnifiedSimulation* sim,
 									RenderFrameContext* rfc) {
 
@@ -827,21 +1003,20 @@ void select_and_draw_debug_particle(const PBDUnifiedSimulation* sim,
 	const float particles_r = pbd_unified_sim_get_particle_radius(sim);
 	const PBDParticle* particles = pbd_unified_sim_get_particles(sim);
 
-	static int debug_particle = 104;
 	if (gos_GetKeyStatus(KEY_MINUS) == KEY_PRESSED) {
 
         const vec3 pos = get_ws_mouse_pos(rfc);
 
 		for (int i = 0; i < particles_count; ++i) {
 			if (lengthSqr(pos.xy() - particles[i].x) < particles_r * particles_r) {
-				debug_particle = i;
+				g_debug_particle = i;
 				break;
 			}
 		}
 	}
 
-	if (debug_particle >= 0 && debug_particle < particles_count) {
-		vec2 deb_pos = particles[debug_particle].x;
+	if (g_debug_particle >= 0 && g_debug_particle < particles_count) {
+		vec2 deb_pos = particles[g_debug_particle].x;
 		vec3 pos(deb_pos.x, deb_pos.y, -0.1f);
 		rfc->rl_->addDebugPoints(&pos, 1, vec4(1, 1, 0.5f, 1), 4, true);
 	}
@@ -1126,6 +1301,64 @@ void pbd_unified_sim_debug_draw_world(const struct PBDUnifiedSimulation* sim, Re
 			rl->addDebugLine(p0, dxp_pt, green);
 		}
 	}
+
+    if(draw_flags.sb_part_rot) {
+        const PBDSoftBodyParticleData* sp_data = pbd_unified_sim_get_sb_particle_data(sim);
+        for (int i = 0; i < count; ++i) {
+            const PBDParticle& p = particles[i];
+            if (p.flags & PBDParticleFlags::kSoftBody) {
+
+                uint32_t pdi = p.sb_data_idx;
+                vec2 axis0 = normalize(vec2(sp_data[pdi].goal_R.e00, sp_data[pdi].goal_R.e10));
+                vec2 axis1 = normalize(vec2(sp_data[pdi].goal_R.e01, sp_data[pdi].goal_R.e11));
+                vec3 pos(p.x, z);
+                rl->addDebugLine(pos, pos + vec3(r*0.8f*axis0, 0), vec4(0.4f,0.4f,1,1));
+                rl->addDebugLine(pos, pos + vec3(r*0.8f*axis1, 0), vec4(0.4f,1.0f,0.4f,1));
+            }
+        }
+
+        const uint32_t* sb_idxs = pbd_unified_sim_get_soft_body_idxs(sim);
+        const int sb_cnt = pbd_unified_sim_get_soft_body_count(sim);
+        const PBDRegion* regions = pbd_unified_sim_get_sb_regions(sim);
+        const uint32_t* reg_pidxs = pbd_unified_sim_get_sb_regions_pidxs(sim);
+        vec4 rcol(1,1,0,1);
+        //if(reg_pidxs) {
+        //    srand((uint32_t)((*(uint64_t*)(void*)reg_pidxs)>>32));
+        //}
+        r_offsets.reset();
+        for (int i = 0; i < sb_cnt; ++i) {
+            const PBDSoftBody& sb = pbd_unified_sim_get_soft_body((int)sb_idxs[i], sim);
+            const uint32_t roff = sb.start_region_idx;
+			for (uint32_t ri = roff; ri < sb.num_regions + roff; ++ri) {
+				const PBDRegion& reg = regions[ri];
+                const uint32_t poff = reg.start_part_idx;
+                vec3 start(particles[reg_pidxs[poff]].x, z);
+                vec3 last, prev = start;
+
+                bool b_draw = false;
+				if (g_debug_particle >= 0 && g_debug_particle < count) {
+					for (uint32_t pi = poff; pi < reg.num_part + poff; ++pi) {
+						if (reg_pidxs[pi] == 4) {
+							b_draw = true;
+							break;
+						}
+					}
+					if (!b_draw) continue;
+				} else {
+                    b_draw = true;
+                }
+
+				for (uint32_t pi = poff+1; pi < reg.num_part + poff; ++pi) {
+                    //vec3 rand = random_vec(-vec3(0.1f*r, 0.1f*r, 0), vec3(0.1f*r, 0.1f*r, 0));
+                    vec3 rand = r_offsets.get_next_vec();
+                    last = vec3(particles[reg_pidxs[pi]].x, z) + rand;
+                    rl->addDebugLine(prev, last, rcol);
+                    prev = last;
+                }
+                rl->addDebugLine(last, start, rcol);
+			}
+		}
+    }
 
 	vec2 mouse = get_ws_mouse_pos(rfc).xy();
     vec3 mp = vec3(mouse, z);
