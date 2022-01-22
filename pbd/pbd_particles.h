@@ -1,10 +1,17 @@
 #pragma once
 
 #include "engine/utils/vec.h"
+#include "engine/utils/adt.h"
 #include <vector>
 #include <stdint.h>
 
 enum: uint32_t { kPBDInvalidIndex = 0xFFFFFFFFu };
+
+struct PBDSettings {
+    vec2 world_bounds;
+    bool supports_diag_links;
+    //...
+};
 
 // TODO: remove constrants which are not flags ( e.g. fluid, solid, move them to phase?)
 struct PBDParticleFlags {
@@ -49,7 +56,7 @@ struct PBDRigidBodyParticleData {
 
 struct PBDRigidBody {
     // move to other struct as those are changing?
-    vec2 x;
+    vec2 x; // apparently not really used
     float angle;
     float angle0;
     float mu_s; // static friction
@@ -76,6 +83,7 @@ struct PBDFluidParicleRuntimeData {
 };
 
 struct PBDRegion {
+    // indices into particles_per_region array
 	uint32_t start_part_idx;
 	uint32_t num_part;
 	float mass; // mass of the region (depends on the amount of prticles there), basically = num_part
@@ -90,29 +98,47 @@ struct PBDRegion {
 
 struct PBDSoftBodyParticleData {
     PBDRigidBodyParticleData base;
-    int x, y; // topology index, used in region calculations
-    // need to think how to store it
-    uint32_t num_regions;
+    int x, y; // position in lattice
+
+    // used for breakage calculation
+    vec2 goal_x;
+    mat2 goal_R;
+    
+    // in sb_regions_per_particle_
     uint32_t start_region_idx;
+    uint32_t num_regions;
 };
 
 struct PBDSoftBody {
     PBDRigidBody base;
 
-    uint32_t w; // region size: 2*w + 1 x 2w + 1
+    uint32_t w; // region size: 2*w + 1 x 2w + 1 (actually not)
     float alpha; // stiffness
-    int sx, sy; // grid size
     uint32_t start_region_idx;
     uint32_t num_regions;
     uint32_t parent_breakable_idx; // if part of breakable, otherwise kPBDInvalidIndex
+    uint32_t next_soft_body_idx; // index of next soft body idx if part of breakable soft body
+    int32_t island; // island number (if soft body was created for a specific island)
+};
+
+struct PBDBodyLatticeData {
+    int x, y; // topology index, used in region calculations
+    uint32_t nflags; // neighbour flags
+    uint32_t pdata_idx;
+    uint32_t particle_idx; // not sure if needed
+    int island;
 };
 
 struct PBDBreakableSoftBody {
-    uint32_t w; // region size: 2*w + 1 x 2w + 1
+    uint32_t w; // region size: 2*w + 1 x 2w + 1 (actually not)
     float alpha; // stiffness
-    int sx, sy; // grid size
-    uint32_t start_soft_body;
-    uint32_t num_bodies;
+    float fracture_len; // relative to rest len
+    float fracture_cos_angle; // cos(angle)
+    uint32_t lattice_sx;
+    uint32_t lattice_sy;
+    uint32_t lattice_idx;
+    // index to first PBDSoftBody
+    uint32_t first_soft_body;
 };
 
 void pbd_unified_timestep(struct PBDUnifiedSimulation* sim, float dt);
@@ -130,12 +156,19 @@ int pbd_unified_sim_add_box_rigid_body(struct PBDUnifiedSimulation* sim, int siz
 int pbd_unified_sim_add_box_soft_body(struct PBDUnifiedSimulation* sim, int size_x,
 									  int size_y, vec2 pos, float rot, float density,
 									  uint32_t w, float alpha);
+void pbd_util_build_connectivity_lattice(uint32_t sx, uint32_t sy,
+										 const uint8_t* blueprint,
+										 PBDBodyLatticeData* lattice);
 int pbd_unified_sim_add_soft_body(struct PBDUnifiedSimulation* sim, uint32_t size_x,
-								  uint32_t size_y, const uint8_t* blueprint, vec2 pos,
-								  float density, uint32_t w, float alpha);
-int pbd_unified_sim_add_breakable_soft_body(struct PBDUnifiedSimulation* sim, uint32_t size_x,
-											uint32_t size_y, const uint8_t* blueprint, vec2 pos,
-											float density, int w, float compliance);
+								  uint32_t size_y, PBDBodyLatticeData* lattice,
+								  int island, vec2 pos, float density, uint32_t w,
+								  float alpha);
+int pbd_unified_sim_add_breakable_soft_body(struct PBDUnifiedSimulation* sim,
+											uint32_t size_x, uint32_t size_y,
+											const uint8_t* blueprint, vec2 pos,
+											float density, uint32_t w, float compliance,
+											float fr_len, float fr_angle);
+void pbd_unified_sim_remove_breakable_soft_body(struct PBDUnifiedSimulation* sim, int id);
 
 int pbd_unified_sim_add_distance_constraint(struct PBDUnifiedSimulation* sim, int p0_idx, int p1_idx, float dist);
 int pbd_unified_sim_add_distance2_constraint(struct PBDUnifiedSimulation* sim, int p0_idx, vec2 pos, float dist);
@@ -158,10 +191,18 @@ const PBDParticle* pbd_unified_sim_get_particles(const struct PBDUnifiedSimulati
 
 // TODO: this was a workaround for debug output
 const PBDRigidBodyParticleData* pbd_unified_sim_get_rb_particle_data(const struct PBDUnifiedSimulation*);
+const PBDSoftBodyParticleData* pbd_unified_sim_get_sb_particle_data(const struct PBDUnifiedSimulation* sim);
 const PBDFluidModel* pbd_unified_sim_get_fluid_particle_model(const struct PBDUnifiedSimulation*, int idx);
 uint32_t pbd_unified_sim_get_particle_flags(const struct PBDUnifiedSimulation* sim, int idx);
 const PBDRigidBody* pbd_unified_sim_get_rigid_bodies(const struct PBDUnifiedSimulation*);
+const PBDSoftBody& pbd_unified_sim_get_soft_body(int i, const struct PBDUnifiedSimulation* sim);
+const uint32_t* pbd_unified_sim_get_soft_body_idxs(const struct PBDUnifiedSimulation* sim);
+const int pbd_unified_sim_get_soft_body_count(const struct PBDUnifiedSimulation* sim);
+const PBDRegion* pbd_unified_sim_get_sb_regions(const struct PBDUnifiedSimulation* sim);
+const uint32_t* pbd_unified_sim_get_sb_regions_pidxs(const struct PBDUnifiedSimulation* sim);
+
 vec2 pbd_unified_sim_get_world_bounds(const struct PBDUnifiedSimulation*);
+const PBDSettings* pbd_unified_sim_settings(const struct PBDUnifiedSimulation* sim);
 
 
 struct DbgContactInfo {
