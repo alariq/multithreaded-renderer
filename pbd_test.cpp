@@ -1333,7 +1333,7 @@ void pbd_unified_sim_debug_draw_world(const struct PBDUnifiedSimulation* sim, Re
 				const PBDRegion& reg = regions[ri];
                 const uint32_t poff = reg.start_part_idx;
                 vec3 start(particles[reg_pidxs[poff]].x, z);
-                vec3 last, prev = start;
+                vec3 last = start, prev = start;
 
                 bool b_draw = false;
 				if (g_debug_particle >= 0 && g_debug_particle < count) {
