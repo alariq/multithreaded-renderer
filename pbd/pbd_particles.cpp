@@ -182,8 +182,12 @@ struct PBDUnifiedSimulation {
 
     struct CollisionWorld* collision_world_;
 
-	std::vector<DistanceConstraint> distance_c_;
-	std::vector<DistanceConstraint2> distance2_c_;
+	FreeList<DistanceConstraint> distance_c_;
+	std::vector<int> distance_c_idxs_;
+
+	FreeList<DistanceConstraint2> distance2_c_;
+	std::vector<int> distance2_c_idxs_;
+
 	std::vector<SolidParticlesCollisionConstraint> solid_collision_c_;
 	std::vector<SolidParticlesCollisionConstraint> solid_fluid_c_;
     // maybe just iterate over rigid / soft bodies instead of having separate array for those?
@@ -397,8 +401,11 @@ void pbd_unified_sim_reset(PBDUnifiedSimulation* sim) {
 
     sim->collision_world_ = nullptr;
 
-	sim->distance_c_.resize(0);
-	sim->distance2_c_.resize(0);
+	sim->distance_c_.clear();
+	sim->distance_c_idxs_.resize(0);
+	sim->distance2_c_.clear();
+	sim->distance2_c_idxs_.resize(0);
+
 	sim->solid_collision_c_.resize(0);
 	sim->solid_fluid_c_.resize(0);
 	sim->shape_matching_c_.resize(0);
@@ -1532,27 +1539,42 @@ int pbd_unified_sim_add_fluid_particle(struct PBDUnifiedSimulation* sim, vec2 po
 }
 
 int pbd_unified_sim_add_distance_constraint(struct PBDUnifiedSimulation* sim, int p0_idx, int p1_idx, float dist) {
-    sim->distance_c_.push_back(DistanceConstraint{p0_idx, p1_idx, dist});
-    return (int)sim->distance_c_.size() - 1;
+    int idx = sim->distance_c_.insert(DistanceConstraint{p0_idx, p1_idx, dist});
+    sim->distance_c_idxs_.push_back(idx);
+    return idx;
 }
 
 int pbd_unified_sim_add_distance2_constraint(struct PBDUnifiedSimulation* sim, int p0_idx, vec2 pos, float dist) {
-    sim->distance2_c_.push_back(DistanceConstraint2{p0_idx, pos, dist});
-    return (int)sim->distance2_c_.size() - 1;
+    int idx = sim->distance2_c_.insert(DistanceConstraint2{p0_idx, pos, dist});
+    sim->distance2_c_idxs_.push_back(idx);
+    return idx;
 }
-
-// !NB: use with care otherwise this will crash application
+// TODO: unify DistanceConstraint & DistanceConstraint2 into same struct and just store indices in different arrays?
 bool pbd_unified_sim_remove_distance_constraint(struct PBDUnifiedSimulation* sim, int c_idx) {
-    assert((int)sim->distance_c_.size() > c_idx);
-    sim->distance_c_[c_idx] = sim->distance_c_.back();
-    sim->distance_c_.erase(sim->distance_c_.begin() + c_idx);
+    sim->distance_c_.release(c_idx);
+    bool b_found = false;
+    for(auto it=sim->distance_c_idxs_.begin();it!=sim->distance_c_idxs_.end(); ++it) {
+        if(*it == c_idx) {
+            b_found = true;
+            sim->distance_c_idxs_.erase(it);
+        }
+    }
+    assert(b_found);
     return true;
 }
-// !NB: use with care otherwise this will crash application
+
 bool pbd_unified_sim_remove_distance2_constraint(struct PBDUnifiedSimulation* sim, int c_idx) {
-    assert((int)sim->distance2_c_.size() > c_idx);
-    sim->distance2_c_[c_idx] = sim->distance2_c_.back();
-    sim->distance2_c_.erase(sim->distance2_c_.begin() + c_idx);
+
+    sim->distance2_c_.release(c_idx);
+    bool b_found = false;
+    for(auto it=sim->distance2_c_idxs_.begin();it!=sim->distance2_c_idxs_.end(); ++it) {
+        if(*it == c_idx) {
+            b_found = true;
+            sim->distance2_c_idxs_.erase(it);
+            break;
+        }
+    }
+    assert(b_found);
     return true;
 }
 
@@ -2605,11 +2627,13 @@ void PBDUnifiedTimestep::SimulateIteration(PBDUnifiedSimulation* sim, float dt, 
         }
     }
 
-    for(auto c: sim->distance_c_) {
+    for(auto ci: sim->distance_c_idxs_) {
+        DistanceConstraint& c = sim->distance_c_.at(ci);
         solve_distance_c(c, sim, x_pred.data());
     }
 
-    for(auto c: sim->distance2_c_) {
+    for(auto ci: sim->distance2_c_idxs_) {
+        DistanceConstraint2& c = sim->distance2_c_.at(ci);
         solve_distance2_c(c, sim, x_pred.data());
     }
 
