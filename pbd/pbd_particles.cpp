@@ -1372,8 +1372,8 @@ void on_soft_body_break(u32 bb_idx, u32 sb_idx, PBDUnifiedSimulation* sim) {
 	}
 
     // add new sbodies to the head 
-    u32 prev_sb_idx = sb_idx;
     u32 part_data_offset = sb.base.num_part;
+    // start from 1 because we already processed one sb just above
 	for(int i=1;i<num_islands; ++i) {
 		const int cur_sb_idx = sim->soft_bodies_.insert(
 			init_soft_body(sb.base.x, sb.w, sb.alpha, start_island_id + i));
@@ -1386,7 +1386,7 @@ void on_soft_body_break(u32 bb_idx, u32 sb_idx, PBDUnifiedSimulation* sim) {
 		// pdata indices
 		for(int j=0;j<(int)cur_sb.base.num_part; ++j) {
 			const PBDSoftBodyParticleData& sb_pdata =
-				sim->sb_particles_data_[sb.base.start_pdata_idx + j];
+				sim->sb_particles_data_[cur_sb.base.start_pdata_idx + j];
 			sim->particles_[sb_pdata.base.index].phase = cur_sb_idx;
         }
 
@@ -1394,15 +1394,15 @@ void on_soft_body_break(u32 bb_idx, u32 sb_idx, PBDUnifiedSimulation* sim) {
         assert(num_regions);
         sim->soft_shape_matching_c_.push_back(SoftShapeMatchingConstraint{cur_sb_idx});
 
+        // inject into bb
         cur_sb.parent_breakable_idx = bb_idx;
-        cur_sb.next_soft_body_idx = (u32)prev_sb_idx;
+        cur_sb.next_soft_body_idx = bb.first_soft_body;
+        bb.first_soft_body = cur_sb_idx;
 
-        prev_sb_idx = cur_sb_idx;
         part_data_offset += cur_sb.base.num_part;
     }
 
     // update first sbody ptr in bb
-    bb.first_soft_body = prev_sb_idx;
 }
 
 int pbd_unified_sim_add_breakable_soft_body(struct PBDUnifiedSimulation* sim, u32 sx,
