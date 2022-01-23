@@ -13,6 +13,18 @@ struct PBDSettings {
     //...
 };
 
+struct DistanceConstraint {
+    int idx0, idx1;
+    float dist;
+};
+
+// not needed if we have static particles (infinite mass)
+struct DistanceConstraint2 {
+    int idx0;
+    vec2 pos;
+    float dist;
+};
+
 // TODO: remove constrants which are not flags ( e.g. fluid, solid, move them to phase?)
 struct PBDParticleFlags {
 	enum : uint32_t {
@@ -172,6 +184,7 @@ void pbd_unified_sim_remove_breakable_soft_body(struct PBDUnifiedSimulation* sim
 
 int pbd_unified_sim_add_distance_constraint(struct PBDUnifiedSimulation* sim, int p0_idx, int p1_idx, float dist);
 int pbd_unified_sim_add_distance2_constraint(struct PBDUnifiedSimulation* sim, int p0_idx, vec2 pos, float dist);
+void pbd_unified_sim_update_distance2_constraint(struct PBDUnifiedSimulation* sim, int c_idx, vec2* pos, float dist);
 bool pbd_unified_sim_remove_distance_constraint(struct PBDUnifiedSimulation* sim, int c_idx);
 bool pbd_unified_sim_remove_distance2_constraint(struct PBDUnifiedSimulation* sim, int c_idx);
 
@@ -200,6 +213,11 @@ const uint32_t* pbd_unified_sim_get_soft_body_idxs(const struct PBDUnifiedSimula
 const int pbd_unified_sim_get_soft_body_count(const struct PBDUnifiedSimulation* sim);
 const PBDRegion* pbd_unified_sim_get_sb_regions(const struct PBDUnifiedSimulation* sim);
 const uint32_t* pbd_unified_sim_get_sb_regions_pidxs(const struct PBDUnifiedSimulation* sim);
+
+const int* pbd_unified_sim_get_distance_constraint_idxs(const struct PBDUnifiedSimulation* sim, int* count);
+const DistanceConstraint* pbd_unified_sim_get_distance_constraint(const struct PBDUnifiedSimulation* sim, int idx);
+const int* pbd_unified_sim_get_distance2_constraint_idxs(const struct PBDUnifiedSimulation* sim, int* count);
+const DistanceConstraint2* pbd_unified_sim_get_distance2_constraint(const struct PBDUnifiedSimulation* sim, int idx);
 
 vec2 pbd_unified_sim_get_world_bounds(const struct PBDUnifiedSimulation*);
 const PBDSettings* pbd_unified_sim_settings(const struct PBDUnifiedSimulation* sim);
