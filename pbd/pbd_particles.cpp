@@ -64,18 +64,6 @@ struct NeighbourData {
 	std::vector<Pair> neighbour_info_;
 };
 
-struct DistanceConstraint {
-    int idx0, idx1;
-    float dist;
-};
-
-// not needed if we have static particles (infinite mass)
-struct DistanceConstraint2 {
-    int idx0;
-    vec2 pos;
-    float dist;
-};
-
 struct ShapeMatchingConstraint {
     int rb_index;
 };
@@ -1549,6 +1537,13 @@ int pbd_unified_sim_add_distance2_constraint(struct PBDUnifiedSimulation* sim, i
     sim->distance2_c_idxs_.push_back(idx);
     return idx;
 }
+
+void pbd_unified_sim_update_distance2_constraint(struct PBDUnifiedSimulation* sim, int c_idx, vec2* pos, float dist) {
+    DistanceConstraint2& c = sim->distance2_c_.at(c_idx);
+    c.dist = dist >=0.0f ? dist : c.dist;
+    c.pos = pos ? *pos : c.pos;
+}
+
 // TODO: unify DistanceConstraint & DistanceConstraint2 into same struct and just store indices in different arrays?
 bool pbd_unified_sim_remove_distance_constraint(struct PBDUnifiedSimulation* sim, int c_idx) {
     sim->distance_c_.release(c_idx);
@@ -1729,11 +1724,11 @@ void solve_distance_c(const DistanceConstraint& c, PBDUnifiedSimulation* sim, /*
 	// len can be 0 often if initially particles are inside collision geometry and then get
 	// adjusted same distance outwards
 	vec2 gradC = len01==0 ? vec2(0) : (x_pred[c.idx0] - x_pred[c.idx1]) / len01;
-    const float inv_mass_i = 0 ? sim->inv_scaled_mass_[c.idx0] : p0.inv_mass;
-    const float inv_mass_j = 0 ? sim->inv_scaled_mass_[c.idx1] : p1.inv_mass;
+    const float inv_mass_i = p0.inv_mass;
+    const float inv_mass_j = p1.inv_mass;
 
 	// TODO: add it to distance constraint instead?
-	// we use compliance a !=0 to avoid selfpenetration when inisially rope is inside
+	// we use compliance a !=0 to avoid selfpenetration when initially rope is inside
 	// collision boundary (which usually should not happen, but one of our scenes has such
 	// configuration on purpose)
 	float h = 0.016/5;// dt/sim_iter_count
@@ -1741,6 +1736,9 @@ void solve_distance_c(const DistanceConstraint& c, PBDUnifiedSimulation* sim, /*
 	float a_ = a / (h * h);
 
 	float C = len01 - c.dist;
+    // can be useful
+    //if(C<0) return;
+
     float s = C / (inv_mass_i + inv_mass_j + a_);
     vec2 dp0 = -s * inv_mass_i * gradC;
     vec2 dp1 = +s * inv_mass_j * gradC;
@@ -1759,11 +1757,22 @@ void solve_distance2_c(const DistanceConstraint2& c, PBDUnifiedSimulation* sim, 
     const float len01 = length(x_pred[c.idx0] - c.pos);
 
 	vec2 gradC = (x_pred[c.idx0] - c.pos) / len01;
-    const float inv_mass_i = 0 ? sim->inv_scaled_mass_[c.idx0] : p0.inv_mass;
+    const float inv_mass_i = p0.inv_mass;
     const float inv_mass_j = 0;
 
+	// TODO: add it to distance constraint instead?
+	// we use compliance a !=0 to avoid selfpenetration when initially rope is inside
+	// collision boundary (which usually should not happen, but one of our scenes has such
+	// configuration on purpose)
+	float h = 0.016/5;// dt/sim_iter_count
+    float a = 0.000000001f; // compliance
+	float a_ = a / (h * h);
+
     float C = len01 - c.dist;
-    float s = C / (inv_mass_i + inv_mass_j);
+    // can be useful
+    //if(C<0) return;
+
+    float s = C / (inv_mass_i + inv_mass_j + a_);
     vec2 dp0 = -s * inv_mass_i * gradC;
 
     update_position(c.idx0, dp0, sim);
@@ -2612,6 +2621,8 @@ void PBDUnifiedTimestep::SimulateIteration(PBDUnifiedSimulation* sim, float dt, 
                     }
                 // solid - solid
                 } else if((p[j].flags & p[i].flags) & PBDParticleFlags::kSolid ) {
+                    //if(p[j].phase != -1 && p[i].phase != -1)
+                    //NOTE: for ropes, only check if not distance constraint between i & j?
                     sim->solid_collision_c_.push_back(SolidParticlesCollisionConstraint{i,j, vec});
                 // solid - fluid
                 } else if((p[i].flags & PBDParticleFlags::kSolid) && (p[j].flags & PBDParticleFlags::kFluid)) {
@@ -2625,16 +2636,6 @@ void PBDUnifiedTimestep::SimulateIteration(PBDUnifiedSimulation* sim, float dt, 
                 }
             }
         }
-    }
-
-    for(auto ci: sim->distance_c_idxs_) {
-        DistanceConstraint& c = sim->distance_c_.at(ci);
-        solve_distance_c(c, sim, x_pred.data());
-    }
-
-    for(auto ci: sim->distance2_c_idxs_) {
-        DistanceConstraint2& c = sim->distance2_c_.at(ci);
-        solve_distance2_c(c, sim, x_pred.data());
     }
 
     for(auto c: sim->solid_collision_c_) {
@@ -2651,6 +2652,17 @@ void PBDUnifiedTimestep::SimulateIteration(PBDUnifiedSimulation* sim, float dt, 
 
     for(auto c: sim->particle_rb_collision_c_) {
         solve_particle_rb_collision_c(c, sim);
+    }
+
+    // NOTE: maybe use Jacobi style just for distance constraints...
+    for(auto ci: sim->distance_c_idxs_) {
+        DistanceConstraint& c = sim->distance_c_.at(ci);
+        solve_distance_c(c, sim, x_pred.data());
+    }
+
+    for(auto ci: sim->distance2_c_idxs_) {
+        DistanceConstraint2& c = sim->distance2_c_.at(ci);
+        solve_distance2_c(c, sim, x_pred.data());
     }
 
 #if !defined(SHAPE_MATCHING_FIX)
@@ -3380,7 +3392,7 @@ const PBDFluidModel* pbd_unified_sim_get_fluid_particle_model(const struct PBDUn
 const PBDRigidBody* pbd_unified_sim_get_rigid_bodies(const struct PBDUnifiedSimulation* sim) {
     return sim->rigid_bodies_.data();
 }
-#if 1
+
 const PBDSoftBody& pbd_unified_sim_get_soft_body(int i, const struct PBDUnifiedSimulation* sim) {
     return sim->soft_bodies_.at(i);
 }
@@ -3396,7 +3408,23 @@ const PBDRegion* pbd_unified_sim_get_sb_regions(const struct PBDUnifiedSimulatio
 const u32* pbd_unified_sim_get_sb_regions_pidxs(const struct PBDUnifiedSimulation* sim) {
     return sim->sb_particles_per_region_.data();
 }
-#endif
+
+const i32* pbd_unified_sim_get_distance_constraint_idxs(const struct PBDUnifiedSimulation* sim, int* count) {
+    assert(count);
+    *count = (int)sim->distance_c_idxs_.size();
+    return sim->distance_c_idxs_.data();
+}
+const DistanceConstraint* pbd_unified_sim_get_distance_constraint(const struct PBDUnifiedSimulation* sim, int idx) {
+    return &sim->distance_c_.at(idx);
+}
+const i32* pbd_unified_sim_get_distance2_constraint_idxs(const struct PBDUnifiedSimulation* sim, int* count) {
+    assert(count);
+    *count = (int)sim->distance2_c_idxs_.size();
+    return sim->distance2_c_idxs_.data();
+}
+const DistanceConstraint2* pbd_unified_sim_get_distance2_constraint(const struct PBDUnifiedSimulation* sim, int idx) {
+    return &sim->distance2_c_.at(idx);
+}
 
 vec2 pbd_unified_sim_get_world_bounds(const struct PBDUnifiedSimulation* sim) {
     return sim->world_size_;
