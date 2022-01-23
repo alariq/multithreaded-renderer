@@ -762,17 +762,12 @@ void scene_rope_and_rigid_body(PBDUnifiedSimulation* sim) {
 
 		const PBDRigidBody* rb = pbd_unified_sim_get_rigid_bodies(sim);
 		const int rb_part_data_start_idx = rb[rb_idx].start_pdata_idx;
-		const int rb_part_data_count = rb[rb_idx].num_part;
 		const PBDRigidBodyParticleData* part_data =
 			pbd_unified_sim_get_rb_particle_data(sim);
 
-		for (int i = 0; i < rb_part_data_count; ++i) {
-			rb_particle_idx = part_data[i + rb_part_data_start_idx].index;
-			pbd_unified_sim_add_distance_constraint(sim, rb_particle_idx, prev_link_idx,
-													len_rb_rope);
-			// add constraint to only one particle in a rigid body
-			break;
-		}
+		rb_particle_idx = part_data[rb_part_data_start_idx].index;
+		pbd_unified_sim_add_distance_constraint(sim, rb_particle_idx, prev_link_idx,
+												len_rb_rope);
 	}
 
 	if (1) {
@@ -869,6 +864,7 @@ PBDTestObject* PBDTestObject::Create() {
     o->dbg_flags_.contacts = false;
     o->dbg_flags_.friction = false;
     o->dbg_flags_.sb_part_rot = true;
+    o->dbg_flags_.distance_constraints = true;
     
     (phys_scenes[g_cur_phys_scene_index])(o->sim_);
 
@@ -949,6 +945,7 @@ static int g_dragged_particle = 0;
 static bool g_b_dragging = false;
 static vec2 g_last_drag_pos(0,0);
 static vec2 g_cur_drag_pos(0,0);
+static int g_dist_constraint_idx = (int)kPBDInvalidIndex;
 void PBDTestObject::Update(float dt) {
 
     static float density = 50;
@@ -982,6 +979,7 @@ void PBDTestObject::Update(float dt) {
         phys_scenes[g_cur_phys_scene_index](sim_);
 
         g_b_dragging = false;
+        g_dist_constraint_idx = (int)kPBDInvalidIndex;
     }
 
 	if (gos_GetKeyStatus(KEY_R) == KEY_PRESSED) {
@@ -1001,9 +999,19 @@ void PBDTestObject::Update(float dt) {
 			vec2 dir = normalize(g_cur_drag_pos - g_last_drag_pos);
 			pbd_unified_sim_particle_add_velocity(sim_, g_dragged_particle, 50*len * dir);
 		}
+        if(g_dist_constraint_idx==(int)kPBDInvalidIndex) {
+			g_dist_constraint_idx = pbd_unified_sim_add_distance2_constraint(
+				sim_, g_dragged_particle, g_last_drag_pos, 0.0f);
+		} else {
+			pbd_unified_sim_update_distance2_constraint(sim_, g_dist_constraint_idx,
+														&g_cur_drag_pos, 0.0f);
+		}
+		g_last_drag_pos = g_cur_drag_pos;
 
-        g_last_drag_pos = g_cur_drag_pos;
-	}
+	} else if(g_dist_constraint_idx!=(int)kPBDInvalidIndex) {
+        pbd_unified_sim_remove_distance2_constraint(sim_, g_dist_constraint_idx);
+        g_dist_constraint_idx = (int)kPBDInvalidIndex;
+    }
 
 	{
 		SCOPED_ZONE_N(pbd_unified_timestep, 0);
@@ -1031,13 +1039,13 @@ void select_and_draw_debug_particle(const PBDUnifiedSimulation* sim,
 		}
 	}
 
-    if(gos_GetKeyStatus(KEY_LMOUSE) == KEY_PRESSED) {
+    if(!g_b_dragging && gos_GetKeyStatus(KEY_LMOUSE) == KEY_PRESSED) {
         const vec3 pos = get_ws_mouse_pos(rfc);
 		for (int i = 0; i < particles_count; ++i) {
 			if (lengthSqr(pos.xy() - particles[i].x) < particles_r * particles_r) {
 				g_dragged_particle = i;
                 g_b_dragging = true;
-                g_last_drag_pos = pos.xy();
+				g_last_drag_pos = pos.xy();
 				break;
 			}
 		}
@@ -1393,6 +1401,30 @@ void pbd_unified_sim_debug_draw_world(const struct PBDUnifiedSimulation* sim, Re
                 rl->addDebugLine(last, start, rcol);
 			}
 		}
+
+
+        if(draw_flags.distance_constraints) {
+            int d_count, d_count2;
+            const int* idxs = pbd_unified_sim_get_distance_constraint_idxs(sim, &d_count);
+            for(int i=0;i<d_count;++i) {
+                const DistanceConstraint* dist_c = pbd_unified_sim_get_distance_constraint(sim, idxs[i]);
+                vec3 s = vec3(particles[dist_c->idx0].x, z);
+                vec3 e = vec3(particles[dist_c->idx1].x, z);
+                rl->addDebugLine(s, e, vec4(0.25f, 0.25f, 1, 1));
+                vec3 points[] = { s, e};
+                rl->addDebugPoints(points, 2, vec4(0.25f, 0.25f, 1, 1), 4, false);
+            }
+
+            const int* idxs2 = pbd_unified_sim_get_distance2_constraint_idxs(sim, &d_count2);
+            for(int i=0;i<d_count2;++i) {
+                const DistanceConstraint2* dist2_c = pbd_unified_sim_get_distance2_constraint(sim, idxs2[i]);
+                vec3 s = vec3(particles[dist2_c->idx0].x, z);
+                vec3 e = vec3(dist2_c->pos, z);
+                rl->addDebugLine(s, e, vec4(0.25f, 0.25f, 1, 1));
+                vec3 points[] = { s, e};
+                rl->addDebugPoints(points, 2, vec4(0.25f, 1, 0.25f, 1), 4, false);
+            }
+        }
     }
 
 	vec2 mouse = get_ws_mouse_pos(rfc).xy();
