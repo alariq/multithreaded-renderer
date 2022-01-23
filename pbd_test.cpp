@@ -945,6 +945,10 @@ void PBDTestObject::DeinitRenderResources() {
     vdecl_ = nullptr;
 }
 
+static int g_dragged_particle = 0;
+static bool g_b_dragging = false;
+static vec2 g_last_drag_pos(0,0);
+static vec2 g_cur_drag_pos(0,0);
 void PBDTestObject::Update(float dt) {
 
     static float density = 50;
@@ -976,6 +980,8 @@ void PBDTestObject::Update(float dt) {
         collision_destroy_world(cw);
         pbd_unified_sim_reset(sim_);
         phys_scenes[g_cur_phys_scene_index](sim_);
+
+        g_b_dragging = false;
     }
 
 // disabled until remove function implemented
@@ -988,6 +994,16 @@ void PBDTestObject::Update(float dt) {
         }
     }
 #endif
+
+	if(g_b_dragging) { 
+        float len = length(g_cur_drag_pos - g_last_drag_pos);
+		if (len > 0) {
+			vec2 dir = normalize(g_cur_drag_pos - g_last_drag_pos);
+			pbd_unified_sim_particle_add_velocity(sim_, g_dragged_particle, 50*len * dir);
+		}
+
+        g_last_drag_pos = g_cur_drag_pos;
+	}
 
 	{
 		SCOPED_ZONE_N(pbd_unified_timestep, 0);
@@ -1015,6 +1031,25 @@ void select_and_draw_debug_particle(const PBDUnifiedSimulation* sim,
 		}
 	}
 
+    if(gos_GetKeyStatus(KEY_LMOUSE) == KEY_PRESSED) {
+        const vec3 pos = get_ws_mouse_pos(rfc);
+		for (int i = 0; i < particles_count; ++i) {
+			if (lengthSqr(pos.xy() - particles[i].x) < particles_r * particles_r) {
+				g_dragged_particle = i;
+                g_b_dragging = true;
+                g_last_drag_pos = pos.xy();
+				break;
+			}
+		}
+	} else if (gos_GetKeyStatus(KEY_LMOUSE) == KEY_RELEASED ||
+			   gos_GetKeyStatus(KEY_LMOUSE) == KEY_FREE) {
+		g_b_dragging = false;
+	}
+
+	if(g_b_dragging) { 
+        g_cur_drag_pos = get_ws_mouse_pos(rfc).xy();
+    }
+
 	if (g_debug_particle >= 0 && g_debug_particle < particles_count) {
 		vec2 deb_pos = particles[g_debug_particle].x;
 		vec3 pos(deb_pos.x, deb_pos.y, -0.1f);
@@ -1028,9 +1063,9 @@ void PBDTestObject::AddRenderPackets(struct RenderFrameContext *rfc) const {
 
 	if (!b_initalized_rendering_resources) return;
 
-    pbd_unified_sim_debug_draw_world(sim_, rfc, dbg_flags_);
-
     select_and_draw_debug_particle(sim_, rfc);
+
+    pbd_unified_sim_debug_draw_world(sim_, rfc, dbg_flags_);
     collision_debug_draw(pbd_unified_sim_get_collision_world(sim_), rfc->rl_);
 
 	// update instancing buffer
@@ -1363,6 +1398,11 @@ void pbd_unified_sim_debug_draw_world(const struct PBDUnifiedSimulation* sim, Re
 	vec2 mouse = get_ws_mouse_pos(rfc).xy();
     vec3 mp = vec3(mouse, z);
     rl->addDebugPoints(&mp,1, vec4(1), 3.0f, false, nullptr);
+
+
+    vec3 s = vec3(g_last_drag_pos, z);
+    vec3 e = vec3(g_cur_drag_pos, z);
+    rl->addDebugLine(s,e, vec4(1));
 
 #if TEST_REFLECTION 
 
