@@ -530,6 +530,36 @@ int pbd_unified_sim_add_box_rigid_body(struct PBDUnifiedSimulation* sim, int siz
     return rb_idx;
 }
 
+void debug_print_lattice(const PBDBodyLatticeData* lattice, int sx, int sy) {
+#if 1
+    for(i32 y=0;y<sy;++y) {
+        for(i32 x=0;x<sx;++x) {
+			const i32 i = x + y * sx;
+
+#if INCLUDE_DIAG_NEIGHBOURS
+			printf("%c%c%c%c[%c]%c%c%c%c ", 
+#else
+			printf("%c%c[%c]%c%c ", 
+#endif
+                   lattice[i].nflags & kL ? '<' : ' ',
+				   lattice[i].nflags & kT ? '^' : ' ', 
+#if INCLUDE_DIAG_NEIGHBOURS
+                   lattice[i].nflags & kLT ? '\\' : ' ',
+				   lattice[i].nflags & kLB ? '/' : ' ', 
+#endif
+                   lattice[i].nflags & kExists ? 'X' : 'O',
+#if INCLUDE_DIAG_NEIGHBOURS
+                   lattice[i].nflags & kRT ? '/' : ' ',
+				   lattice[i].nflags & kRB ? '\\' : ' ', 
+#endif
+				   lattice[i].nflags & kB ? 'v' : ' ', 
+                   lattice[i].nflags & kR ? '>' : ' ');
+		}
+        puts("\n");
+    }
+#endif
+}
+
 template<int SY>
 static PBDRegion calc_square_region(int x, int y, int sx, int w, const u8 (*flags)[SY],
                                 const uint32_t (*l2i)[SY], std::vector<uint32_t>& region_pidx, uint8_t mask) {
@@ -1067,7 +1097,7 @@ int construct_regions_for_body(PBDSoftBody& sb, u32 w, u32 sx, u32 sy, PBDBodyLa
     for(int i=0;i<sb.base.num_part;++i) {
         PBDSoftBodyParticleData& pd = sim->sb_particles_data_[sb.base.start_pdata_idx + i];
 		pd.num_regions = 0;
-        pd.start_region_idx = -1;
+        pd.start_region_idx = kPBDInvalidIndex;
 		uint32_t cur_part_idx = pd.base.index;
         // check which regions contain it 
         for(int ri = 0; ri < (int)regions.size(); ++ri) {
@@ -1283,33 +1313,7 @@ int pbd_unified_sim_add_soft_body(struct PBDUnifiedSimulation* sim, uint32_t siz
     sb.base.start_pdata_idx = start_idx;
     sb.base.num_part = num_part;
 
-#if 1
-    for(uint32_t y=0;y<size_y;++y) {
-        for(uint32_t x=0;x<size_x;++x) {
-			const uint32_t i = x + y * size_x;
-
-#if INCLUDE_DIAG_NEIGHBOURS
-			printf("%c%c%c%c[%c]%c%c%c%c ", 
-#else
-			printf("%c%c[%c]%c%c ", 
-#endif
-                   lattice[i].nflags & kL ? '<' : ' ',
-				   lattice[i].nflags & kT ? '^' : ' ', 
-#if INCLUDE_DIAG_NEIGHBOURS
-                   lattice[i].nflags & kLT ? '\\' : ' ',
-				   lattice[i].nflags & kLB ? '/' : ' ', 
-#endif
-                   lattice[i].nflags & kExists ? 'X' : 'O',
-#if INCLUDE_DIAG_NEIGHBOURS
-                   lattice[i].nflags & kRT ? '/' : ' ',
-				   lattice[i].nflags & kRB ? '\\' : ' ', 
-#endif
-				   lattice[i].nflags & kB ? 'v' : ' ', 
-                   lattice[i].nflags & kR ? '>' : ' ');
-		}
-        puts("\n");
-    }
-#endif
+    debug_print_lattice(lattice, size_x, size_y);
 
     // calc inertia tensor
     const float mass = (2 * sim->particle_r_ * 2 * sim->particle_r_ * density);
@@ -1334,7 +1338,7 @@ void on_soft_body_break(u32 bb_idx, u32 sb_idx, PBDUnifiedSimulation* sim) {
 
     PBDBodyLatticeData* lattice = &sim->bb_lattice_[bb.lattice_idx];
     assert(sb.island>0);
-    int start_island_id;
+    int start_island_id=0;
 	const int num_islands = enumerate_island(lsx, lsy, lattice, sb.island, &start_island_id);
     assert(start_island_id>0);
     assert(num_islands>=2);
@@ -1355,7 +1359,7 @@ void on_soft_body_break(u32 bb_idx, u32 sb_idx, PBDUnifiedSimulation* sim) {
 		u32 pidx = sb_pdata.base.index;
         sim->particles_[pidx].sb_data_idx = sb.base.start_pdata_idx + i;
 
-        int lidx = sb_pdata.x + lsx*sb_pdata.y;
+        int lidx = sb_pdata.x + sb_pdata.y*lsx;
         lattice[lidx].pdata_idx =  sb.base.start_pdata_idx + i;
     }
 
