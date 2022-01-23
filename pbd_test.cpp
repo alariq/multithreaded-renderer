@@ -672,8 +672,8 @@ void scene_distant_constraint_simple(PBDUnifiedSimulation* sim) {
 
 }
 
-int g_anchor1_c = 0;
-int g_anchor2_c = 0;
+int g_anchor1_c = kPBDInvalidIndex;
+int g_anchor2_c = kPBDInvalidIndex;
 void scene_distant_constraint_two_ropes(PBDUnifiedSimulation* sim) {
 
     const vec2 world_size = pbd_unified_sim_get_world_bounds(sim);
@@ -984,16 +984,16 @@ void PBDTestObject::Update(float dt) {
         g_b_dragging = false;
     }
 
-// disabled until remove function implemented
-#if 0
-	if (g_anchor1_c >= 0 && g_anchor2_c>=0) {
-		if (gos_GetKeyStatus(KEY_R) == KEY_PRESSED) {
-            pbd_unified_sim_remove_distance2_constraint(sim_, 0);//g_anchor1_c);
-			// drop one at a time
-            //pbd_unified_sim_remove_distance2_constraint(sim_, 0);//g_anchor2_c);
-        }
-    }
-#endif
+	if (gos_GetKeyStatus(KEY_R) == KEY_PRESSED) {
+        // drop one at a time
+		if (g_anchor1_c != (int)kPBDInvalidIndex) {
+			pbd_unified_sim_remove_distance2_constraint(sim_, g_anchor1_c);
+            g_anchor1_c = (int)kPBDInvalidIndex;
+		} else if (g_anchor2_c != (int)kPBDInvalidIndex) {
+			pbd_unified_sim_remove_distance2_constraint(sim_, g_anchor2_c);
+            g_anchor2_c = (int)kPBDInvalidIndex;
+		}
+	}
 
 	if(g_b_dragging) { 
         float len = length(g_cur_drag_pos - g_last_drag_pos);
