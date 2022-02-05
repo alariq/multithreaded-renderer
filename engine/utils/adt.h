@@ -109,7 +109,7 @@ template <typename T> class FreeList {
     }
 
     const T& operator[](int i) const {
-        return *at(i);
+        return at(i);
     }
 
     int insert(const T& v) {
