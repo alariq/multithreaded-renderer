@@ -25,7 +25,7 @@ quaternion euler_to_quat(float roll, float pitch, float yaw)
 }
 
 // x - roll, y - pitch, z - roll
-vec3 quat_to_euler(quaternion q) {
+vec3 quat_to_euler(const quaternion& q) {
 
     // roll (x-axis rotation)
     float sinr_cosp = 2.0f * (q.w * q.x + q.y * q.z);
