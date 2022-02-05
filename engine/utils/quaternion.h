@@ -11,6 +11,8 @@ struct quaternion mat4_to_quat(const mat4 &mat);
 struct quaternion mat3_to_quat(const mat3 &mat);
 mat4 quat_to_mat4(const struct quaternion& q);
 mat3 quat_to_mat3(const struct quaternion& q);
+// x - roll, y - pitch, z - roll
+vec3 quat_to_euler(const struct quaternion& q);
 
 struct quaternion {
 	float x, y, z, w;
@@ -29,6 +31,10 @@ struct quaternion {
 	mat3 to_mat3() const {
 		return quat_to_mat3(*this);
 	}
+
+    vec3 to_euler() const {
+        return quat_to_euler(*this);
+    }
 
 	static quaternion identity() {
 		return quaternion(0, 0, 0, 1);
