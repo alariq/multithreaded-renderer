@@ -155,7 +155,7 @@ struct PBDBreakableSoftBody {
 
 void pbd_unified_timestep(struct PBDUnifiedSimulation* sim, float dt);
 
-struct PBDUnifiedSimulation* pbd_unified_sim_create(vec2& sim_dim);
+struct PBDUnifiedSimulation* pbd_unified_sim_create(const vec2& sim_dim);
 void pbd_unified_sim_destroy(struct PBDUnifiedSimulation* sim);
 void pbd_unified_sim_reset(struct PBDUnifiedSimulation*);
 

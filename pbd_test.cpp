@@ -88,6 +88,7 @@ void scene_soft_body(PBDUnifiedSimulation* sim) {
     SDFBoxCollision box;
     box.pos = vec2(world_size.x * 0.27f, r * 3.0f);
     box.rot = identity2();
+    box.scale = vec2(1,1);
     box.size = vec2(3.0f * r, 3.0f * r);
     collision_add_box(cworld, box);
     }
@@ -95,6 +96,7 @@ void scene_soft_body(PBDUnifiedSimulation* sim) {
     SDFBoxCollision box;
     box.pos = vec2(world_size.x * 0.63f, r * 3.0f);
     box.rot = identity2();
+    box.scale = vec2(1,1);
     box.size = vec2(3.0f * r, 3.0f * r);
     collision_add_box(cworld, box);
 }
@@ -182,6 +184,7 @@ void scene_soft_body_from_lattice(PBDUnifiedSimulation* sim, int body_type) {
     SDFBoxCollision box;
     box.pos = vec2(world_size.x * 0.45f, r * 3.0f);
     box.rot = identity2();
+    box.scale = vec2(1,1);
     box.size = vec2(1.0f * r, 3.0f * r);
     collision_add_box(cworld, box);
 }
@@ -227,6 +230,7 @@ void scene_breakable_body(PBDUnifiedSimulation* sim) {
     SDFBoxCollision box;
     box.pos = vec2(world_size.x * 0.45f, r * 3.0f);
     box.rot = identity2();
+    box.scale = vec2(1,1);
     box.size = vec2(1.0f * r, 3.0f * r);
     collision_add_box(cworld, box);
 
@@ -270,18 +274,21 @@ void scene_breakable_generic(PBDUnifiedSimulation* sim, bool b_with_rb) {
     { SDFBoxCollision box;
     box.pos = vec2(world_size.x * 0.13f, r * 3.0f);
     box.rot = identity2();
+    box.scale = vec2(1,1);
     box.size = vec2(1.0f * r, 3.0f * r);
     collision_add_box(cworld, box); }
 
     { SDFBoxCollision box;
     box.pos = vec2(world_size.x * 0.77f, r * 3.0f);
     box.rot = identity2();
+    box.scale = vec2(1,1);
     box.size = vec2(1.0f * r, 3.0f * r);
     collision_add_box(cworld, box); }
 
     { SDFBoxCollision box;
     box.pos = vec2(world_size.x * 0.45f, r * 3.0f);
     box.rot = identity2();
+    box.scale = vec2(1,1);
     box.size = vec2(1.0f * r, 10.0f * r);
     collision_add_box(cworld, box); }
 }
@@ -334,6 +341,7 @@ void scene_static_particle_friction_test(PBDUnifiedSimulation* sim) {
 		SDFBoxCollision box;
 		box.pos = vec2(world_size.x * 0.3f, r * 3);
 		box.rot = rotate2(5.0f * M_PI / 180.0f);
+        box.scale = vec2(1,1);
 		box.size = vec2(15 * r, 3 * r);
 		collision_add_box(cworld, box);
 	}
@@ -342,6 +350,7 @@ void scene_static_particle_friction_test(PBDUnifiedSimulation* sim) {
 		SDFBoxCollision box;
 		box.pos = vec2(world_size.x * 0.3f + 30.0f*r, r * 3);
 		box.rot = rotate2(5.0f * M_PI / 180.0f);
+        box.scale = vec2(1,1);
 		box.size = vec2(15 * r, 3 * r);
 		collision_add_box(cworld, box);
 	}
@@ -365,6 +374,7 @@ void scene_dynamic_particle_friction_test(PBDUnifiedSimulation* sim) {
 		SDFBoxCollision box;
 		box.pos = vec2(world_size.x * 0.3f, r * 3);
 		box.rot = rotate2(5.0f * M_PI / 180.0f);
+        box.scale = vec2(1,1);
 		box.size = vec2(15 * r, 3 * r);
 		collision_add_box(cworld, box);
 	}
@@ -373,6 +383,7 @@ void scene_dynamic_particle_friction_test(PBDUnifiedSimulation* sim) {
 		SDFBoxCollision box;
 		box.pos = vec2(world_size.x * 0.3f + 30.0f*r, r * 3);
 		box.rot = rotate2(5.0f * M_PI / 180.0f);
+        box.scale = vec2(1,1);
 		box.size = vec2(15 * r, 3 * r);
 		collision_add_box(cworld, box);
 	}
@@ -807,6 +818,7 @@ void scene_rb_static_collision(PBDUnifiedSimulation* sim) {
     SDFBoxCollision box;
     box.pos = vec2(world_size.x*0.9, radius*3);
     box.rot = identity2();
+    box.scale = vec2(1,1);
     box.size = vec2(5*radius, 3*radius);
     //int cbox_idx = 
       collision_add_box(cworld, box);
@@ -1234,27 +1246,26 @@ void collision_debug_draw(const struct CollisionWorld* cworld, RenderList* rl) {
 
     const float z = -0.1f;
     int count;
-    const SDFBoxCollision* boxes = collision_world_get_box(cworld, &count);
-    for(int i=0; i<count;++i) {
-        const SDFBoxCollision& box = boxes[i];
-        vec2 s = vec2(box.size.x, box.size.y);
-        vec2 rt = vec2(s.x, s.y);
-        vec2 lt = vec2(-s.x, s.y);
+	const int* ids = collision_world_get_box_ids(cworld, &count);
+	for (int i = 0; i < count; ++i) {
+		const SDFBoxCollision& box = collision_world_get_box(cworld, ids[i]);
+		vec2 s = vec2(box.size.x*box.scale.x, box.size.y*box.scale.y);
+		vec2 rt = vec2(s.x, s.y);
+		vec2 lt = vec2(-s.x, s.y);
 
-        vec2 rb = vec2(s.x, -s.y);
-        vec2 lb = vec2(-s.x, -s.y);
+		vec2 rb = vec2(s.x, -s.y);
+		vec2 lb = vec2(-s.x, -s.y);
 
-        rt = box.rot*rt + box.pos;
-        lt = box.rot*lt + box.pos;
-        rb = box.rot*rb + box.pos;
-        lb = box.rot*lb + box.pos;
-	
-        rl->addDebugLine(vec3(rt.x, rt.y, z), vec3(lt.x, lt.y, z), vec4(1));
-        rl->addDebugLine(vec3(lt.x, lt.y, z), vec3(lb.x, lb.y, z), vec4(1));
-        rl->addDebugLine(vec3(lb.x, lb.y, z), vec3(rb.x, rb.y, z), vec4(1));
-        rl->addDebugLine(vec3(rb.x, rb.y, z), vec3(rt.x, rt.y, z), vec4(1));
-    }
+		rt = box.rot * rt + box.pos;
+		lt = box.rot * lt + box.pos;
+		rb = box.rot * rb + box.pos;
+		lb = box.rot * lb + box.pos;
 
+		rl->addDebugLine(vec3(rt.x, rt.y, z), vec3(lt.x, lt.y, z), vec4(1));
+		rl->addDebugLine(vec3(lt.x, lt.y, z), vec3(lb.x, lb.y, z), vec4(1));
+		rl->addDebugLine(vec3(lb.x, lb.y, z), vec3(rb.x, rb.y, z), vec4(1));
+		rl->addDebugLine(vec3(rb.x, rb.y, z), vec3(rt.x, rt.y, z), vec4(1));
+	}
 }
 
 void pbd_unified_sim_debug_draw_world(const struct PBDUnifiedSimulation* sim, RenderFrameContext* rfc, PBDTestObject::DDFlags draw_flags) {
