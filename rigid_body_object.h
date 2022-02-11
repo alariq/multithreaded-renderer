@@ -42,16 +42,12 @@ public:
     virtual int GetIconID() const override { return 2; }
     //
 
-	virtual void InitRenderResources() override {}
-    virtual void DeinitRenderResources() override {};
-
     void addToSimulation(PBDSimulation* sim);
     void removeFromSimulation(PBDSimulation* sim);
     void setKinematic(bool);
 
     virtual const char* GetName() const override { return "rigid body"; };
     virtual void Update(float dt) override;
-    virtual RenderMesh* GetMesh() const override { return nullptr; }
 
     void SetTransform(const vec3& pos, const quaternion& rot); 
 

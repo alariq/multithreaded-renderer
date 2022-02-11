@@ -17,23 +17,59 @@ struct camera;
 class ParticleSystem;
 
 class IRenderable {
-    std::atomic_bool bRenderInitialized = false;
-public:
-    bool IsRenderInitialized() const { return bRenderInitialized; }
-	void DoInitRenderResources() {
-		// check in case we've already scheduled it, but initialization did not happed
-		// prev. frame due to e.g. latency issues (2 frames latency)
-		if (!bRenderInitialized) {
-			InitRenderResources();
-			bRenderInitialized = true;
-		}
-	}
+    public:
+    enum InitState_t:int { kUninitialized, kPendingInit, kInitialized, kPendingDeinit};
 
-	void DoDeinitRenderResources() {
-		if (bRenderInitialized) {
-			DeinitRenderResources();
-			bRenderInitialized = false;
+    private:
+    bool SetPendingDestroy() { 
+        int exp = (int)kInitialized;
+		bool rv = initState.compare_exchange_strong(exp, (int)kPendingDeinit);
+        assert((exp == kInitialized || exp == kPendingDeinit) && "Object is not in expected state");
+        return rv;
+    }
+    bool SetPendingInit() { 
+        int exp = (int)kUninitialized;
+		bool rv = initState.compare_exchange_strong(exp, (int)kPendingInit);
+        assert(exp<=kPendingInit && "Object is not in expected state");
+        return rv;
+    }
+protected:
+    std::atomic_int initState = kUninitialized;
+public:
+
+    bool IsRenderUninitialized() const { return initState.load() == (int)kUninitialized; }
+    bool IsRenderInitialized() const { return initState.load() == (int)kInitialized; }
+    //bool IsRenderDeinit() const { return initState.load() == (int)kUninitialized; }
+
+
+    // these are called on Main thread
+    void StartDeinit(struct RenderFrameContext *rfc) {
+        if(SetPendingDestroy()) {
+		    ScheduleRenderCommand(rfc, [this]() { this->DoDeinitRenderResources(); });
+        }
+    }
+    void StartInit(struct RenderFrameContext *rfc) {
+        if(SetPendingInit()) {
+		    ScheduleRenderCommand(rfc, [this]() { this->DoInitRenderResources(); });
+        }
+    }
+
+    // these are called on Render thread
+	void DoInitRenderResources() {
+        int exp = (int)kPendingInit;
+		if (initState.compare_exchange_strong(exp, (int)kInitialized)) {
+			InitRenderResources();
+            return;
 		}
+        assert(!"Object is not in expected state");
+	}
+	void DoDeinitRenderResources() {
+        int exp = (int)kPendingDeinit;
+		if (initState.compare_exchange_strong(exp, (int)kUninitialized)) {
+			DeinitRenderResources();
+            return;
+		}
+        assert(!"Object is not in expected state");
 	}
 
 	virtual void InitRenderResources() = 0;
@@ -52,6 +88,10 @@ public:
 enum class ComponentType: int {
     kTransform = 0,
     kSPHBoundary,
+    kSPHSceneComponent,
+    kPBDStaticCollision,
+    kPBDVisComponent,
+    kFrustumComponent,
     kRigidBody,
     kMesh,
     kCount
@@ -64,14 +104,22 @@ struct GameObjectHandle {
 inline GameObject *getGameObject(GameObjectHandle go_handle) { return go_handle.go_handle_; }
 
 class Component {
+    friend GameObject;
 	GameObjectHandle go_handle_;
+    public:
+    enum State:int {kUninitialized, kPendingInit, kInitialized, kPendingDeinit };
   protected:
-
+    int state_ = kUninitialized;
   public:
+
     GameObjectHandle getGameObjectHandle() const { return go_handle_; }
+    virtual IRenderable* getRenderableInterface() { return nullptr; }
+    int getState() const { return state_; }
 	virtual ComponentType GetType() const = 0;
 	virtual void UpdateComponent(float dt){};
-	void Initialize(GameObjectHandle go_handle) { go_handle_ = go_handle; }
+	virtual void Initialize() = 0;
+	virtual void Deinitialize() = 0;
+
 	virtual ~Component(){};
 };
 
@@ -133,6 +181,8 @@ class TransformComponent : public Component {
 		  transform_(identity4()), wtransform_(identity4()) {}
 
 	virtual ComponentType GetType() const override { return type_; }
+	virtual void Initialize() override { state_ = kInitialized; }
+	virtual void Deinitialize() override { state_ = kUninitialized; }
 
 	mat4 GetTransform() const {
 		assert(!b_need_recalculate);
@@ -197,21 +247,40 @@ class MeshComponent : public TransformComponent, public IRenderable {
 	mutable std::string pending_mesh_name_;
 	mutable std::atomic<void *> pending_mesh_;
 
-	static const ComponentType type_ = ComponentType::kMesh;
 	MeshComponent() : mesh_(nullptr), pending_mesh_(nullptr) {}
 
   public:
+	static const ComponentType type_ = ComponentType::kMesh;
+    int getState() const { return (int)initState.load(); }
+    virtual IRenderable* getRenderableInterface() override { return this; }
 	virtual ComponentType GetType() const override { return type_; }
 	static MeshComponent *Create(const char *res);
 	virtual void InitRenderResources() override;
-	virtual void DeinitRenderResources() override { mesh_ = nullptr; }
+	virtual void DeinitRenderResources() override;
 	virtual void AddRenderPackets(struct RenderFrameContext *) const override;
 	virtual void UpdateComponent(float dt) override;
 	void SetMesh(const char *mesh);
+    const AABB& GetAABB() const { return mesh_->aabb_; }
+    // this will be updated by Init/Deinit Render Resoueces
+	virtual void Initialize() override {}
+	virtual void Deinitialize() override {}
+};
+
+
+class FrustumComponent: public TransformComponent, public IRenderable {
+	RenderMesh *mesh_;
+  public:
+	virtual ComponentType GetType() const override { return ComponentType::kFrustumComponent; }
+	virtual void InitRenderResources() override;
+	virtual void DeinitRenderResources() override;
+	virtual void AddRenderPackets(struct RenderFrameContext *) const override;
+    // this will be updated by Init/Deinit Render Resoueces
+	virtual void Initialize() override {}
+	virtual void Deinitialize() override {}
 };
 
 typedef uint32_t GameObjectId;
-class GameObject: public IRenderable, public IEditorObject {
+class GameObject: public IEditorObject {
     std::vector<Component*> components_;
 	GameObjectId id_;
 public:
@@ -219,7 +288,7 @@ public:
 
     virtual const char* GetName() const = 0;
     virtual void Update(float dt) = 0;
-    virtual RenderMesh* GetMesh() const = 0;
+    //virtual RenderMesh* GetMesh() const = 0;
 
     Component* GetComponent(ComponentType type) const {
         auto cmp = std::find_if(
@@ -252,7 +321,7 @@ public:
 		assert(e == std::find(b, e, comp));
 		(void)b;
 		(void)e;
-		comp->Initialize(GameObjectHandle{this});
+        comp->go_handle_ = GameObjectHandle{this};
         components_.push_back(comp);
         return comp;
 	}
@@ -267,6 +336,7 @@ public:
         assert(it!=e);
         if(it!=e) {
             components_.erase(it, e);
+            comp->go_handle_ = GameObjectHandle{nullptr};
             return comp;
         }
         return nullptr;
@@ -288,41 +358,23 @@ class ParticleSystemObject: public GameObject {
 public:
     static ParticleSystemObject* Create();
 
-    // done by the particle system
-    virtual void InitRenderResources() override {};
-    virtual void DeinitRenderResources() override {};
-
     virtual void Update(float /*dt*/) override { }
 
     virtual const char* GetName() const override { return "particle system"; };
-    virtual RenderMesh* GetMesh() const override { return nullptr; }
     virtual ~ParticleSystemObject();
 };
 
 class FrustumObject: public GameObject {
     Frustum frustum_;
-    RenderMesh* mesh_;
+    FrustumComponent* frustum_comp_;
 
     public:
-
         static FrustumObject* Create(const camera* pcam);
-
-        FrustumObject(/*const mat4 &view, float fov, float aspect, float nearv,
-                      float farv*/)
-            : mesh_(nullptr) {}
-
-        ~FrustumObject() {
-        }
-
         virtual const char* GetName() const override { return "frustum"; };
         virtual void Update(float /*dt*/) override {}
         void UpdateFrustum(const camera* pcam);
-
-        virtual void InitRenderResources() override;
-        virtual void DeinitRenderResources() override;
-
-        virtual RenderMesh* GetMesh() const override { return mesh_; }
 };
+
 
 class MeshObject: public GameObject {
 public:
@@ -330,8 +382,9 @@ public:
 
 private:
     std::string name_;
-    std::string mesh_name_;
-    RenderMesh* mesh_;
+    //std::string mesh_name_;
+    //RenderMesh* mesh_;
+    MeshComponent* mesh_comp_;
 
     vec3 scale_;
     vec3 rot_;
@@ -339,18 +392,11 @@ private:
 
     Updater_t updater_;
 
-    MeshObject():mesh_(nullptr), scale_(0), rot_(0), pos_(0), updater_(nullptr) {}
-
+    MeshObject()://mesh_(nullptr), 
+        mesh_comp_(0), scale_(0), rot_(0), pos_(0), updater_(nullptr) {}
 
 public:
    static MeshObject* Create(const char* res);
-   virtual void InitRenderResources() override;
-   virtual void DeinitRenderResources() override { mesh_ = nullptr; }
-
-   // TODO: store and return ref counted object
-   // and test deferred deletion
-   virtual RenderMesh* GetMesh() const override { return mesh_; }
-
    virtual const char* GetName() const override { return name_.c_str(); } 
 
    void SetUpdater(Updater_t updater) { updater_ = updater; }
@@ -359,3 +405,4 @@ public:
            updater_(dt, this);
    }
 };
+

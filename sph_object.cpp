@@ -89,18 +89,18 @@ void SPHBoundaryObject::Update(float dt) {
 */
 }
 
-void SPHBoundaryObject::InitRenderResources() {
-    Tuple_.bm_->getBoundary()->InitializeRenderResources();
+void SPHBoundaryComponent::InitRenderResources() {
+    boundary_->InitializeRenderResources();
+    state_ = Component::kInitialized;
 }
 
-void SPHBoundaryObject::DeinitRenderResources() {
-
-    // destroy render resource here
+void SPHBoundaryComponent::DeinitRenderResources() {
+    state_ = Component::kUninitialized;
 }
 
-void SPHBoundaryObject::AddRenderPackets(struct RenderFrameContext *rfc) const {
+void SPHBoundaryComponent::AddRenderPackets(struct RenderFrameContext *rfc) const {
 
-	SPHBoundaryModel *bm = Tuple_.bm_->getBoundary();
+	SPHBoundaryModel *bm = boundary_;
 	ScheduleRenderCommand(rfc, [bm]() { bm->UpdateTexturesByData(); });
 
 	class RenderList *rl = rfc->rl_;
@@ -120,70 +120,28 @@ void initialize_particle_positions(SPHFluidModel* fm);
 
 SPHSceneObject* SPHSceneObject::Create(const vec2& view_dim, int num_particles, const vec3& pos) {
 
-    const bool b_is2d = true;
 
     SPHSceneObject* o = new SPHSceneObject();
     o->view_dim_ = view_dim;
     o->radius_ = 0.1f;
 
-	// recommended by 2014_EG_SPH_STAR.pdf 7.1
-	float grid_cell = o->radius_;
-	vec2 grid_res = view_dim / grid_cell;
-	ivec2 igrid_res = ivec2(min(grid_res.x, 128.0f), min(grid_res.y, 128.0f));
-	o->grid_ = SPHGrid::makeGrid(igrid_res.x, igrid_res.y, view_dim);
-
     auto tr = o->AddComponent<TransformComponent>();
     tr->SetPosition(pos);
     o->transform_ = tr;
-    o->b_initalized_rendering_resources = false;
 
-    SPHFluidModel* fm = new SPHFluidModel();
-
-    fm->density0_ = 1000;
-    fm->radius_ = o->radius_;
-    fm->support_radius_ = 3.0f * fm->radius_;
-    fm->viscosity_ = 0;
-    // slightly reduced square (cube for 3D)
-    const float diameter = 2.0f * fm->radius_;
-    if (b_is2d) {
-        fm->volume_ = diameter * diameter;// * 0.8f;
-    } else {
-        fm->volume_ = diameter * diameter * diameter * 0.8f;
-    }
-	fm->particles_.resize(num_particles);
-    fm->grid_ = o->grid_;
-    initialize_particle_positions(fm);
-
-    const vec2 boundary_size = vec2(10, 2);
-    const float volume_map_cell_size = o->radius_;
-    SPHBoundaryModel* bm = new SPHBoundaryModel();
-    ivec3 resolution = ivec3((int)(boundary_size.x / volume_map_cell_size), (int)(boundary_size.y / volume_map_cell_size), 1);
-    bm->Initialize(vec3(boundary_size, 10.0f), fm->radius_, fm->support_radius_, resolution, true, false, false);
-    bm->setTransform(vec3(-0.25f*boundary_size, 0.0f), quaternion::identity(), vec3(1));
-
-#if ENABLE_PARTICLE_EMITTER
-    SPHEmitter* e = SPHEmitterSystem::createrEmitter();
-    e->dir_ = normalize(vec2(1,1));
-    e->pos_ = 0.5f * o->view_dim_;
-    e->initial_vel_ = e->dir_ * 2.0f;
-    e->rate_ = 1.0f;
-    e->fluid_model_ = fm;
-    o->emitters_.push_back(e);
-#endif
-
-    o->fluid_ = fm;
-    o->boundaries_.push_back(bm);
-
-    o->surface_ = new SPHSurfaceMesh();
-    
-    SPHSimulation* sim = sph_get_simulation();
-    sim->addBoundary(bm);
-    sim->setFluid(o->fluid_);
+    auto scene_comp = new SPHSceneComponent();
+    scene_comp->Init(view_dim, num_particles, pos, o->radius_);
+    o->scene_comp_ = scene_comp;
+    o->AddComponent(scene_comp);
 
 	return o;
 }
 
-SPHSceneObject::~SPHSceneObject() {
+void SPHSceneObject::Update(float /*dt*/) {
+	scene_comp_->transform_ = transform_->GetTransform();
+}
+
+SPHSceneComponent::~SPHSceneComponent() {
     for(auto e: emitters_) {
         SPHEmitterSystem::destroyEmitter(e);
     }
@@ -217,7 +175,65 @@ HGOSVERTEXDECLARATION get_sph_vdecl() {
 
 
 extern int RendererGetNumBufferedFrames();
-void SPHSceneObject::InitRenderResources() {
+
+bool SPHSceneComponent::Init(const vec2& view_dim, int num_particles, const vec3& pos, float radius) {
+
+    b_initalized_rendering_resources = false;
+
+    const bool b_is2d = true;
+
+	// recommended by 2014_EG_SPH_STAR.pdf 7.1
+	float grid_cell = radius;
+	vec2 grid_res = view_dim / grid_cell;
+	ivec2 igrid_res = ivec2(min(grid_res.x, 128.0f), min(grid_res.y, 128.0f));
+	grid_ = SPHGrid::makeGrid(igrid_res.x, igrid_res.y, view_dim);
+
+    SPHFluidModel* fm = new SPHFluidModel();
+
+    fm->density0_ = 1000;
+    fm->radius_ = radius;
+    fm->support_radius_ = 3.0f * fm->radius_;
+    fm->viscosity_ = 0;
+    // slightly reduced square (cube for 3D)
+    const float diameter = 2.0f * fm->radius_;
+    if (b_is2d) {
+        fm->volume_ = diameter * diameter;// * 0.8f;
+    } else {
+        fm->volume_ = diameter * diameter * diameter * 0.8f;
+    }
+	fm->particles_.resize(num_particles);
+    fm->grid_ = grid_;
+    initialize_particle_positions(fm);
+
+    const vec2 boundary_size = vec2(10, 2);
+    const float volume_map_cell_size = radius;
+    SPHBoundaryModel* bm = new SPHBoundaryModel();
+    ivec3 resolution = ivec3((int)(boundary_size.x / volume_map_cell_size), (int)(boundary_size.y / volume_map_cell_size), 1);
+    bm->Initialize(vec3(boundary_size, 10.0f), fm->radius_, fm->support_radius_, resolution, true, false, false);
+    bm->setTransform(vec3(-0.25f*boundary_size, 0.0f), quaternion::identity(), vec3(1));
+
+#if ENABLE_PARTICLE_EMITTER
+    SPHEmitter* e = SPHEmitterSystem::createrEmitter();
+    e->dir_ = normalize(vec2(1,1));
+    e->pos_ = 0.5f * o->view_dim_;
+    e->initial_vel_ = e->dir_ * 2.0f;
+    e->rate_ = 1.0f;
+    e->fluid_model_ = fm;
+    o->emitters_.push_back(e);
+#endif
+
+    fluid_ = fm;
+    boundaries_.push_back(bm);
+    surface_ = new SPHSurfaceMesh();
+
+    SPHSimulation* sim = sph_get_simulation();
+    sim->addBoundary(bm);
+    sim->setFluid(fluid_);
+
+    return true;
+}
+
+void SPHSceneComponent::InitRenderResources() {
 	sphere_mesh_ = res_man_load_mesh("sphere");
 
     int num_buffers = RendererGetNumBufferedFrames() + 1;
@@ -240,10 +256,10 @@ void SPHSceneObject::InitRenderResources() {
     surface_->InitRenderResources();
 
     b_initalized_rendering_resources = true;
-
+    state_ = Component::kInitialized;
 }
 
-void SPHSceneObject::DeinitRenderResources() {
+void SPHSceneComponent::DeinitRenderResources() {
     b_initalized_rendering_resources = false;
 
     surface_->DeinitRenderResources();
@@ -256,9 +272,11 @@ void SPHSceneObject::DeinitRenderResources() {
     inst_vb_.clear();
     gos_DestroyVertexDeclaration(vdecl_);
     vdecl_ = nullptr;
+
+    state_ = Component::kUninitialized;
 }
 
-void SPHSceneObject::Update(float /*dt*/) {
+void SPHSceneComponent::UpdateComponent(float /*dt*/) {
 
     if(emitters_.size() && gos_GetKeyStatus(KEY_Q) == KEY_PRESSED) {
         emitters_[0]->enabled_ = true;
@@ -268,14 +286,17 @@ void SPHSceneObject::Update(float /*dt*/) {
 
     grid_->cur_vert_array_rt_ = grid_->cur_vert_array_;
 	grid_->cur_vert_array_ = (grid_->cur_vert_array_ + 1) % (grid_->num_vert_arrays_);
+
 }
 
 extern void render_quad(uint32_t tex_id, const vec4& scale_offset, HGOSRENDERMATERIAL pmat);
 void update_closest_dist_debug_line(struct RenderFrameContext *rfc);
 
-void SPHSceneObject::AddRenderPackets(struct RenderFrameContext *rfc) const {
+void SPHSceneComponent::AddRenderPackets(struct RenderFrameContext *rfc) const {
 
 	if (!b_initalized_rendering_resources) return;
+
+	auto go = getGameObject(getGameObjectHandle());
 
     update_closest_dist_debug_line(rfc);
 
@@ -398,14 +419,14 @@ void SPHSceneObject::AddRenderPackets(struct RenderFrameContext *rfc) const {
 	class RenderList* rl = rfc->rl_;
 	RenderPacket *rp = rl->AddPacket();
 	memset(rp, 0, sizeof(RenderPacket));
-	rp->id_ = GetId();
+	rp->id_ = go->GetId();
 	rp->is_opaque_pass = 1;
 	// should we draw spheres into selection pass? does not work right now
 	// need vertex shader variant which supports reading instance attribute(s)
 	// see deferred_sph or better add define to deferred_sph which will be enabled in obj
 	// is pass and will write to obj_id render target
 	rp->is_selection_pass = 0;
-    rp->m_ = transform_->GetTransform(); //mat4::scale(vec3(radius_));
+    rp->m_ = transform_;
 	rp->mesh_ = *sphere_mesh_;
 	rp->mesh_.mat_ = mat_;
 	rp->mesh_.inst_vb_ = inst_vb_[cur_inst_vb_];
@@ -426,9 +447,9 @@ void SPHSceneObject::AddRenderPackets(struct RenderFrameContext *rfc) const {
    
 	rp = rl->AddPacket();
 	memset(rp, 0, sizeof(RenderPacket));
-	rp->id_ = GetId();
+	rp->id_ = go->GetId();
 	rp->is_opaque_pass = 1;
-    rp->m_ = transform_->GetTransform();
+    rp->m_ = transform_;
 	rp->mesh_ = *surface_->getRenderMesh();
 
 }

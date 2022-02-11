@@ -9,6 +9,7 @@
 
 #include "sph.h"
 #include "pbd/pbd.h"
+#include "pbd_test.h"
 #include "scene.h"
 #include "editor.h"
 #include "res_man.h"
@@ -87,6 +88,7 @@ void __stdcall Init(void)
     g_shadow_camera.set_ortho_projection(-30, 30, 30, -30, 0.1f, 200.0f);
     g_shadow_camera.set_view(shadow_view);
 
+    unified_pbd_init();
     sph_init();
     pbd_create_simulation();
     pbd_create_collision_detection();
@@ -106,9 +108,10 @@ void __stdcall Deinit(void)
     finalize_scene();
     finalize_res_man();
 
-    sph_deinit();
     pbd_destroy_collision_detection();
     pbd_destroy_simulation();
+    sph_deinit();
+    unified_pbd_deinit();
 
     printf("::Deinit\n");
 }
@@ -199,6 +202,10 @@ void __stdcall Update(void)
         {
             SCOPED_ZONE_N(pbd_simulate, 0);
             pbd_simulate(dt_sec);
+        }
+        {
+            SCOPED_ZONE_N(unified_pbd_timestep, 0);
+            unified_pbd_update(dt_sec);
         }
         {
             SCOPED_ZONE_N(ParticleSystemManager_Update, 0);

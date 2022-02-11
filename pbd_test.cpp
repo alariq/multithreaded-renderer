@@ -1,4 +1,5 @@
 #include "pbd_test.h"
+#include "editor.h"
 #include "pbd/pbd_particles.h"
 #include "pbd/pbd_particles_collision.h"
 #include "res_man.h"
@@ -867,24 +868,70 @@ phys_scene_constructor_fptr phys_scenes[] = {
     scene_rigid_body_restitution_test
 };
 
+StaticCollisionComponent* StaticCollisionComponent::Create(const PBDUnifiedSimulation*sim, const vec2 &dim) {
+
+    StaticCollisionComponent* c = new StaticCollisionComponent();
+    c->on_transformed_fptr_ = on_transformed;
+
+    SDFBoxCollision box;
+    box.pos = vec2(0,0);
+    box.rot = rotate2(0);
+    box.scale = vec2(1,1);
+    box.size = dim;
+    c->world_ = pbd_unified_sim_get_collision_world(sim);
+    c->id_ = collision_add_box(c->world_, box);
+    return c;
+}
+
+void StaticCollisionComponent::Destroy(StaticCollisionComponent* comp)
+{
+    collision_remove_box(comp->world_, comp->id_);
+    delete comp;
+}
+
+void StaticCollisionComponent::on_transformed(TransformComponent* comp) {
+    StaticCollisionComponent* c = (StaticCollisionComponent*)comp;  
+    assert(c->GetType() == ComponentType::kPBDStaticCollision);
+
+	const vec3 p = c->GetPosition();
+	const quaternion q = c->GetRotation();
+	const vec3 s = c->GetScale();
+    vec3 euler = q.to_euler();
+    collision_set_box_transform(c->world_, c->id_, p.xy(), euler.z, s.xy());
+}
+
+PBDStaticCollisionObj::PBDStaticCollisionObj(const PBDUnifiedSimulation* sim, const vec2& dim) {
+    Tuple_.tr_ = AddComponent<TransformComponent>();
+
+    Tuple_.coll_ = StaticCollisionComponent::Create(sim, dim);
+    AddComponent(Tuple_.coll_);
+    Tuple_.coll_->SetParent(Tuple_.tr_);
+}
+
+PBDStaticCollisionObj::~PBDStaticCollisionObj() {
+    delete RemoveComponent(Tuple_.tr_);
+    auto c = RemoveComponent(Tuple_.coll_);
+    StaticCollisionComponent::Destroy(c);
+}
+
+
 PBDTestObject* PBDTestObject::Create() {
 
     PBDTestObject* o = new PBDTestObject;
     o->sim_dim_ = vec2(5,5);
-    o->sim_origin_ = vec2(0,0);
-    o->sim_ = pbd_unified_sim_create(o->sim_dim_);
     o->dbg_flags_.contacts = false;
     o->dbg_flags_.friction = false;
     o->dbg_flags_.sb_part_rot = true;
     o->dbg_flags_.distance_constraints = true;
+
+    o->AddComponent<PBDVisComponent>();
     
-    (phys_scenes[g_cur_phys_scene_index])(o->sim_);
+    (phys_scenes[g_cur_phys_scene_index])(unified_pbd_get());
 
 	return o;
 }
 
 PBDTestObject::~PBDTestObject() {
-   pbd_unified_sim_destroy(sim_); 
 }
 
 struct PBDParticleVDecl {
@@ -920,7 +967,7 @@ static HGOSVERTEXDECLARATION get_pbd_vdecl() {
 
 
 extern int RendererGetNumBufferedFrames();
-void PBDTestObject::InitRenderResources() {
+void PBDVisComponent::InitRenderResources() {
 	sphere_mesh_ = res_man_load_mesh("sphere");
 
 	gos_AddRenderMaterial("deferred_pbd_particle");
@@ -937,10 +984,11 @@ void PBDTestObject::InitRenderResources() {
 	mat_ = gos_getRenderMaterial("deferred_pbd_particle");
 
     b_initalized_rendering_resources = true;
+    state_ = Component::kInitialized;
 
 }
 
-void PBDTestObject::DeinitRenderResources() {
+void PBDVisComponent::DeinitRenderResources() {
     b_initalized_rendering_resources = false;
 
     delete sphere_mesh_;
@@ -951,6 +999,8 @@ void PBDTestObject::DeinitRenderResources() {
     inst_vb_.clear();
     gos_DestroyVertexDeclaration(vdecl_);
     vdecl_ = nullptr;
+
+    state_ = Component::kUninitialized;
 }
 
 static int g_dragged_particle = 0;
@@ -959,6 +1009,8 @@ static vec2 g_last_drag_pos(0,0);
 static vec2 g_cur_drag_pos(0,0);
 static int g_dist_constraint_idx = (int)kPBDInvalidIndex;
 void PBDTestObject::Update(float dt) {
+
+    sim_ = unified_pbd_get();
 
     static float density = 50;
 	if (g_rb >= 0) {
@@ -1025,6 +1077,7 @@ void PBDTestObject::Update(float dt) {
         g_dist_constraint_idx = (int)kPBDInvalidIndex;
     }
 
+    if(0)
 	{
 		SCOPED_ZONE_N(pbd_unified_timestep, 0);
 		pbd_unified_timestep(sim_, dt);
@@ -1077,16 +1130,20 @@ void select_and_draw_debug_particle(const PBDUnifiedSimulation* sim,
 	}
 }
 
-void PBDTestObject::AddRenderPackets(struct RenderFrameContext *rfc) const {
+void PBDVisComponent::AddRenderPackets(struct RenderFrameContext *rfc) const {
 
-    SCOPED_ZONE_N(PBDTestObject_AddRenderPackets, 0);
+    SCOPED_ZONE_N(PBDVisComponent_AddRenderPackets, 0);
 
 	if (!b_initalized_rendering_resources) return;
 
-    select_and_draw_debug_particle(sim_, rfc);
+	auto go = getGameObject(getGameObjectHandle());
 
-    pbd_unified_sim_debug_draw_world(sim_, rfc, dbg_flags_);
-    collision_debug_draw(pbd_unified_sim_get_collision_world(sim_), rfc->rl_);
+    PBDUnifiedSimulation* sim = unified_pbd_get();
+    select_and_draw_debug_particle(sim, rfc);
+
+    // TODO: better if go will set flags directly in component
+    pbd_unified_sim_debug_draw_world(sim, rfc, ((PBDTestObject*)go)->getDbgFlags());
+    collision_debug_draw(pbd_unified_sim_get_collision_world(sim), rfc->rl_);
 
 	// update instancing buffer
 	cur_inst_vb_ = (cur_inst_vb_ + 1) % ((int)inst_vb_.size());
@@ -1096,9 +1153,9 @@ void PBDTestObject::AddRenderPackets(struct RenderFrameContext *rfc) const {
     BEGIN_ZONE_DYNAMIC_N(part_draw, buf, 0);
 
     const int cur_part_buf_idx = cur_inst_vb_;
-	const int num_particles = pbd_unified_sim_get_particle_count(sim_);
+	const int num_particles = pbd_unified_sim_get_particle_count(sim);
 	HGOSBUFFER inst_vb = inst_vb_[cur_inst_vb_];
-    const PBDParticle* particles = pbd_unified_sim_get_particles(sim_);
+    const PBDParticle* particles = pbd_unified_sim_get_particles(sim);
 
     // TODO: reuse buffers
     PBDParticle* temp_buf = new PBDParticle[num_particles];
@@ -1106,7 +1163,7 @@ void PBDTestObject::AddRenderPackets(struct RenderFrameContext *rfc) const {
     // HACK: using phase here to store debug color for fluids
     for(int i=0;i<num_particles;++i) {
         if (particles[i].flags & PBDParticleFlags::kFluid) {
-            const PBDFluidModel* fm = pbd_unified_sim_get_fluid_particle_model(sim_, particles[i].phase);
+            const PBDFluidModel* fm = pbd_unified_sim_get_fluid_particle_model(sim, particles[i].phase);
             temp_buf[i].phase = fm->debug_color_;
         } else {
             temp_buf[i].phase = 0xffffffff;
@@ -1165,7 +1222,7 @@ void PBDTestObject::AddRenderPackets(struct RenderFrameContext *rfc) const {
 	class RenderList* rl = rfc->rl_;
 	RenderPacket *rp = rl->AddPacket();
 	memset(rp, 0, sizeof(RenderPacket));
-	rp->id_ = GetId();
+	rp->id_ = go->GetId();
 	rp->is_opaque_pass = 1;
 	// NOTE: should we render it into selection pass? maybe.. but only when it will support
 	// instaced vert shader
@@ -1478,3 +1535,86 @@ vec3 get_ws_mouse_pos(RenderFrameContext* rfc) {
 		ray_plane_intersect(dir, ws_cam_pos, make_plane(vec3(0, 0, 1), vec3(0, 0, 0)));
 	return pos;
 }
+
+////////////////////////////////////////////////////////////////////////////////
+// Editor functionality
+////////////////////////////////////////////////////////////////////////////////
+static int g_uni_editor_id = -1;
+
+GameObject* uni_editor_update(camera* cam, float dt, GameObject* sel_go) {
+
+    PBDUnifiedSimulation* sim = unified_pbd_get();
+
+    int XDelta, YDelta, WheelDelta;
+    float XPos, YPos;
+    DWORD buttonsPressed;
+    gos_GetMouseInfo(&XPos, &YPos, &XDelta, &YDelta, &WheelDelta, &buttonsPressed);
+
+    if(gos_GetKeyStatus(KEY_A) == KEY_PRESSED) {
+	    vec2 mouse_screen_pos = 2 * vec2(XPos, 1 - YPos) - vec2(1);
+        vec3 dir = screen2world_vec(cam, mouse_screen_pos);
+        vec3 int_pt = ray_plane_intersect(dir, cam->get_pos(), make_plane(vec3(0,0,1),vec3(0,0,0)));
+
+        PBDStaticCollisionObj* o = new PBDStaticCollisionObj(sim, vec2(1,1));
+        auto tr = o->GetComponent<TransformComponent>();
+        tr->SetPosition(int_pt);
+        scene_add_game_object(o);
+    }
+    else if(gos_GetKeyStatus(KEY_DELETE) == KEY_PRESSED && sel_go) {
+        scene_delete_game_object(sel_go);
+        return nullptr;
+    }
+
+    return sel_go;
+}
+
+void uni_editor_render_update(struct RenderFrameContext* rfc) {
+
+}
+
+bool uni_editor_wants_activate() {
+	if (gos_GetKeyStatus(KEY_LCONTROL) == KEY_HELD &&
+		gos_GetKeyStatus(KEY_U) == KEY_PRESSED) {
+		return true;
+	}
+	return false;
+}
+
+static const char* uni_editor_name() {
+    return "unified pbd editor";
+}
+
+void uni_editor_init() {
+    UserEditorInterface uei;
+    uei.update = uni_editor_update;
+    uei.render_update = uni_editor_render_update;
+    uei.wants_activate = uni_editor_wants_activate;
+    uei.name = uni_editor_name;
+    g_uni_editor_id = editor_register_user_editor(uei);
+}
+
+void uni_editor_deinit() {
+    editor_unregister_user_editor(g_uni_editor_id);
+    g_uni_editor_id = -1;
+}
+
+static PBDUnifiedSimulation* g_unified_sim = nullptr;
+void unified_pbd_init() {
+    g_unified_sim = pbd_unified_sim_create(vec2(5, 5));
+    uni_editor_init();
+}
+
+void unified_pbd_deinit() {
+    pbd_unified_sim_destroy(g_unified_sim);
+    g_unified_sim = nullptr;
+}
+
+void unified_pbd_update(float dt) {
+    pbd_unified_timestep(g_unified_sim, dt);
+}
+
+PBDUnifiedSimulation* unified_pbd_get() {
+    assert(g_unified_sim);
+    return g_unified_sim;
+}
+

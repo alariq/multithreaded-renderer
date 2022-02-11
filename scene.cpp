@@ -20,11 +20,16 @@
 
 typedef std::list<GameObject*> ObjList_t;
 static ObjList_t g_world_objects;
-static std::vector<GameObject*> g_render_init_pending;
-static std::vector<GameObject*> g_render_destroy_pending;
+static std::vector<std::pair<GameObject*, std::vector<Component*>>> g_init_pending;
+static std::vector<std::pair<GameObject*, std::vector<Component*>>> g_destroy_pending;
 // have separate arrays of concrete types?
 static std::vector<std::vector<Component*>> g_components;
 static std::vector<PointLight> g_light_list;
+
+
+std::vector<IRenderable*> g_renderables_init_pending;
+std::vector<IRenderable*> g_renderables_deinit_pending;
+std::vector<IRenderable*> g_renderables;
 
 static uint32_t g_obj_id_under_cursor = scene::kInvalidObjectId;
 
@@ -211,7 +216,7 @@ void scene_update(const camera *cam, const bool b_update_simulation, const float
 			GameObject *go = *it;
 			go->Update(dt);
 
-			// if object is frustum object.... and we wnt to update it
+			// if object is frustum object.... and we want to update it
 			if (0) {
 				camera loc_cam = *cam;
 				loc_cam.set_projection(45.0f, Environment.drawableWidth,
@@ -223,7 +228,16 @@ void scene_update(const camera *cam, const bool b_update_simulation, const float
 }
 
 void scene_add_game_object(GameObject* go) {
-    g_render_init_pending.push_back(go);
+    std::vector<Component*> to_init;
+    for (Component *comp : go->GetComponents()) {
+		comp->Initialize();
+        to_init.push_back(comp);
+        if(auto ri = comp->getRenderableInterface()) {
+            g_renderables_init_pending.push_back(ri);
+        }
+    }
+
+    g_init_pending.push_back(std::make_pair(go, to_init));
 }
 
 // TODO: what will happen if object is still in g_render_init_pending?
@@ -236,14 +250,24 @@ void scene_delete_game_object(GameObject* go) {
 
 	    g_world_objects.erase(it);
 
+        std::vector<Component*> to_deinit;
 		for (Component *comp : go->GetComponents()) {
             auto& cmp_list = g_components[(uint32_t)comp->GetType()];
 			auto cb = std::begin(cmp_list);
 			auto ce = std::end(cmp_list);
             cmp_list.erase(std::remove(cb, ce, comp), ce);
-		}
 
-        g_render_destroy_pending.push_back(go);
+            comp->Deinitialize();
+
+            if(auto ri = comp->getRenderableInterface()) {
+                g_renderables_deinit_pending.push_back(ri);
+                auto fit = std::find(g_renderables.begin(), g_renderables.end(), ri);
+                assert(fit != g_renderables.end());
+                g_renderables.erase(fit);
+            }
+            to_deinit.push_back(comp);
+		}
+        g_destroy_pending.push_back(std::make_pair(go, to_deinit));
 	}
 }
 
@@ -251,63 +275,29 @@ void scene_render_update(struct RenderFrameContext *rfc, bool is_in_editor_mode)
 
     RenderList *frame_render_list = rfc->rl_;
 
-    if (frame_render_list->GetCapacity() < g_world_objects.size())
+    if (frame_render_list->GetCapacity() < g_world_objects.size()) {
         frame_render_list->ReservePackets(g_world_objects.size());
+    }
 
-    // TODO: what to do about destroy
-    for(Component* comp: g_components[(int)ComponentType::kMesh]) {
-        MeshComponent* mesh_comp = (MeshComponent*)comp;
-        if(!mesh_comp->IsRenderInitialized()) {
-	        ScheduleRenderCommand(rfc, [mesh_comp]() { mesh_comp->DoInitRenderResources(); });
-        } else {
-            mesh_comp->AddRenderPackets(rfc);
-        }
-	}
+	for (const GameObject* go : g_world_objects) {
+		const auto* tc = go->GetComponent<TransformComponent>();
+		const int icon_id = go->GetIconID();
 
+		if (is_in_editor_mode && tc && icon_id > 0) {
+			RenderMesh* mesh = res_man_load_mesh("xy_quad");
+			vec3 pos = tc->Transform(vec3(0));
+			add_debug_mesh_constant_size_px(rfc, mesh, vec4(0, 0.5, 1, 1),
+											mat4::translation(pos), 10, go->GetId());
 
-	for (const GameObject *go : g_world_objects) {
-
-		// TODO: check if visible
-        // ...
-
-        const auto* tc = go->GetComponent<TransformComponent>();
-        // maybe instead create separate render thread render objects or make
-        // all render object always live on render thread
-        if (go->GetMesh())
-        {
-            RenderPacket *rp = frame_render_list->AddPacket();
-
-            rp->mesh_ = *go->GetMesh();
-            rp->m_ = tc ? tc->GetTransform() : mat4::identity();
-			rp->id_ = go->GetId();
-            rp->is_opaque_pass = 1;
-            rp->is_render_to_shadow = 1;
-            rp->is_transparent_pass = 0;
-            rp->is_debug_pass = 0;
-            rp->is_selection_pass = go->IsSelectable() && is_in_editor_mode;
-#if DO_BAD_THING_FOR_TEST
-            rp->go_ = go;
-#endif
-        }
-
-        go->AddRenderPackets(rfc);
-
-        if(is_in_editor_mode)
-        {
-            int icon_id = go->GetIconID();
-            if(icon_id > 0 && tc) {
-                RenderMesh* mesh = res_man_load_mesh("xy_quad");
-				if (true) {
-					// just a test that quaternions do same thing as matrix, should be in a unit test
-					vec3 loc = vec3(1, 1, 1);
-					vec3 pos = tc->Transform(loc);
-					vec4 pos2 = tc->GetTransform() * vec4(loc, 1);
-					assert(lengthSqr(pos - pos2.xyz()) < 0.0001f);
-				}
-				vec3 pos = tc->Transform(vec3(0));
-                add_debug_mesh_constant_size_px(rfc, mesh, vec4(0,0.5,1,1), mat4::translation(pos), 10, go->GetId());
-            }
-        }
+			if (true) {
+				// just a test that quaternions do same thing as matrix, should be in a
+				// unit test
+				vec3 loc = vec3(1, 1, 1);
+				vec3 pos1 = tc->Transform(loc);
+				vec4 pos2 = tc->GetTransform() * vec4(loc, 1);
+				assert(lengthSqr(pos1 - pos2.xyz()) < 0.0001f);
+			}
+		}
 	}
 
 	rfc->point_lights_ = g_light_list;
@@ -317,55 +307,76 @@ void scene_render_update(struct RenderFrameContext *rfc, bool is_in_editor_mode)
 	// so by doing it at the end of this fuction objects wich are added here in
 	// g_components will be updated next frame and ony drawn after update
 
-	// update render init pending array
-    for (GameObject*& gameobj: g_render_init_pending) {
-        if(gameobj->IsRenderInitialized()) {
-			assert(std::find(g_world_objects.begin(), g_world_objects.end(), gameobj) ==
+	// schedule render resource (de)initialization for pending objects
+	for (IRenderable* ri: g_renderables_init_pending) {
+        ri->StartInit(rfc);
+        assert(std::find(g_renderables.begin(), g_renderables.end(), ri) == g_renderables.end());
+        g_renderables.push_back(ri);
+	}
+    g_renderables_init_pending.clear();
+
+	for (IRenderable* ri: g_renderables_deinit_pending) {
+        ri->StartDeinit(rfc);
+	}
+    g_renderables_deinit_pending.clear();
+
+	// update init pending array
+    for (auto& pair: g_init_pending) {
+        GameObject* go = pair.first;
+        std::vector<Component*> comps = pair.second;
+        bool all_initialized = true;
+        for(auto c: comps) {
+            all_initialized &= (c->getState() == Component::kInitialized);
+        }
+
+        if(all_initialized) {
+			assert(std::find(g_world_objects.begin(), g_world_objects.end(), go) ==
 				   g_world_objects.end());
-			g_world_objects.push_back(gameobj);
-            for(Component* comp: gameobj->GetComponents()) {
+			g_world_objects.push_back(go);
+            for(Component* comp: go->GetComponents()) {
                 g_components[(uint32_t)comp->GetType()].push_back(comp);
             }
-            gameobj = nullptr;
+            pair.first = 0;
         }
     }
+	{
+		auto b = std::begin(g_init_pending);
+		auto e = std::end(g_init_pending);
+		g_init_pending.erase(
+			std::remove_if(b, e, [](const auto& p) { return p.first == nullptr; }), e);
+	}
 
     // update render destroy pending array
-    for (GameObject*& gameobj: g_render_destroy_pending) {
-        if(!gameobj->IsRenderInitialized()) {
-			assert(std::find(g_world_objects.begin(), g_world_objects.end(), gameobj) ==
+    for (auto& pair : g_destroy_pending) {
+        GameObject* go = pair.first;
+        std::vector<Component*> comps = pair.second;
+        bool all_deinitialized = true;
+        for(auto c: comps) {
+            all_deinitialized &= (c->getState() == Component::kUninitialized);
+        }
+
+        if(all_deinitialized) {
+			assert(std::find(g_world_objects.begin(), g_world_objects.end(), go) ==
 				   g_world_objects.end());
 
-            delete gameobj;
-            gameobj = nullptr;
+            delete go;
+            pair.first = nullptr;
+        }
+    }
+	{
+		auto b = std::begin(g_destroy_pending);
+		auto e = std::end(g_destroy_pending);
+		g_destroy_pending.erase(
+			std::remove_if(b, e, [](const auto& p) { return p.first == nullptr; }), e);
+	}
+
+
+    for(IRenderable* ri: g_renderables) {
+        if(ri->IsRenderInitialized()) {
+            ri->AddRenderPackets(rfc);
         }
     }
 
-	{
-		auto b = std::begin(g_render_init_pending);
-		auto e = std::end(g_render_init_pending);
-		g_render_init_pending.erase(
-			std::remove_if(b, e, [](GameObject *o) { return o == nullptr; }), e);
-	}
-	{
-		auto b = std::begin(g_render_destroy_pending);
-		auto e = std::end(g_render_destroy_pending);
-		g_render_destroy_pending.erase(
-			std::remove_if(b, e, [](GameObject *o) { return o == nullptr; }), e);
-	}
-
-	// schedule render resource initialization for pending objects
-	for (GameObject* gameobj: g_render_init_pending) {
-        // TEMP: TODO: I know I can't touch GameObject in render thread
-        // but I need to initalize its render state
-        // make it shared object and take weak ref to it, then check if it is
-        // still valid when render thread does it's job
-	    ScheduleRenderCommand(rfc, [gameobj]() { gameobj->DoInitRenderResources(); });
-	}
-
-	for (GameObject *gameobj : g_render_destroy_pending) {
-		ScheduleRenderCommand(rfc, [gameobj]() { gameobj->DoDeinitRenderResources(); });
-	}
 	//
 }
 
@@ -375,9 +386,6 @@ void scene_get_intersected_objects(
 
     using el_t = std::pair<float, GameObject *>;
     for (auto &obj : g_world_objects) {
-        if (!obj->GetMesh())
-            continue;
-
 
         const auto* tc = obj->GetComponent<TransformComponent>();
 
@@ -400,7 +408,9 @@ void scene_get_intersected_objects(
             os_dir = normalize(ws_dir);
         }
 
-        vec3 t = intersect_aabb_ray(obj->GetMesh()->aabb_, os_orig, os_dir);
+        // TODO: all mesh components should add their meshes to the scene!
+        MeshComponent* mc = obj->GetComponent<MeshComponent>();
+        vec3 t = intersect_aabb_ray(mc->GetAABB(), os_orig, os_dir);
         if (t.z && t.x >= 0.0f) {
             // transform t back to world space
             const vec3 int_pos = os_orig + os_dir * t.x;

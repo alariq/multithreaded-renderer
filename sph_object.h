@@ -5,7 +5,7 @@
 #include <atomic>
 #include <vector>
 
-class SPHBoundaryComponent : public TransformComponent {
+class SPHBoundaryComponent : public TransformComponent, public IRenderable {
 	class SPHBoundaryModel *boundary_ = nullptr;
     virtual ~SPHBoundaryComponent() {};
 
@@ -22,6 +22,15 @@ public:
 
     static SPHBoundaryComponent* Create(const class SPHSimulation *sim, const vec2 &dim, bool b_invert, bool b_dynamic);
     static void Destroy(SPHBoundaryComponent* comp);
+
+    // IRenderable
+    virtual void InitRenderResources() override;
+    virtual void DeinitRenderResources() override;
+    virtual void AddRenderPackets(struct RenderFrameContext *rfc) const override;
+
+    // this will be updated by Init/Deinit Render Resoueces
+	virtual void Initialize() override {}
+	virtual void Deinitialize() override {}
 };
 
 class SPHBoundaryObject: public GameObject {
@@ -44,40 +53,63 @@ public:
 
     virtual const char* GetName() const override { return "boundary"; };
     virtual void Update(float dt) override;
-    virtual RenderMesh* GetMesh() const override { return nullptr; }
-
-    // IRenderable
-    virtual void InitRenderResources() override;
-    virtual void DeinitRenderResources() override;
-    virtual void AddRenderPackets(struct RenderFrameContext *rfc) const override;
 };
+
+
 
 void initialize_particle_positions(class SPHSceneObject* o);
 
-class SPHSceneObject : public GameObject {
+class SPHSceneComponent : public Component, public IRenderable {
     uint32_t* part_flags_;
     int* part_indices_;
-    vec2 view_dim_;
-    float radius_;
-    struct SPHGrid* grid_;
-    struct SPHFluidModel* fluid_;
     std::vector<class SPHBoundaryModel*> boundaries_;
     std::vector<struct SPHEmitter*> emitters_;
     class SPHSurfaceMesh* surface_;
+
+    struct SPHGrid* grid_;
+    struct SPHFluidModel* fluid_;
+
+	RenderMesh* sphere_mesh_ = nullptr;
+	HGOSVERTEXDECLARATION vdecl_;
+	std::vector<HGOSBUFFER> inst_vb_;
+	mutable int cur_inst_vb_ = 0;
+
+	HGOSRENDERMATERIAL mat_;
+	HGOSRENDERMATERIAL sdf_mat_;
+	DWORD surface_grid_tex_;
+	DWORD sdf_tex_;
+
+
+	std::atomic_bool b_initalized_rendering_resources;
+
+  public:
+    mat4 transform_;
+
+    virtual IRenderable* getRenderableInterface() override { return this; }
+	virtual ComponentType GetType() const override { return ComponentType::kSPHSceneComponent; }
+    bool Init(const vec2& view_dim, int num_particles, const vec3& pos, float radius);
+
+    virtual void UpdateComponent(float /*dt*/) override;
+
+	// IRenderable
+	virtual void InitRenderResources() override;
+	virtual void DeinitRenderResources() override;
+	virtual void AddRenderPackets(struct RenderFrameContext* rfc) const override;
+
+    // this will be updated by Init/Deinit Render Resoueces
+	virtual void Initialize() override {}
+	virtual void Deinitialize() override {}
+
+    ~SPHSceneComponent();
+};
+
+class SPHSceneObject : public GameObject {
+    vec2 view_dim_;
+    float radius_;
+
     // cached transform component
     TransformComponent* transform_ = nullptr;
-
-    RenderMesh* sphere_mesh_ = nullptr; 
-    HGOSVERTEXDECLARATION vdecl_;
-    std::vector<HGOSBUFFER> inst_vb_;
-    mutable int cur_inst_vb_ = 0;
-    
-    HGOSRENDERMATERIAL  mat_;
-    HGOSRENDERMATERIAL  sdf_mat_;
-    DWORD surface_grid_tex_;
-    DWORD sdf_tex_;
-
-    std::atomic_bool b_initalized_rendering_resources;
+    SPHSceneComponent* scene_comp_ = nullptr;
 
 public:
     static SPHSceneObject* Create(const vec2& view_dim, int num_particles, const vec3& pos);
@@ -85,17 +117,8 @@ public:
     virtual void Update(float /*dt*/) override;
 
     virtual const char* GetName() const override { return "SPH Scene"; };
-    virtual RenderMesh* GetMesh() const override { return nullptr; }
-    virtual ~SPHSceneObject();
 
 	float GetRadius() { return radius_; }
-
     const vec2& GetBounds() { return view_dim_; }
-
-    virtual void InitRenderResources() override;
-    virtual void DeinitRenderResources() override;
-
-    // IRenderable
-    virtual void AddRenderPackets(struct RenderFrameContext* rfc) const override;
 };
 
