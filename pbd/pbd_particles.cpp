@@ -234,7 +234,7 @@ struct PBDUnifiedSimulation {
 
 };
 
-struct PBDUnifiedSimulation* pbd_unified_sim_create(vec2& sim_dim) {
+struct PBDUnifiedSimulation* pbd_unified_sim_create(const vec2& sim_dim) {
     PBDUnifiedSimulation* sim = new PBDUnifiedSimulation();
     sim->world_size_ = sim_dim;
 
@@ -2991,7 +2991,7 @@ void PBDUnifiedTimestep::SimulateXPBD(PBDUnifiedSimulation* sim, const float dt)
 			// frames as well) or remember pos at the beginning of iterations if using
 			// dt/num_iter
 			bool b_sleep = dp_len < 0.25f*kSleepEps;
-			if (!b_sleep) {
+			if (!b_sleep || true) {
 				p[i].x = x_pred[i];
 				p[i].flags &= ~PBDParticleFlags::kSleep;
 			} else {
