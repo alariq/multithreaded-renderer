@@ -221,6 +221,10 @@ void __stdcall Update(void)
     rfc->view_ = g_camera.get_view();
     rfc->proj_ = g_camera.get_projection();
     rfc->inv_proj_ = g_camera.get_inv_projection();
+    rfc->z_near_ = g_camera.get_near();
+    rfc->z_far_ = g_camera.get_far();
+    rfc->fov_ = g_camera.get_fov();
+    rfc->aspect_ = g_camera.get_aspect();
     g_shadow_camera.get_view(&rfc->shadow_view_);
     rfc->shadow_inv_view_ = g_shadow_camera.get_inv_view();
     SetRenderFrameContext(rfc);
