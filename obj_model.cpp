@@ -79,6 +79,15 @@ MeshComponent* MeshComponent::Create(const char *res) {
 void MeshComponent::InitRenderResources() {
     // assert(IsOnRenderThread());
     mesh_ = res_man_load_mesh(mesh_name_);
+	// !NB: strictly speaking cannot modify state on render thread, we can have an Update
+	// method called for component even if it is not initialized, so that on game thread
+	// this update method will set state_ = initState.load();
+	state_ = Component::kInitialized;
+}
+void MeshComponent::DeinitRenderResources() {
+    // assert(IsOnRenderThread());
+    mesh_ = nullptr;
+    state_ = Component::kUninitialized;
 }
 
 void MeshComponent::SetMesh(const char* mesh_name) {
@@ -133,13 +142,11 @@ ParticleSystemObject::~ParticleSystemObject() {
 }
 
 FrustumObject *FrustumObject::Create(const camera *pcam) {
-    FrustumObject *o =
-        new FrustumObject(/*pcam->view_, pcam->get_fov(), pcam->get_aspect(),
-                          pcam->get_near(), pcam->get_far()*/);
-    o->UpdateFrustum(pcam);
+    FrustumObject *o = new FrustumObject();
+    //o->UpdateFrustum(pcam);
     return o;
 }
-
+#if 0
 void FrustumObject::UpdateFrustum(const camera *pcam) {
     mat4 view;
     pcam->get_view(&view);
@@ -151,6 +158,8 @@ void FrustumObject::UpdateFrustum(const camera *pcam) {
     frustum_.updateFromCamera(pos.xyz(), dir, right, up, pcam->get_fov(),
                               pcam->get_aspect(), pcam->get_near(),
                               pcam->get_far());
+
+    frustum_comp_->frustum_ = frustum_;
 
     // dangerous: we are on a game thread
     if (mesh_) {
@@ -167,8 +176,9 @@ void FrustumObject::UpdateFrustum(const camera *pcam) {
     }
     //
 }
+#endif
 
-void FrustumObject::InitRenderResources() {
+void FrustumComponent::InitRenderResources() {
 
     mesh_ = new RenderMesh();
     mesh_->vdecl_ = get_svd_vdecl();
@@ -185,7 +195,8 @@ void FrustumObject::InitRenderResources() {
         gos_CreateBuffer(gosBUFFER_TYPE::INDEX, gosBUFFER_USAGE::STATIC_DRAW,
                          sizeof(uint16_t), ib_size, ib);
 
-    Frustum::makeMeshFromFrustum(&frustum_, (char *)&vb[0], vb_size,
+    Frustum f;
+    Frustum::makeMeshFromFrustum(&f, (char *)&vb[0], vb_size,
                                  (int)sizeof(SVD));
 
     for (int i = 0; i < vb_size; ++i) {
@@ -201,11 +212,46 @@ void FrustumObject::InitRenderResources() {
     mesh_->vb_count_ = -1;
     mesh_->two_sided_ = 0;
     mesh_->tex_id_ = res_man_load_texture("default");
+
+    state_ = Component::kInitialized;
 }
 
-void FrustumObject::DeinitRenderResources()
-{
+void FrustumComponent::AddRenderPackets(struct RenderFrameContext* rfc) const {
+
+    const mat4& view = rfc->view_;
+    vec3 dir = view.getRow(2).xyz();
+    vec3 right = view.getRow(0).xyz();
+    vec3 up = view.getRow(1).xyz();
+    vec4 pos = rfc->inv_view_ * vec4(0, 0, 0, 1);
+
+    Frustum f;
+    f.updateFromCamera(pos.xyz(), dir, right, up, rfc->fov_,
+                              rfc->aspect_, rfc->z_near_,
+                              rfc->z_far_);
+
+    HGOSBUFFER mesh_vb = mesh_->vb_;
+	ScheduleRenderCommand(rfc, [f, mesh_vb]() {
+		const int vb_size = Frustum::kNUM_FRUSTUM_PLANES * 6;
+		SVD vb[vb_size];
+		Frustum::makeMeshFromFrustum(&f, (char*)&vb[0], vb_size, (int)sizeof(SVD));
+
+		for (int i = 0; i < vb_size; ++i) {
+			vb[i].uv = vec2(vb[i].pos.x, vb[i].pos.z);
+			vb[i].normal = normalize(vb[i].pos);
+		}
+
+		gos_UpdateBuffer(mesh_vb, vb, 0, vb_size * sizeof(SVD));
+	});
+}
+
+void FrustumComponent::DeinitRenderResources() {
+    gos_DestroyBuffer(mesh_->vb_);
+    gos_DestroyBuffer(mesh_->ib_);
+    mesh_->tex_id_ = 0;
     delete mesh_;
+    mesh_ = nullptr;
+
+    state_ = Component::kUninitialized;
 }
 
 MeshObject *MeshObject::Create(const char *res) {
@@ -213,15 +259,13 @@ MeshObject *MeshObject::Create(const char *res) {
     MeshObject *obj = new MeshObject();
     obj->name_ = res;
     obj->name_ += std::to_string(obj_num++);
-    obj->mesh_name_ = res;
 
-    obj->AddComponent<TransformComponent>();
+    auto tr = obj->AddComponent<TransformComponent>();
+
+    obj->mesh_comp_ = MeshComponent::Create(res);
+    obj->AddComponent(obj->mesh_comp_);
+    obj->mesh_comp_->SetParent(tr);
 
     return obj;
-}
-
-void MeshObject::InitRenderResources() {
-    // assert(IsOnRenderThread());
-    mesh_ = res_man_load_mesh(mesh_name_);
 }
 
