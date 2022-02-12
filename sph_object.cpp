@@ -465,13 +465,14 @@ void update_closest_dist_debug_line(struct RenderFrameContext *rfc) {
         DWORD buttonsPressed;
         gos_GetMouseInfo(&XPos, &YPos, &XDelta, &YDelta, &WheelDelta, &buttonsPressed);
 
+        const float plane_z = -0.05f;
 	    const vec2 mouse_screen_pos = 2 * vec2(XPos, 1 - YPos) - vec2(1);
-        const vec3 dir = screen2world_vec(rfc->inv_view_, rfc->inv_proj_, mouse_screen_pos);
+        vec4 plane = make_plane(vec3(0, 0, 1), vec3(0, 0, plane_z));
+		const vec3 pos =
+			screen2world_projected_on_plane(mouse_screen_pos, rfc->b_is_perspective_,
+											rfc->inv_view_, rfc->inv_proj_, plane);
 
-        const vec3 ws_cam_pos = (rfc->inv_view_ * vec4(0, 0, 0, 1)).xyz();
-        const vec3 pos = ray_plane_intersect(dir, ws_cam_pos, make_plane(vec3(0,0,1),vec3(0,0,0)));
-
-        SPHBoundaryModel *bm;
+		SPHBoundaryModel *bm;
         float dist;
         vec2 normal;
 
@@ -490,8 +491,8 @@ void update_closest_dist_debug_line(struct RenderFrameContext *rfc) {
 
 		vec2 closest_pos = pos.xy() - normal * dist;
 
-        vec3 lb = vec3(pos.xy(), -0.05f);
-        vec3 le = vec3(closest_pos, -0.05f);
+        vec3 lb = vec3(pos.xy(), plane_z);
+        vec3 le = vec3(closest_pos, plane_z);
         rfc->rl_->addDebugLine(lb, le, vec4(0.5f,1,1,1));
     }
 #endif
