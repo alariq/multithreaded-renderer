@@ -200,6 +200,7 @@ struct RenderFrameContext {
     mat4 shadow_view_;
     mat4 shadow_inv_view_;
     float z_near_, z_far_, fov_, aspect_;
+    bool b_is_perspective_;
 
     // point lights that passed frustum culling
     std::vector<PointLight> point_lights_;

@@ -48,6 +48,7 @@ struct camera
     float get_aspect() const { return (float)width_/(float)height_; }
     float get_near() const { return near_; }
     float get_far() const { return far_; }
+    bool get_is_perspective() const { return is_perspective_; }
 
 private:
 
