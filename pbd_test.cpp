@@ -39,7 +39,7 @@ static RandArray<1024> r_jitters(-0.01f, 0.01f);
 static RandArray<1024> r_offsets(-0.01f, 0.01f);
 
 // TODO: move to input utils?
-static vec3 get_ws_mouse_pos(RenderFrameContext* rfc);
+static vec3 get_ws_mouse_pos(RenderFrameContext* rfc, float z);
 
 void initialize_particle_positions(struct PBDUnifiedSimulation* sim,
 								   const ivec2& row_column, const vec2 offset,
@@ -1094,7 +1094,7 @@ void select_and_draw_debug_particle(const PBDUnifiedSimulation* sim,
 
 	if (gos_GetKeyStatus(KEY_MINUS) == KEY_PRESSED) {
 
-        const vec3 pos = get_ws_mouse_pos(rfc);
+        const vec3 pos = get_ws_mouse_pos(rfc, 0);
 
 		for (int i = 0; i < particles_count; ++i) {
 			if (lengthSqr(pos.xy() - particles[i].x) < particles_r * particles_r) {
@@ -1105,7 +1105,7 @@ void select_and_draw_debug_particle(const PBDUnifiedSimulation* sim,
 	}
 
     if(!g_b_dragging && gos_GetKeyStatus(KEY_LMOUSE) == KEY_PRESSED) {
-        const vec3 pos = get_ws_mouse_pos(rfc);
+        const vec3 pos = get_ws_mouse_pos(rfc, 0);
 		for (int i = 0; i < particles_count; ++i) {
 			if (lengthSqr(pos.xy() - particles[i].x) < particles_r * particles_r) {
 				g_dragged_particle = i;
@@ -1120,7 +1120,7 @@ void select_and_draw_debug_particle(const PBDUnifiedSimulation* sim,
 	}
 
 	if(g_b_dragging) { 
-        g_cur_drag_pos = get_ws_mouse_pos(rfc).xy();
+        g_cur_drag_pos = get_ws_mouse_pos(rfc, 0).xy();
     }
 
 	if (g_debug_particle >= 0 && g_debug_particle < particles_count) {
@@ -1495,7 +1495,7 @@ void pbd_unified_sim_debug_draw_world(const struct PBDUnifiedSimulation* sim, Re
         }
     }
 
-	vec2 mouse = get_ws_mouse_pos(rfc).xy();
+	vec2 mouse = get_ws_mouse_pos(rfc, z).xy();
     vec3 mp = vec3(mouse, z);
     rl->addDebugPoints(&mp,1, vec4(1), 3.0f, false, nullptr);
 
@@ -1521,19 +1521,31 @@ void pbd_unified_sim_debug_draw_world(const struct PBDUnifiedSimulation* sim, Re
     
 }
 
-vec3 get_ws_mouse_pos(RenderFrameContext* rfc) {
+vec3 get_ws_mouse_pos(RenderFrameContext* rfc, const float z) {
 	int XDelta, YDelta, WheelDelta;
 	float XPos, YPos;
 	DWORD buttonsPressed;
 	gos_GetMouseInfo(&XPos, &YPos, &XDelta, &YDelta, &WheelDelta, &buttonsPressed);
 
-	const vec2 mouse_screen_pos = 2 * vec2(XPos, 1 - YPos) - vec2(1);
-	const vec3 dir = screen2world_vec(rfc->inv_view_, rfc->inv_proj_, mouse_screen_pos);
 
-	const vec3 ws_cam_pos = (rfc->inv_view_ * vec4(0, 0, 0, 1)).xyz();
-	const vec3 pos =
-		ray_plane_intersect(dir, ws_cam_pos, make_plane(vec3(0, 0, 1), vec3(0, 0, 0)));
-	return pos;
+	const vec2 mouse_screen_pos = 2 * vec2(XPos, 1 - YPos) - vec2(1);
+    const vec4 plane = make_plane(vec3(0, 0, 1), vec3(0, 0, z));
+
+	vec3 wpos = camera::unproject(mouse_screen_pos, 0.0f, rfc->b_is_perspective_, rfc->inv_view_, rfc->inv_proj_);
+#if 0
+    {
+        vec4 view_pos2 = (rfc->inv_proj_ * vec4(mouse_screen_pos, 0.5f, 1));
+        vec4 wpos2 = rfc->inv_view_ * vec4(view_pos2.xyz(), 1.0f);
+
+        vec4 vpos3 = rfc->view_*vec4(wpos2.xyz(), 1);
+        vec4 ppos = rfc->proj_*vpos3;
+        printf("asdfasd\n");
+    }
+#endif
+
+	return screen2world_projected_on_plane(mouse_screen_pos, rfc->b_is_perspective_,
+										   rfc->inv_view_, rfc->inv_proj_, plane);
+
 }
 
 ////////////////////////////////////////////////////////////////////////////////

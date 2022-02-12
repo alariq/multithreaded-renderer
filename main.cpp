@@ -53,6 +53,7 @@ DeferredRenderer g_deferred_renderer;
 ObjIdRenderer g_obj_id_renderer;
 
 camera g_camera;
+bool g_use_parallel_projection = false;
 camera g_shadow_camera;
 
 #define SCREEN_W 1280.0f
@@ -117,23 +118,40 @@ void UpdateCamera(float dt)
     static float moveSpeedK = 10.0f;
     static float angularSpeedK = 0.25f * 3.1415f / 180.0f; // 0.25 degree per pixel
 
-    g_camera.dx += gos_GetKeyStatus(KEY_D) ? dt*moveSpeedK : 0.0f;
-    g_camera.dx -= gos_GetKeyStatus(KEY_A) ? dt*moveSpeedK : 0.0f;
-    g_camera.dz += gos_GetKeyStatus(KEY_W) ? dt*moveSpeedK : 0.0f;
-    g_camera.dz -= gos_GetKeyStatus(KEY_S) ? dt*moveSpeedK : 0.0f;
+    if (gos_GetKeyStatus(KEY_F2) == KEY_RELEASED) {
+        g_use_parallel_projection = !g_use_parallel_projection;
+    }
 
     int XDelta, YDelta, WheelDelta;
     float XPos, YPos;
     DWORD buttonsPressed;
     gos_GetMouseInfo(&XPos, &YPos, &XDelta, &YDelta, &WheelDelta, &buttonsPressed);
 
-    g_camera.rot_x += (float)XDelta * angularSpeedK;
-    g_camera.rot_y -= (float)YDelta * angularSpeedK;
 
-    if(WheelDelta)
-        moveSpeedK *= WheelDelta<0 ? 3.0f/4.0f : 4.0f/3.0f;
 
-    g_camera.set_projection(fov, Environment.drawableWidth, Environment.drawableHeight, 0.1f, 1000.0f);
+    if(g_use_parallel_projection) {
+        if(WheelDelta)
+            moveSpeedK *= WheelDelta>0 ? 3.0f/4.0f : 4.0f/3.0f;
+        float w = 0.01f*Environment.drawableWidth*moveSpeedK;
+        float h = 0.01f*Environment.drawableHeight*moveSpeedK;
+        g_camera.set_ortho_projection(-w/2, w/2, h/2, -h/2, -0.1, -100.0f);
+        if((gos_GetKeyStatus(KEY_RMOUSE) == KEY_PRESSED) ||
+          (gos_GetKeyStatus(KEY_RMOUSE) == KEY_HELD)) {
+            g_camera.dx -= XDelta*(w/Environment.drawableWidth);
+            g_camera.dy += YDelta*(h/Environment.drawableHeight);
+        }
+    } else {
+        g_camera.set_projection(fov, Environment.drawableWidth, Environment.drawableHeight, 0.1f, 1000.0f);
+        if(WheelDelta)
+            moveSpeedK *= WheelDelta<0 ? 3.0f/4.0f : 4.0f/3.0f;
+        g_camera.dx += gos_GetKeyStatus(KEY_D) ? dt*moveSpeedK : 0.0f;
+        g_camera.dx -= gos_GetKeyStatus(KEY_A) ? dt*moveSpeedK : 0.0f;
+        g_camera.dz += gos_GetKeyStatus(KEY_W) ? dt*moveSpeedK : 0.0f;
+        g_camera.dz -= gos_GetKeyStatus(KEY_S) ? dt*moveSpeedK : 0.0f;
+        g_camera.rot_x += (float)XDelta * angularSpeedK;
+        g_camera.rot_y -= (float)YDelta * angularSpeedK;
+    }
+
     g_camera.update(dt);
 
     render_from_shadow_camera = gos_GetKeyStatus(KEY_O) ? true : false;
