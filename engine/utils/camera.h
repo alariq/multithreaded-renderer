@@ -13,6 +13,16 @@ struct camera
 	void get_projection(mat4* proj) const { *proj = proj_; }
 	const mat4& get_projection() const { return proj_; }
 	const mat4& get_inv_projection() const { return inv_proj_; }
+    static vec3 unproject_vec(const vec2& p, bool b_perspective, const mat4& inv_view, const mat4& inv_proj);
+    static vec3 unproject(const vec2& p, float at_view_z, bool b_perspective, const mat4& inv_view, const mat4& inv_proj);
+    // returns world-space position
+    vec3 unproject(const vec2& p, float at_view_z) const {
+        return unproject(p, at_view_z, is_perspective_, inv_view_, inv_proj_);
+    }
+    // returns world-space vector
+    vec3 unproject_vec(const vec2& p) const {
+        return unproject_vec(p, is_perspective_, inv_view_, inv_proj_);
+    }
 	void update(float dt);
 	void get_pos(float (*p)[4] ) const; 
 	vec3 get_pos() const; 

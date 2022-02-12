@@ -242,3 +242,30 @@ void camera::set_pos(const vec3& world_pos)
 	pos_[1] = world_pos.y;
 	pos_[2] = world_pos.z;
 }
+
+vec3 camera::unproject_vec(const vec2& p, bool b_perspective, const mat4& inv_view, const mat4& inv_proj) {
+    vec3 view_pos;
+    if(b_perspective) {
+        view_pos = normalize((inv_proj * vec4(p.x, p.y, 0, 1)).xyz());
+    } else {
+        // unproject_vec makes little sense in case fo parallel projection
+        // just return forward vec?
+        view_pos = normalize((inv_proj * vec4(0, 0, 1, 1)).xyz());
+    }
+    vec3 wpos = (inv_view * vec4(view_pos, 0.0f)).xyz();
+    return wpos;
+}
+
+// returns world position
+vec3 camera::unproject(const vec2& p, float at_view_z, bool b_perspective, const mat4& inv_view, const mat4& inv_proj) {
+    vec3 view_pos;
+    if(b_perspective) {
+        view_pos = (inv_proj * vec4(p.x, p.y, 0, 1)).xyz();
+        view_pos = at_view_z * normalize(view_pos);
+    } else {
+        view_pos = (inv_proj * vec4(p.x, p.y, at_view_z, 1)).xyz();
+    }
+    vec3 wpos = (inv_view * vec4(view_pos, 1.0f)).xyz();
+    return wpos;
+}
+
