@@ -241,6 +241,7 @@ void __stdcall Update(void)
     rfc->z_far_ = g_camera.get_far();
     rfc->fov_ = g_camera.get_fov();
     rfc->aspect_ = g_camera.get_aspect();
+    rfc->b_is_perspective_ = g_camera.get_is_perspective();
     g_shadow_camera.get_view(&rfc->shadow_view_);
     rfc->shadow_inv_view_ = g_shadow_camera.get_inv_view();
     SetRenderFrameContext(rfc);
