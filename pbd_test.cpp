@@ -1530,22 +1530,8 @@ vec3 get_ws_mouse_pos(RenderFrameContext* rfc, const float z) {
 
 	const vec2 mouse_screen_pos = 2 * vec2(XPos, 1 - YPos) - vec2(1);
     const vec4 plane = make_plane(vec3(0, 0, 1), vec3(0, 0, z));
-
-	vec3 wpos = camera::unproject(mouse_screen_pos, 0.0f, rfc->b_is_perspective_, rfc->inv_view_, rfc->inv_proj_);
-#if 0
-    {
-        vec4 view_pos2 = (rfc->inv_proj_ * vec4(mouse_screen_pos, 0.5f, 1));
-        vec4 wpos2 = rfc->inv_view_ * vec4(view_pos2.xyz(), 1.0f);
-
-        vec4 vpos3 = rfc->view_*vec4(wpos2.xyz(), 1);
-        vec4 ppos = rfc->proj_*vpos3;
-        printf("asdfasd\n");
-    }
-#endif
-
 	return screen2world_projected_on_plane(mouse_screen_pos, rfc->b_is_perspective_,
 										   rfc->inv_view_, rfc->inv_proj_, plane);
-
 }
 
 ////////////////////////////////////////////////////////////////////////////////
