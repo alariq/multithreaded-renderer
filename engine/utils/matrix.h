@@ -18,4 +18,7 @@ void glu_LookAt2(float eyex, double eyey, float eyez, float centerx,
 bool invert(const mat4& m, mat4 &inverse, float tolerance);
 mat3 inverse(const mat3& m, float tolerance = 0);
 
+
+vec3 matrix2euler(const mat4& m);
+
 #endif // INCLUDED_MATH_H

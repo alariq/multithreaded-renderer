@@ -434,3 +434,36 @@ mat3 inverse(const mat3& m, float tolerance /*= 0*/) {
 	}
 	return inv * (1.0f / det);
 }
+
+bool eps_eq(float a, float b) {
+    return fabsf(a-b) < 1e-9f;
+}
+
+vec3 matrix2euler(const mat4& m) {
+	const float m20 = m[2][0];
+	const float π = M_PI;
+	float θ, ψ, φ;
+    // m20!=-1 && m20 != 1
+	if (fabsf(fabsf(m20) - 1) > 1e-9f) {
+		float θ1 = -asin(m20);
+		//float θ2 = π − θ1;
+		float ψ1 = atan2(m[2][1] * cos(θ1), m[3][3] * cos(θ1));
+		//float ψ2 = atan2(m[2][1] * cos(θ2), m[3][3] * cos(θ2));
+		float φ1 = atan2(m[1][0] * cos(θ1), m[0][0] * cos(θ1));
+		//float φ2 = atan2(m[1][0] * cos(θ2), m[1][1] * cos(θ2));
+        θ = θ1;
+		ψ = ψ1;
+		φ = φ1;
+	} else {
+		φ = 0.0f; // anything; can set to 0
+		if (eps_eq(m20, -1.0f)) {
+			θ = π / 2;
+			ψ = φ + atan2(m[0][1], m[0][2]);
+		} else {
+			θ = -π / 2;
+			ψ = -φ + atan2(-m[0][1], -m[0][2]);
+		}
+	}
+    return vec3(θ, ψ, φ);
+}
+
