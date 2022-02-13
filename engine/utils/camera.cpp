@@ -2,6 +2,8 @@
 
 #include "utils/vec.h"
 #include "utils/camera.h"
+#include "utils/matrix.h"
+#include "utils/logging.h"
 
 //#include <GL/glew.h>
 //#include <graphics/gl_utils.h>
@@ -153,6 +155,12 @@ void camera::update(float /*dt*/)
 
 void camera::set_view(const mat4& view_mat)
 {
+    vec3 euler = matrix2euler(view_mat);
+    if(euler.z != 0.0f) {
+		log_error("view matrix has rotation around Z axis, will be reset if update() if called");
+	}
+	rot_x = euler.x;
+    rot_y = euler.y;
 	view_ = view_mat;
 
 	vec3 wp;
