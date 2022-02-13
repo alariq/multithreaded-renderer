@@ -51,15 +51,16 @@ void add_debug_mesh_constant_size_px(struct RenderFrameContext *rfc, const Rende
 
     // for real we must take AABB, project it on screen and calculate from this
 
-	const float cam_z = (rfc->view_ * tr_m.getTranslationPoint()).z;
-    const float oo_w = rfc->proj_.elem[0][0];
+	const float cam_z =
+		rfc->b_is_perspective_ ? (rfc->view_ * tr_m.getTranslationPoint()).z : 1.0f;
+	const float oo_w = rfc->proj_.elem[0][0];
     const float oo_h = rfc->proj_.elem[1][1];
     float width_by_2 = 800.0f / 2.0f;
     float height_by_2 = 600.0f / 2.0f;
     float size_x = pixels * (cam_z * (1.0f/oo_w)) / width_by_2;
     float size_y = pixels * (cam_z * (1.0f/oo_h)) / height_by_2;
 
-	const mat4 tr = tr_m * mat4::scale(vec3(size_x, size_y, 1.0f));
+	const mat4 tr = tr_m * mat4::scale(vec3(size_x, size_y, 1.0f));// * mat4::translation(vec3(-0.5f, 0.5f, 0));
 	add_debug_mesh(rfc, mesh, tr, color, selection_id);
 }
 
