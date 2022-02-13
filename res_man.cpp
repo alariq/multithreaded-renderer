@@ -128,7 +128,7 @@ static RenderMesh* CreateFSQuadRenderMesh() {
 
 static RenderMesh* CreateXYQuadRenderMesh() {
     SVDAdapter<> svd_adapter;
-    generate_quad(svd_adapter, vec3(1,1,1), vec3(0.5f, 0.5f, 0.0f), 0);
+    generate_quad(svd_adapter, vec3(1,1,1), -vec3(0.5f, 0.5f, 0.0f), 0);
     return render_mesh_from_mesh_buffer(svd_adapter, get_svd_vdecl());
 }
 
