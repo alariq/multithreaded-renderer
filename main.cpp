@@ -112,47 +112,56 @@ void __stdcall Deinit(void)
     printf("::Deinit\n");
 }
 
-void UpdateCamera(float dt)
+void UpdateCamera(float dt, bool b_editor)
 {
     static float fov = 45.0f;
     static float moveSpeedK = 10.0f;
     static float angularSpeedK = 0.25f * 3.1415f / 180.0f; // 0.25 degree per pixel
 
-    if (gos_GetKeyStatus(KEY_F2) == KEY_RELEASED) {
-        g_use_parallel_projection = !g_use_parallel_projection;
-    }
+	if (gos_GetKeyStatus(KEY_F2) == KEY_RELEASED) {
+		g_use_parallel_projection = !g_use_parallel_projection;
 
-    int XDelta, YDelta, WheelDelta;
+		if (g_use_parallel_projection) {
+			vec3 cam_pos = g_camera.get_pos();
+			g_camera.set_view(mat4::identity());
+			g_camera.set_pos(cam_pos);
+		}
+	}
+
+	int XDelta, YDelta, WheelDelta;
     float XPos, YPos;
     DWORD buttonsPressed;
     gos_GetMouseInfo(&XPos, &YPos, &XDelta, &YDelta, &WheelDelta, &buttonsPressed);
 
+	const bool RMB_down = (gos_GetKeyStatus(KEY_RMOUSE) == KEY_PRESSED) ||
+						  (gos_GetKeyStatus(KEY_RMOUSE) == KEY_HELD);
 
-
-    if(g_use_parallel_projection) {
+	if(g_use_parallel_projection) {
         if(WheelDelta)
             moveSpeedK *= WheelDelta>0 ? 3.0f/4.0f : 4.0f/3.0f;
         float w = 0.01f*Environment.drawableWidth*moveSpeedK;
         float h = 0.01f*Environment.drawableHeight*moveSpeedK;
-        g_camera.set_ortho_projection(-w/2, w/2, h/2, -h/2, -0.1, -100.0f);
-        if((gos_GetKeyStatus(KEY_RMOUSE) == KEY_PRESSED) ||
-          (gos_GetKeyStatus(KEY_RMOUSE) == KEY_HELD)) {
+		g_camera.set_ortho_projection(-w / 2, w / 2, h / 2, -h / 2, -0.1, -100.0f);
+        if(RMB_down) {
             g_camera.dx -= XDelta*(w/Environment.drawableWidth);
             g_camera.dy += YDelta*(h/Environment.drawableHeight);
         }
     } else {
-        g_camera.set_projection(fov, Environment.drawableWidth, Environment.drawableHeight, 0.1f, 1000.0f);
-        if(WheelDelta)
-            moveSpeedK *= WheelDelta<0 ? 3.0f/4.0f : 4.0f/3.0f;
-        g_camera.dx += gos_GetKeyStatus(KEY_D) ? dt*moveSpeedK : 0.0f;
-        g_camera.dx -= gos_GetKeyStatus(KEY_A) ? dt*moveSpeedK : 0.0f;
-        g_camera.dz += gos_GetKeyStatus(KEY_W) ? dt*moveSpeedK : 0.0f;
-        g_camera.dz -= gos_GetKeyStatus(KEY_S) ? dt*moveSpeedK : 0.0f;
-        g_camera.rot_x += (float)XDelta * angularSpeedK;
-        g_camera.rot_y -= (float)YDelta * angularSpeedK;
-    }
+		if (!b_editor || RMB_down) {
+			if (WheelDelta) {
+				moveSpeedK *= WheelDelta < 0 ? 3.0f / 4.0f : 4.0f / 3.0f;
+			}
+            g_camera.set_projection(fov, Environment.drawableWidth, Environment.drawableHeight, 0.1f, 1000.0f);
+			g_camera.dx += gos_GetKeyStatus(KEY_D) ? dt * moveSpeedK : 0.0f;
+			g_camera.dx -= gos_GetKeyStatus(KEY_A) ? dt * moveSpeedK : 0.0f;
+			g_camera.dz += gos_GetKeyStatus(KEY_W) ? dt * moveSpeedK : 0.0f;
+			g_camera.dz -= gos_GetKeyStatus(KEY_S) ? dt * moveSpeedK : 0.0f;
+			g_camera.rot_x += (float)XDelta * angularSpeedK;
+			g_camera.rot_y -= (float)YDelta * angularSpeedK;
+		}
+	}
 
-    g_camera.update(dt);
+	g_camera.update(dt);
 
     render_from_shadow_camera = gos_GetKeyStatus(KEY_O) ? true : false;
     g_show_cascade_index += gos_GetKeyStatus(KEY_C) == KEY_PRESSED ? 1 : 0;
@@ -199,12 +208,10 @@ void __stdcall Update(void)
 
 	scene_set_object_id_under_cursor(g_obj_under_cursor);
 
-	if (!g_is_in_editor) {
-		// game update
-		UpdateCamera(dt_sec);
-	} else {
-		editor_update(&g_camera, dt_sec);
-	}
+	UpdateCamera(dt_sec, g_is_in_editor);
+    if(g_is_in_editor) {
+	    editor_update(&g_camera, dt_sec);
+    }
 
     // TODO: move to array of systems ?
     if(g_update_simulation) {
