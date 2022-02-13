@@ -246,7 +246,7 @@ void scene_breakable_generic(PBDUnifiedSimulation* sim, bool b_with_rb) {
     int w = 1;
     float stiffness = .25f;//0.125f;
     float fr_angle = 20.0f*3.1415f/180.0f;
-    float fr_rel_len = 1.1f;
+    float fr_rel_len = b_with_rb ? 1.5f : 1.1f;
     const constexpr uint32_t sx = 13;
     const constexpr uint32_t sy = 2;
 	const uint8_t bp[sy][sx] = {
@@ -276,14 +276,14 @@ void scene_breakable_generic(PBDUnifiedSimulation* sim, bool b_with_rb) {
     box.pos = vec2(world_size.x * 0.13f, r * 3.0f);
     box.rot = identity2();
     box.scale = vec2(1,1);
-    box.size = vec2(1.0f * r, 3.0f * r);
+    box.size = vec2(1.0f * r, 2.5f * r);
     collision_add_box(cworld, box); }
 
     { SDFBoxCollision box;
     box.pos = vec2(world_size.x * 0.77f, r * 3.0f);
     box.rot = identity2();
     box.scale = vec2(1,1);
-    box.size = vec2(1.0f * r, 3.0f * r);
+    box.size = vec2(1.0f * r, 2.5f * r);
     collision_add_box(cworld, box); }
 
     { SDFBoxCollision box;
