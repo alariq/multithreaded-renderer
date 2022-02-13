@@ -228,16 +228,18 @@ static int drag_type;
 
 static vec3 drag_rotation_gizmo_helper_pos;
 
-static EditorOpMode update_input_mode(const EditorOpMode ed_mode) {
+static EditorOpMode update_input_mode(const EditorOpMode ed_mode, bool mouse_buttons_pressed) {
 
-	 if(gos_GetKeyStatus(KEY_Q) == KEY_PRESSED)
-        return EditorOpMode::kMove;
-	 if(gos_GetKeyStatus(KEY_W) == KEY_PRESSED)
-        return EditorOpMode::kRotate;
-	 if(gos_GetKeyStatus(KEY_E) == KEY_PRESSED)
-        return EditorOpMode::kScale;
+    if(!mouse_buttons_pressed) {
+        if(gos_GetKeyStatus(KEY_Q) == KEY_PRESSED)
+            return EditorOpMode::kMove;
+        if(gos_GetKeyStatus(KEY_W) == KEY_PRESSED)
+            return EditorOpMode::kRotate;
+        if(gos_GetKeyStatus(KEY_E) == KEY_PRESSED)
+            return EditorOpMode::kScale;
+    }
 
-	 return ed_mode;
+    return ed_mode;
 }
 
 void editor_update(camera *cam, const float dt) {
@@ -262,7 +264,7 @@ void editor_update(camera *cam, const float dt) {
 	if (gos_GetKeyStatus(KEY_1) == KEY_RELEASED)
 		g_gizmo.set_world_space(!g_gizmo.get_world_space());
 		
-	s_editor_mode = update_input_mode(s_editor_mode);
+	s_editor_mode = update_input_mode(s_editor_mode, !!buttonsPressed);
 	g_gizmo.update_mode(s_editor_mode);
 
 	const uint32_t sel_id = scene_get_object_id_under_cursor();
