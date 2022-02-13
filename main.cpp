@@ -156,7 +156,7 @@ void UpdateCamera(float dt, bool b_editor)
 			g_camera.dx -= gos_GetKeyStatus(KEY_A) ? dt * moveSpeedK : 0.0f;
 			g_camera.dz += gos_GetKeyStatus(KEY_W) ? dt * moveSpeedK : 0.0f;
 			g_camera.dz -= gos_GetKeyStatus(KEY_S) ? dt * moveSpeedK : 0.0f;
-			g_camera.rot_x += (float)XDelta * angularSpeedK;
+			g_camera.rot_x -= (float)XDelta * angularSpeedK;
 			g_camera.rot_y -= (float)YDelta * angularSpeedK;
 		}
 	}

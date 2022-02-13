@@ -83,7 +83,9 @@ void camera::set_ortho_projection(const float l, const float r, const float t, c
 
 void camera::update(float /*dt*/)
 {
+    // rotate around Y
 	mat4 rotX = rotateY4(rot_x);
+    // rotate around X
 	mat4 rotY = rotateX4(rot_y);
 
 	mat4 matrot = rotY*rotX;
@@ -155,6 +157,8 @@ void camera::update(float /*dt*/)
 
 void camera::set_view(const mat4& view_mat)
 {
+    // can have special matrix2euler_with_z_eq0 based on the same paper
+    // if assume that φ=0 and so cos(φ) = 1;
     vec3 euler = matrix2euler(view_mat);
     if(euler.z != 0.0f) {
 		log_error("view matrix has rotation around Z axis, will be reset if update() if called");
