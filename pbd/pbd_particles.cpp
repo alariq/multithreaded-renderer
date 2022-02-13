@@ -1862,7 +1862,7 @@ void solve_soft_shape_matching_c(const SoftShapeMatchingConstraint& c,
         const int pi = sb_data[di].base.index;
         const uint32_t roff = sp_data.start_region_idx;
 
-        vec2 dx(0);
+        vec2 x(0);
         sp_data.goal_R = mat2(0,0,0,0);
         for(uint32_t pri = roff; pri < roff + sp_data.num_regions; pri++) {
             uint32_t ri = sim->sb_regions_per_particle_[pri];
@@ -1870,17 +1870,19 @@ void solve_soft_shape_matching_c(const SoftShapeMatchingConstraint& c,
             vec2 x0r = sp_data.base.x0 - sim->sb_regions_[ri].cm0;
             mat2 rR = sim->sb_regions_[ri].R;
             vec2 r_cm = sim->sb_regions_[ri].cm;
-			vec2 r_dx = (rR * x0r + r_cm);
-            dx += r_dx;
+			vec2 r_x = (rR * x0r + r_cm);
+            x += r_x;
             sp_data.goal_R = sp_data.goal_R + rR;
 		}
 
-        dx /= sp_data.num_regions;
-		sp_data.goal_x = dx;
+        x /= sp_data.num_regions;
+        x = alpha*(x - x_pred[pi]) + x_pred[pi];
+		sp_data.goal_x = x;
+        // TODO: should we also lerp goal_R?
 		sp_data.goal_R = sp_data.goal_R * (1.0f / sp_data.num_regions);
 
-		dx -= x_pred[pi];
-        update_position(pi, alpha*dx, sim);
+		vec2 dx = x - x_pred[pi];
+        update_position(pi, dx, sim);
 	}
 }
 
@@ -1957,7 +1959,7 @@ void solve_soft_shape_matching_c2(const SoftShapeMatchingConstraint& c,
         const int pi = sp_data.base.index;
         const uint32_t roff = sp_data.start_region_idx;
 
-        vec2 dx(0);
+        vec2 x(0);
         sp_data.goal_R = mat2(0,0,0,0);
         for(uint32_t pri = roff; pri < roff + sp_data.num_regions; pri++) {
             uint32_t ri = sim->sb_regions_per_particle_[pri];
@@ -1965,17 +1967,19 @@ void solve_soft_shape_matching_c2(const SoftShapeMatchingConstraint& c,
             vec2 x0r = sp_data.base.x0 - sim->sb_regions_[ri].cm0;
             mat2 rR = sim->sb_regions_[ri].R;
             vec2 r_cm = sim->sb_regions_[ri].cm;
-			vec2 r_dx = (rR * x0r + r_cm);
-            dx += r_dx;
+			vec2 r_x = (rR * x0r + r_cm);
+            x += r_x;
             sp_data.goal_R = sp_data.goal_R + rR;
 		}
 
-        dx /= sp_data.num_regions;
-		sp_data.goal_x = dx;
+        x /= sp_data.num_regions;
+        x = alpha*(x - x_pred[pi]) + x_pred[pi];
+		sp_data.goal_x = x;
+        // TODO: should we also lerp goal_R?
 		sp_data.goal_R = sp_data.goal_R * (1.0f / sp_data.num_regions);
 
-		dx -= x_pred[pi];
-        update_position(pi, alpha*dx, sim);
+		vec2 dx = x - x_pred[pi];
+        update_position(pi, dx, sim);
 	}
 }
 
