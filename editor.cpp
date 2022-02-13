@@ -309,8 +309,16 @@ void editor_update(camera *cam, const float dt) {
 
 		auto *tc = g_sel_obj->GetComponent<TransformComponent>();
 		g_gizmo.set_position(tc->GetPosition());
-		vec3 ray_origin = (cam->get_inv_view() * vec4(0, 0, 0, 1)).xyz();
-		vec3 ray_dir = normalize(drag_cur_mouse_world_pos - ray_origin);
+		vec3 ray_origin;
+		vec3 ray_dir;
+        if(cam->get_is_perspective()) {
+		    ray_origin = (cam->get_inv_view() * vec4(0, 0, 0, 1)).xyz();
+            ray_dir = normalize(drag_cur_mouse_world_pos - ray_origin);
+        } else {
+            ray_origin = (cam->get_inv_projection() * vec4(cur_mouse_proj_pos, 0, 1)).xyz();
+		    ray_origin = (cam->get_inv_view() * vec4(ray_origin, 1)).xyz();
+            ray_dir = cam->get_view().getForwardVec();
+        }
 		vec3 ray_dir_start = normalize(drag_start_mouse_world_pos - ray_origin);
 		switch (drag_type) {
 			case ReservedObjIds::kGizmoMoveX:

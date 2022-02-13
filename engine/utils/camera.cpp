@@ -276,6 +276,7 @@ vec3 camera::unproject(const vec2& p, float at_view_z, bool b_perspective, const
         view_pos = at_view_z * normalize(view_pos);
     } else {
         view_pos = (inv_proj * vec4(p.x, p.y, at_view_z, 1)).xyz();
+        view_pos.z = at_view_z;
     }
     vec3 wpos = (inv_view * vec4(view_pos, 1.0f)).xyz();
     return wpos;
