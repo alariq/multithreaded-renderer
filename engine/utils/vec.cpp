@@ -931,9 +931,9 @@ mat4 rotateY4(const float angle){
 	float cosA = cosf(angle), sinA = sinf(angle);
 
 	return mat4(
-		cosA, 0, -sinA, 0,
+		cosA, 0, sinA, 0,
 		0,    1,  0,    0,
-		sinA, 0,  cosA, 0,
+		-sinA, 0,  cosA, 0,
 		0,    0,  0,    1);
 }
 
