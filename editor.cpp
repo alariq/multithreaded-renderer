@@ -41,14 +41,17 @@ class Gizmo {
 	GizmoMode mode_ = GizmoMode::kMove;
 	vec3 pos_ = vec3(0,0,0);
 	mat4 rot_ = mat4::identity();
+    quaternion rot_q_ = quaternion::identity();
 	bool bWorldSpace = false;
 
   public:
 	// controlled object position
 	void set_position(const vec3 &pos) { pos_ = pos; }
+	vec3 get_position() const { return pos_; }
 	// controlled object rotation
-	void set_rotation(const quaternion& q) { rot_ = quat_to_mat4(q); }
-	mat4 get_rotation() { return rot_; }
+	void set_rotation(const quaternion& q) { rot_q_ = q; rot_ = quat_to_mat4(q); }
+	const mat4& get_rotation() const { return rot_; }
+	const quaternion& get_rotation_q() const { return rot_q_; }
 	void set_world_space(bool ws) { bWorldSpace = ws; }
 	bool get_world_space() { return bWorldSpace; }
 	void update_mode(const EditorOpMode ed_mode) {
@@ -62,10 +65,14 @@ class Gizmo {
 			mode_ = GizmoMode::kMove;
 	}
 
-	float get_gizmo_scale(const mat4& view, const mat4& proj, const float fov, bool b_is_perspective) const {
+	float get_gizmo_scale(const struct RenderFrameContext* rfc) const {
+		return get_scale(pos_, rfc->view_, rfc->proj_, rfc->fov_, rfc->b_is_perspective_);
+    }
+
+	static float get_scale(const vec3& pos, const mat4& view, const mat4& proj, const float fov, bool b_is_perspective) {
         if(b_is_perspective) {
             // get how many world units will be wisible horizontally at given pos_.z;
-            const float view_z = (view * vec4(pos_, 1.0f)).z;
+            const float view_z = (view * vec4(pos, 1.0f)).z;
             const float max_x_at_z = 2.0f*(1.0f/proj.elem[0][0])*view_z;
             return max_x_at_z * kScreenPercentage;
         } else {
@@ -75,7 +82,7 @@ class Gizmo {
 	}
 
 	float get_rotation_sphere_radius(const camera* cam) const {
-		return kRotSphereRadius * get_gizmo_scale(cam->get_view(), cam->get_projection(),
+		return kRotSphereRadius * get_scale(pos_, cam->get_view(), cam->get_projection(),
 												  cam->get_fov(), cam->get_is_perspective());
 	}
 
@@ -85,7 +92,7 @@ class Gizmo {
 		const mat4 rot = bWorldSpace ? mat4::identity() : rot_;
 
 		RenderMesh *cube = res_man_load_mesh("cube");
-		const float scaler = get_gizmo_scale(rfc->view_, rfc->proj_, rfc->fov_, rfc->b_is_perspective_);
+		const float scaler = get_scale(pos_, rfc->view_, rfc->proj_, rfc->fov_, rfc->b_is_perspective_);
 		const float al = kAxisLength;
 		const float aw = kAxisWidth;
 
@@ -125,11 +132,11 @@ class Gizmo {
 						   ReservedObjIds::kGizmoScaleXYZ);
 		}
 
-        const float sl = al*0.25f;
+        const float sl = al*0.25f*scaler;
         const float st = al*scaler;
-		const mat4 tr_xz = mat4::translation(pos) * rot * mat4::translation(vec3(st, 0.0f, st)) * mat4::scale(vec3(sl, 0.01f, sl) * scaler);
-		const mat4 tr_yx = mat4::translation(pos) * rot * mat4::translation(vec3(st, st, 0.0f)) * mat4::scale(vec3(sl, sl, 0.01f) * scaler);
-		const mat4 tr_yz = mat4::translation(pos) * rot * mat4::translation(vec3(0.0f, st, st)) * mat4::scale(vec3(0.01f, sl, sl) * scaler);
+		const mat4 tr_xz = mat4::translation(pos) * rot * mat4::translation(vec3(st, 0.0f, st)) * mat4::scale(vec3(sl, sl*0.01f, sl));
+		const mat4 tr_yx = mat4::translation(pos) * rot * mat4::translation(vec3(st, st, 0.0f)) * mat4::scale(vec3(sl, sl, sl*0.01f));
+		const mat4 tr_yz = mat4::translation(pos) * rot * mat4::translation(vec3(0.0f, st, st)) * mat4::scale(vec3(sl*0.01f, sl, sl));
 
 		if (GizmoMode::kRotate != mode) {
 			uint32_t plane_xz_id = GizmoMode::kMove == mode ? ReservedObjIds::kGizmoMoveXZ
@@ -150,11 +157,10 @@ class Gizmo {
 							   mat4::scale(vec3(sr, sr, 0.01f) * scaler);
 			const mat4 tr_ry = mat4::translation(pos) * rot * mat4::rotationX(90 * M_PI / 180.0f) *
 							   mat4::scale(vec3(sr, sr, 0.01f) * scaler);
-			const mat4 tr_rz =
-				mat4::translation(pos) * rot * mat4::scale(vec3(sr, sr, 0.01f) * scaler);
+			const mat4 tr_rz = mat4::translation(pos) * rot * mat4::scale(vec3(sr, sr, 0.01f) * scaler);
 
 			const mat4 tr_s = mat4::translation(pos) * mat4::scale(vec3(sr, sr, sr) * scaler);
-			add_debug_mesh(rfc, sphere, tr_s, vec4(.5f, 0.5f, .5f, .8f),
+			add_debug_mesh(rfc, sphere, tr_s, vec4(.5f, 0.5f, .5f, .4f),
 						   ReservedObjIds::kGizmoRotateXYZ);
 
 			add_debug_mesh(rfc, torus, tr_rx, vec4(1.0f, 0.f, 0.f, 1.0f),
@@ -316,8 +322,8 @@ void editor_update(camera *cam, const float dt) {
 			}
 		}
 	}
-
-	if (drag_started && gos_GetKeyStatus(KEY_LMOUSE) == KEY_HELD && drag_start_mouse_proj_pos!=cur_mouse_proj_pos) {
+    const bool lmouse_down = gos_GetKeyStatus(KEY_LMOUSE) == KEY_PRESSED || gos_GetKeyStatus(KEY_LMOUSE) == KEY_HELD;
+	if (drag_started && lmouse_down && drag_start_mouse_proj_pos!=cur_mouse_proj_pos) {
 		gosASSERT(g_sel_obj);
 		drag_cur_mouse_world_pos = screen2world(cam, cur_mouse_proj_pos, drag_obj_view_dist);
 
@@ -344,7 +350,7 @@ void editor_update(camera *cam, const float dt) {
 											 vec3(0.0f, 0.0f, 1.0f)};
 				vec3 axis = axes[axis_idx];
 				if(!g_gizmo.get_world_space())
-					axis = (g_gizmo.get_rotation() * vec4(axis, 0.0f)).xyz();
+					axis = quat_get_axis(g_gizmo.get_rotation_q(), axis_idx);
 				vec3 pr_start = project_on_vector(ray_dir, drag_start_mouse_world_pos, axis);
 				vec3 pr_end = project_on_vector(ray_dir, drag_cur_mouse_world_pos, axis);
 				vec3 upd_pos = drag_start_obj_pos + (pr_end - pr_start);
@@ -379,14 +385,16 @@ void editor_update(camera *cam, const float dt) {
 			{
 				vec3 cur_pos = tc->GetPosition();
 				int plane_idx = drag_type - ReservedObjIds::kGizmoRotateX;
-				const vec4 planes[3] = {vec4(1.0f, 0.0f, 0.0f, cur_pos.x),
+				const vec4 wplanes[3] = {vec4(1.0f, 0.0f, 0.0f, cur_pos.x),
 										vec4(0.0f, 1.0f, 0.0f, cur_pos.y),
 										vec4(0.0f, 0.0f, 1.0f, cur_pos.z)};
 
-				mat3 rot_m = drag_start_obj_rot.to_mat3();
-				const vec4 plane = g_gizmo.get_world_space()
-									   ? planes[plane_idx]
-									   : make_plane(rot_m.getCol(plane_idx), cur_pos);
+				const vec4 oplanes[3] = {make_plane(drag_start_obj_rot.axis0(), cur_pos),
+				                        make_plane(drag_start_obj_rot.axis1(), cur_pos),
+				                        make_plane(drag_start_obj_rot.axis2(), cur_pos)};
+
+				const vec4 plane =
+					g_gizmo.get_world_space() ? wplanes[plane_idx] : oplanes[plane_idx];
 
 				vec3 start_pos = ray_plane_intersect(ray_dir_start, ray_origin, plane);
 				vec3 upd_pos = ray_plane_intersect(ray_dir, ray_origin, plane);
@@ -403,7 +411,7 @@ void editor_update(camera *cam, const float dt) {
 				float k = dot(perp, rot_axis) < 0.0f ? -1.0f : 1.0f;
 
 				quaternion add_rot = quaternion(rot_axis, angle * k);
-				quaternion upd_rot = drag_start_obj_rot * add_rot;
+				quaternion upd_rot = add_rot * drag_start_obj_rot;
 				tc->SetRotation(upd_rot);
 				g_gizmo.set_rotation(upd_rot);
 
@@ -427,7 +435,7 @@ void editor_update(camera *cam, const float dt) {
 				float angle = acosf(clamp(dot(v0, v1), -1.0f ,1.0f));
 
 				quaternion add_rot = quaternion(axis, angle);
-				quaternion upd_rot = drag_start_obj_rot * add_rot;
+				quaternion upd_rot = add_rot * drag_start_obj_rot;
 				tc->SetRotation(upd_rot);
 				g_gizmo.set_rotation(upd_rot);
 
@@ -488,17 +496,34 @@ void editor_render_update(struct RenderFrameContext *rfc)
     if(g_sel_obj) {
         auto* tc = g_sel_obj->GetComponent<TransformComponent>();
         if(tc) {
-            if(drag_started) {
-			    g_gizmo.draw(rfc);
-            } else {
+            if(!drag_started) {
                 // object may be updating its position
                 g_gizmo.set_position(tc->GetPosition());
                 g_gizmo.set_rotation(tc->GetRotation());
-            }
+            } else {
+
+				if ((uint32_t)drag_type >= ReservedObjIds::kGizmoMoveXZ &&
+					(uint32_t)drag_type <= ReservedObjIds ::kGizmoRotateXYZ) {
+					// a) only makes sence when we drag as its position is in absolute coord,
+					// and will not take into accout gizmo scaling
+                    // b) when mouse if not moving will draw last known position, minor, fix it later
+					float s = g_gizmo.get_gizmo_scale(rfc);
+					const mat4 tr = mat4::translation(drag_rotation_gizmo_helper_pos) *
+									mat4::scale(vec3(s * 0.05f));
+					add_debug_mesh(rfc, res_man_load_mesh("sphere"), tr,
+								   vec4(1, 1, 1, 1));
+				}
+			}
+    
+            const vec3 gp = g_gizmo.get_position();
+		    const float s = g_gizmo.get_gizmo_scale(rfc);
+			const quaternion& q = g_gizmo.get_world_space() ? quaternion::identity()
+															: g_gizmo.get_rotation_q();
+            rfc->rl_->addDebugLine(gp, gp + 2.5f*s*q.axis0(), vec4(1, 0, 0, 1));
+            rfc->rl_->addDebugLine(gp, gp + 2.5f*s*q.axis1(), vec4(0, 1, 0, 1));
+            rfc->rl_->addDebugLine(gp, gp + 2.5f*s*q.axis2(), vec4(0, 0, 1, 1));
+
 			g_gizmo.draw(rfc);
-			// TODO: move this variable to gizmo and set when approprate
-			add_debug_sphere_constant_size(rfc, drag_rotation_gizmo_helper_pos, 250.0f,
-										   vec4(1, 1, 1, 1));
 		}
     }
 
