@@ -100,6 +100,16 @@ inline quaternion operator*(const quaternion &q, float k) {
 	return quaternion(k * q.x, k * q.y, k * q.z, k * q.w);
 }
 
+inline vec3 quat_get_axis(const quaternion& q, const int i) {
+	switch (i) {
+	case 0: return q.axis0();
+	case 1: return q.axis1();
+	case 2: return q.axis2();
+	}
+	assert(i >= 0 && i < 3);
+	return q.axis0();
+}
+
 inline quaternion normalize(const quaternion q) {
 	const float norm = sqrtf(q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w);
 	assert(norm > 0.00001f);
