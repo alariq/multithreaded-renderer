@@ -32,10 +32,11 @@ enum class GizmoMode {
 
 
 class Gizmo {
-	static const float kNoScaleDistance;
 	static const float kAxisLength;
+	static const float kAxisWidth;
 	static const float kRotSphereRadius;
 	static const float kScaleCubesScale;
+    static const float kScreenPercentage;
 
 	GizmoMode mode_ = GizmoMode::kMove;
 	vec3 pos_ = vec3(0,0,0);
@@ -61,8 +62,21 @@ class Gizmo {
 			mode_ = GizmoMode::kMove;
 	}
 
+	float get_gizmo_scale(const mat4& view, const mat4& proj, const float fov, bool b_is_perspective) const {
+        if(b_is_perspective) {
+            // get how many world units will be wisible horizontally at given pos_.z;
+            const float view_z = (view * vec4(pos_, 1.0f)).z;
+            const float max_x_at_z = 2.0f*(1.0f/proj.elem[0][0])*view_z;
+            return max_x_at_z * kScreenPercentage;
+        } else {
+            const float max_x = 2.0f / proj.elem[0][0];
+            return max_x * kScreenPercentage;
+        }
+	}
+
 	float get_rotation_sphere_radius(const camera* cam) const {
-		return kRotSphereRadius * (cam->get_view() * vec4(pos_, 1.0f)).z / kNoScaleDistance;
+		return kRotSphereRadius * get_gizmo_scale(cam->get_view(), cam->get_projection(),
+												  cam->get_fov(), cam->get_is_perspective());
 	}
 
 	void draw(struct RenderFrameContext* rfc) {
@@ -71,16 +85,16 @@ class Gizmo {
 		const mat4 rot = bWorldSpace ? mat4::identity() : rot_;
 
 		RenderMesh *cube = res_man_load_mesh("cube");
-		const float cam_z = (rfc->view_ * vec4(pos, 1)).z;
-		const float scaler = cam_z / kNoScaleDistance;
+		const float scaler = get_gizmo_scale(rfc->view_, rfc->proj_, rfc->fov_, rfc->b_is_perspective_);
 		const float al = kAxisLength;
+		const float aw = kAxisWidth;
 
 		const mat4 tr_x = mat4::translation(pos) * rot * mat4::translation(vec3(al * scaler, 0.0f, 0.0f)) * 
-						  mat4::scale(vec3(al, 0.1f, 0.1f) * scaler);
+						  mat4::scale(vec3(al, aw, aw) * scaler);
 		const mat4 tr_y = mat4::translation(pos) * rot * mat4::translation(vec3(0.0f, al *scaler, 0.0f)) * 
-						  mat4::scale(vec3(0.1f, al, 0.1f) * scaler);
+						  mat4::scale(vec3(aw, al, aw) * scaler);
 		const mat4 tr_z = mat4::translation(pos) * rot * mat4::translation(vec3(0.0f, 0.0f, al * scaler)) * 
-						  mat4::scale(vec3(0.1f, 0.1f, al) * scaler);
+						  mat4::scale(vec3(aw, aw, al) * scaler);
 
 		uint32_t axis_x_id = GizmoMode::kMove == mode ? ReservedObjIds::kGizmoMoveX : 0;
 		uint32_t axis_y_id = GizmoMode::kMove == mode ? ReservedObjIds::kGizmoMoveY : 0;
@@ -90,7 +104,7 @@ class Gizmo {
 		add_debug_mesh(rfc, cube, tr_z, vec4(0.15f, 0.15f, 1.0f, 1.0f), axis_z_id);
 
 		if (GizmoMode::kScale == mode) {
-			const float cl = kScaleCubesScale;
+			const float cl = aw*kScaleCubesScale;
 			const mat4 scale_cube_scale = mat4::scale(vec3(cl, cl, cl) * scaler);
 			const mat4 tr_sx =
 				mat4::translation(pos) * rot * mat4::translation(vec3(2.0f * al * scaler, 0.0f, 0.0f)) * scale_cube_scale ;
@@ -111,12 +125,11 @@ class Gizmo {
 						   ReservedObjIds::kGizmoScaleXYZ);
 		}
 
-		const mat4 tr_xz = mat4::translation(pos) * rot * mat4::scale(vec3(1.0f, 0.01f, 1.0f) * scaler) *
-						   mat4::translation(vec3(2.0f, 0.0f, 2.0f));
-		const mat4 tr_yx = mat4::translation(pos) * rot * mat4::scale(vec3(1.0f, 1.0f, 0.01f) * scaler) *
-						   mat4::translation(vec3(2.0f, 2.0f, 0.0f));
-		const mat4 tr_yz = mat4::translation(pos) * rot * mat4::scale(vec3(0.01f, 1.0f, 1.0f) * scaler) *
-						   mat4::translation(vec3(0.0f, 2.0f, 2.0f));
+        const float sl = al*0.25f;
+        const float st = al*scaler;
+		const mat4 tr_xz = mat4::translation(pos) * rot * mat4::translation(vec3(st, 0.0f, st)) * mat4::scale(vec3(sl, 0.01f, sl) * scaler);
+		const mat4 tr_yx = mat4::translation(pos) * rot * mat4::translation(vec3(st, st, 0.0f)) * mat4::scale(vec3(sl, sl, 0.01f) * scaler);
+		const mat4 tr_yz = mat4::translation(pos) * rot * mat4::translation(vec3(0.0f, st, st)) * mat4::scale(vec3(0.01f, sl, sl) * scaler);
 
 		if (GizmoMode::kRotate != mode) {
 			uint32_t plane_xz_id = GizmoMode::kMove == mode ? ReservedObjIds::kGizmoMoveXZ
@@ -155,10 +168,11 @@ class Gizmo {
 	}
 };
 
-const float Gizmo::kNoScaleDistance = 50.0f;
-const float Gizmo::kAxisLength = 2.0f;
-const float Gizmo::kRotSphereRadius = 3.0f;
-const float Gizmo::kScaleCubesScale = 0.15f;
+const float Gizmo::kAxisLength = 1.0f;
+const float Gizmo::kAxisWidth = .05f;
+const float Gizmo::kRotSphereRadius = 1.5f;
+const float Gizmo::kScaleCubesScale = 1.2f;
+const float Gizmo::kScreenPercentage = .05f;
 Gizmo g_gizmo;
 
 // TODO: move all variables in a single Editor state
