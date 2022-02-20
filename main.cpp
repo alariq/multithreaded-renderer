@@ -117,6 +117,7 @@ void UpdateCamera(float dt, bool b_editor)
     static float fov = 45.0f;
     static float moveSpeedK = 10.0f;
     static float angularSpeedK = 0.25f * 3.1415f / 180.0f; // 0.25 degree per pixel
+    static float zoomLevel = .05f;
 
 	if (gos_GetKeyStatus(KEY_F2) == KEY_RELEASED) {
 		g_use_parallel_projection = !g_use_parallel_projection;
@@ -138,20 +139,20 @@ void UpdateCamera(float dt, bool b_editor)
 
 	if(g_use_parallel_projection) {
         if(WheelDelta)
-            moveSpeedK *= WheelDelta>0 ? 3.0f/4.0f : 4.0f/3.0f;
-        float w = 0.01f*Environment.drawableWidth*moveSpeedK;
-        float h = 0.01f*Environment.drawableHeight*moveSpeedK;
+            zoomLevel*= WheelDelta>0 ? 3.0f/4.0f : 4.0f/3.0f;
+        float w = Environment.drawableWidth*zoomLevel;
+        float h = Environment.drawableHeight*zoomLevel;
 		g_camera.set_ortho_projection(-w / 2, w / 2, h / 2, -h / 2, -0.1, -100.0f);
         if(RMB_down) {
             g_camera.dx -= XDelta*(w/Environment.drawableWidth);
             g_camera.dy += YDelta*(h/Environment.drawableHeight);
         }
     } else {
+        g_camera.set_projection(fov, Environment.drawableWidth, Environment.drawableHeight, 0.1f, 1000.0f);
 		if (!b_editor || RMB_down) {
 			if (WheelDelta) {
 				moveSpeedK *= WheelDelta < 0 ? 3.0f / 4.0f : 4.0f / 3.0f;
 			}
-            g_camera.set_projection(fov, Environment.drawableWidth, Environment.drawableHeight, 0.1f, 1000.0f);
 			g_camera.dx += gos_GetKeyStatus(KEY_D) ? dt * moveSpeedK : 0.0f;
 			g_camera.dx -= gos_GetKeyStatus(KEY_A) ? dt * moveSpeedK : 0.0f;
 			g_camera.dz += gos_GetKeyStatus(KEY_W) ? dt * moveSpeedK : 0.0f;
