@@ -175,7 +175,7 @@ void mt_test(int num_threads) {
 
     std::vector<threading::Thread*> threads(num_threads);
     for(int i=0;i<(int)threads.size();++i) {
-        char name[16];
+        char name[32];
         sprintf(name, "worker%d\n", i);
         if(i<num_threads/2)
             threads[i] = new threading::Thread(worker_A::run, name, new worker_A());

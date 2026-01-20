@@ -6,6 +6,7 @@
 
 #include <vector>
 #include <cassert>
+#include <algorithm>
 
 SPHEmitter *SPHEmitterSystem::createrEmitter()
 {
