@@ -11,6 +11,7 @@
 #include <vector>
 #include <cassert>
 #include <queue>
+#include <cstdio>
 
 // just for convenience, less typing
 typedef uint32_t u32;
