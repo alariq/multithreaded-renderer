@@ -75,8 +75,6 @@ bool gosExitGameOS() {
     return g_gos_exit_game_os;
 }
 
-float frameRate = 30.0f; // apparently tiny geometry needs this
-
 int64_t __stdcall GetCycles()
 {
 #ifdef PLATFORM_WINDOWS

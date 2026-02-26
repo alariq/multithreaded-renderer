@@ -187,7 +187,7 @@ void __stdcall Update(void)
     static uint64_t start_tick = timing::gettickcount();
 
     uint64_t end_tick = timing::gettickcount();
-    float dt_sec = ((float)timing::ticks2ms(end_tick - start_tick))/1e3f;
+    float dt_sec =(float)((double)timing::ticks2ns(end_tick - start_tick)/1e9);
     // stop-on-breakpoint-proof dt
     dt_sec = clamp(dt_sec, 0.0f, 0.033f*10);
 
@@ -286,7 +286,7 @@ void __stdcall Update(void)
     
 	//uint64_t sleep_ms = std::max(33ll - (long long)(dt_sec * 1000), 1ll);
 	//timing::sleep(sleep_ms*1000000);
-    timing::sleep(32000000ull);
+    //timing::sleep(32000000ull);
 }
 
 class ShapeRenderer {

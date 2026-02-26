@@ -46,7 +46,7 @@ graphics::RenderContextHandle g_ctx = 0;
 
 // TODO: implement GPU/CPU bound stats (based on who wait for whom)
 
-const uint32_t NUM_BUFFERED_FRAMES = 2;
+const uint32_t NUM_BUFFERED_FRAMES = 1;
 threading::Event* g_main_event[NUM_BUFFERED_FRAMES];
 threading::Event* g_render_event[NUM_BUFFERED_FRAMES];
 
@@ -330,9 +330,6 @@ static void draw_screen( void )
     //CHECK_GL_ERROR;
 }
 
-extern float frameRate;
-
-
 const char* getStringForType(GLenum type)
 {
 	switch (type)
@@ -389,6 +386,8 @@ void GLAPIENTRY OpenGLDebugLog(GLenum source, GLenum type, GLuint id, GLenum sev
   		printf("Message : %s\n", message);
 	}
 }
+
+float frameTime = 0;
 
 #ifndef DISABLE_GAMEOS_MAIN
 int main(int argc, char** argv)
@@ -612,8 +611,8 @@ int main(int argc, char** argv)
         g_exit |= gosExitGameOS();
 
 		uint64_t end_tick = timing::gettickcount();
-		uint64_t dt = timing::ticks2ms(end_tick - start_tick);
-		frameRate = 1000.0f / (float)dt;
+        float dt_sec =(float)((double)timing::ticks2ns(end_tick - start_tick)/1e9);
+        frameTime = dt_sec;
 
         END_ZONE(Frame);
     }
