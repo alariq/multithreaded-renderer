@@ -162,6 +162,16 @@ void UpdateCamera(float dt, bool b_editor)
 		}
 	}
 
+    if(RMB_down) {
+        int XInt = XPos*Environment.screenWidth;
+        int YInt = YPos*Environment.screenHeight;
+        int XWrapped = (XInt + Environment.screenWidth) % Environment.screenWidth;
+        int YWrapped = (YInt + Environment.screenHeight) % Environment.screenHeight;
+        if(XWrapped != XInt || YWrapped != YInt) {
+            gos_SetMousePosition(XWrapped, YWrapped);
+        }
+    }
+
 	g_camera.update(dt);
 
     render_from_shadow_camera = gos_GetKeyStatus(KEY_O) ? true : false;
