@@ -114,7 +114,14 @@ RenderWindow* create_window(const char* pwinname, int width, int height, int wan
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_DEBUG_FLAG);
 	//SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, GL_CONTEXT_FLAG_DEBUG_BIT);
 
-    SDL_DisplayMode preferred_mode;
+    // some defaults just to shut up static analyzer
+    SDL_DisplayMode preferred_mode = {
+        .format = SDL_PIXELFORMAT_RGB888,            /**< pixel format */
+        .w = 800,
+        .h = 600,                      /**< height, in screen coordinates */
+        .refresh_rate = 0           /**< refresh rate (or zero for unspecified) */
+    };
+
     if (VERBOSE_MODES) {
         SDL_DisplayMode mode;
         int bpp;
@@ -218,7 +225,7 @@ RenderWindow* create_window(const char* pwinname, int width, int height, int wan
                 SDL_WINDOWPOS_CENTERED_DISPLAY(displayIndex), 
                 SDL_WINDOWPOS_CENTERED_DISPLAY(displayIndex), 
                 preferred_mode.w, preferred_mode.h, 
-                SDL_WINDOW_OPENGL|SDL_WINDOW_ALLOW_HIGHDPI);
+                SDL_WINDOW_OPENGL|SDL_WINDOW_ALLOW_HIGHDPI|SDL_WINDOW_BORDERLESS);
 
         if (!window) {
             fprintf(stderr, "Couldn't create window: %s\n", SDL_GetError());
