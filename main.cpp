@@ -178,7 +178,7 @@ void __stdcall Update(void)
     static bool initialization_done = false;
     if(!initialization_done)
     {
-        gos_SetRelativeMouseMode(true);
+        gos_SetRelativeMouseMode(!g_is_in_editor);
         initialize_scene(&g_camera, rfc);
         initialize_editor();
         initialization_done = true;
