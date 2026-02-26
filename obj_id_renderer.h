@@ -26,6 +26,6 @@ class ObjIdRenderer {
   public:
 	bool Init(uint32_t width, uint32_t height);
 	void Deinit();
-	void Render(struct RenderFrameContext* rfc, GLuint scene_depth);
+	void Render(const struct RenderFrameContext* rfc, GLuint scene_depth);
 	uint32_t Readback(uint32_t x, uint32_t y);
 };

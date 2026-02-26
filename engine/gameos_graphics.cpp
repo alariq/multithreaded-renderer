@@ -3552,6 +3552,8 @@ void __stdcall gos_UnmapBuffer(HGOSBUFFER buffer)
 
 HGOSVERTEXDECLARATION __stdcall gos_CreateVertexDeclaration(const gosVERTEX_FORMAT_RECORD* records, int count)
 {
+    //TODO: assert is on render thread
+    //TODO: also add to all render thread functions!
 	gosASSERT(records && count > 0);
     gosASSERT(g_gos_renderer);
 	gosVertexDeclaration* vdecl = gosVertexDeclaration::create(records, count);

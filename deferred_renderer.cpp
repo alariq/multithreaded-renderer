@@ -204,7 +204,7 @@ public:
     }
 };
 
-void DeferredRenderer::RenderGeometry(struct RenderFrameContext* rfc)
+void DeferredRenderer::RenderGeometry(const struct RenderFrameContext* rfc)
 {
     const RenderPacketList_t& rpl = rfc->rl_->GetRenderPackets();
     RenderPacketList_t::const_iterator it = rpl.begin();
@@ -270,7 +270,7 @@ void DeferredRenderer::RenderDirectionalLighting(const struct RenderFrameContext
     gos_RenderIndexedArray(fs_quad->ib_, fs_quad->vb_, fs_quad->vdecl_, fs_quad->prim_type_);
 }
 
-void DeferredRenderer::RenderPointLighting(struct RenderFrameContext* rfc)
+void DeferredRenderer::RenderPointLighting(const struct RenderFrameContext* rfc)
 {
     // forward_fbo_ has depth so shold be a bit faster due to depth culling
     //glBindFramebuffer(GL_FRAMEBUFFER, lighting_fbo_);
@@ -369,7 +369,7 @@ void DeferredRenderer::stencil_pass(const struct RenderFrameContext* rfc) {
     draw_point_lights(rfc, mat);
 }
 
-void DeferredRenderer::RenderPointLighting2(struct RenderFrameContext* rfc)
+void DeferredRenderer::RenderPointLighting2(const struct RenderFrameContext* rfc)
 {
     stencil_pass(rfc);
     {

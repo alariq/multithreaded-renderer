@@ -67,7 +67,7 @@ void draw_rp(HGOSRENDERMATERIAL mat, const mat4 &vp, const RenderPacket& rp) {
 	}
 }
 
-void ObjIdRenderer::Render(struct RenderFrameContext *rfc, GLuint scene_depth)
+void ObjIdRenderer::Render(const struct RenderFrameContext *rfc, GLuint scene_depth)
 {
 	GLuint fbo = buf_.obj_id_fbo_;
     glBindFramebuffer(GL_FRAMEBUFFER, fbo);

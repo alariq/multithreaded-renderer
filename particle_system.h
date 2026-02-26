@@ -27,14 +27,17 @@ public:
         Circle,
         Sphere
     };
+    uint8_t b_render_res_state = 0;
+    bool IsRenderResourcesInitialized() { return b_render_res_state == 1; }
+    bool IsRenderResourcesDestroyed() { return b_render_res_state == 2; }
 
     virtual void Update(const float dt) = 0;
     //virtual void FillVertexBuffer(ParticleVDecl* vb, size_t& count) = 0;
     virtual size_t GetCount() const = 0; 
     virtual HGOSRENDERMATERIAL GetMaterial() const = 0;
     virtual void AddRenderPacket(struct RenderFrameContext* rfc) = 0;
-    virtual void InitRenderResources() = 0;
-    virtual void DestroyRenderResources() = 0;
+    virtual void InitRenderResources() { b_render_res_state = 1; }
+    virtual void DestroyRenderResources() { b_render_res_state = 2; }
 
 };
 

@@ -192,6 +192,7 @@ void UpdateCamera(float dt, bool b_editor)
 void __stdcall Update(void)
 {
     RenderFrameContext* rfc = new RenderFrameContext();
+	rfc->commands_.clear();
 
     static bool initialization_done = false;
     if(!initialization_done)
@@ -296,6 +297,11 @@ void __stdcall Update(void)
 		if(g_is_in_editor) {
             SCOPED_ZONE_N(editor_render_update, 0);
 			editor_render_update(rfc);
+        }
+        {
+            SCOPED_ZONE_N(ParticleSystemManager_RenderUpdate, 0);
+            // add particle systems tasks to render list
+            ParticleSystemManager::Instance().Render(rfc);
         }
 	}
 
@@ -452,13 +458,9 @@ void __stdcall Render(void)
 
     ParticleSystemManager::Instance().InitRenderResources();
 
-    RenderFrameContext* rfc_nonconst_because_of_partiles = (RenderFrameContext*)GetRenderFrameContext();
-    assert(rfc_nonconst_because_of_partiles);
-    assert(rfc_nonconst_because_of_partiles->frame_number_ == RendererGetCurrentFrame());
-
-    // add particle systems tasks to render list
-    ParticleSystemManager::Instance().Render(rfc_nonconst_because_of_partiles);
-    RenderFrameContext* rfc = rfc_nonconst_because_of_partiles;
+    const RenderFrameContext* rfc= (RenderFrameContext*)GetRenderFrameContext();
+    assert(rfc);
+    assert(rfc->frame_number_ == RendererGetCurrentFrame());
 
 	{
 		SCOPED_ZONE_N(DebugDraw, 0);
@@ -487,7 +489,6 @@ void __stdcall Render(void)
 			cmd();
 		}
 	}
-	rfc->commands_.clear();
 
     const CSMInfo& csm_info = rfc->csm_info_;
 

@@ -329,8 +329,9 @@ public:
         lifetime_ = new vec2[capacity_]; // x: current, y: max
 
         cur_vb_ = 0;
-        for(uint32_t i=0;i<NUM_BUFFERS;++i)
-            vb_[i] = 0;
+        for(uint32_t i=0;i<NUM_BUFFERS;++i) {
+            vb_[i] = (HGOSBUFFER)-1;
+        }
         ib_ = 0;
         num_particles_to_generate_ = 0;
     }
@@ -450,18 +451,33 @@ public:
 
     void InitRenderResources() override
     {
+        // TODO: can move these common ones to ParticleSystemManager
+        get_vdecl();
+        get_quad_ib();
+        get_quad_vb();
+
         for(uint32_t i=0; i < NUM_BUFFERS; ++i)
         {
             vb_[i] = gos_CreateBuffer(
                 gosBUFFER_TYPE::VERTEX, gosBUFFER_USAGE::DYNAMIC_DRAW,
                 sizeof(ParticleInstVDecl), MAX_VB_SIZE, nullptr);
         }
+
+        ParticleEmitterInterface::InitRenderResources();
     }
 
     void DestroyRenderResources() override
     {
+        // these are destroyed in ParticleSystemManager to do it only once
+        // and let's hope nobody will not ask for them after they will be destroyed
+        //gos_DestroyBuffer(StandardEmitter::get_quad_ib());
+        //gos_DestroyBuffer(StandardEmitter::get_quad_vb());
+        //gos_DestroyVertexDeclaration(StandardEmitter::get_vdecl());
+
         for(uint32_t i=0; i < NUM_BUFFERS; ++i)
             gos_DestroyBuffer(vb_[i]);
+
+        ParticleEmitterInterface::DestroyRenderResources();
     }
 };
 
@@ -475,13 +491,19 @@ void ParticleSystem::Render(struct RenderFrameContext *rfc)
 {
     rfc->rl_->ReservePackets(emitters_.size());
     for(auto e: emitters_)
-        e->AddRenderPacket(rfc);
+        if(e->IsRenderResourcesInitialized()) {
+            gosASSERT(!e->IsRenderResourcesDestroyed());
+            e->AddRenderPacket(rfc);
+        }
 }
 
 void ParticleSystem::InitRenderResources()
 {
-    for(auto e: emitters_)
-        e->InitRenderResources();
+    for(auto e: emitters_) {
+        if(!e->IsRenderResourcesInitialized()) {
+            e->InitRenderResources();
+        }
+    }
 }
 void ParticleSystem::DestroyRenderResources()
 {
@@ -504,6 +526,7 @@ void ParticleSystemManager::Render(struct RenderFrameContext *rfc)
 void ParticleSystemManager::DestroyRenderResources()
 {
     gos_DestroyBuffer(StandardEmitter::get_quad_ib());
+    gos_DestroyBuffer(StandardEmitter::get_quad_vb());
     gos_DestroyVertexDeclaration(StandardEmitter::get_vdecl());
 }
 

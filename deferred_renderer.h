@@ -46,10 +46,10 @@ class DeferredRenderer {
 
     public:
     bool Init(uint32_t width, uint32_t height);
-    void RenderGeometry(struct RenderFrameContext* rfc);
+    void RenderGeometry(const struct RenderFrameContext* rfc);
     void RenderDirectionalLighting(const struct RenderFrameContext* rfc);
-    void RenderPointLighting(struct RenderFrameContext* rfc);
-    void RenderPointLighting2(struct RenderFrameContext* rfc);
+    void RenderPointLighting(const struct RenderFrameContext* rfc);
+    void RenderPointLighting2(const struct RenderFrameContext* rfc);
     void RenderForward(std::function<void(void)> f);
     void RenderDownsampledForward(std::function<void(void)> f, const mat4& proj);
     void Present(int width, int height);
