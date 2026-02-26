@@ -118,6 +118,7 @@ void UpdateCamera(float dt, bool b_editor)
     static float moveSpeedK = 10.0f;
     static float angularSpeedK = 0.25f * 3.1415f / 180.0f; // 0.25 degree per pixel
     static float zoomLevel = .05f;
+    static bool b_was_warped = false;
 
 	if (gos_GetKeyStatus(KEY_F2) == KEY_RELEASED) {
 		g_use_parallel_projection = !g_use_parallel_projection;
@@ -133,6 +134,10 @@ void UpdateCamera(float dt, bool b_editor)
     float XPos, YPos;
     DWORD buttonsPressed;
     gos_GetMouseInfo(&XPos, &YPos, &XDelta, &YDelta, &WheelDelta, &buttonsPressed);
+    if(b_was_warped) {
+        XDelta = YDelta = 0;
+        b_was_warped = false;
+    }
 
 	const bool RMB_down = (gos_GetKeyStatus(KEY_RMOUSE) == KEY_PRESSED) ||
 						  (gos_GetKeyStatus(KEY_RMOUSE) == KEY_HELD);
@@ -163,12 +168,15 @@ void UpdateCamera(float dt, bool b_editor)
 	}
 
     if(RMB_down) {
-        int XInt = XPos*Environment.screenWidth;
-        int YInt = YPos*Environment.screenHeight;
-        int XWrapped = (XInt + Environment.screenWidth) % Environment.screenWidth;
-        int YWrapped = (YInt + Environment.screenHeight) % Environment.screenHeight;
+        int XInt = XPos*(Environment.screenWidth);
+        int YInt = YPos*(Environment.screenHeight);
+        int XWrapped = XInt<1 ? Environment.screenWidth-4 : (XInt>Environment.screenWidth-3 ? 1 : XInt);
+        int YWrapped = YInt<1 ? Environment.screenHeight-4 : (YInt>Environment.screenHeight-3 ? 1 : YInt);
+        //int XWrapped = (XInt + Environment.screenWidth) % Environment.screenWidth;
+        //int YWrapped = (YInt + Environment.screenHeight) % Environment.screenHeight;
         if(XWrapped != XInt || YWrapped != YInt) {
             gos_SetMousePosition(XWrapped, YWrapped);
+            b_was_warped = true;
         }
     }
 
