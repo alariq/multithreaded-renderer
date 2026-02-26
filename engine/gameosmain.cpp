@@ -438,6 +438,8 @@ int main(int argc, char** argv)
 	g_win = graphics::create_window("mt-renderer", w, h, bpp, disp_idx);
 	if (!g_win)
 		return 1;
+    // update w,h based on real ones
+    graphics::get_window_size(g_win, &Environment.screenWidth, &Environment.screenHeight);
 
     class R_init_renderer: public R_job {
         int w_, h_;
