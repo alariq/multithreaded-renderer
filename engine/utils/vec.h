@@ -329,6 +329,7 @@ inline DATA_TYPE sqr(const DATA_TYPE x){
 
 vec2 normalize(const vec2 &v);
 vec3 normalize(const vec3 &v);
+vec3 normalizeSafe(const vec3 &v);
 vec4 normalize(const vec4 &v);
 
 float length(const vec2 &v);

@@ -115,6 +115,20 @@ inline void calculate_basis(const vec3 &n, vec3 &b1, vec3 &b2) {
 	}
 }
 
+inline void orthonormalize_basis(vec3& forward, vec3& up, vec3& right) {
+    forward = normalizeSafe(forward);
+    vec3 rightCandidate = cross(forward, up);
+    if (length(rightCandidate) <= 1e-6f) {
+        vec3 fallbackUp(0.0f, 1.0f, 0.0f);
+        if (abs(dot(forward, fallbackUp)) > 0.98f) {
+            fallbackUp = vec3(0.0f, 0.0f, 1.0f);
+        }
+        rightCandidate = cross(forward, fallbackUp);
+    }
+    right = normalizeSafe(rightCandidate);
+    up = normalizeSafe(cross(right, forward));
+}
+
 // assume that axis passes through origin
 inline vec3 project_on_vector(const vec3 ray_dir, const vec3 ray_origin, const vec3& axis) {
 	// get some plane (which our axis lies at) to intersect with
@@ -123,6 +137,11 @@ inline vec3 project_on_vector(const vec3 ray_dir, const vec3 ray_origin, const v
 	vec3 int_pt = ray_plane_intersect(ray_dir, ray_origin, vec4(b1, 0.0));
 	float int_dot = dot(int_pt, axis);
 	return int_dot * axis;
+}
+
+inline vec3 project_vector_on_plane(const vec3& v, const vec4& plane) {
+	const vec3 n = plane.xyz(); // plane normal
+    return v - dot(v, n) * n;
 }
 
 inline vec4 make_plane(const vec3& normal, const vec3& pt) {

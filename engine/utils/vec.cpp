@@ -443,6 +443,11 @@ vec3 normalize(const vec3 &v){
 	return v * invLen;
 }
 
+vec3 normalizeSafe(const vec3& v) {
+    const float len = length(v);
+    return len > 1e-6f ? (v / len) : vec3(0.0f, 0.0f, 0.0f);
+}
+
 vec4 normalize(const vec4 &v){
 	float invLen = 1.0f / sqrtf(v.x * v.x + v.y * v.y + v.z * v.z + v.w * v.w);
 	return v * invLen;

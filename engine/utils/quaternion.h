@@ -123,7 +123,6 @@ inline quaternion conjugate(const quaternion q) {
 
 inline quaternion inverse(const quaternion q) {
 	return normalize(conjugate(q));
-
 }
 
 inline vec3 quat_rotate(const quaternion& q, const vec3& v) {
@@ -134,3 +133,39 @@ inline vec3 quat_inv_rotate(const quaternion& q, const vec3& v) {
     return (inverse(q) * quaternion(v.x, v.y, v.z, 0.0f) * q).imag();
 }
 
+inline quaternion quat_from_two_axes(const vec3& from, const vec3& to) {
+    float dot_prod = dot(from, to);
+
+    if(dot_prod > 0.9999f) {
+        return quaternion::identity(); // no rotation
+    } else if(dot_prod < -0.9999f) { // 180 degree rotation
+        vec3 ortho;
+        // pick any orthogonal vector
+        if(fabs(from.x) < fabs(from.y) && fabs(from.x) < fabs(from.z)) {
+            ortho = vec3(1,0,0);
+        } else if(fabs(from.y) < fabs(from.z)) {
+            ortho = vec3(0,1,0);
+        } else {
+            ortho = vec3(0,0,1);
+        }
+        vec3 axis = normalize(cross(from, ortho));
+        return quaternion(axis, M_PIf);
+    } else {
+        float w = 1 + dot_prod;
+        vec3 xyz = cross(from, to);
+        quaternion q(xyz.x, xyz.y, xyz.z, w);
+        return normalize(q);
+    }
+}
+
+
+inline quaternion quat_lerp(const quaternion& a, const quaternion& b, float t) {
+    quaternion qa = a;
+    quaternion qb = b;
+    // shortest path
+    if((qa - qb).length_sq() < 0.0f) {
+        qb = quaternion(-qb.x, -qb.y, -qb.z, -qb.w);
+    }
+    quaternion qm = normalize((1.0f - t) * qa + t * qb);
+    return qm;
+}
