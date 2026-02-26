@@ -50,13 +50,26 @@ namespace timing {
 #else
 		struct timespec ts;
 		clock_gettime(CLOCK_MONOTONIC_RAW, &ts);
-		size_t milliseconds = ts.tv_sec * 1e+3;
-		milliseconds += ts.tv_nsec / 1e+6;
-		return milliseconds;
+		size_t nanoseconds = ts.tv_sec * 1000000000;
+		nanoseconds += ts.tv_nsec;
+		return nanoseconds;
 #endif
 	}
 
 	uint64_t ticks2ms(uint64_t ticks)
+	{
+#ifdef _DEBUG
+		assert(initialized);
+#endif
+#ifdef PLATFORM_WINDOWS
+		ticks = (ticks * 1000) / Frequency.QuadPart;
+		return ticks;
+#else
+		return ticks / 1e3;
+#endif
+	}
+
+	uint64_t ticks2ns(uint64_t ticks)
 	{
 #ifdef _DEBUG
 		assert(initialized);
