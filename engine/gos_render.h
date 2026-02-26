@@ -11,7 +11,7 @@ typedef RenderContext*   RenderContextHandle;
 
 void set_verbose(bool is_verbose);
 
-RenderWindowHandle  create_window           (const char* pwinname, int width, int height);
+RenderWindowHandle  create_window           (const char* pwinname, int width, int height, int bpp, int displayIndex);
 bool                resize_window           (RenderWindowHandle rw_handle, int width, int height);
 void                grab_window_input       (RenderWindowHandle rw_handle, bool grab);
 void                get_window_size         (RenderWindowHandle rw_handle, int* width, int* height);

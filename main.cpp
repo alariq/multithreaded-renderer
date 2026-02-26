@@ -584,8 +584,10 @@ void __stdcall Render(void)
 void GetGameOSEnvironment(const char* cmdline)
 {
     (void)cmdline;
-    Environment.screenWidth = (int)SCREEN_W;
-    Environment.screenHeight = (int)SCREEN_H;
+    Environment.displayIndex = 1;
+    Environment.screenWidth = -1;//(int)SCREEN_W;
+    Environment.screenHeight = -1;//(int)SCREEN_H;
+    Environment.bitDepth = -1;
 
     Environment.InitializeGameEngine = Init;
     Environment.DoGameLogic = Update;

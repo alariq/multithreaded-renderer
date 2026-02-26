@@ -411,6 +411,7 @@ int main(int argc, char** argv)
     cmdline[cmdline_len] = '\0';
 
     // fills in Environment structure
+    memset(&Environment, 0, sizeof(Environment));
     GetGameOSEnvironment(cmdline);
 
     delete[] cmdline;
@@ -418,6 +419,8 @@ int main(int argc, char** argv)
 
     int w = Environment.screenWidth;
     int h = Environment.screenHeight;
+    int bpp = Environment.bitDepth;
+    int disp_idx = Environment.displayIndex;
 
     prof_initialize();
 
@@ -432,7 +435,7 @@ int main(int argc, char** argv)
         SPEW(("Render", "[OK] STATUS\n"));
     }
 
-	g_win = graphics::create_window("mt-renderer", w, h);
+	g_win = graphics::create_window("mt-renderer", w, h, bpp, disp_idx);
 	if (!g_win)
 		return 1;
 

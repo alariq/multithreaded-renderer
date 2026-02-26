@@ -44,14 +44,13 @@ void set_verbose(bool is_verbose)
 }
 
 //==============================================================================
-RenderWindow* create_window(const char* pwinname, int width, int height)
+RenderWindow* create_window(const char* pwinname, int width, int height, int wanted_bpp, int displayIndex)
 {
-	int i, j, m, n;
-	SDL_DisplayMode fullscreen_mode;
+	int i, m;
     SDL_Window* window = NULL; 
 
     if (VERBOSE_VIDEO) {
-        n = SDL_GetNumVideoDrivers();
+        int n = SDL_GetNumVideoDrivers();
         if (n == 0) {
             fprintf(stderr, "No built-in video drivers\n");
         } else {
@@ -115,14 +114,16 @@ RenderWindow* create_window(const char* pwinname, int width, int height)
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_DEBUG_FLAG);
 	//SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, GL_CONTEXT_FLAG_DEBUG_BIT);
 
+    SDL_DisplayMode preferred_mode;
     if (VERBOSE_MODES) {
         SDL_DisplayMode mode;
         int bpp;
         Uint32 Rmask, Gmask, Bmask, Amask;
 
-        n = SDL_GetNumVideoDisplays();
-        fprintf(stderr, "Number of displays: %d\n", n);
-        for (i = 0; i < n; ++i) {
+        int ndisp = SDL_GetNumVideoDisplays();
+
+        fprintf(stderr, "Number of displays: %d\n", ndisp);
+        for (i = 0; i < ndisp; ++i) {
             fprintf(stderr, "Display %d:\n", i);
 
             SDL_GetDesktopDisplayMode(i, &mode);
@@ -146,13 +147,17 @@ RenderWindow* create_window(const char* pwinname, int width, int height)
                 fprintf(stderr, "No available fullscreen video modes\n");
             } else {
                 fprintf(stderr, "  Fullscreen video modes:\n");
-                for (j = 0; j < m; ++j) {
-                    SDL_GetDisplayMode(i, j, &mode);
+                for (int mode_idx = 0; mode_idx < m; ++mode_idx) {
+                    SDL_GetDisplayMode(i, mode_idx, &mode);
+                    // get preferred mode either from given display or just first available display
+                    if(mode_idx == 0 && (displayIndex == i || (i==0 && (displayIndex > ndisp-1 || displayIndex<0)))) {
+                        preferred_mode = mode;
+                    }
                     SDL_PixelFormatEnumToMasks(mode.format, &bpp, &Rmask,
                             &Gmask, &Bmask, &Amask);
                     fprintf(stderr,
                             "    Mode %d: %dx%d@%dHz, %d bits-per-pixel (%s)\n",
-                            j, mode.w, mode.h, mode.refresh_rate, bpp,
+                            mode_idx, mode.w, mode.h, mode.refresh_rate, bpp,
                             SDL_GetPixelFormatName(mode.format));
                     if (Rmask || Gmask || Bmask) {
                         fprintf(stderr, "        Red Mask   = 0x%.8x\n",
@@ -174,7 +179,7 @@ RenderWindow* create_window(const char* pwinname, int width, int height)
     if (VERBOSE_RENDER) {
         SDL_RendererInfo info;
 
-        n = SDL_GetNumRenderDrivers();
+        int n = SDL_GetNumRenderDrivers();
         if (n == 0) {
             fprintf(stderr, "No built-in render drivers\n");
         } else {
@@ -186,29 +191,34 @@ RenderWindow* create_window(const char* pwinname, int width, int height)
         }
     }
 
-    SDL_zero(fullscreen_mode);
-    switch (/*state->depth*/0) {
+    switch (wanted_bpp) {
         case 8:
-            fullscreen_mode.format = SDL_PIXELFORMAT_INDEX8;
+            preferred_mode.format = SDL_PIXELFORMAT_INDEX8;
             break;
         case 15:
-            fullscreen_mode.format = SDL_PIXELFORMAT_RGB555;
+            preferred_mode.format = SDL_PIXELFORMAT_RGB555;
             break;
         case 16:
-            fullscreen_mode.format = SDL_PIXELFORMAT_RGB565;
+            preferred_mode.format = SDL_PIXELFORMAT_RGB565;
             break;
         case 24:
-            fullscreen_mode.format = SDL_PIXELFORMAT_RGB24;
+            preferred_mode.format = SDL_PIXELFORMAT_RGB24;
             break;
-        default:
-            fullscreen_mode.format = SDL_PIXELFORMAT_RGB888;
+        case 32:
+            preferred_mode.format = SDL_PIXELFORMAT_RGB888;
             break;
     }
-    //fullscreen_mode.refresh_rate = state->refresh_rate;
+    
+    preferred_mode.w = width>0 ? width : preferred_mode.w;
+    preferred_mode.h = height>0 ? height: preferred_mode.h;
+    preferred_mode.driverdata = nullptr;
 
     {
         window = SDL_CreateWindow(pwinname ? pwinname : "--", 
-                SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, width, height, SDL_WINDOW_OPENGL|SDL_WINDOW_ALLOW_HIGHDPI);
+                SDL_WINDOWPOS_CENTERED_DISPLAY(displayIndex), 
+                SDL_WINDOWPOS_CENTERED_DISPLAY(displayIndex), 
+                preferred_mode.w, preferred_mode.h, 
+                SDL_WINDOW_OPENGL|SDL_WINDOW_ALLOW_HIGHDPI);
 
         if (!window) {
             fprintf(stderr, "Couldn't create window: %s\n", SDL_GetError());
@@ -218,7 +228,8 @@ RenderWindow* create_window(const char* pwinname, int width, int height)
 
         // NULL to use window width and height and display refresh rate
         // only need to set mode if wanted fullscreen
-        if (SDL_SetWindowDisplayMode(window, NULL) < 0) {
+        fprintf(stderr, "Setting mode %dx%d@%d\n", preferred_mode.w, preferred_mode.h, preferred_mode.refresh_rate);
+        if (SDL_SetWindowDisplayMode(window, &preferred_mode) < 0) {
             fprintf(stderr, "Can't set up display mode: %s\n", SDL_GetError());
             SDL_DestroyWindow(window);
             return NULL;
@@ -229,8 +240,8 @@ RenderWindow* create_window(const char* pwinname, int width, int height)
 
     RenderWindow* rw = new RenderWindow();
     rw->window_ = window;
-    rw->width_ = width;
-    rw->height_ = height;
+    rw->width_ = preferred_mode.w;
+    rw->height_ = preferred_mode.h;
 
     g_sdl_window = window;
 

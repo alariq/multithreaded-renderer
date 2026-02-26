@@ -227,6 +227,7 @@ typedef struct
 //
 // Current screen mode (application can check, but may change from frame to frame)
 //
+    int     displayIndex;
 	int		screenWidth;			// 640
 	int		screenHeight;			// 480
 	int		drawableWidth;			// 640
