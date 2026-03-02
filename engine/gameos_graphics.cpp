@@ -2607,7 +2607,7 @@ int findTextBreak(const char* text, const int count, const gosFont* font, const 
 
             if(pos == 0) { // handle case when only one word in line and it does not fit it, just return whole line
                 width = cur_width;
-                pos = break_pos;
+                pos = break_pos+1;
             }
             break;
         } else {
