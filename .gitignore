@@ -12,11 +12,9 @@ build/
 build-*/
 build*/
 cmake-*/
-tools/
 cachegrind.*
 callgrind.*
 *.plist
-tools/
 Session.vim
 .vimspector.session
 .vimspector.json
