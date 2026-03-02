@@ -5,8 +5,6 @@
 
 void GameTextComp::InitRenderResources() {
 
-    //font_tex_handle = gos_NewTextureFromFile(gos_TextureFormat::gos_Texture_RGBA8, "./data/roboto_medium_24.fnt.bmp");
-    //assert(font_tex_handle != 
     font_handle_ = gos_LoadFont("./data/fonts/roboto_medium_64");
     small_font_handle_ = gos_LoadFont("./data/fonts/roboto_medium_24");
 	state_ = Component::kInitialized;
@@ -20,8 +18,8 @@ void GameTextComp::DeinitRenderResources() {
 void GameTextComp::AddRenderPackets(struct RenderFrameContext * rfc) const {
 
     uint32_t i = (int)(intensity_ * 255.0f + 0.5f);
-    //                      b        g         r         a
-    uint32_t color = i | (i<<8) | (i<<16) | (i<<24) | 0xFF000000;
+    //               b        g         r       a
+    uint32_t color = i | (i<<8) | (i<<16) | 0xFF000000;
 
     char pposbuf[32];
     vec4 ppos = rfc->proj_ * rfc->view_ * vec4(GetPosition(), 1);

@@ -24,6 +24,8 @@
 #include "utils/timing.h"
 #include "gos_render.h"
 
+#include "SDL2/SDL_image.h"
+
 class gosRenderer;
 class gosFont;
 
@@ -1064,70 +1066,56 @@ struct gosTextAttribs {
     bool DisableEmbeddedCodes;
 };
 
-static void makeKindaSolid(Image& img) {
-    // have to do this, otherwise texutre with zero alpha could be drawn with alpha blend enabled, evel though logically aplha blend should not be enabled!
-    // (happens when drawing terrain, see TerrainQuad::draw() case when no detail and no owerlay bu t isCement is true)
-    DWORD* pixels = (DWORD*)img.getPixels();
-    for(int y=0;y<img.getHeight(); ++y) {
-        for(int x=0;x<img.getWidth(); ++x) {
-            DWORD pix = pixels[y*img.getWidth() + x];
-            pixels[y*img.getWidth() + x] = pix | 0xff000000;
-        }
-    }
-}
-
-static bool doesLookLikeAlpha(const Image& img) {
-    gosASSERT(img.getFormat() == FORMAT_RGBA8);
-
-    DWORD* pixels = (DWORD*)img.getPixels();
-    for(int y=0;y<img.getHeight(); ++y) {
-        for(int x=0;x<img.getWidth(); ++x) {
-            DWORD pix = pixels[y*img.getWidth() + x];
-            if((0xFF000000 & pix) != 0xFF000000)
-                return true;
-        }
-    }
-    return false;
-}
-
-static gos_TextureFormat convertIfNecessary(Image& img, gos_TextureFormat gos_format) {
-
-    const bool has_alpha_channel = FORMAT_RGBA8 == img.getFormat();
-
-    if(gos_format == gos_Texture_Detect) {
-        bool has_alpha = has_alpha_channel ? doesLookLikeAlpha(img) : false;
-        gos_format = has_alpha ? gos_Texture_Alpha : gos_Texture_Solid;
-    }
-
-    if(gos_format == gos_Texture_Solid && has_alpha_channel)
-        makeKindaSolid(img);
-
-    return gos_format;
-}
-
 bool gosTexture::createHardwareTexture() {
 
     if(!is_from_memory_) {
 
         gosASSERT(filename_);
+        SDL_Surface* surface = nullptr;
+        unsigned char* pixels = nullptr;
+        FORMAT img_fmt = FORMAT_NONE;
+        int w = 0;
+        int h = 0;
 
-        Image img;
-        if(!img.loadFromFile(filename_)) {
-            SPEW(("DBG", "failed to load texture from file: %s\n", filename_));
-            return false;
+        bool b_use_internal_loader = false;
+        if(b_use_internal_loader) {
+            Image img;
+            if(!img.loadFromFile(filename_)) {
+                SPEW(("DBG", "failed to load texture from file: %s\n", filename_));
+                return false;
+            }
+            pixels = img.getPixels();
+            img_fmt = img.getFormat();
+            w = img.getWidth();
+            h = img.getHeight();
+        } else {
+            surface = IMG_Load(filename_);
+            if (!surface) {
+                SPEW(("DBG", "failed to load texture from file: %s\n", filename_));
+                return false;
+            }
+            // SDL BGRA8888 means 0xBBGGRRAA and e.g. ARGB8888 means 0xAARRGGBB
+            // but ARGB32 is a byte order 0xBBGGRRAA, seo ARGB32 == BGRA8888
+            if(surface->format->BytesPerPixel==3 || surface->format->BytesPerPixel==4) {
+                SDL_Surface* s2 = SDL_ConvertSurfaceFormat(surface, surface->format->BytesPerPixel==4 ? SDL_PIXELFORMAT_ARGB32: SDL_PIXELFORMAT_RGB24, 0);
+                SDL_FreeSurface(surface);
+                surface = s2;
+            }
+            img_fmt = surface->format->BytesPerPixel==3 ? FORMAT_RGB8 : (surface->format->BytesPerPixel==4 ? FORMAT_RGBA8 : FORMAT_NONE);
+            pixels = (unsigned char*)surface->pixels;
+            w = surface->w;
+            h = surface->h;
         }
 
         // check for only those formats, because lock.unlock may incorrectly work with different channes size (e.g. 16 or 32bit or floats)
-        FORMAT img_fmt = img.getFormat();
         if(img_fmt != FORMAT_RGB8 && img_fmt != FORMAT_RGBA8) {
             STOP(("Unsupported texture format when loading %s\n", filename_));
         }
 
         TexFormat tf = img_fmt == FORMAT_RGB8 ? TF_RGB8 : TF_RGBA8;
+        tex_ = create2DTexture(w, h, tf, pixels);
 
-        format_ = convertIfNecessary(img, format_);
-
-        tex_ = create2DTexture(img.getWidth(), img.getHeight(), tf, img.getPixels());
+        if(surface) SDL_FreeSurface(surface);
         return tex_.isValid();
 
     } else if(pcompdata_ && size_ > 0) {
@@ -1147,9 +1135,6 @@ bool gosTexture::createHardwareTexture() {
         }
 
         TexFormat tf = img_fmt == FORMAT_RGB8 ? TF_RGB8 : TF_RGBA8;
-
-        format_ = convertIfNecessary(img, format_);
-
         tex_ = create2DTexture(img.getWidth(), img.getHeight(), tf, img.getPixels());
         return tex_.isValid();
     } else if(format_ == gos_Texture_Depth) {
@@ -2867,7 +2852,7 @@ gosFont* gosFont::load(const char* fontFile) {
     char fname[256];
     char dir[256];
     _splitpath(fontFile, NULL, dir, fname, NULL);
-    const char* tex_ext = ".bmp";
+    const char* tex_ext = ".tga";
     const char* glyph_ext = ".glyph";
     
 	const size_t textureNameSize = strlen(fname) + sizeof('/') + strlen(dir) + strlen(tex_ext) + 1;
