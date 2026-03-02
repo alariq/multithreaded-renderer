@@ -494,8 +494,8 @@ void DeferredRenderer::RenderDownsampledForward(std::function<void(void)> f, con
     gos_SetRenderState(gos_State_Texture3, 0);
 
     gos_SetSamplerState(0, 0);
-    gos_SetSamplerState(0, 0);
-    gos_SetSamplerState(0, 0);
+    gos_SetSamplerState(1, 0);
+    gos_SetSamplerState(2, 0);
 
     gos_SetRenderViewport(0, 0, ds_width_, ds_height_);
     glViewport(0, 0, (GLsizei)ds_width_, (GLsizei)ds_height_);
