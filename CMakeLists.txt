@@ -86,12 +86,19 @@ elseif(USE_REMOTERY)
     # no need in any special defines
 endif()
 
+option(WITH_ASAN "Enable address sanitizer" FALSE)
+if(${WITH_ASAN})
+    add_compile_options(-fsanitize=address -static-libasan)
+    set(ASAN_LIB asan)
+endif()
+
 add_definitions(-DUSE_ASSEMBLER_CODE=0)
 add_definitions(-DLINUX_BUILD)
 add_definitions(-DRMT_USE_OPENGL=1)
 
 # on Windows custom FindSDL2 is used so probably need to use SDL2main (as recommended, but it works with just "SDL2" as well just with a warning)
 find_package(SDL2 REQUIRED)
+find_package(SDL2_image REQUIRED)
 #use glew static on win
 if(MSVC)
     set(GLEW_USE_STATIC_LIBS TRUE)
@@ -109,12 +116,15 @@ include_directories(${GLEW_INCLUDE_DIR})
 add_subdirectory("./engine" "./out/engine")
 add_subdirectory("./platform" "./out/platform")
 add_subdirectory("./pbd" "./out/pbd")
+add_subdirectory("./game" "./out/game")
+add_subdirectory("./tools/" "./out/tools")
 
 set(SOURCES 
     "main.cpp"
     "shadow_renderer.cpp"
     "particle_system.cpp"
     "debug_renderer.cpp"
+    "text2d_renderer.cpp"
     "deferred_renderer.cpp"
     "obj_id_renderer.cpp"
     "renderer.cpp"
@@ -150,7 +160,7 @@ message("OpenGL library include: ${OPENGL_INCLUDE_DIR}")
 #if(NOT ${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
 if(NOT WIN32)
     # atomic to link atomic support for 128bit data
-    set(ADDITIONAL_LIBS dl pthread atomic SDL2::SDL2 SDL2::SDL2main)
+    set(ADDITIONAL_LIBS dl pthread atomic SDL2::SDL2 SDL2::SDL2main SDL2_image::SDL2_image)
 	message("Not win32 system")
 else()
 	# winmm for timeGetTime, maybe switch to GetTickCount to remove this dependency
@@ -159,5 +169,5 @@ endif()
 
 add_executable(mt-renderer ${SOURCES})
 target_compile_definitions(mt-renderer PUBLIC $<$<CONFIG:Debug>:_ARMOR _DEBUG BUGLOG LAB_ONLY>)
-target_link_libraries(mt-renderer engine pbd platform GLEW::GLEW ${ADDITIONAL_LIBS} OpenGL::GL)
+target_link_libraries(mt-renderer ${ASAN_LIB} game engine pbd platform GLEW::GLEW ${ADDITIONAL_LIBS} OpenGL::GL)
 
