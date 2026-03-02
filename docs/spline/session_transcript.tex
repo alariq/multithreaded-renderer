@@ -1,0 +1,172 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{hyperref}
+
+\title{Session Transcript: Catmull-Rom Grouping and Derivative}
+\author{User + Codex}
+\date{2026-02-28}
+
+\begin{document}
+\maketitle
+
+\section*{Conversation (Condensed)}
+
+\textbf{User:} Here are equations:
+\begin{align*}
+A1 &= \frac{t_1-x}{t_1-t_0}p_0 + \frac{x-t_0}{t_1-t_0}p_1 \\
+A2 &= \frac{t_2-x}{t_2-t_1}p_1 + \frac{x-t_1}{t_2-t_1}p_2 \\
+A3 &= \frac{t_3-x}{t_3-t_2}p_2 + \frac{x-t_2}{t_3-t_2}p_3 \\
+B1 &= \frac{t_2-x}{t_2-t_0}A1 + \frac{x-t_0}{t_2-t_0}A2 \\
+B2 &= \frac{t_3-x}{t_3-t_1}A2 + \frac{x-t_1}{t_3-t_1}A3 \\
+C  &= \frac{t_2-x}{t_2-t_1}B1 + \frac{x-t_1}{t_2-t_1}B2
+\end{align*}
+
+\textbf{User:} x is a variable.
+
+\textbf{User:} Regroup $C$ so that it has 4 additions grouped by $p_1,p_2,p_3,p_4$.
+
+\textbf{Assistant (result):}
+\[
+C = k_1 p_1 + k_2 p_2 + k_3 p_3 + k_4 p_4.
+\]
+
+\textbf{User:} Create a small standalone C program to verify this.
+
+\textbf{Assistant:} Added \texttt{verify\_catmull\_grouping.c} and validated grouped form numerically against the original nested form.
+
+\textbf{User:} Before grouping, group each coefficient by $x$ for analytical derivative.
+
+\textbf{Assistant:} Provided polynomial-in-$x$ coefficients and derivative form:
+\[
+\frac{dC}{dx} = \sum_{i=1}^{4} k_i'(x)\,p_i.
+\]
+
+\textbf{User:} Just multiply differences.
+
+\textbf{Assistant:} Rewrote coefficients using multiplied-difference factors only.
+
+\textbf{User:} Yes, add.
+
+\textbf{Assistant:} Extended verifier to include analytical derivative checks and finite-difference validation.
+
+\section*{Multiplied-Difference Grouping Used}
+
+\[
+C(x)=k_1(x)p_1+k_2(x)p_2+k_3(x)p_3+k_4(x)p_4
+\]
+
+\begin{align*}
+k_1&=\frac{(t_2-x)(t_2-x)(t_1-x)}{(t_2-t_1)(t_2-t_0)(t_1-t_0)} \\
+k_2&=
+\frac{(t_2-x)(t_2-x)(x-t_0)}{(t_2-t_1)(t_2-t_0)(t_1-t_0)}
++\frac{(t_2-x)(t_2-x)(x-t_0)}{(t_2-t_1)(t_2-t_1)(t_2-t_0)}
++\frac{(x-t_1)(t_3-x)(t_2-x)}{(t_2-t_1)(t_2-t_1)(t_3-t_1)} \\
+k_3&=
+\frac{(t_2-x)(x-t_0)(x-t_1)}{(t_2-t_1)(t_2-t_1)(t_2-t_0)}
++\frac{(x-t_1)(x-t_1)(t_3-x)}{(t_2-t_1)(t_2-t_1)(t_3-t_1)}
++\frac{(x-t_1)(x-t_1)(t_3-x)}{(t_2-t_1)(t_3-t_1)(t_3-t_2)} \\
+k_4&=\frac{(x-t_1)(x-t_1)(x-t_2)}{(t_2-t_1)(t_3-t_1)(t_3-t_2)}
+\end{align*}
+
+\section*{$K_i$ Grouped by Powers of $x$}
+
+Define:
+\[
+\Delta_{10}=t_1-t_0,\quad
+\Delta_{21}=t_2-t_1,\quad
+\Delta_{32}=t_3-t_2,\quad
+\Delta_{20}=t_2-t_0,\quad
+\Delta_{31}=t_3-t_1.
+\]
+
+For each $i\in\{1,2,3,4\}$:
+\[
+k_i(x)=a_i x^3+b_i x^2+c_i x+d_i.
+\]
+
+\begin{align*}
+a_1&=-\frac{1}{\Delta_{21}\Delta_{20}\Delta_{10}},&
+b_1&=\frac{2t_2+t_1}{\Delta_{21}\Delta_{20}\Delta_{10}},\\
+c_1&=-\frac{t_2^2+2t_1t_2}{\Delta_{21}\Delta_{20}\Delta_{10}},&
+d_1&=\frac{t_1t_2^2}{\Delta_{21}\Delta_{20}\Delta_{10}}.
+\end{align*}
+
+\begin{align*}
+a_2&=\frac{\frac{1}{\Delta_{10}}+\frac{1}{\Delta_{31}}}{\Delta_{21}^2},\\
+b_2&=\frac{-\frac{t_0+2t_2}{\Delta_{10}}-\frac{t_1+t_2+t_3}{\Delta_{31}}}{\Delta_{21}^2},\\
+c_2&=\frac{\frac{2t_0t_2+t_2^2}{\Delta_{10}}+\frac{t_1t_2+t_1t_3+t_2t_3}{\Delta_{31}}}{\Delta_{21}^2},\\
+d_2&=\frac{-\frac{t_0t_2^2}{\Delta_{10}}-\frac{t_1t_2t_3}{\Delta_{31}}}{\Delta_{21}^2}.
+\end{align*}
+
+\begin{align*}
+a_3&=\frac{-\frac{1}{\Delta_{20}}-\frac{1}{\Delta_{32}}}{\Delta_{21}^2},\\
+b_3&=\frac{\frac{t_0+t_1+t_2}{\Delta_{20}}+\frac{t_3+2t_1}{\Delta_{32}}}{\Delta_{21}^2},\\
+c_3&=\frac{-\frac{t_0t_1+t_0t_2+t_1t_2}{\Delta_{20}}-\frac{2t_1t_3+t_1^2}{\Delta_{32}}}{\Delta_{21}^2},\\
+d_3&=\frac{\frac{t_0t_1t_2}{\Delta_{20}}+\frac{t_1^2t_3}{\Delta_{32}}}{\Delta_{21}^2}.
+\end{align*}
+
+\begin{align*}
+a_4&=\frac{1}{\Delta_{21}\Delta_{31}\Delta_{32}},&
+b_4&=-\frac{2t_1+t_2}{\Delta_{21}\Delta_{31}\Delta_{32}},\\
+c_4&=\frac{t_1^2+2t_1t_2}{\Delta_{21}\Delta_{31}\Delta_{32}},&
+d_4&=-\frac{t_1^2t_2}{\Delta_{21}\Delta_{31}\Delta_{32}}.
+\end{align*}
+
+Hence:
+\[
+k_i'(x)=3a_i x^2+2b_i x+c_i,\qquad
+\frac{dC}{dx}=\sum_{i=1}^{4}k_i'(x)\,p_i.
+\]
+
+Derivative structure:
+\[
+\frac{dC}{dx}=k_1'(x)p_1+k_2'(x)p_2+k_3'(x)p_3+k_4'(x)p_4,
+\]
+with each $k_i'(x)$ obtained via product rule on its 3 linear factors.
+
+\section*{Derivative Equations}
+
+\begin{align*}
+k_1'(x)&=
+\frac{(-1)(t_2-x)(t_1-x)+(t_2-x)(-1)(t_1-x)+(t_2-x)(t_2-x)(-1)}
+{(t_2-t_1)(t_2-t_0)(t_1-t_0)} \\
+k_2'(x)&=
+\frac{(-1)(t_2-x)(x-t_0)+(t_2-x)(-1)(x-t_0)+(t_2-x)(t_2-x)(1)}
+{(t_2-t_1)(t_2-t_0)(t_1-t_0)} \\
+&\quad+
+\frac{(-1)(t_2-x)(x-t_0)+(t_2-x)(-1)(x-t_0)+(t_2-x)(t_2-x)(1)}
+{(t_2-t_1)(t_2-t_1)(t_2-t_0)} \\
+&\quad+
+\frac{(1)(t_3-x)(t_2-x)+(x-t_1)(-1)(t_2-x)+(x-t_1)(t_3-x)(-1)}
+{(t_2-t_1)(t_2-t_1)(t_3-t_1)} \\
+k_3'(x)&=
+\frac{(-1)(x-t_0)(x-t_1)+(t_2-x)(1)(x-t_1)+(t_2-x)(x-t_0)(1)}
+{(t_2-t_1)(t_2-t_1)(t_2-t_0)} \\
+&\quad+
+\frac{(1)(x-t_1)(t_3-x)+(x-t_1)(1)(t_3-x)+(x-t_1)(x-t_1)(-1)}
+{(t_2-t_1)(t_2-t_1)(t_3-t_1)} \\
+&\quad+
+\frac{(1)(x-t_1)(t_3-x)+(x-t_1)(1)(t_3-x)+(x-t_1)(x-t_1)(-1)}
+{(t_2-t_1)(t_3-t_1)(t_3-t_2)} \\
+k_4'(x)&=
+\frac{(1)(x-t_1)(x-t_2)+(x-t_1)(1)(x-t_2)+(x-t_1)(x-t_1)(1)}
+{(t_2-t_1)(t_3-t_1)(t_3-t_2)}
+\end{align*}
+
+\section*{Verification Outcome}
+
+From \texttt{verify\_catmull\_grouping.c} run:
+\begin{itemize}
+    \item PASS: 200000 random tests
+    \item max abs error: $3.411\times10^{-13}$
+    \item max abs derivative error: $3.233\times10^{-7}$
+\end{itemize}
+
+\vspace{1em}
+Generated in: \texttt{/home/a/prog/multithreaded-renderer/session\_transcript.pdf}
+
+\end{document}
