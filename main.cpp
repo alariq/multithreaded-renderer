@@ -156,10 +156,10 @@ void UpdateCamera(float dt, bool b_editor)
 			if (WheelDelta) {
 				moveSpeedK *= WheelDelta < 0 ? 3.0f / 4.0f : 4.0f / 3.0f;
 			}
-			g_camera.dx += gos_GetKeyStatus(KEY_D) ? dt * moveSpeedK : 0.0f;
-			g_camera.dx -= gos_GetKeyStatus(KEY_A) ? dt * moveSpeedK : 0.0f;
-			g_camera.dz += gos_GetKeyStatus(KEY_W) ? dt * moveSpeedK : 0.0f;
-			g_camera.dz -= gos_GetKeyStatus(KEY_S) ? dt * moveSpeedK : 0.0f;
+			g_camera.dx += (gos_GetKeyStatus(KEY_D) || gos_GetKeyStatus(KEY_RIGHT)) ? dt * moveSpeedK : 0.0f;
+			g_camera.dx -= (gos_GetKeyStatus(KEY_A) || gos_GetKeyStatus(KEY_LEFT)) ? dt * moveSpeedK : 0.0f;
+			g_camera.dz += (gos_GetKeyStatus(KEY_W) || gos_GetKeyStatus(KEY_UP))   ? dt * moveSpeedK : 0.0f;
+			g_camera.dz -= (gos_GetKeyStatus(KEY_S) || gos_GetKeyStatus(KEY_DOWN))? dt * moveSpeedK : 0.0f;
 			g_camera.rot_x -= (float)XDelta * angularSpeedK;
 			g_camera.rot_y -= (float)YDelta * angularSpeedK;
 		}
