@@ -16,6 +16,7 @@
 #include "shadow_renderer.h"
 #include "particle_system.h"
 #include "debug_renderer.h"
+#include "text2d_renderer.h"
 #include "deferred_renderer.h"
 #include "obj_id_renderer.h"
 
@@ -278,6 +279,10 @@ void __stdcall Update(void)
     rfc->b_is_perspective_ = g_camera.get_is_perspective();
     g_shadow_camera.get_view(&rfc->shadow_view_);
     rfc->shadow_inv_view_ = g_shadow_camera.get_inv_view();
+    // TODO: using viewport here might not work if we render to some 
+    // pass which uses different WxH, clients need to use per pass current viewport
+    rfc->viewport.x = Environment.drawableWidth;
+    rfc->viewport.y = Environment.drawableHeight;
     SetRenderFrameContext(rfc);
     //
 
@@ -523,6 +528,7 @@ void __stdcall Render(void)
         csm_info.zfar_, res_man_load_texture("default"));
 
     const RenderPacketList_t& rpl = rfc->rl_->GetRenderPackets();
+    const TextRenderPacketList_t& trpl = rfc->rl_->GetTextPackets();
 
     char rfc_info[128] = {0};
     sprintf(rfc_info, "rfc: %d rl: %d", rfc->frame_number_, rfc->rl_->GetId());
@@ -554,13 +560,7 @@ void __stdcall Render(void)
     g_deferred_renderer.RenderDirectionalLighting(rfc);
     g_deferred_renderer.RenderPointLighting(rfc);
     bool downsampled_particles = true;
-    g_deferred_renderer.RenderForward(
-        [&rpl, &view_mat, &proj_mat, downsampled_particles]() {
-            if (!downsampled_particles)
-                RenderParticles(rpl, view_mat, proj_mat);
-            RenderDebugObjects(rpl, view_mat, proj_mat);
-            gos_RenderDebugPrimitives(view_mat, proj_mat);
-        });
+
     if (downsampled_particles) {
         g_deferred_renderer.RenderDownsampledForward(
             [&rpl, &view_mat, &proj_mat]() {
@@ -569,7 +569,16 @@ void __stdcall Render(void)
             rfc->proj_);
     }
 
-	if (g_is_in_editor) {
+    g_deferred_renderer.RenderForward(
+        [&rpl, &trpl, &view_mat, &proj_mat, downsampled_particles]() {
+            if (!downsampled_particles)
+                RenderParticles(rpl, view_mat, proj_mat);
+            RenderDebugObjects(rpl, view_mat, proj_mat);
+            gos_RenderDebugPrimitives(view_mat, proj_mat);
+            RenderText2D(trpl, view_mat, proj_mat);
+
+        });
+	if (g_is_in_editor && !(gos_GetKeyStatus(KEY_LMOUSE) == KEY_HELD)) {
 		g_obj_id_renderer.Render(rfc, g_deferred_renderer.GetSceneDepth());
 
 		int xdelta, ydelta, wheeldelta;

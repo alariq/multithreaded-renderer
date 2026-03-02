@@ -71,6 +71,21 @@ struct RenderPacket {
     uint32_t is_gizmo_pass: 1;
 };
 
+struct TextRenderPacket {
+    uint8_t* text;
+    HGOSFONT3D font_handle;
+    uint32_t colour;
+    float Size;
+    uint8_t WordWrap:1;
+    uint8_t Proportional:1;
+    uint8_t Bold:1;
+    uint8_t Italic:1;
+    uint8_t WrapType:2;
+    uint8_t DisableEmbeddedCodes:1;
+    int16_t Left, Top, Right, Bottom;
+    int16_t PosX, PosY;
+};
+
 struct DebugPrimitive {
     enum : uint8_t { kLine, kPoint, kQuad };
     uint32_t type_: 8;
@@ -103,11 +118,13 @@ protected:
 
 typedef std::vector<RenderPacket> RenderPacketList_t;
 typedef std::vector<DebugPrimitive> DebugPrimitiveList_t;
+typedef std::vector<TextRenderPacket> TextRenderPacketList_t;
 class RenderList: public NonCopyable {
     std::atomic_int ref_count;
     int id_;
     RenderPacketList_t packets_;
     DebugPrimitiveList_t debug_prims_;
+    TextRenderPacketList_t text_pkts_;
 public:
     RenderList():ref_count(0) {
         static int id = 0;
@@ -136,7 +153,7 @@ public:
 
     RenderPacketList_t& GetRenderPackets() { return packets_; }
     DebugPrimitiveList_t& GetDebugPrimitives() { return debug_prims_; }
-
+    TextRenderPacketList_t& GetTextPackets() { return text_pkts_; }
 
 	void addDebugLine(const vec3& start, const vec3& end, const vec4& colour,
 					  const mat4* prim_transform = nullptr) {
@@ -170,6 +187,25 @@ public:
 								 prim_transform ? *prim_transform : mat4::identity()};
 		debug_prims_.emplace_back(dp);
 	}
+
+    void addTextPacket(const char* text, HGOSFONT3D font_handle, uint32_t colour, float size, int16_t x, int16_t y) {
+        assert(text);
+        uint8_t* t = new uint8_t[strlen(text)+1];
+        memcpy(t, text, strlen(text)+1);
+        TextRenderPacket tp = { .text = t, .font_handle = font_handle, .colour = colour, .Size = size,
+
+            .WordWrap = 0,
+            .Proportional = 0,
+            .Bold = 0,
+            .Italic = 0, 
+            .WrapType = 0, 
+            .DisableEmbeddedCodes = 0,
+            .Left = 0, .Top = 0, .Right = 0, .Bottom = 0,
+
+            .PosX = x, .PosY = y
+        };
+        text_pkts_.emplace_back(tp);
+    }
 };
 
 RenderList* AcquireRenderList();
@@ -201,6 +237,7 @@ struct RenderFrameContext {
     mat4 shadow_inv_view_;
     float z_near_, z_far_, fov_, aspect_;
     bool b_is_perspective_;
+    vec2 viewport;
 
     // point lights that passed frustum culling
     std::vector<PointLight> point_lights_;

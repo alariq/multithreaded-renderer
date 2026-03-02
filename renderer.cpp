@@ -20,8 +20,21 @@ void ReleaseRenderList(RenderList* rl) {
     assert(rl && rl->IsAcquired());
 
     rl->Release();
+
     rl->GetRenderPackets().resize(0);
+
+    for(DebugPrimitive& dp: rl->GetDebugPrimitives()) {
+        if(dp.type_ == DebugPrimitive::kPoint) {
+            delete[] dp.point_.vts;
+        }
+    }
     rl->GetDebugPrimitives().resize(0);
+
+    for(TextRenderPacket& tp: rl->GetTextPackets()) {
+        delete[] tp.text;
+    }
+    rl->GetTextPackets().resize(0);
+
     gFreeRenderLists.push(rl);
 }
 
