@@ -56,9 +56,6 @@ camera g_camera;
 bool g_use_parallel_projection = false;
 camera g_shadow_camera;
 
-#define SCREEN_W 1280.0f
-#define SCREEN_H 900.0f
-
 void __stdcall Init(void)
 {
     printf("::Init\n");
@@ -70,7 +67,8 @@ void __stdcall Init(void)
 	const vec3 init_cam_pos(0, 15, 0);
 
     g_camera.set_pos(init_cam_pos);
-    g_camera.set_projection(45.0f, (int)SCREEN_W, (int)SCREEN_H, 0.1f, 1000.0f);
+    // dummy
+    g_camera.set_projection(90.0f, (int)1, (int)1, 0.1f, 1000.0f);
     g_camera.update(0.0f);
 
     vec3 light_dir = normalize(vec3(-1.0,-1.0,-1.0));
@@ -446,8 +444,8 @@ void __stdcall Render(void)
         gos_AddRenderMaterial("directional_shadow");
         gos_AddRenderMaterial("particle");
 
-		uint32_t w = (uint32_t)SCREEN_W;
-		uint32_t h = (uint32_t)SCREEN_H;
+		uint32_t w = (uint32_t)Environment.drawableWidth;
+		uint32_t h = (uint32_t)Environment.drawableHeight;
         g_deferred_renderer.Init(w, h);
         g_obj_id_renderer.Init(w, h);
 
@@ -580,8 +578,8 @@ void __stdcall Render(void)
 		gos_GetMouseInfo(&xpos, &ypos, &xdelta, &ydelta, &wheeldelta, &buttonspressed);
 
 		g_obj_under_cursor =
-			g_obj_id_renderer.Readback((uint32_t)(SCREEN_W * xpos),
-									   (uint32_t)(SCREEN_H * (1 - ypos)));
+			g_obj_id_renderer.Readback((uint32_t)(Environment.drawableWidth* xpos),
+									   (uint32_t)(Environment.drawableHeight* (1 - ypos)));
 	}
 
     g_deferred_renderer.Present(Environment.drawableWidth,
@@ -604,8 +602,8 @@ void GetGameOSEnvironment(const char* cmdline)
 {
     (void)cmdline;
     Environment.displayIndex = 1;
-    Environment.screenWidth = -1;//(int)SCREEN_W;
-    Environment.screenHeight = -1;//(int)SCREEN_H;
+    Environment.screenWidth = -1;
+    Environment.screenHeight = -1;
     Environment.bitDepth = -1;
 
     Environment.InitializeGameEngine = Init;

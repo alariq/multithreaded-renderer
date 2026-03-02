@@ -2731,7 +2731,7 @@ void gosRenderer::drawText(const char* text) {
     const int region_width = getTextRegionWidth();
     const int region_height = getTextRegionHeight();
 
-    const int num_lines = calcTextHeight(text, count, font, region_width);
+    const int num_lines = region_width==0 ? 1 : calcTextHeight(text, count, font, region_width);
     if(ta.WrapType == 3) { // center in Y direction as well
         y += (region_height - num_lines * font_height) / 2;
     }
@@ -2741,7 +2741,7 @@ void gosRenderer::drawText(const char* text) {
     while(pos < count) {
 
         x = start_x;    
-        int num_chars = findTextBreak(text + pos, count - pos, font, region_width, &str_width);
+        int num_chars = region_width==0 ? count : findTextBreak(text + pos, count - pos, font, region_width, &str_width);
 
         // WrapType		- 0=Left aligned, 1=Right aligned, 2=Centered, 3=Centered in region (X and Y)
         switch(ta.WrapType) {

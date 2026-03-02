@@ -417,10 +417,6 @@ int main(int argc, char** argv)
     delete[] cmdline;
     cmdline = NULL;
 
-    int w = Environment.screenWidth;
-    int h = Environment.screenHeight;
-    int bpp = Environment.bitDepth;
-    int disp_idx = Environment.displayIndex;
 
     prof_initialize();
 
@@ -435,11 +431,18 @@ int main(int argc, char** argv)
         SPEW(("Render", "[OK] STATUS\n"));
     }
 
-	g_win = graphics::create_window("mt-renderer", w, h, bpp, disp_idx);
+	g_win = graphics::create_window("mt-renderer", 
+            Environment.screenWidth, Environment.screenHeight,
+            Environment.bitDepth, Environment.displayIndex);
 	if (!g_win)
 		return 1;
-    // update w,h based on real ones
+
+    // update w,h based on real ones (as -1 can be passed)
     graphics::get_window_size(g_win, &Environment.screenWidth, &Environment.screenHeight);
+    Environment.bitDepth = graphics::get_window_bpp(g_win);
+
+    const int w = Environment.screenWidth;
+    const int h = Environment.screenHeight;
 
     class R_init_renderer: public R_job {
         int w_, h_;

@@ -528,6 +528,14 @@ void get_window_size(RenderWindowHandle rw_handle, int* width, int* height)
 }
 
 //==============================================================================
+int get_window_bpp(RenderWindowHandle rw_handle) {
+    RenderWindow* rw = (RenderWindow*)rw_handle;
+    assert(rw);
+    Uint32 fmt = SDL_GetWindowPixelFormat(rw_handle->window_);
+    return SDL_BITSPERPIXEL(fmt);
+}
+
+//==============================================================================
 void get_drawable_size(RenderWindowHandle rw_handle, int* width, int* height)
 {
     RenderWindow* rw = (RenderWindow*)rw_handle;
