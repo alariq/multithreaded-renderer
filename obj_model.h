@@ -92,6 +92,7 @@ enum class ComponentType: int {
     kPBDVisComponent,
     kFrustumComponent,
     kRigidBody,
+    kGameText,
     kMesh,
     kCount
 };
