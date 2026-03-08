@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdint.h>
+#include <assert.h>
 
 // POD only 
 template<typename T, typename TSize = size_t>
@@ -9,6 +10,8 @@ class BufferT {
     T* data_;
     TSize size_;
     TSize capacity_;
+
+    template <typename U, typename USize> void operator=(BufferT<U, USize> b) = delete;
 
 public:
 
@@ -81,5 +84,12 @@ public:
     const T* data() const { return data_; }
 
     TSize size() const { return size_; }
+
+    void clone(BufferT<T, TSize>& c) {
+        c.resize(this->size_);
+        for(TSize i = 0; i<size_; ++i) {
+            c[i] = data_[i];
+        }
+    }
 
 };
