@@ -2,6 +2,8 @@
 #include "engine/utils/quaternion.h"
 #include "engine/utils/math_utils.h"
 
+#include "engine/utils/logging.h"
+
 struct PlaneState {
     vec3 position;
     vec3 velocity;
@@ -153,7 +155,7 @@ public:
 
         alignment = 0.5*alignment + 0.5f;
         alignment = (alignment - 0.98f)/0.02f; // remap so that 0.98..1.0 -> 0..1.0
-        printf("Alignment: %f\n", alignment);
+        log_debug("Alignment: %f\n", alignment);
         targetUp = lerp(targetUp, vec3(0,1,0), clamp(alignment, 0, 1)); // prefer world up when aligned
 
         quaternion qr = quat_from_two_axes(plane.up, targetUp);
@@ -287,7 +289,7 @@ public:
 
         // Also adjust depending on air speed.
         float currentSlope = plane.forward.y;//velRelWind.y / fwdSpeedRelAir; 
-        printf("velRelWind: %f %f %f fwdSpeedRelAir: %f\n", velRelWind.x, velRelWind.y, velRelWind.z, fwdSpeedRelAir);
+        log_debug("velRelWind: %f %f %f fwdSpeedRelAir: %f\n", velRelWind.x, velRelWind.y, velRelWind.z, fwdSpeedRelAir);
 
         float desiredAltitudeChange = targetPos.y - plane.position.y;
         float targetSlope = desiredAltitudeChange / horDistToTarget;
@@ -296,7 +298,7 @@ public:
         pitchControl -= (targetSlope - currentSlope) * mPoweredControlPitchControlPerSlope;
         pitchControl = clamp(pitchControl, -1.0f, 1.0f);
         pitchControl *= mControlMaxPitchControl;
-        printf("currentSlope: %f targetSlope: %f pitchControl: %f\n", currentSlope, targetSlope, pitchControl);
+        log_debug("currentSlope: %f targetSlope: %f pitchControl: %f\n", currentSlope, targetSlope, pitchControl);
 
         float throttleControl = desiredAltitudeChange * mPoweredControlThrottleControlPerAltitude;
         throttleControl += (mPoweredControlCruiseSpeed - fwdSpeedRelAir) * mPoweredControlThrottleControlPerSpeed;

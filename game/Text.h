@@ -25,3 +25,27 @@ class GameTextComp: public TransformComponent, public IRenderable {
     virtual void UpdateComponent(float dt) override;
 };
 
+class EnemyTextComp: public TransformComponent, public IRenderable {
+    HGOSFONT3D font_handle_;
+    float intensity_;
+    char text[32];
+  public:
+	virtual ComponentType GetType() const override { return ComponentType::kGameText; }
+
+	virtual void InitRenderResources() override;
+	virtual void DeinitRenderResources() override;
+
+    virtual IRenderable* getRenderableInterface() override { return this; }
+	virtual void AddRenderPackets(struct RenderFrameContext *) const override;
+
+    // this will be updated by Init/Deinit Render Resoueces
+	virtual void Initialize() override;
+	virtual void Deinitialize() override;
+
+    virtual void UpdateComponent(float dt) override;
+
+    //----------------------------------------------
+
+    void SetText(const char* t);
+};
+

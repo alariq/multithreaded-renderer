@@ -1,0 +1,62 @@
+#include "game/ShipController.h"
+#include "game/WingController.h"
+#include "game/Text.h"
+#include "game/Path.h"
+
+#include "engine/utils/spline.h"
+
+struct CheckPoint {
+    vec3 position;
+    float radius;
+};
+
+class MainShip: public GameObject {
+
+    std::string name_;
+    MeshComponent* mesh_comp_;
+
+    vec3 origin_pos;
+    float radius;
+    float total_time;
+
+    PlaneState plane_state_;
+    PlaneAI ship_ai_;
+
+    AircraftPhysics physics;
+    WingOnlyAIController ai_controller;
+    WingControllerConfig controller_config;
+    AircraftState statePrev, stateCur, renderState;
+    double accumulator;
+
+    float turnRate = 2.5f;
+    float maxSpeed = 3.0f;
+    float targetSpeed = 35.0f;
+
+    std::deque<vec3> trail;
+    Curve<vec3> curve;
+    Path* myPath;
+
+    std::vector<CheckPoint> check_points_;
+    int cur_check_point_idx_;
+
+    GameObject* target_ = nullptr;
+
+    void pushTrailPoint(const vec3& point);
+    void simulateFixedStep(double dt);
+    virtual void Update2(float dt);
+
+    public:
+
+    virtual const char* GetName() const override { return name_.c_str(); } 
+
+    const class Path* GetPath() const { return myPath; }
+
+    static MainShip* Create(const char* res);
+    void Initialize(const std::vector<CheckPoint>& cps, GameObject* intarget);
+
+    virtual void Update(float dt) override;
+    virtual void AddRenderPackets(struct RenderFrameContext* rfc) const override;
+    virtual ~MainShip();
+
+
+};
