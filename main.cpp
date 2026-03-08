@@ -54,7 +54,10 @@ DeferredRenderer g_deferred_renderer;
 ObjIdRenderer g_obj_id_renderer;
 
 camera g_camera;
-bool g_use_parallel_projection = false;
+fps_camera g_cam_controller;
+ortho_camera g_ortho_cam_controller;
+vec3 g_parallel_proj_origin = vec3(0);
+int g_use_parallel_projection = 0;
 camera g_shadow_camera;
 
 void __stdcall Init(void)
@@ -66,11 +69,7 @@ void __stdcall Init(void)
 #endif
 
 	const vec3 init_cam_pos(0, 15, 0);
-
-    g_camera.set_pos(init_cam_pos);
-    // dummy
-    g_camera.set_projection(90.0f, (int)1, (int)1, 0.1f, 1000.0f);
-    g_camera.update(0.0f);
+    g_cam_controller.set_pos(init_cam_pos);
 
     vec3 light_dir = normalize(vec3(-1.0,-1.0,-1.0));
 
@@ -113,21 +112,21 @@ void __stdcall Deinit(void)
 
 void UpdateCamera(float dt, bool b_editor)
 {
-    static float fov = 45.0f;
+    static float fov = 90.0f;
     static float moveSpeedK = 10.0f;
-    static float angularSpeedK = 0.25f * 3.1415f / 180.0f; // 0.25 degree per pixel
+    static float angularSpeedK = 0.05f * 3.1415f / 180.0f; // 0.25 degree per pixel
     static float zoomLevel = .05f;
     static bool b_was_warped = false;
 
 	if (gos_GetKeyStatus(KEY_F2) == KEY_RELEASED) {
-		g_use_parallel_projection = !g_use_parallel_projection;
-
-		if (g_use_parallel_projection) {
-			vec3 cam_pos = g_camera.get_pos();
-			g_camera.set_view(mat4::identity());
-			g_camera.set_pos(cam_pos);
-		}
-	}
+        if(!g_use_parallel_projection) {
+            g_parallel_proj_origin = g_camera.get_pos();
+            g_ortho_cam_controller.set_pos(g_parallel_proj_origin);
+        }
+		g_use_parallel_projection = (g_use_parallel_projection + 1) % (ortho_camera::NUM_VIEWS + 1);
+        g_ortho_cam_controller.set_proj_idx(g_use_parallel_projection - 1);
+        g_ortho_cam_controller.set_pos(g_parallel_proj_origin);
+    }
 
 	int XDelta, YDelta, WheelDelta;
     float XPos, YPos;
@@ -142,28 +141,37 @@ void UpdateCamera(float dt, bool b_editor)
 						  (gos_GetKeyStatus(KEY_RMOUSE) == KEY_HELD);
 
 	if(g_use_parallel_projection) {
+
         if(WheelDelta)
             zoomLevel*= WheelDelta>0 ? 3.0f/4.0f : 4.0f/3.0f;
+
         float w = Environment.drawableWidth*zoomLevel;
         float h = Environment.drawableHeight*zoomLevel;
-		g_camera.set_ortho_projection(-w / 2, w / 2, h / 2, -h / 2, -0.1, -100.0f);
+		g_camera.set_ortho_projection(-w / 2, w / 2, h / 2, -h / 2, -0.1, -1000.0f);
+
         if(RMB_down) {
-            g_camera.dx -= XDelta*(w/Environment.drawableWidth);
-            g_camera.dy += YDelta*(h/Environment.drawableHeight);
+            g_ortho_cam_controller.dx -= XDelta*(w/Environment.drawableWidth);
+            g_ortho_cam_controller.dy += YDelta*(w/Environment.drawableHeight);
         }
+
+        g_ortho_cam_controller.update(dt);
+        g_camera.set_view(g_ortho_cam_controller.get_view());
+
     } else {
         g_camera.set_projection(fov, Environment.drawableWidth, Environment.drawableHeight, 0.1f, 1000.0f);
 		if (!b_editor || RMB_down) {
 			if (WheelDelta) {
 				moveSpeedK *= WheelDelta < 0 ? 3.0f / 4.0f : 4.0f / 3.0f;
 			}
-			g_camera.dx += (gos_GetKeyStatus(KEY_D) || gos_GetKeyStatus(KEY_RIGHT)) ? dt * moveSpeedK : 0.0f;
-			g_camera.dx -= (gos_GetKeyStatus(KEY_A) || gos_GetKeyStatus(KEY_LEFT)) ? dt * moveSpeedK : 0.0f;
-			g_camera.dz += (gos_GetKeyStatus(KEY_W) || gos_GetKeyStatus(KEY_UP))   ? dt * moveSpeedK : 0.0f;
-			g_camera.dz -= (gos_GetKeyStatus(KEY_S) || gos_GetKeyStatus(KEY_DOWN))? dt * moveSpeedK : 0.0f;
-			g_camera.rot_x -= (float)XDelta * angularSpeedK;
-			g_camera.rot_y -= (float)YDelta * angularSpeedK;
+			g_cam_controller.dx += (gos_GetKeyStatus(KEY_D) || gos_GetKeyStatus(KEY_RIGHT)) ? dt * moveSpeedK : 0.0f;
+			g_cam_controller.dx -= (gos_GetKeyStatus(KEY_A) || gos_GetKeyStatus(KEY_LEFT)) ? dt * moveSpeedK : 0.0f;
+			g_cam_controller.dz += (gos_GetKeyStatus(KEY_W) || gos_GetKeyStatus(KEY_UP))   ? dt * moveSpeedK : 0.0f;
+			g_cam_controller.dz -= (gos_GetKeyStatus(KEY_S) || gos_GetKeyStatus(KEY_DOWN))? dt * moveSpeedK : 0.0f;
+			g_cam_controller.rot_x -= (float)XDelta * angularSpeedK;
+			g_cam_controller.rot_y -= (float)YDelta * angularSpeedK;
 		}
+        g_cam_controller.update(dt);
+        g_camera.set_view(g_cam_controller.get_view());
 	}
 
     if(RMB_down) {
@@ -179,10 +187,9 @@ void UpdateCamera(float dt, bool b_editor)
         }
     }
 
-	g_camera.update(dt);
 
-    render_from_shadow_camera = gos_GetKeyStatus(KEY_O) ? true : false;
-    g_show_cascade_index += gos_GetKeyStatus(KEY_C) == KEY_PRESSED ? 1 : 0;
+    render_from_shadow_camera = gos_GetKeyStatus(KEY_F3) ? true : false;
+    g_show_cascade_index += gos_GetKeyStatus(KEY_LCONTROL) && gos_GetKeyStatus(KEY_K) == KEY_PRESSED ? 1 : 0;
     if(g_show_cascade_index>2)
         g_show_cascade_index = 0;
 

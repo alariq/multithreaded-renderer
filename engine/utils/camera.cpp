@@ -3,30 +3,23 @@
 #include "utils/vec.h"
 #include "utils/camera.h"
 #include "utils/matrix.h"
+#include "utils/math_utils.h"
 #include "utils/logging.h"
 
 //#include <GL/glew.h>
 //#include <graphics/gl_utils.h>
 #include "utils/matrix.h"
 
-camera::camera():rot_x(0), rot_y(0), dist(0)
+camera::camera()
 {
-	memset(pos_, 0, sizeof(pos_));
-	pos_[2] = -5;
-
-	memset(lookat_vec, 0, sizeof(lookat_vec));
-	memset(right_vec, 0, sizeof(right_vec));
-	memset(up_vec, 0, sizeof(up_vec));
-	lookat_vec[2] = right_vec[0] = up_vec[1] = 1.0f;
-	dx = dy = dz = 0;
-	move_scale = .1f;
-
 	proj_ = mat4::identity();
 	inv_proj_ = mat4::identity();
 	view_ = mat4::identity();
 	inv_view_ = mat4::identity();
 	world_ = mat4::identity();
 	view_proj_inv_ = mat4::identity();
+
+    wpos_ = inv_view_.getTranslation();
 
     fov_ = 0;
     width_ = height_ = 0;
@@ -36,15 +29,7 @@ camera::camera():rot_x(0), rot_y(0), dist(0)
 
 }
 
-void camera::get_pos(float (*p)[4] ) const
-{
-	memcpy(p, pos_, sizeof(pos_) );
-}
-
-vec3 camera::get_pos() const
-{
-    return vec3(pos_[0], pos_[1], pos_[2]);
-}
+vec3 camera::get_pos() const { return wpos_; }
 
 void camera::set_projection(const mat4& proj)
 {
@@ -67,7 +52,18 @@ void camera::set_projection(const float fov, const int w, const int h, const flo
     height_ = (float)h;
     fov_ = fov;
     near_ = near; far_ = far;
+#if 1
     mat4 pm = perspectiveMatrixX(fov * 3.1415f / 180.0f, w, h, near, far, false);
+#else
+    const float aspectRatio = (float)h/w;
+    const float fovy = aspectRatio * fov;
+    const float DEG2RAD = M_PIf / 180.0f;
+    float tangent = tan(fovy/2 * DEG2RAD);    // tangent of half fovY
+    float top = near * tangent;              // half height of near plane
+    float right = top * aspectRatio;          // half width of near plane
+    mat4 pm = frustumProjMatrix(-right, right, -top, top, near, far);
+#endif
+
     is_perspective_ = true;
     this->set_projection(pm);
 
@@ -81,130 +77,23 @@ void camera::set_ortho_projection(const float l, const float r, const float t, c
     this->set_projection(pm);
 }
 
-void camera::update(float /*dt*/)
-{
-    // rotate around Y
-	mat4 rotX = rotateY4(rot_x);
-    // rotate around X
-	mat4 rotY = rotateX4(rot_y);
-
-	mat4 matrot = rotY*rotX;
-
-	//vec4 dpos = matrot*vec4(dx, 0, dz, 1);
-
-	vec3 p(pos_[0], pos_[1], pos_[2]);
-
-	
-	p += dx*matrot.getRightVec();
-	p += dy*matrot.getUpVec();
-	p += dz*matrot.getForwardVec();
-
-	pos_[0] = p.x;
-	pos_[1] = p.y;
-	pos_[2] = p.z;
-	pos_[3] = 0;
-
-	// build view matrix
-	view_ = mat4::identity();
-	view_.setRow(0, vec4(matrot.getRightVec(), dot(-p, matrot.getRightVec() )));
-	view_.setRow(1, vec4(matrot.getUpVec(), dot(-p, matrot.getUpVec() )));
-	view_.setRow(2, vec4(matrot.getForwardVec(), dot(-p,matrot.getForwardVec() )));
-
-	//view_.setRow(0, vec4(matrot.getRightVec(), -p.x));
-	//view_.setRow(1, vec4(matrot.getUpVec(), -p.y));
-	//view_.setRow(2, vec4(matrot.getForwardVec(), -p.z));
-
-	// build inverted view matrix
-	float inv[16];
-	glu_InvertMatrixf((const float*)view_, inv);
-	mat4 invView( 
-		inv[0], inv[1], inv[2], inv[3],
-		inv[4], inv[5], inv[6], inv[7],	
-		inv[8], inv[9], inv[10], inv[11],	
-		inv[12], inv[13], inv[14], inv[15]
-	);
-	inv_view_ = invView;
-
-	view_proj_inv_ = inv_view_*inv_proj_;
-
-	// test sample point: should be the same as in kernel
-#if 0
-	vec4 corner_pr(-1.f, -1.f, -1.0f, 1.0);
-	vec4 corner_view = inv_proj_*corner_pr;
-	vec4 corner_world = inv_view_*corner_view;
-	corner_world.w = 0.0f;
-
-	vec4 corner_world2 = inv_proj_view*corner_pr;
-	corner_world2.w = 0.0f;
-
-	assert( fabs(corner_world.getX()-corner_world2.getX()) < 0.00001f);
-	assert( fabs(corner_world.getY()-corner_world2.getY()) < 0.00001f);
-	assert( fabs(corner_world.getZ()-corner_world2.getZ()) < 0.00001f);
-	assert( fabs(corner_world.getW()-corner_world2.getW()) < 0.00001f);
-#endif
-	
-	vec3 v = invView.getForwardVec();
-	lookat_vec[0] = v.x; lookat_vec[1] = v.y; lookat_vec[2] = v.z; lookat_vec[3] = 0.0f;
-	v = invView.getRightVec();
-	right_vec[0] = v.x; right_vec[1] = v.y; right_vec[2] = v.z; right_vec[3] = 0.0f;
-	v = invView.getUpVec();
-	up_vec[0] = v.x; up_vec[1] = v.y; up_vec[2] = v.z; up_vec[3] = 0.0f;
-	
-	dx = dy = dz = 0;
-
-	
-}
-
 void camera::set_view(const mat4& view_mat)
 {
-    // can have special matrix2euler_with_z_eq0 based on the same paper
-    // if assume that φ=0 and so cos(φ) = 1;
-    vec3 euler = matrix2euler(view_mat);
-    if(euler.z != 0.0f) {
-		log_error("view matrix has rotation around Z axis, will be reset if update() if called");
-	}
-	rot_x = euler.x;
-    rot_y = euler.y;
 	view_ = view_mat;
 
 	vec3 wp;
 	camera::view_get_world_pos(view_, &wp);
 	
-	// build inverted view matrix
-	float inv[16];
-	glu_InvertMatrixf((const float*)view_, inv);
-	mat4 invView( 
-		inv[0], inv[1], inv[2], inv[3],
-		inv[4], inv[5], inv[6], inv[7],	
-		inv[8], inv[9], inv[10], inv[11],	
-		inv[12], inv[13], inv[14], inv[15]
-	);
-	//inv_view_ = invView;
 	inv_view_ = view_;
-	inv_view_.setElem(3,0,0);
-	inv_view_.setElem(3,1,0);
-	inv_view_.setElem(3,2,0);
-	inv_view_ = transpose(inv_view_);
-	inv_view_.setElem(3,0,wp.x);
-	inv_view_.setElem(3,1,wp.y);
-	inv_view_.setElem(3,2,wp.z);
-	
 
+    // invert
+    inv_view_.setCol3(vec4(0,0,0,1));
+	inv_view_ = transpose(inv_view_);
+    inv_view_.setCol3(vec4(wp.x,wp.y,wp.z, 1));
+	
 	view_proj_inv_ = inv_view_*inv_proj_;
 
-	vec3 v = invView.getForwardVec();
-	lookat_vec[0] = v.x; lookat_vec[1] = v.y; lookat_vec[2] = v.z; lookat_vec[3] = 0.0f;
-	v = invView.getRightVec();
-	right_vec[0] = v.x; right_vec[1] = v.y; right_vec[2] = v.z; right_vec[3] = 0.0f;
-	v = invView.getUpVec();
-	up_vec[0] = v.x; up_vec[1] = v.y; up_vec[2] = v.z; up_vec[3] = 0.0f;
-
-	dx = dy = dz = 0;
-	vec3 tr = inv_view_.getTranslation();
-	pos_[0] = tr.x;
-	pos_[1] = tr.y;
-	pos_[2] = tr.z;
-	pos_[3] = 0;
+	wpos_ = inv_view_.getTranslation();
 
 }
 
@@ -226,6 +115,23 @@ void camera::compose_view_matrix(mat4* view, const vec3& right, const vec3& up, 
 	view->setRow(0, vec4(right, dot(-world_pos, right)));
 	view->setRow(1, vec4(up, dot(-world_pos, up)));
 	view->setRow(2, vec4(front, dot(-world_pos, front)));
+}
+
+void camera::lookat(const vec3& eye, const vec3& target, const vec3& up_dir)
+{
+    mat4 view = make_lookat(eye, target, up_dir);
+    set_view(view);
+}
+
+mat4 camera::make_lookat(const vec3& eye, const vec3& target, const vec3& up_dir) {
+
+    vec3 fwd = normalize(target - eye);
+    vec3 right = normalize(cross(up_dir, fwd));
+    vec3 up = cross(fwd, right);
+
+    mat4 view = mat4::identity();
+    compose_view_matrix(&view, right, up, fwd, eye);
+    return view;
 }
 
 void camera::view_get_world_pos(const mat4& view, vec3* world_pos)
@@ -250,9 +156,7 @@ void camera::set_pos(const vec3& world_pos)
 	view_.setElem(3, 1, dot(-world_pos, up));
 	view_.setElem(3, 2, dot(-world_pos, front));
 
-	pos_[0] = world_pos.x;
-	pos_[1] = world_pos.y;
-	pos_[2] = world_pos.z;
+	wpos_ = world_pos;
 }
 
 vec3 camera::unproject_vec(const vec2& p, bool b_perspective, const mat4& inv_view, const mat4& inv_proj) {
@@ -280,5 +184,62 @@ vec3 camera::unproject(const vec2& p, float at_view_z, bool b_perspective, const
     }
     vec3 wpos = (inv_view * vec4(view_pos, 1.0f)).xyz();
     return wpos;
+}
+
+
+void fps_camera::update(float dt) {
+
+	mat4 rotX = rotateY4(rot_x);
+	mat4 rotY = rotateX4(rot_y);
+
+	mat4 matrot = rotY*rotX;
+
+	pos_ += dx*matrot.getRightVec();
+	pos_ += dy*matrot.getUpVec();
+	pos_ += dz*matrot.getForwardVec();
+
+	// update view matrix
+	view_ = mat4::identity();
+	view_.setRow(0, vec4(matrot.getRightVec(), dot(-pos_, matrot.getRightVec() )));
+	view_.setRow(1, vec4(matrot.getUpVec(), dot(-pos_, matrot.getUpVec() )));
+	view_.setRow(2, vec4(matrot.getForwardVec(), dot(-pos_,matrot.getForwardVec() )));
+
+	dx = dy = dz = 0;
+}
+
+
+
+void ortho_camera::cycle_proj() {
+    proj_idx_ = proj_idx_ + 1 % NUM_VIEWS;
+}
+
+void ortho_camera::set_proj_idx(int i) {
+    proj_idx_ = clamp(i, 0, NUM_VIEWS-1);
+}
+
+void ortho_camera::update(float dt) {
+
+    mat4 view = camera::make_lookat(vec3(0), la_targets[proj_idx_], la_ups[proj_idx_]);
+
+    pos_ = project_vector_on_plane(pos_, vec4(view.getForwardVec(), 0)); 
+
+    pos_ += dx * view.getRightVec();
+    pos_ += dy * view.getUpVec();
+
+    //if(WheelDelta) {
+    //    cam_proj += view_.getForwardVec() * (WheelDelta>0 ? 20 : -20);
+    //}
+
+    // get far enough
+    pos_ += -200 * view.getForwardVec();
+
+	// update view matrix
+	view_ = mat4::identity();
+	view_.setRow(0, vec4(view.getRightVec(), dot(-pos_, view.getRightVec() )));
+	view_.setRow(1, vec4(view.getUpVec(), dot(-pos_, view.getUpVec() )));
+	view_.setRow(2, vec4(view.getForwardVec(), dot(-pos_, view.getForwardVec() )));
+
+    dx = dy = dz = 0;
+
 }
 
