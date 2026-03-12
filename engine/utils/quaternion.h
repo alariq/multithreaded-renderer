@@ -100,6 +100,10 @@ inline quaternion operator*(const quaternion &q, float k) {
 	return quaternion(k * q.x, k * q.y, k * q.z, k * q.w);
 }
 
+inline float dot(const quaternion &q1, const quaternion &q2) {
+	return q1.x * q2.x + q1.y * q2.y + q1.z * q2.z + q1.w * q2.w;
+}
+
 inline vec3 quat_get_axis(const quaternion& q, const int i) {
 	switch (i) {
 	case 0: return q.axis0();
@@ -156,6 +160,30 @@ inline quaternion quat_from_two_axes(const vec3& from, const vec3& to) {
         quaternion q(xyz.x, xyz.y, xyz.z, w);
         return normalize(q);
     }
+}
+
+// Quaternion Algebra and Calculus by David Eberly 
+inline quaternion slerp(const quaternion& q1, quaternion q2, float t) {
+
+    float cosѲ = clamp(dot(q1, q2), -1.0f, 1.0f);
+
+	if (cosѲ < 0.0f) {
+        q2 = q2 * -1.0f;
+        cosѲ = -cosѲ;
+    }
+
+    // very close: nlerp is stable
+    if (cosѲ > 0.9995f) {
+        return normalize(q1 * (1.0f - t) + q2 * t);
+    }
+
+	float Ѳ = (float) acosf(cosѲ);
+    assert(!isnan(Ѳ));
+
+    quaternion q = q1*sinf((1-t)*Ѳ) + sinf(t*Ѳ)*q2;
+    q = q * (1.0f/sinf(Ѳ));
+
+	return normalize(q);
 }
 
 

@@ -14,7 +14,7 @@ inline float random(float s, float e) {
 
 // [s, e)
 inline int random(int s, int e) {
-    int v = rand() % e;
+    int v = rand() % (e - s);
     return s + v;
 }
 
