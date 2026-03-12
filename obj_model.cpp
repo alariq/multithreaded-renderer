@@ -69,10 +69,8 @@ void TransformComponent::UpdateComponent(float dt) {
 }
 
 MeshComponent* MeshComponent::Create(const char *res) {
-    static size_t comp_num = 0;
     MeshComponent* comp = new MeshComponent();
     comp->mesh_name_ = res;
-    comp->mesh_name_ += std::to_string(comp_num++);
     return comp;
 }
 

@@ -351,6 +351,8 @@ public:
             delete c;
         }
     }
+
+    virtual void AddRenderPackets(struct RenderFrameContext* ) const {};
 };
 
 class ParticleSystemObject: public GameObject {
@@ -380,20 +382,18 @@ class MeshObject: public GameObject {
 public:
   typedef std::function<void(float dt, MeshObject *)> Updater_t;
 
-private:
+protected:
     std::string name_;
-    //std::string mesh_name_;
-    //RenderMesh* mesh_;
     MeshComponent* mesh_comp_;
 
-    vec3 scale_;
-    vec3 rot_;
-    vec3 pos_;
+    //vec3 scale_;
+    //vec3 rot_;
+    //vec3 pos_;
 
     Updater_t updater_;
 
     MeshObject()://mesh_(nullptr), 
-        mesh_comp_(0), scale_(0), rot_(0), pos_(0), updater_(nullptr) {}
+        mesh_comp_(0), /*scale_(0), rot_(0), pos_(0),*/ updater_(nullptr) {}
 
 public:
    static MeshObject* Create(const char* res);
