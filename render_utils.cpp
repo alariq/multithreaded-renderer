@@ -25,7 +25,7 @@ void add_debug_mesh(struct RenderFrameContext *rfc, const RenderMesh *mesh, cons
 void add_debug_sphere_constant_size(struct RenderFrameContext *rfc, const vec3& pos, float no_scale_distance, const vec4& color) {
 
 	const float oo_no_scale_distance = 1.0f / no_scale_distance;
-	const float cam_z = (rfc->view_ * vec4(pos, 1)).z;
+	const float cam_z = rfc->b_is_perspective_ ? (rfc->view_ * vec4(pos, 1)).z : no_scale_distance;
 	const mat4 tr = mat4::translation(pos) * mat4::scale(vec3(cam_z * oo_no_scale_distance));
 	add_debug_mesh(rfc, res_man_load_mesh("sphere"), tr, color);
 }
@@ -37,7 +37,7 @@ void add_debug_mesh_constant_size(struct RenderFrameContext *rfc, const RenderMe
 										 uint32_t selection_id/* = 0*/) {
 
 	const float oo_no_scale_distance = 1.0f / no_scale_distance;
-	const float cam_z = (rfc->view_ * tr_m.getTranslationPoint()).z;
+	const float cam_z = rfc->b_is_perspective_ ? (rfc->view_ * tr_m.getTranslationPoint()).z : 0.1f*no_scale_distance;
 	const mat4 tr = tr_m * mat4::scale(vec3(cam_z * oo_no_scale_distance));
 	add_debug_mesh(rfc, mesh, tr, color, selection_id);
 }
