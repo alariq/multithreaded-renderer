@@ -3,11 +3,12 @@
 #include "gameos.hpp" // DWORD
 #include "utils/obj_loader.h"
 #include "utils/intersection.h" // aabb
+#include "utils/logging.h"
 
 #include <string>
 #include <unordered_map>
 
-std::unordered_map<std::string, RenderMesh*> g_world_meshes;
+std::unordered_map<std::string, std::pair<RenderMesh*, int>> g_world_meshes;
 std::unordered_map<std::string, DWORD> g_world_textures;
 static bool is_res_man_initialized = false;
 
@@ -81,6 +82,7 @@ static RenderMesh *render_mesh_from_mesh_buffer(const MeshBuffer &mb,
                          mb.kVertexSize, (uint32_t)mb.vb_size_, mb.vb_);
 
     mesh->prim_type_ = PRIMITIVE_TRIANGLELIST;
+    mesh->inst_vb_ = 0;
     mesh->vb_count_ = -1;
     mesh->vb_first_ = 0;
     mesh->two_sided_ = 0;
@@ -165,28 +167,32 @@ void initialize_res_man() {
     // create default mesh
     RenderMesh *def = CreateCubeRenderMesh();
     def->tex_id_ = def_tex;
-    g_world_meshes.insert(std::make_pair("cube", def));
-    g_world_meshes.insert(std::make_pair("default", def));
+    g_world_meshes.insert(std::make_pair("default", std::make_pair(def, 1)));
+
+    // eah.. no ref counts, so cannot just reuse pointer here as we delete them twice then
+    RenderMesh *cube = CreateCubeRenderMesh();
+    cube->tex_id_ = def_tex;
+    g_world_meshes.insert(std::make_pair("cube", std::make_pair(cube, 1)));
 
     def = CreateFSQuadRenderMesh();
     def->tex_id_ = def_tex;
-    g_world_meshes.insert(std::make_pair("fs_quad", def));
+    g_world_meshes.insert(std::make_pair("fs_quad", std::make_pair(def, 1)));
 
     def = CreateXYQuadRenderMesh();
     def->tex_id_ = def_tex;
-    g_world_meshes.insert(std::make_pair("xy_quad", def));
+    g_world_meshes.insert(std::make_pair("xy_quad", std::make_pair(def, 1)));
 
     def = CreateSphereRenderMesh();
     def->tex_id_ = def_tex;
-    g_world_meshes.insert(std::make_pair("sphere", def));
+    g_world_meshes.insert(std::make_pair("sphere", std::make_pair(def, 1)));
 
     def = CreateAxesRenderMesh();
     def->tex_id_ = def_tex;
-    g_world_meshes.insert(std::make_pair("axes", def));
+    g_world_meshes.insert(std::make_pair("axes", std::make_pair(def, 1)));
 
     def = CreateTorusRenderMesh();
     def->tex_id_ = def_tex;
-    g_world_meshes.insert(std::make_pair("torus", def));
+    g_world_meshes.insert(std::make_pair("torus", std::make_pair(def, 1)));
 
     gos_AddRenderMaterial("coloured_quad");
     gos_AddRenderMaterial("textured_quad");
@@ -202,6 +208,20 @@ void finalize_res_man() {
         gos_DestroyTexture(tex_id.second);
 
     g_world_textures.clear();
+
+    for(auto mesh: g_world_meshes) {
+        RenderMesh* m = mesh.second.first; 
+        int refcnt = mesh.second.second;
+        if(refcnt != 1) {
+            log_error("Error: expected mesh ref count 1, got: %d\n", refcnt);
+        }
+        if(m->ib_)
+            gos_DestroyBuffer(m->ib_);
+        gos_DestroyBuffer(m->vb_);
+        delete m;
+    }
+    g_world_meshes.clear();
+
     is_res_man_initialized = false;
 }
 
@@ -225,8 +245,10 @@ DWORD res_man_load_texture(const std::string& name) {
 RenderMesh* res_man_load_mesh(const std::string mesh_name) {
 
     auto it = g_world_meshes.find(mesh_name);
-    if(it!=g_world_meshes.end())
-        return it->second;
+    if(it!=g_world_meshes.end()) {
+        it->second.second++;
+        return it->second.first;
+    }
 
     RenderMesh* mesh = nullptr;
 
@@ -234,14 +256,29 @@ RenderMesh* res_man_load_mesh(const std::string mesh_name) {
     ObjFile* obj = load_obj_from_file(fname.c_str());
     if(!obj) {
         printf("Failed to load: %s\n", fname.c_str());
-        mesh = g_world_meshes["cube"];
+        mesh = g_world_meshes["cube"].first;
+        g_world_meshes["cube"].second++;
         assert(mesh);
     } else {
         mesh = CreateRenderMesh(obj);
         mesh->tex_id_ = res_man_load_texture(mesh_name);
+        delete obj;
+        g_world_meshes.insert(std::make_pair(mesh_name, std::make_pair(mesh, 1)));
     }
-    g_world_meshes.insert(std::make_pair(mesh_name, mesh));
 
     return mesh;
+}
+
+//:(
+void res_man_release_mesh(struct RenderMesh* mesh) {
+    for(auto wm: g_world_meshes) {
+        if(wm.second.first == mesh) {
+            assert(wm.second.second >= 1);
+            wm.second.second--;
+            if(wm.second.second == 0) {
+                g_world_meshes.erase(wm.first);
+            }
+        }
+    }
 }
 

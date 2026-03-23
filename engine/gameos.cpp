@@ -29,6 +29,7 @@
 #endif
 
 //#include "strres.h"
+#include "profiler/profiler.h"
 
 ////////////////////////////////////////////////////////////////////////////////
 void __stdcall AddDebuggerMenuItem(char const*, bool (__stdcall *)(), void (__stdcall *)(), bool (__stdcall *)(), DWORD (__stdcall *)(char const*, DWORD))
@@ -194,11 +195,19 @@ void __stdcall gos_WalkMemoryHeap(HGOSHEAP pHeap, bool vociferous/* = false*/)
 
 ////////////////////////////////////////////////////////////////////////////////
 void* gos_AlignedAlloc( std::size_t count, std::align_val_t al ) {
+
+    void* ptr = nullptr;
 #if COMPILER_MSVC
-    return _aligned_malloc(count, (size_t)al);
+    ptr = _aligned_malloc(count, (size_t)al);
 #else
-    return aligned_alloc((size_t)al, count);
+    ptr = aligned_alloc((size_t)al, count);
 #endif
+
+PRAGMA_DIAGNOSTIC_PUSH()
+PRAGMA_DIAGNOSTIC_IGNORED(-Wmaybe-uninitialized)
+    PROF_ALLOC(ptr, count, 16);
+PRAGMA_DIAGNOSTIC_POP()
+    return ptr;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -274,7 +283,13 @@ void* __stdcall gos_Malloc(size_t bytes, HGOSHEAP Heap/* = 0*/)
         PAUSE((""));
     }
     */
-    return malloc(bytes);
+    void* ptr = malloc(bytes);
+    
+PRAGMA_DIAGNOSTIC_PUSH()
+PRAGMA_DIAGNOSTIC_IGNORED(-Wmaybe-uninitialized)
+    PROF_ALLOC(ptr, bytes, 16);
+PRAGMA_DIAGNOSTIC_POP()
+    return ptr;
 }
 void __stdcall gos_Free(void* ptr)
 {
@@ -285,6 +300,7 @@ void __stdcall gos_Free(void* ptr)
         heap->BytesAllocated -= // ??? ;
     }
     */
+    PROF_FREE(ptr, 16);
     free(ptr);
 }
 ////////////////////////////////////////////////////////////////////////////////

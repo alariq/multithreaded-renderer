@@ -1,11 +1,26 @@
 #include "threading.h"
 #include "SDL2/SDL.h"
 #include "logging.h"
+#include "profiler/profiler.h"
+
+struct MutexWrapper {
+    //MutexWrapper(SDL_mutex* m):m_(m) {}
+    SDL_mutex* m_;
+    void lock() {
+        SCOPED_ZONE_N(Lock, 0)
+        SDL_LockMutex(m_);
+    }
+    void unlock() { 
+        SCOPED_ZONE_N(UnLock, 0)
+        SDL_UnlockMutex(m_);
+    }
+    operator SDL_mutex* () { return m_; } 
+    void operator=(SDL_mutex* m) { m_ = m; }
+};
 
 namespace threading {
 
-
-    // current implementation: auto reset when Wait succeded
+    // current implementation: auto resets when Wait succeded
 
     class Event::PimplEvent {
 
@@ -13,7 +28,8 @@ namespace threading {
 
         // everything is private on purpose
         bool raised;
-        SDL_mutex* mutex_;
+        //TracyLockable(MutexWrapper, mutex_);
+        MutexWrapper mutex_;
         SDL_cond* condition_;
 
         PimplEvent() {
@@ -30,28 +46,30 @@ namespace threading {
         int Signal() {
 
             int rv = 0;
-            SDL_LockMutex(mutex_);
+            mutex_.lock();
             {
                 raised = true;
+                SCOPED_ZONE_N(Signal, flags)
                 rv = SDL_CondSignal(condition_);
                 if(rv)
                     log_error("SDL_CondSignal failed rv: %d : %s\n", rv, SDL_GetError());
             }
-            SDL_UnlockMutex(mutex_);
+            mutex_.unlock();
             return rv;
         }
 
         int Wait() {
             int rv = 0;
-            SDL_LockMutex(mutex_);
+            mutex_.lock();
             while (!raised)
             {
+                SCOPED_ZONE_N(WaitCond, flags)
                 rv = SDL_CondWait(condition_, mutex_);
                 if(rv)
                     log_error("SDL_CondWait failed rv: %d : %s\n", rv, SDL_GetError());
             }
             raised = false;
-            SDL_UnlockMutex(mutex_);
+            mutex_.unlock();
             return rv;
         }
     }; // PimplEvent

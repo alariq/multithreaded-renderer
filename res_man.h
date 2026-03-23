@@ -9,3 +9,4 @@ void finalize_res_man();
 
 DWORD res_man_load_texture(const std::string &name);
 RenderMesh *res_man_load_mesh(const std::string mesh_name);
+void res_man_release_mesh(struct RenderMesh* mesh);

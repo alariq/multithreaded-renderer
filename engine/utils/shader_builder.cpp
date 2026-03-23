@@ -342,7 +342,7 @@ glsl_shader* glsl_shader::makeShader(Shader_t stype, const char* fname, const ch
         return nullptr;
     }
 
-    pshader->fname_ = fname;
+    pshader->fname_ = uid;//fname;
     pshader->shader_ = shader;
     pshader->type_ = type;
     pshader->includes_ = shader_includes;
@@ -350,6 +350,7 @@ glsl_shader* glsl_shader::makeShader(Shader_t stype, const char* fname, const ch
     if(s_shaders[stype].count(uid))
 	{
         log_error("Duplicate shader name: %s\n", fname);
+        assert(0 && "Duplicate shader name");
         delete pshader;
         return nullptr;
 
@@ -368,8 +369,9 @@ void glsl_shader::deleteShader(glsl_shader* psh)
 	glsl_shader::Shader_t t = get_shader_type(psh->type_);
 	if(s_shaders[t].count(psh->fname_))
     {   
-        delete s_shaders[t][psh->fname_];
+        glsl_shader* shader = s_shaders[t][psh->fname_];
         s_shaders[t].erase(psh->fname_);
+        delete shader;
     }
 }
 
@@ -771,11 +773,30 @@ glsl_program::~glsl_program()
 		for(uint32_t i=0; i< sizeof(pipeline)/sizeof(pipeline[0]); ++i)
 		{
 			if(!pipeline[i]) continue;
-
-			glDetachShader(shp_, pipeline[i]->shader_);
+			//glDetachShader(shp_, pipeline[i]->shader_);
+            glsl_shader::deleteShader(pipeline[i]);
 		}
         glDeleteProgram(shp_);
-	}
+
+        std::map< std::string, glsl_uniform*>::iterator it = uniforms_.begin(); 
+        std::map< std::string, glsl_uniform*>::iterator end = uniforms_.end(); 
+        for(;it!=end;++it) {
+            delete[] it->second->data_;
+            delete it->second;
+        }
+
+        std::map< std::string, glsl_uniform_block*>::iterator bit = uniform_blocks_.begin(); 
+        std::map< std::string, glsl_uniform_block*>::iterator bend = uniform_blocks_.end(); 
+        for(;bit!=bend;++bit) {
+            delete bit->second;
+        }
+
+        for(auto sampler: samplers_) {
+            delete sampler.second;
+        }
+
+        delete prefix_;
+    }
 }
 
 void glsl_program::apply()
@@ -833,16 +854,25 @@ bool glsl_program::reload()
 	for(size_t i=0; i< sizeof(pipeline)/sizeof(pipeline[0]); ++i)
 	{
 		if(!pipeline[i]) continue;
+        // NOTE: prob. no need as it should be already detached
 		glDetachShader(shp_, pipeline[i]->shader_);
 	}
 
     std::map< std::string, glsl_uniform*>::iterator it = uniforms_.begin(); 
     std::map< std::string, glsl_uniform*>::iterator end = uniforms_.end(); 
-    for(;it!=end;++it)
+    for(;it!=end;++it) {
+        delete[] it->second->data_;
         delete it->second;
+    }
     uniforms_.clear();
 
     samplers_.clear();
+
+    std::map< std::string, glsl_uniform_block*>::iterator bit = uniform_blocks_.begin(); 
+    std::map< std::string, glsl_uniform_block*>::iterator bend = uniform_blocks_.end(); 
+    for(;bit!=bend;++bit) {
+        delete bit->second;
+    }
     uniform_blocks_.clear();
 
     parse_uniforms(shp_, &uniforms_, &samplers_);
@@ -912,6 +942,7 @@ bool glsl_program::setFloat4(const std::string& name, const float v[4])
 }
 
 // TODO: need to change interface so that float* instead of float[4] is passed
+// TODO: avoid string conversions
 bool glsl_program::setFloat4(const char* name, const float v[4])
 {
 	return setFloat4(std::string(name), v);

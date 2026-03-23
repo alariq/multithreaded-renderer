@@ -52,6 +52,9 @@ typedef TracyCZoneCtx prof_zone_id;
 #define PROF_FINALIZE_OPENGL()
 #define PROF_GPU_TICK() TracyGpuCollect
 
+#define PROF_ALLOC(ptr, count, callstack_depth) TracyAllocS(ptr, count, callstack_depth)
+#define PROF_FREE(ptr, callstack_depth) TracyFreeS(ptr, callstack_depth)
+
 
 #elif defined(USE_REMOTERY)
 
@@ -93,6 +96,10 @@ typedef int prof_zone_id;
 #define PROF_FINALIZE_OPENGL() rmt_UnbindOpenGL()
 #define PROF_GPU_TICK() 
 
+//TODO:
+#define PROF_ALLOC(ptr, count, callstack_depth)
+#define PROF_FREE(ptr, callstack_depth)
+
 #else
 
 typedef int prof_zone_id;
@@ -121,6 +128,9 @@ typedef int prof_zone_id;
 #define PROF_INIT_OPENGL() 
 #define PROF_FINALIZE_OPENGL()
 #define PROF_GPU_TICK() 
+
+#define PROF_ALLOC(ptr, count, callstack_depth)
+#define PROF_FREE(ptr, callstack_depth)
 
 #endif
 

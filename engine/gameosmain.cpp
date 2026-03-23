@@ -90,7 +90,7 @@ public:
 
     virtual int exec() override {
         //printf("RT: WAIT FOR EVENT [%d]\n", ev_idx_);
-        SCOPED_ZONE_N(RT_wait, 0);
+        SCOPED_ZONE_N(WaitMain, 0);
         ev_->Wait();
         //printf("RT: WAIT FOR EVENT DONE [%d]\n", ev_idx_);
         return 0;
@@ -108,7 +108,7 @@ public:
     R_signal_event(threading::Event* ev, int ev_idx):ev_(ev), ev_idx_(ev_idx) {}
 
     virtual int exec() override {
-        SCOPED_ZONE_N(RT_signal, 0);
+        SCOPED_ZONE_N(SignalRT, 0);
         //printf("RT: SIGNAL EVENT [%d]\n", ev_idx_);
         ev_->Signal();
         //printf("RT: SIGNAL EVENT DONE [%d]\n", ev_idx_);
@@ -182,7 +182,6 @@ public:
             SCOPED_ZONE_N(swap_window, 0);
             graphics::swap_window(g_win);
         }
-        FRAME_MARK();
         PROF_GPU_TICK();
         return 0;
     }
@@ -311,16 +310,9 @@ static void draw_screen( void )
 	const int viewport_h = Environment.drawableHeight;
     glViewport(0, 0, viewport_w, viewport_h);
     CHECK_GL_ERROR;
-
-	{
-		SCOPED_ZONE_NAMED(depth_mask, 0);
-		// TODO: reset all states to sane defaults!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-		glDepthMask(GL_TRUE);
-    }
-    {
-		SCOPED_ZONE_NAMED(clear_screen2, 0);
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	}
+	// TODO: reset all states to sane defaults!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	glDepthMask(GL_TRUE);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 	gos_RendererBeginFrame();
     Environment.UpdateRenderers();
@@ -417,8 +409,22 @@ int main(int argc, char** argv)
     delete[] cmdline;
     cmdline = NULL;
 
+	timing::init();
 
     prof_initialize();
+#if defined(USE_TRACY)
+    {
+        cpu_set_t cpuset;
+        pthread_t thread = pthread_self();
+        CPU_ZERO(&cpuset);
+        CPU_SET(0, &cpuset);
+
+        int s = pthread_setaffinity_np(thread, sizeof(cpuset), &cpuset);
+        if (s != 0) {
+            SPEW(("Main", "Failed to set main thread affinity\n"));
+        }
+    }
+#endif
 
     g_render_job_queue = new RenderJobQueue();
 
@@ -427,6 +433,18 @@ int main(int argc, char** argv)
     g_render_thread = SDL_CreateThread(RenderThreadMain, "RenderThread", (void *)NULL);
     if (NULL == g_render_thread) {
         SPEW(("Render", "SDL_CreateThread failed: %s\n", SDL_GetError()));
+
+#if defined(USE_TRACY)
+        cpu_set_t cpuset;
+        pthread_t thread = SDL_GetThreadID(g_render_thread);
+        CPU_ZERO(&cpuset);
+        CPU_SET(1, &cpuset);
+
+        int s = pthread_setaffinity_np(thread, sizeof(cpuset), &cpuset);
+        if (s != 0) {
+            SPEW(("Render", "Failed to set render thread affinity\n"));
+        }
+#endif
     } else {
         SPEW(("Render", "[OK] STATUS\n"));
     }
@@ -563,7 +581,7 @@ int main(int argc, char** argv)
         // wait for frame to which we want to push our render commands
         //SPEW(("SYNC", "Main: sync[%d]->Wait\n", ev_index));
         {
-            SCOPED_ZONE_N(WaitRender, 0);
+            SCOPED_ZONE_N(WaitRT, 0);
             g_render_event[ev_index]->Wait();
         }
 
@@ -607,7 +625,7 @@ int main(int argc, char** argv)
 
         //SPEW(("SYNC", "Main sync[%d]->Signal\n", ev_index));
         {
-            SCOPED_ZONE_N(MainSignal, 0);
+            SCOPED_ZONE_N(SignalMain, 0);
             g_main_event[ev_index]->Signal();
         }
         ev_index = (ev_index+1) % NUM_BUFFERED_FRAMES;
@@ -623,6 +641,8 @@ int main(int argc, char** argv)
         frameTime = dt_sec;
 
         END_ZONE(Frame);
+
+        FRAME_MARK();
     }
 
     threading::Event rendering_finished_ev;
@@ -679,7 +699,8 @@ int main(int argc, char** argv)
 int RenderThreadMain(void* /*data*/) {
 
     while(g_rendering) {
-        g_render_job_queue->wait_for_job();
+        {SCOPED_ZONE_N(wait_for_job, flags)
+        g_render_job_queue->wait_for_job(); }
         while(R_job* pjob = g_render_job_queue->pop()) {
             int rv = pjob->exec(); 
             delete pjob;

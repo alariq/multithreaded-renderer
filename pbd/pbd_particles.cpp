@@ -12,6 +12,7 @@
 #include <cassert>
 #include <queue>
 #include <cstdio>
+#include <algorithm> // std::sort()
 
 // just for convenience, less typing
 typedef uint32_t u32;

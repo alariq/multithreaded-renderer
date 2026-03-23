@@ -23,6 +23,7 @@
 #include "utils/string_utils.h"
 #include "utils/timing.h"
 #include "gos_render.h"
+#include "profiler/profiler.h"
 
 #include "SDL2/SDL_image.h"
 
@@ -319,6 +320,9 @@ class gosRenderMaterial {
 		static const std::string s_mvp;
 		static const std::string s_fog_color;
     public:
+		static const std::string s_vp;
+		static const std::string s_projection_;
+
         static gosRenderMaterial* load(const char* shader, const gosMaterialVariation& mvar) {
             gosASSERT(shader);
             gosRenderMaterial* pmat = new gosRenderMaterial();
@@ -337,8 +341,9 @@ class gosRenderMaterial {
                 return NULL;
             }
             
-            pmat->name_ = new char[strlen(shader) + 1];
-            strcpy(pmat->name_, shader);
+            // need to have same name as passed to makeProgram to properly find it when calling deleteProgram
+            pmat->name_ = new char[sh_name.size() + 1];
+            strcpy(pmat->name_, sh_name.c_str());
 
             pmat->onLoad();
 
@@ -364,6 +369,7 @@ class gosRenderMaterial {
 
             delete[] pmat->name_;
             pmat->name_ = 0;
+            delete pmat;
         }
 
         void checkReload()
@@ -493,6 +499,8 @@ class gosRenderMaterial {
 
 const std::string gosRenderMaterial::s_mvp = std::string("mvp");
 const std::string gosRenderMaterial::s_fog_color = std::string("fog_color");
+const std::string gosRenderMaterial::s_vp = std::string("vp");
+const std::string gosRenderMaterial::s_projection_ = std::string("projection_");
 
 template <typename VERTEX_T>
 class gosMeshT {
@@ -566,6 +574,8 @@ class gosMeshT {
 
             GLuint b[] = {pmesh->vb_, pmesh->ib_};
             glDeleteBuffers(sizeof(b)/sizeof(b[0]), b);
+
+            delete pmesh;
         }
 
         int addVertices(VERTEX_T* vertices, int count) {
@@ -796,6 +806,8 @@ template<typename VERTEX_T>
 void gosMeshT<VERTEX_T>::draw(HGOSVERTEXDECLARATION vdecl, gosPRIMITIVETYPE override_pt, int first, int count)
 {
 	CHECK_GL_ERROR;
+
+    SCOPED_GPU_ZONE(gosMesh::draw);
 
     gosASSERT(first>=0 && count>=0 && first + count <= (int)num_vertices_);
 
@@ -1342,6 +1354,8 @@ class gosRenderer {
 			std::vector<gosBuffer*>::iterator it = std::find(bufferList_.begin(), bufferList_.end(), buffer);
 			if (it != bufferList_.end())
 			{
+                gosBuffer* buf = *it;
+                glDeleteBuffers(1, &buf->buffer_);
 				bufferList_.erase(it);
 				return true;
 			}
@@ -1643,6 +1657,7 @@ void gosRenderer::init() {
             0, 0, 0.0f, 1.0f);
 
 	graphics::get_drawable_size(win_h_, &Environment.drawableWidth, &Environment.drawableHeight);
+    SPEW(("Render", "Drawable size: %dx%d", Environment.drawableWidth, Environment.drawableHeight));
 
     // setup viewport
     setupViewport(true, 1.0f, true, 0, 0.0f, 0.0f, 1.0f, 1.0f);
@@ -1731,7 +1746,7 @@ void gosRenderer::destroy() {
     gosMesh::destroy(points_);
     gosMesh::destroy(text_);
 
-    for(size_t i=0; i<fontList_.size(); i++) {
+    for(size_t i=0; i<materialList_.size(); i++) {
         gosRenderMaterial::destroy(materialList_[i]);
     }
     materialList_.clear();
@@ -1746,6 +1761,13 @@ void gosRenderer::destroy() {
         delete textureList_[i];
     }
     textureList_.clear();
+
+    for(size_t i=0; i<bufferList_.size(); i++) {
+        gosBuffer* buf = bufferList_[i];
+        glDeleteBuffers(1, &buf->buffer_);
+        delete buf;
+    }
+    bufferList_.clear();
 
     glDeleteVertexArrays(1, &gVAO);
 
@@ -2356,8 +2378,8 @@ void gosRenderer::drawIndexed(HGOSBUFFER ib, HGOSBUFFER vb, HGOSVERTEXDECLARATIO
 
 	vec4 vp = g_gos_renderer->getRenderViewport();
 
-	mat->getShader()->setFloat4("vp", vp);
-	mat->getShader()->setMat4("projection_", projection_);
+	mat->getShader()->setFloat4(gosRenderMaterial::s_vp, vp);
+	mat->getShader()->setMat4(gosRenderMaterial::s_projection_, projection_);
 
     mat->setTransform(transform);
     //mat->setFogColor(fog_color_);
@@ -2522,6 +2544,9 @@ void gosRenderer::addDebugPoints(const vec3* pos, uint32_t count, const vec4& co
 }
 
 void gosRenderer::drawDebugPrimitives(const mat4& view, const mat4& projection) {
+
+    SCOPED_GPU_ZONE(gosRenderer_drawDebugPrimitives);
+    SCOPED_ZONE_N(gosRenderer_drawDebugPrimitives, 0);
 
     debug_vertex_data_->updateBufferData();
     HGOSRENDERMATERIAL mat = debug_material_;

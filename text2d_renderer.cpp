@@ -4,6 +4,7 @@
 
 void RenderText2D(const TextRenderPacketList_t& rpl, const mat4& /*view*/, const mat4&/* proj*/)
 {
+    SCOPED_GPU_ZONE(Text2DDraw);
     SCOPED_ZONE_N(Text2DDraw, 0);
 
     gos_SetRenderState(gos_State_ZCompare, 0);
