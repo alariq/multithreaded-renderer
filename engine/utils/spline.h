@@ -133,6 +133,9 @@ struct CatmullRom {
 template <typename T>
 class Curve {
     BufferT<T, int> pts_;
+    mutable BufferT<float, int> times_;
+    mutable BufferT<float, int> segment_lengths_;
+    mutable BufferT<float, int> accumulated_lengths_;
     float alpha_ = 0.5f; // centripetal
 
     public:
@@ -153,47 +156,230 @@ class Curve {
 
         // TODO: add optional alpha override?
         T getAt(float t) const {
-            float fsegment;
-            float time = modf(t, &fsegment);
-            int segment = (int)fsegment;
+            float fseg;
+            float time = modf(t, &fseg);
+            int seg = (int)fseg;
 
-            if(segment < 0) {
-                segment = 0;
-                return CatmullRom::getV(pts_[segment], pts_[segment+1], pts_[segment+2], pts_[segment+3], 0, alpha_);
-            } else if (segment + 3 >= pts_.size()) {
-                segment = pts_.size() - 4;
-                return CatmullRom::getV(pts_[segment], pts_[segment+1], pts_[segment+2], pts_[segment+3], 1, alpha_);
+            if(seg < 0) {
+                seg = 0;
+                return CatmullRom::getV(pts_[seg], pts_[seg+1], pts_[seg+2], pts_[seg+3], 0, alpha_);
+            } else if (seg + 3 >= pts_.size()) {
+                seg = pts_.size() - 4;
+                return CatmullRom::getV(pts_[seg], pts_[seg+1], pts_[seg+2], pts_[seg+3], 1, alpha_);
             } else {
-                return CatmullRom::getV(pts_[segment], pts_[segment+1], pts_[segment+2], pts_[segment+3], time, alpha_);
+                return CatmullRom::getV(pts_[seg], pts_[seg+1], pts_[seg+2], pts_[seg+3], time, alpha_);
             }
         }
 
         T getDerivativeAt(float t) const {
             float fsegment;
             float time = modf(t, &fsegment);
-            int segment = (int)fsegment;
+            int seg = (int)fsegment;
 
-            if(segment < 0 || segment + 3 >= pts_.size())
-                return T(0);
-
-            return CatmullRom::getDerivativeV(pts_[segment], pts_[segment+1], pts_[segment+2], pts_[segment+3], time, alpha_);
+            if(seg < 0) {
+                seg = 0;
+                return CatmullRom::getdV(pts_[seg], pts_[seg+1], pts_[seg+2], pts_[seg+3], 0, alpha_);
+            } else if (seg + 3 >= pts_.size()) {
+                seg = pts_.size() - 4;
+                return CatmullRom::getdV(pts_[seg], pts_[seg+1], pts_[seg+2], pts_[seg+3], 1, alpha_);
+            } else {
+                return CatmullRom::getdV(pts_[seg], pts_[seg+1], pts_[seg+2], pts_[seg+3], time, alpha_);
+            }
         }
 
         T getSecondDerivativeAt(float t) const {
-            float fsegment;
-            float time = modf(t, &fsegment);
-            int segment = (int)fsegment;
+            float fseg;
+            float time = modf(t, &fseg);
+            int seg = (int)fseg;
 
-            if(segment < 0 || segment + 3 >= pts_.size())
+            if(seg < 0 || seg + 3 >= pts_.size())
                 return T(0);
 
-            return CatmullRom::getSecondDerivativeV(pts_[segment], pts_[segment+1], pts_[segment+2], pts_[segment+3], time, alpha_);
+            return CatmullRom::getSecondDerivativeV(pts_[seg], pts_[seg+1], pts_[seg+2], pts_[seg+3], time, alpha_);
         }
     
         int getNumSegments() const { return pts_.size() >= 4 ? pts_.size() - 3 : 0; }
         int getNumNodes() const { return pts_.size() >= 2 ? pts_.size() - 2 : 0; }
 
+        float GetLength(float t0, float t1) const;
+
+        //float getTMin() const { assert(times_.size()>0); return times_[0]; }
+        //float getTMax() const { assert(times_.size()>0); return times_.last(); }
+        // TODO: actually fill times_ array, either when adding points or automatically
+        // maybe also change interface, so it is not possible to add / remove points one by one
+        // there is no sense it thes operations anyway.. I guess
+        float getTMin() const { return 0; }
+        float getTMax() const { assert(getNumSegments()>0); return getNumSegments(); }
+        float getTotalLength() const { return (accumulated_lengths_.size() && accumulated_lengths_.last() != 0) ? accumulated_lengths_.last() : GetLength(getTMin(), getTMax()); }
+
 };
+
+// https://www.geometrictools.com/GTE/Mathematics/ReparameterizeByArclength.h
+template <typename T>
+class ReparameterizeByArclength {
+    const Curve<T>& curve_;
+    float total_len_;
+    float tmin_, tmax_;
+public:
+    ReparameterizeByArclength(const Curve<T>& curve)
+        :curve_(curve)
+        ,total_len_(curve.getTotalLength())
+        ,tmin_(curve.getTMin())
+        ,tmax_(curve.getTMax())
+    {}
+
+    // The output object stores the curves t-parameter corresponding to a
+    // user-specified arclength s or a fraction r. The t-member stores the
+    // t-parameter. The f-member is output.f = F(output.t, s). The member
+    // output.numIterations is the number of iterations used to compute t
+    // for the corresponding s or r.
+    struct Output
+    {
+        Output(): t(0), f(0), numIterations(0) { }
+
+        Output(float inT, float inF, size_t inIterations)
+            : t(inT), f(inF), numIterations(inIterations)
+        {}
+
+        float t, f;
+        size_t numIterations;
+    };
+
+    // Given an arclength s in [0,L] where the total arclength of the
+    // curve is L = Arclength(tMin,tMax)), the function returns the
+    // root t for F(t,s) = Arclength(tMin,t) - s. Set 'useBisection'
+    // to 'true' to use bisection only. Set it to 'false' to use the
+    // hybrid of Newton's method and bisection.
+    Output GetT(float const& s, bool useBisection) const
+    {
+        // Clamp the input to the valid interval.
+        if (s <= 0) {
+            return Output(tmin_, 0, 0);
+        }
+
+        if (s >= total_len_) {
+            return Output(tmax_, 0, 0);
+        }
+
+        // Compute a t-root of F(t, s) for the specified s-value. We know
+        // that F(mTMin) < 0 and F(mTMax) > 0. Rather than use the initial
+        // interval [mTMin,mTMax], choose a subinterval using an initial
+        // guess for the t-root.
+        float tMin = tmin_;
+        float tMax = tmax_;
+        float tMid = tmin_ + (tMax - tMin) * (s / total_len_);
+        float fMid = F(tMid, s);
+        if (fMid > 0)
+        {
+            tMax = tMid;
+        }
+        else
+        {
+            tMin = tMid;
+        }
+
+        //if (useBisection)
+        //{
+        return DoBisection(tMin, tMax, s);
+        //}
+        //else
+        //{
+        //    return DoNewtonsMethod(tMin, tMax, tMid, s);
+        //}
+    }
+
+    private:
+    // Choose maxIterations sufficiently large for convergence. The value
+    // 4096 is sufficient. In practice, the number of iterations for type
+    // 'float' is no larger than approximately 24 and for type 'double'
+    // is no larger than approximately 53.
+    static size_t constexpr maxIterations = 128;
+
+    inline float F(float const& t, float const& s) const
+    {
+        return curve_.GetLength(tmin_, t) - s;
+    }
+
+    inline float DFDT(float const& t) const
+    {
+        return curve_.getDerivativeAt(t);
+    }
+
+    bool BisectionConverged(float const& tMin, float const& tMax, float const& s, float& tMid, float& fMid) const
+    {
+        if (tMid == tMin || tMid == tMax)
+        {
+            // The precision of type T is such that tMin and tMax are
+            // consecutive floating-point numbers. Their average cannot
+            // be a floating-point number strictly between them. This is
+            // the best you can do using type T. Return the t-endpoint
+            // whose f-value has smaller magnitude.
+            float fMin = F(tMin, s);
+            float fMax = F(tMax, s);
+            if (fMin <= fMax)
+            {
+                tMid = tMin;
+                fMid = fMin;
+            }
+            else
+            {
+                tMid = tMax;
+                fMid = fMax;
+            }
+            return true;
+        }
+        return false;
+    }
+
+    Output DoBisection(float tMin, float tMax, float const& s) const
+    {
+        float const zero = static_cast<float>(0);
+        float const half = static_cast<float>(0.5);
+
+        float tMid{}, fMid{};
+        size_t numIterations{};
+        for (numIterations = 1; numIterations <= maxIterations; ++numIterations)
+        {
+            // Compute the t-midpoint and the corresponding f-value. Exit
+            // early if the f-value is zero.
+            tMid = half * (tMin + tMax);
+            fMid = F(tMid, s);
+            if (fMid == zero)
+            {
+                break;
+            }
+
+            // Convergence occurs when tMid is tMin or tMax.
+            if (BisectionConverged(tMin, tMax, s, tMid, fMid))
+            {
+                break;
+            }
+
+            // Update the correct t-endpoint using the t-midpoint.
+            if (fMid > zero)
+            {
+                tMax = tMid;
+            }
+            else
+            {
+                tMin = tMid;
+            }
+        }
+
+        return Output(tMid, fMid, numIterations);
+    }
+};
+
+struct SplineClosestPointResult {
+    float t;
+    vec3 point;
+    float distance;
+    float distanceSqr;
+};
+
+SplineClosestPointResult spline_get_closest_point(
+    const Curve<vec3>& curve, const vec3& position,
+    int coarse_samples = 25, int refine_iters = 6);
 
 inline void spline_get_basis_at(const Curve<vec3>& curve, const float t, const float dt, vec3& right, vec3& up, vec3& fwd) {
 
