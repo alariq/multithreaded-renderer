@@ -34,15 +34,11 @@ extern int GetCurrentFrame();
 extern void SetRenderFrameContext(void* rfc);
 extern void* GetRenderFrameContext();
 
-//#define DO_TESTS
-#if defined(DO_TESTS)
-extern void test_fixed_block_allocator();
-#endif
 
-bool g_is_in_editor = false;
+bool g_is_in_editor = true;
 bool g_render_initialized_hack = false;
 bool g_update_simulation = false;
-bool g_update_simulation_step_by_step = true;
+bool g_update_simulation_step_by_step = false;
 uint32_t g_obj_under_cursor = scene::kInvalidObjectId;
 
 DWORD g_htexture = 0;
@@ -64,8 +60,14 @@ void __stdcall Init(void)
 {
     printf("::Init\n");
 
+#define DO_TESTS
 #if defined(DO_TESTS)
-    test_fixed_block_allocator();
+    //extern void test_fixed_block_allocator();
+    //test_fixed_block_allocator();
+    extern void test_myarray();
+    test_myarray();
+    extern void test_spline();
+    test_spline();
 #endif
 
 	const vec3 init_cam_pos(0, 15, 0);
@@ -211,8 +213,9 @@ void __stdcall Update(void)
 
     static uint64_t start_tick = timing::gettickcount();
 
-    uint64_t end_tick = timing::gettickcount();
-    float dt_sec =(float)((double)timing::ticks2ns(end_tick - start_tick)/1e9);
+    const uint64_t end_tick = timing::gettickcount();
+    const uint64_t delta_tick = end_tick - start_tick;
+    float dt_sec =(float)((double)timing::ticks2ns(delta_tick)/1e9);
     // stop-on-breakpoint-proof dt
     dt_sec = clamp(dt_sec, 0.0f, 0.033f*10);
 
@@ -477,12 +480,15 @@ void __stdcall Render(void)
 		for (auto& dp : rfc->rl_->GetDebugPrimitives()) {
 			switch (dp.type_) {
 			case DebugPrimitive::kLine:
-				gos_AddLine(dp.line_.s, dp.line_.e, dp.colour_, &dp.transform_);
+                if(dp.line_.vts)
+                    gos_AddLines(dp.line_.vts, dp.line_.colours, dp.count_, &dp.transform_);
+                else
+                    gos_AddLine(dp.line_.s, dp.line_.e, dp.colour_, &dp.transform_);
 				break;
 			case DebugPrimitive::kPoint:
-				gos_AddPoints(dp.point_.vts, dp.point_.count, dp.colour_, dp.point_.size,
+				gos_AddPoints(dp.point_.vts, dp.count_, dp.colour_, dp.point_.size,
 							  &dp.transform_);
-				delete[] dp.point_.vts;
+				//delete[] dp.point_.vts;
 				break;
 			case DebugPrimitive::kQuad:
 				gos_AddQuad(dp.quad_.size, dp.colour_, dp.quad_.tex_id, &dp.transform_,
@@ -627,7 +633,4 @@ void GetGameOSEnvironment(const char* cmdline)
     Environment.TerminateGameEngine = Deinit;
     Environment.UpdateRenderers = Render;
 }
-
-
-
 
