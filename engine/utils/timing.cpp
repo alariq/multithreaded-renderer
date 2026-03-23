@@ -65,7 +65,7 @@ namespace timing {
 		ticks = (ticks * 1000) / Frequency.QuadPart;
 		return ticks;
 #else
-		return ticks / 1e3;
+		return ticks / 1e6;
 #endif
 	}
 
