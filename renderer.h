@@ -93,17 +93,19 @@ struct DebugPrimitive {
     union {
         struct {
             vec3 s,e;
+            vec3* vts;
+            vec4* colours;
         } line_;
         struct {
             float size;
             vec3* vts;
-            uint32_t count;
         } point_;
         struct {
             vec2 size;
             uint32_t tex_id;
         } quad_;
     };
+    uint32_t count_;
     vec4 colour_;
     mat4 transform_;
 };
@@ -159,10 +161,28 @@ public:
 					  const mat4* prim_transform = nullptr) {
 
 		DebugPrimitive dp = {.type_ = DebugPrimitive::kLine,
-							 .line_ = {start, end},
+							 .line_ = {start, end, nullptr, nullptr},
+                             .count_ = 1,
 							 .colour_ = colour,
 							 .transform_ =
 								 prim_transform ? *prim_transform : mat4::identity()};
+		debug_prims_.emplace_back(dp);
+	}
+	void addDebugLines(const vec3* pts, const vec4* colours, uint32_t num_lines,
+					  const mat4* prim_transform = nullptr) {
+
+		vec3* vts = new vec3[num_lines*2];
+		vec4* c = new vec4[num_lines];
+        memcpy(vts, pts, sizeof(vec3)*2*num_lines);
+        memcpy(c, colours, sizeof(vec4)*num_lines);
+		DebugPrimitive dp = {.type_ = DebugPrimitive::kLine,
+							 .b_two_sided_ = false,
+                             .line_ = { .vts = vts, .colours = c },
+                             .count_ = num_lines,
+							 .colour_ = vec4(1),
+							 .transform_ =
+								 prim_transform ? *prim_transform : mat4::identity()};
+
 		debug_prims_.emplace_back(dp);
 	}
 	void addDebugQuad(const vec2& size, const vec4& colour, uint32_t texture_id,
@@ -181,7 +201,8 @@ public:
         memcpy(vts, pos, sizeof(vec3)*count);
 		DebugPrimitive dp = {.type_ = DebugPrimitive::kPoint,
 							 .b_two_sided_ = b_two_sided,
-							 .point_ = {.size = point_size, .vts = vts, .count = count},
+							 .point_ = {.size = point_size, .vts = vts },
+                             .count_ = count,
 							 .colour_ = colour,
 							 .transform_ =
 								 prim_transform ? *prim_transform : mat4::identity()};
@@ -190,6 +211,7 @@ public:
 
     void addTextPacket(const char* text, HGOSFONT3D font_handle, uint32_t colour, float size, int16_t x, int16_t y) {
         assert(text);
+        assert(font_handle);
         uint8_t* t = new uint8_t[strlen(text)+1];
         memcpy(t, text, strlen(text)+1);
         TextRenderPacket tp = { .text = t, .font_handle = font_handle, .colour = colour, .Size = size,

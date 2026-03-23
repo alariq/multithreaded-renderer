@@ -27,6 +27,10 @@ void ReleaseRenderList(RenderList* rl) {
         if(dp.type_ == DebugPrimitive::kPoint) {
             delete[] dp.point_.vts;
         }
+        if(dp.type_ == DebugPrimitive::kLine) {
+            delete[] dp.line_.vts;
+            delete[] dp.line_.colours;
+        }
     }
     rl->GetDebugPrimitives().resize(0);
 
