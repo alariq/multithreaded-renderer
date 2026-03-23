@@ -10,6 +10,7 @@
 #include <functional>
 #include <vector>
 #include <atomic>
+#include <assert.h>
 
 struct RenderMesh;
 struct camera;
@@ -55,9 +56,10 @@ public:
 
     // these are called on Render thread
 	void DoInitRenderResources() {
-        int exp = (int)kPendingInit;
-		if (initState.compare_exchange_strong(exp, (int)kInitialized)) {
+		if (initState.load() == (int)kPendingInit) {
 			InitRenderResources();
+            assert(initState.load() == (int)kPendingInit);
+            initState.store((int)kInitialized);
             return;
 		}
         assert(!"Object is not in expected state");
@@ -93,6 +95,7 @@ enum class ComponentType: int {
     kFrustumComponent,
     kRigidBody,
     kGameText,
+    kEnemyText,
     kMesh,
     kCount
 };
@@ -102,6 +105,8 @@ struct GameObjectHandle {
 };
 
 inline GameObject *getGameObject(GameObjectHandle go_handle) { return go_handle.go_handle_; }
+
+template<typename T> inline constexpr ComponentType get_component_type();
 
 class Component {
     friend GameObject;
@@ -122,6 +127,10 @@ class Component {
 
 	virtual ~Component(){};
 };
+
+
+template<> inline constexpr ComponentType 
+get_component_type<class TransformComponent>() { return ComponentType::kTransform; }
 
 class TransformComponent : public Component {
   public:
@@ -240,6 +249,8 @@ class TransformComponent : public Component {
 	virtual void UpdateComponent(float dt) override;
 };
 
+template<> inline constexpr ComponentType 
+get_component_type<class MeshComponent>() { return ComponentType::kMesh; }
 class MeshComponent : public TransformComponent, public IRenderable {
 	std::string mesh_name_;
 	RenderMesh *mesh_;
@@ -250,10 +261,9 @@ class MeshComponent : public TransformComponent, public IRenderable {
 	MeshComponent() : mesh_(nullptr), pending_mesh_(nullptr) {}
 
   public:
-	static const ComponentType type_ = ComponentType::kMesh;
     int getState() const { return (int)initState.load(); }
     virtual IRenderable* getRenderableInterface() override { return this; }
-	virtual ComponentType GetType() const override { return type_; }
+	virtual ComponentType GetType() const override { return get_component_type<MeshComponent>(); }
 	static MeshComponent *Create(const char *res);
 	virtual void InitRenderResources() override;
 	virtual void DeinitRenderResources() override;
@@ -267,10 +277,12 @@ class MeshComponent : public TransformComponent, public IRenderable {
 };
 
 
+template<> inline constexpr ComponentType 
+get_component_type<class FrustumComponent>() { return ComponentType::kFrustumComponent; }
 class FrustumComponent: public TransformComponent, public IRenderable {
 	RenderMesh *mesh_;
   public:
-	virtual ComponentType GetType() const override { return ComponentType::kFrustumComponent; }
+	virtual ComponentType GetType() const override { return get_component_type<FrustumComponent>(); }
 	virtual void InitRenderResources() override;
 	virtual void DeinitRenderResources() override;
 	virtual void AddRenderPackets(struct RenderFrameContext *) const override;
@@ -284,11 +296,18 @@ class GameObject: public IEditorObject {
     std::vector<Component*> components_;
 	GameObjectId id_;
 public:
+    enum State:int {/*kUninitialized, */ kInitialized, kPendingDestroy, kDestroyed };
+private:
+    State state_;
+public:
 	GameObjectId GetId() const { return id_; }
 
     virtual const char* GetName() const = 0;
     virtual void Update(float dt) = 0;
     //virtual RenderMesh* GetMesh() const = 0;
+    virtual void Destroy() { state_ = kPendingDestroy; }
+    State GetState() const { return state_; }
+    void SetState(GameObject::State s) { state_ = s; }
 
     Component* GetComponent(ComponentType type) const {
         auto cmp = std::find_if(
@@ -301,7 +320,7 @@ public:
     T* GetComponent() const {
         auto cmp = std::find_if(
             components_.begin(), components_.end(),
-            [](Component *comp) { return comp->GetType() == T::type_; });
+            [](Component *comp) { return comp->GetType() == get_component_type<T>(); });
         return cmp!=components_.end() ? (T*)*cmp : nullptr;
     }
 
@@ -345,6 +364,7 @@ public:
 	GameObject() {
 		static std::atomic<GameObjectId> counter{scene::kFirstGameObjectId};
 		id_ = ++counter;
+        state_ = kInitialized;
 	}
     virtual ~GameObject() {
         for(Component* c: components_) {

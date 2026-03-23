@@ -85,6 +85,7 @@ void MeshComponent::InitRenderResources() {
 void MeshComponent::DeinitRenderResources() {
     // assert(IsOnRenderThread());
     mesh_ = nullptr;
+    res_man_release_mesh(mesh_);
     state_ = Component::kUninitialized;
 }
 
