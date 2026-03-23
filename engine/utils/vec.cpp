@@ -348,6 +348,10 @@ vec4 abs(const vec4 v) {
     return vec4(fabsf(v.x), fabsf(v.y), fabsf(v.z), fabsf(v.w));
 }
 
+float dot(float u, float v){
+	return u * v;
+}
+
 float dot(const vec2 &u, const vec2 &v){
 	return u.x * v.x + u.y * v.y;
 }
@@ -451,6 +455,10 @@ vec3 normalizeSafe(const vec3& v) {
 vec4 normalize(const vec4 &v){
 	float invLen = 1.0f / sqrtf(v.x * v.x + v.y * v.y + v.z * v.z + v.w * v.w);
 	return v * invLen;
+}
+
+float length(float v){
+	return v;
 }
 
 float length(const vec2 &v){

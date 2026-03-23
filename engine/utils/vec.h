@@ -259,6 +259,7 @@ vec2 abs(const vec2 v);
 vec3 abs(const vec3 v);
 vec4 abs(const vec4 v);
 
+float dot(float u, float v);
 float dot(const vec2 &u, const vec2 &v);
 float dot(const vec3 &u, const vec3 &v);
 float dot(const vec4 &u, const vec4 &v);
@@ -332,6 +333,7 @@ vec3 normalize(const vec3 &v);
 vec3 normalizeSafe(const vec3 &v);
 vec4 normalize(const vec4 &v);
 
+float length(float v);
 float length(const vec2 &v);
 float length(const vec3 &v);
 float length(const vec4 &v);
