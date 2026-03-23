@@ -143,8 +143,6 @@ set(SOURCES
     "renderer.h"
     "render_utils.h"
     "render_utils.cpp"
-    "test_fixed_block_allocator.cpp"
-    "test_spline.cpp"
     "scene.cpp"
     "obj_model.cpp"
     "obj_model.h"
@@ -156,6 +154,14 @@ set(SOURCES
     "rigid_body_object.cpp"
     "rigid_body_object.h"
     )
+
+set(TESTS_SOURCES
+    "tests/test_fixed_block_allocator.cpp"
+    "tests/test_myarray.cpp"
+    "tests/test_spline.cpp"
+)
+
+list(APPEND SOURCES ${TESTS_SOURCES})
 
 #find_library(GLEW NAMES "GLEW" "glew32")
 
