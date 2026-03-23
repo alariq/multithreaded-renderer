@@ -76,17 +76,29 @@ if(MSVC)
 	message("Compiling on M$ Windows")
 endif()
 
-set(USE_TRACY TRUE)
+option(USE_TRACY " " ON )
 set(USE_REMOTERY FALSE)
 
 if(USE_TRACY)
+    option ( TRACY_ENABLE " " ON )
+    #option ( TRACY_ON_DEMAND " " ON )
+    option ( TRACY_VERBOSE " " ON )
+    option ( TRACY_NO_CALLSTACK " " ON )
+    option ( TRACY_CALLSTACK " " 16)
+    #option ( TRACY_TIMER_FALLBACK " " ON )
+    #option ( TRACY_NO_SAMPLING " " ON )
+    #option ( TRACY_NO_CONTEXT_SWITCH " " ON )
+
+    add_definitions(-DTRACY_FORCE_FALLBACK)
+    add_subdirectory ("./third_party/tracy" "./out/tracy") 
     add_definitions(-DTRACY_ENABLE)
+    add_definitions(-DTRACY_VERBOSE)
     add_definitions(-DUSE_TRACY)
 elseif(USE_REMOTERY)
     # no need in any special defines
 endif()
 
-option(WITH_ASAN "Enable address sanitizer" FALSE)
+option(WITH_ASAN "Enable address sanitizer" TRUE)
 if(${WITH_ASAN})
     add_compile_options(-fsanitize=address -static-libasan)
     set(ASAN_LIB asan)
@@ -132,6 +144,7 @@ set(SOURCES
     "render_utils.h"
     "render_utils.cpp"
     "test_fixed_block_allocator.cpp"
+    "test_spline.cpp"
     "scene.cpp"
     "obj_model.cpp"
     "obj_model.h"
@@ -170,4 +183,3 @@ endif()
 add_executable(mt-renderer ${SOURCES})
 target_compile_definitions(mt-renderer PUBLIC $<$<CONFIG:Debug>:_ARMOR _DEBUG BUGLOG LAB_ONLY>)
 target_link_libraries(mt-renderer ${ASAN_LIB} game engine pbd platform GLEW::GLEW ${ADDITIONAL_LIBS} OpenGL::GL)
-

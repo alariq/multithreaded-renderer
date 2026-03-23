@@ -9,11 +9,11 @@
 #if defined(USE_TRACY)
 #define ENABLE_STATISTICS 1
 
-#include "engine/Tracy/Tracy.hpp"
-#include "engine/Tracy/TracyC.h"
+#include "tracy/Tracy.hpp"
+#include "tracy/TracyC.h"
 
-#include "engine/utils/graphics.h"
-#include "engine/Tracy/TracyOpenGL.hpp"
+#include "engine/utils/graphics.h" // for glXXX functions required by TracyOpenGL.hpp
+#include "tracy/TracyOpenGL.hpp"
 
 #define prof_initialize()
 #define prof_finalize()
@@ -35,11 +35,10 @@ typedef TracyCZoneCtx prof_zone_id;
     ZoneName((str_name), strlen(str_name))
 #endif
 
-#define BEGIN_ZONE_N(ctx, name, flags) \
-    TracyCZoneN(ctx, #name, true); \
+#define BEGIN_ZONE_N(ctx, name, flags) TracyCZoneN(ctx, #name, true);
 
 #define BEGIN_ZONE_DYNAMIC_N(ctx, str_name, flags) \
-    TracyCZoneN(ctx, #ctx, true); \
+    TracyCZoneN(ctx, #ctx, true);\
     TracyCZoneText(ctx, (str_name), strlen(str_name))
 
 #define END_ZONE(ctx) TracyCZoneEnd(ctx)
@@ -49,7 +48,7 @@ typedef TracyCZoneCtx prof_zone_id;
 
 #define SCOPED_GPU_ZONE(name) TracyGpuZone(#name)
 
-#define PROF_INIT_OPENGL() TracyGpuContext
+#define PROF_INIT_OPENGL() TracyGpuContext; TracyGpuContextName("GPU", 3);
 #define PROF_FINALIZE_OPENGL()
 #define PROF_GPU_TICK() TracyGpuCollect
 
@@ -104,6 +103,7 @@ typedef int prof_zone_id;
 
 #define SCOPED_ZONE()
 #define SCOPED_ZONE_N(name, flags)
+#define SCOPED_ZONE_NAMED(name, flags)
 
 #define BEGIN_ZONE_N(name, str_name, flags)\
     int name = -1; (void)name; /* unused*/

@@ -6,6 +6,7 @@ PRAGMA_DIAGNOSTIC_IGNORED(-Wshadow)
 // positive
 PRAGMA_DIAGNOSTIC_IGNORED(-Warray-bounds)
 
-#include "Tracy/TracyClient.cpp" 
+//#include "Tracy/TracyClient.cpp" 
+//#include "tracy/public/TracyClient.cpp" 
 
 PRAGMA_DIAGNOSTIC_POP()

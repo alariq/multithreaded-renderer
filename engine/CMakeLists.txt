@@ -51,6 +51,8 @@ set(SOURCES ${SOURCES}
     utils/timing.cpp
     utils/timing.h
     utils/ts_queue.h
+    utils/spline.cpp
+    utils/spline.h
     utils/string_utils.cpp
     utils/string_utils.h
     utils/file_utils.cpp
@@ -75,13 +77,17 @@ set(SOURCES ${SOURCES}
 
 include_directories(".")
 include_directories("../platform/include")
+include_directories("../third_party/tracy/public")
 
 add_library(engine ${SOURCES})
 target_compile_definitions(engine PUBLIC $<$<CONFIG:Debug>:_ARMOR _DEBUG BUGLOG LAB_ONLY>)
+# Ensure Tracy compile definitions propagate to engine sources that include Tracy headers.
+if(USE_TRACY)
+    target_link_libraries(engine PUBLIC Tracy::TracyClient)
+endif()
 # all users of this library will have this path added to their includes (but this lib will not have it added)
 # ref. official cmake tutorial
 # ref. https://leimao.github.io/blog/CMake-Public-Private-Interface/
 target_include_directories(engine INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/..)
 # so that we can use: engine/xxx/xxx.h in the engine project as well
 target_include_directories(engine PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/..)
-
