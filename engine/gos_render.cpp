@@ -220,12 +220,13 @@ RenderWindow* create_window(const char* pwinname, int width, int height, int wan
     preferred_mode.h = height>0 ? height: preferred_mode.h;
     preferred_mode.driverdata = nullptr;
 
+    //Some info about fullscreen/win size issues: https://github.com/libsdl-org/SDL/issues/8544
     {
         window = SDL_CreateWindow(pwinname ? pwinname : "--", 
                 SDL_WINDOWPOS_CENTERED_DISPLAY(displayIndex), 
                 SDL_WINDOWPOS_CENTERED_DISPLAY(displayIndex), 
                 preferred_mode.w, preferred_mode.h, 
-                SDL_WINDOW_OPENGL|SDL_WINDOW_ALLOW_HIGHDPI|SDL_WINDOW_BORDERLESS);
+                SDL_WINDOW_OPENGL|SDL_WINDOW_ALLOW_HIGHDPI|SDL_WINDOW_BORDERLESS/*|SDL_WINDOW_FULLSCREEN_DESKTOP*/);
 
         if (!window) {
             fprintf(stderr, "Couldn't create window: %s\n", SDL_GetError());
@@ -328,7 +329,6 @@ RenderContextHandle init_render_context(RenderWindowHandle render_window)
         //    printf("Failed to get SDL_GL_DEPTH_SIZE: %s\n", SDL_GetError());
         //}
 
-		/*
         status = SDL_GL_GetAttribute(SDL_GL_MULTISAMPLEBUFFERS, &value);
         if (!status) {
             printf("SDL_GL_MULTISAMPLEBUFFERS: %d\n", value);
@@ -344,7 +344,7 @@ RenderContextHandle init_render_context(RenderWindowHandle render_window)
             printf("Failed to get SDL_GL_MULTISAMPLESAMPLES: %s\n",
                     SDL_GetError());
         }
-		*/
+		
         status = SDL_GL_GetAttribute(SDL_GL_ACCELERATED_VISUAL, &value);
         if (!status) {
             printf("SDL_GL_ACCELERATED_VISUAL: %d\n", value);
@@ -523,6 +523,8 @@ void get_window_size(RenderWindowHandle rw_handle, int* width, int* height)
     RenderWindow* rw = (RenderWindow*)rw_handle;
     assert(rw && width && height);
     SDL_GetWindowSize(rw_handle->window_, width, height);
+    log_info("SDL_GetWindowSize: %dx%d\n", *width, *height);
+    // sometimes window(and drawable) can actually have smaller size (e.g. like 2 pixels, happened when launching from root user)
     assert(rw->width_ == *width);
     assert(rw->height_ == *height);
 }

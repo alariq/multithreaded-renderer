@@ -46,7 +46,7 @@ graphics::RenderContextHandle g_ctx = 0;
 
 // TODO: implement GPU/CPU bound stats (based on who wait for whom)
 
-const uint32_t NUM_BUFFERED_FRAMES = 1;
+const uint32_t NUM_BUFFERED_FRAMES = 2;
 threading::Event* g_main_event[NUM_BUFFERED_FRAMES];
 threading::Event* g_render_event[NUM_BUFFERED_FRAMES];
 
@@ -170,8 +170,9 @@ public:
 
 	virtual int exec() override {
         {
+            // TODO: do we need to call it every time? no
             SCOPED_ZONE_N(make_current_context, 0);
-            graphics::make_current_context(g_ctx);
+            //graphics::make_current_context(g_ctx);
         }
 
         {
@@ -448,6 +449,8 @@ int main(int argc, char** argv)
     } else {
         SPEW(("Render", "[OK] STATUS\n"));
     }
+
+    SDL_SetHint(SDL_HINT_RENDER_DRIVER, "opengl");
 
 	g_win = graphics::create_window("mt-renderer", 
             Environment.screenWidth, Environment.screenHeight,
