@@ -69,11 +69,19 @@ set(SOURCES ${SOURCES}
     utils/marshingcubes.cpp
     utils/sdf.h
     utils/sdf.cpp
-    Remotery/lib/Remotery.c
-    Remotery/lib/Remotery.h
     profiler/profiler.h
     profiler/tracy_wrapper.cpp
     )
+
+set (REMOTERY_SOURCES
+    "../third_party/Remotery/lib/Remotery.c"
+    "../third_party/Remotery/lib/Remotery.h"
+)
+
+if(USE_TRACY)
+    message(" -- Compiling with Remotery")
+    list(APPEND SOURCES ${REMOTERY_SOURCES})
+endif()
 
 include_directories(".")
 include_directories("../platform/include")

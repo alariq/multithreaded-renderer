@@ -77,7 +77,7 @@ if(MSVC)
 endif()
 
 option(USE_TRACY " " ON )
-set(USE_REMOTERY FALSE)
+option(USE_REMOTERY OFF)
 
 if(USE_TRACY)
     option ( TRACY_ENABLE " " ON )
