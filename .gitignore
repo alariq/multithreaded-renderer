@@ -18,4 +18,5 @@ callgrind.*
 Session.vim
 .vimspector.session
 .vimspector.json
+srcdata/unsorted/
 
