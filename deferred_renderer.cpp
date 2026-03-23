@@ -3,6 +3,7 @@
 #include "res_man.h"
 #include "renderer.h"
 #include "utils/gl_fbo.h"
+#include "profiler/profiler.h"
 #include <functional>
 
 bool DeferredRenderer::Init(uint32_t width, uint32_t height)
@@ -206,6 +207,9 @@ public:
 
 void DeferredRenderer::RenderGeometry(const struct RenderFrameContext* rfc)
 {
+    SCOPED_GPU_ZONE(Deferred_RenderGeometry);
+    SCOPED_ZONE_N(Deferred_RenderGeometry, 0);
+
     const RenderPacketList_t& rpl = rfc->rl_->GetRenderPackets();
     RenderPacketList_t::const_iterator it = rpl.begin();
     RenderPacketList_t::const_iterator end = rpl.end();
@@ -235,6 +239,9 @@ void DeferredRenderer::RenderGeometry(const struct RenderFrameContext* rfc)
 
 void DeferredRenderer::RenderDirectionalLighting(const struct RenderFrameContext* rfc)
 {
+    SCOPED_GPU_ZONE(Deferred_RenderDirectionalLighting);
+    SCOPED_ZONE_N(Deferred_RenderDirectionalLighting, 0);
+
     glBindFramebuffer(GL_FRAMEBUFFER, lighting_fbo_);
 
     gos_SetRenderViewport(0, 0, width_, height_);
@@ -272,6 +279,9 @@ void DeferredRenderer::RenderDirectionalLighting(const struct RenderFrameContext
 
 void DeferredRenderer::RenderPointLighting(const struct RenderFrameContext* rfc)
 {
+    SCOPED_GPU_ZONE(Deferred_RenderPointLighting);
+    SCOPED_ZONE_N(Deferred_RenderPointLighting, 0);
+
     // forward_fbo_ has depth so shold be a bit faster due to depth culling
     //glBindFramebuffer(GL_FRAMEBUFFER, lighting_fbo_);
     glBindFramebuffer(GL_FRAMEBUFFER, forward_fbo_);
@@ -451,6 +461,8 @@ void DeferredRenderer::RenderForward(std::function<void(void)> f)
 
 void DeferredRenderer::RenderDownsampledForward(std::function<void(void)> f, const mat4& proj)
 {
+    SCOPED_GPU_ZONE(Deferred_RenderDownsampledForward);
+    SCOPED_ZONE_N(Deferred_RenderDownsampledForward, 0);
 
     // NEEDED?????
     // clear downsampled fbo before rendering into it

@@ -1,5 +1,6 @@
 #include "debug_renderer.h"
 #include "gameos.hpp"
+#include "profiler/profiler.h"
 #include <algorithm>
 
 class DebugRenderer {
@@ -34,6 +35,9 @@ public:
 
 void RenderDebugObjects(const RenderPacketList_t& rpl, const mat4& view, const mat4& proj)
 {
+    SCOPED_GPU_ZONE(RenderDebugObjects);
+    SCOPED_ZONE_N(RenderDebugObjects, 0);
+
     RenderPacketList_t::const_iterator it = rpl.begin();
     RenderPacketList_t::const_iterator end = rpl.end();
 
