@@ -3,11 +3,33 @@
 #include "obj_model.h"
 #include "engine/utils/vec.h"
 #include "engine/utils/math_utils.h"
+#include "engine/utils/spline.h"
 
 #include <deque>
 #include <string>
 
+struct EnemyTargetCtx {
+    vec3 pos; // target location
+    vec3 dir; // target direction
+
+    // NOTE: could just pass "t" and set main path, main path might bee needed anyway
+    vec3 path_pos; // target closest pos on path
+    vec3 right, up, fwd; // path basis
+    //...
+};
+
 struct EnemyState {
+#if 0
+    vec3 position = vec3(0);
+    vec3 velocity = vec3(0);
+    vec3 acceleration = vec3(0);
+    vec3 right = vec3(1,0,0);
+    vec3 up = vec3(0,1,0);
+    vec3 forward = vec3(0,0,1);
+    float speed = 0;
+    float thrust = 0;
+    int num_cycles = 0;
+#else
     vec3 position;
     vec3 velocity;
     vec3 acceleration;
@@ -16,6 +38,8 @@ struct EnemyState {
     vec3 forward;
     float speed;
     float thrust;
+    int num_cycles;
+#endif
 
     static EnemyState interp(const EnemyState& prev, const EnemyState& curr, double t) {
         t = saturate(t);
@@ -33,6 +57,9 @@ struct EnemyState {
         out.speed = lerp(prev.speed, curr.speed, t);
         out.thrust = lerp(prev.thrust, curr.thrust, t);
 
+        // no sense to interpolate
+        out.num_cycles = curr.num_cycles;
+
         return out;
     }
 };
@@ -45,7 +72,7 @@ class BasicEnemyAIController {
     float cur_t;
     
     public:
-        EnemyState update(const EnemyState& s, float dt);
+        EnemyState update(const EnemyState& s, float dt, const EnemyTargetCtx& ctx);
 
         void SetPath(const class Path* path) {
             cur_t = 0;
@@ -67,10 +94,14 @@ class Enemy: public GameObject {
     double accumulator;
 
     std::deque<vec3> trail;
-    const class Path* myPath = nullptr;
-    //Curve<vec3> curve;
+    Curve<vec3> myCurve;
+    const Path* myPath = nullptr;
 
-    GameObject* target_ = nullptr;
+    char text_label[16];
+    bool b_is_active_target_ = false;
+
+    bool b_has_valid_target_ = false;
+    EnemyTargetCtx target_ctx_;
 
     void simulateFixedStep(double dt);
     void pushTrailPoint(const vec3& point);
@@ -86,4 +117,22 @@ class Enemy: public GameObject {
     virtual void AddRenderPackets(struct RenderFrameContext* rfc) const override;
 
     void SetPath(const Path* path);
+    void UpdateTargetCtx(const EnemyTargetCtx& ctx) { target_ctx_ = ctx; b_has_valid_target_ = true; }
+    const EnemyState& GetState() const { return stateCur; }
+    void SetActiveTarget(bool b_is_active) { b_is_active_target_ = b_is_active; }
+};
+
+
+class EnemySpawner: GameObject {
+
+    uint64_t last_time_spawned_;
+
+	virtual const char* GetName() const override { return "enemy_spawner"; } 
+
+    static EnemySpawner* Create();
+
+    virtual void Update(float dt) override;
+    virtual void AddRenderPackets(struct RenderFrameContext* rfc) const override {};
+    virtual int IsSelectable() const override { return false; }
+
 };

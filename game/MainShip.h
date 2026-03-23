@@ -1,3 +1,5 @@
+#pragma once
+
 #include "game/ShipController.h"
 #include "game/WingController.h"
 #include "game/Text.h"
@@ -33,7 +35,8 @@ class MainShip: public GameObject {
     float targetSpeed = 35.0f;
 
     std::deque<vec3> trail;
-    Curve<vec3> curve;
+    const Curve<vec3>* curve;
+    const ReparameterizeByArclength<vec3>* repar;
     Path* myPath;
 
     std::vector<CheckPoint> check_points_;
@@ -47,16 +50,17 @@ class MainShip: public GameObject {
 
     public:
 
+    virtual ~MainShip();
+
     virtual const char* GetName() const override { return name_.c_str(); } 
 
     const class Path* GetPath() const { return myPath; }
 
     static MainShip* Create(const char* res);
-    void Initialize(const std::vector<CheckPoint>& cps, GameObject* intarget);
+    void Initialize(const std::vector<CheckPoint>& cps, GameObject* intarget, const Curve<vec3>* curve);
 
     virtual void Update(float dt) override;
     virtual void AddRenderPackets(struct RenderFrameContext* rfc) const override;
-    virtual ~MainShip();
 
 
 };

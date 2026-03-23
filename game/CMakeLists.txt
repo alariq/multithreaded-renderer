@@ -11,12 +11,16 @@ set(SOURCES ${SOURCES}
     WingController.h
     MainShip.cpp
     MainShip.h
+    Level.cpp
+    Level.h
     Text.cpp
     Text.h
     Enemy.cpp
     Enemy.h
     Path.cpp
     Path.h
+    Time.cpp
+    Time.h
 )
 
 add_library(game ${SOURCES})

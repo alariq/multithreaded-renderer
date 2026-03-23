@@ -2,6 +2,8 @@
 
 #include "obj_model.h"
 #include "engine/utils/vec.h"
+#include "engine/utils/spline.h"
+#include "engine/profiler/profiler.h"
 
 MainShip* MainShip::Create(const char* res) {
 
@@ -23,12 +25,16 @@ MainShip* MainShip::Create(const char* res) {
     auto* TextComp = obj->AddComponent<GameTextComp>();
     TextComp->SetParent(tr);
 
+    obj->curve = nullptr;
+
     return obj;
 }
 
-void MainShip::Initialize(const std::vector<CheckPoint>& cps, GameObject* intarget) 
+void MainShip::Initialize(const std::vector<CheckPoint>& cps, GameObject* intarget, const Curve<vec3>* master_curve) 
 {
     target_ = intarget;
+    curve = master_curve;
+    repar = new ReparameterizeByArclength<vec3>(*curve);
 
     radius = 10.0f;
     origin_pos = GetComponent<TransformComponent>()->GetPosition();
@@ -43,9 +49,7 @@ void MainShip::Initialize(const std::vector<CheckPoint>& cps, GameObject* intarg
     plane_state_.forward = q.axis2();
     plane_state_.q = q;
 
-    mat3 m3 = q.to_mat3();
-    vec3 right = m3.getRow(0);
-    vec3 up = m3.getRow(1);
+    mat3 m3 = q.to_mat3(); vec3 right = m3.getRow(0); vec3 up = m3.getRow(1);
     vec3 fwd = m3.getRow(2);
     printf("Ship init right: %f %f %f axis0: %f %f %f\n", right.x, right.y, right.z, q.axis0().x, q.axis0().y, q.axis0().z);
     printf("Ship init up: %f %f %f axis1: %f %f %f\n", up.x, up.y, up.z, q.axis1().x, q.axis1().y, q.axis1().z);
@@ -57,7 +61,7 @@ void MainShip::Initialize(const std::vector<CheckPoint>& cps, GameObject* intarg
     renderState = stateCur;
 
     // add dummy first point of a spline
-    curve.addPoint(check_points_[0].position + 0.25f*(check_points_[0].position - check_points_[1].position));
+    //curve.addPoint(check_points_[0].position + 0.25f*(check_points_[0].position - check_points_[1].position));
 
     const int CPCount = (int)check_points_.size();
     for(int i=0; i< CPCount;++i) {
@@ -65,14 +69,14 @@ void MainShip::Initialize(const std::vector<CheckPoint>& cps, GameObject* intarg
         printf("add wp, final:%d\n", b_is_final);
         const CheckPoint& cp = check_points_[i];
         ai_controller.addWaypoint(Waypoint(cp.position, cp.radius, b_is_final));
-        curve.addPoint(cp.position);
+        //curve.addPoint(cp.position);
     }
 
     // add dummy last point of a spline
-    curve.addPoint(check_points_[CPCount-1].position + 0.25f*(check_points_[CPCount-1].position - check_points_[CPCount-2].position));
+    //curve.addPoint(check_points_[CPCount-1].position + 0.25f*(check_points_[CPCount-1].position - check_points_[CPCount-2].position));
 
     myPath = new Path();
-    myPath->SetCurve(curve);
+    myPath->SetCurve(master_curve);
 
     accumulator = 0;
 
@@ -85,10 +89,6 @@ void MainShip::Initialize(const std::vector<CheckPoint>& cps, GameObject* intarg
     state.speed = 0;
     state.velocity = vec3(0);
 
-}
-
-MainShip::~MainShip() {
-    delete myPath;
 }
 
 #if 1
@@ -220,19 +220,21 @@ void MainShip::Update(float dt) {
     // actually we calculate left, so need to flip
     renderState.right = -renderState.right;
 
-    mat4 m = identity4();
-    m.setRow(0, vec4(renderState.right, 0));
-    m.setRow(1, vec4(renderState.up, 0));
-    m.setRow(2, vec4(renderState.forward, 0));
-    // also mat to quat provides rotation in the opposite direction than matrix, so invert
-    // TODO: fix!!!
-    const quaternion qnew = normalize(inverse(mat4_to_quat(m)));
+    mat3 m = mat3(
+    renderState.right.x, renderState.right.y, renderState.right.z,
+    renderState.up.x, renderState.up.y, renderState.up.z,
+    renderState.forward.x, renderState.forward.y, renderState.forward.z);
+    m = transpose(m);
+
+    const quaternion qnew = mat3_to_quat(m); // expects column major, so transpose
     tc->SetPosition(renderState.position);
     tc->SetRotation(qnew);
 
 }
 
 void MainShip::AddRenderPackets(struct RenderFrameContext* rfc) const {
+
+    return;
 
     vec3 pos = renderState.position;
     vec3 up = renderState.up;
@@ -244,37 +246,51 @@ void MainShip::AddRenderPackets(struct RenderFrameContext* rfc) const {
     rl->addDebugLine(pos, pos + 3*up, vec4(0, 1,0, 1));
     rl->addDebugLine(pos, pos + 3*fwd, vec4(0, 0,1, 1));
 
-    if (trail.size() >= 2) {
-        const size_t n = trail.size();
+
+    const size_t n = trail.size();
+    if (n >= 2) {
+        vec3* dbg_lines = new vec3[2*(n-1)];
+        vec4* colours = new vec4[n-1];
         for (size_t i = 0; i < n-1; ++i) {
             //const float t = (float)i / (n - 1);
             const float alpha = 1;//0.35f + 0.65f * t;
             const float brightness = 1;//0.25f + 0.75f * t;
             vec4 colour(0.15f * brightness, 0.9f * brightness, 1.0f * brightness, alpha);
             const vec3 p = trail[i];
-            rl->addDebugLine(p, trail[i+1], colour);
+            //rl->addDebugLine(p, trail[i+1], colour);
+            dbg_lines[2*i + 0] = p;
+            dbg_lines[2*i + 1] = trail[i+1];
+            colours[i] = colour;
         }
+        rl->addDebugLines(dbg_lines, colours, n-1);
+        delete[] dbg_lines;
+        delete[] colours;
     }
 
-    const int nseg = curve.getNSegments();
-    vec3 p_prev = curve.getAt(0);
-    if(1)
-        for(int s = 0; s<nseg; s++) {
-            for (size_t i = 0; i < 128; ++i) {
-                const float t = (float)i / 127;
-                const float alpha = 1;
-                const float brightness = 1;//0.35f + 0.65f * t;
-                vec4 colour(0.8f * brightness, 0.8f * brightness, .1f * brightness, alpha);
-                const vec3 p = curve.getAt((float)s + t);
-                const vec3 dp = curve.getDerivativeAt((float)s + t);
-                const float vmag = length(dp);
-                const vec3 vdir = dp/vmag;
-                const vec4 vc = saturate(vec4(0.5f*vdir + vec3(0.5f), 1) * vec4(0.05f*vmag, 0.05f*vmag, 0.05f*vmag, 1.0f));
-                rl->addDebugLine(p_prev, p, colour);
-                rl->addDebugLine(p, p + 0.1f*dp, vc);
-                p_prev = p;
-            }
+    if(curve && false) {
+        CurveDebugDraw(*curve, 100, false, nullptr, rl);
+    }
+
+    SCOPED_ZONE_NAMED(DebugDrawRemappedNodes, 0);
+    constexpr int num_intervals = 25;
+    vec3* pts = new vec3[num_intervals];
+    float tot_len = curve->getTotalLength();
+    for(int i=0;i<num_intervals;++i) {
+        float s = tot_len * (float)i / num_intervals;
+        {
+            SCOPED_ZONE_NAMED(GetT, 0);
+            ReparameterizeByArclength<vec3>::Output o = repar->GetT(s, true);
+            SCOPED_ZONE_NAMED(GetAt, 0);
+            pts[i] = curve->getAt(o.t);
         }
+    }
+    rl->addDebugPoints(pts, num_intervals, vec4(1, 0, 0, 1), 10, true);
+    delete[] pts;
 }
 
+
+MainShip::~MainShip() {
+    delete repar;
+    delete myPath;
+}
 

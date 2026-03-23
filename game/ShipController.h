@@ -1,3 +1,5 @@
+#pragma once
+
 #include "engine/utils/vec.h"
 #include "engine/utils/quaternion.h"
 #include "engine/utils/math_utils.h"
@@ -159,7 +161,7 @@ public:
         targetUp = lerp(targetUp, vec3(0,1,0), clamp(alignment, 0, 1)); // prefer world up when aligned
 
         quaternion qr = quat_from_two_axes(plane.up, targetUp);
-        qr = quat_lerp(quaternion::identity(), qr, 0.75f); // smooth rotation
+        qr = slerp(quaternion::identity(), qr, 0.75f); // smooth rotation
 
         vec3 newForward = quat_rotate(qr, plane.forward);
         vec3 newUp = quat_rotate(qr, plane.up);
@@ -174,7 +176,7 @@ public:
         }
         
         quaternion qp = quat_from_two_axes(newForward, targetFwd);
-        qp = quat_lerp(quaternion::identity(), qp, 0.95f); // smooth rotation
+        qp = slerp(quaternion::identity(), qp, 0.95f); // smooth rotation
 
         newForward = quat_rotate(qp, newForward);
         newUp = quat_rotate(qp, newUp);

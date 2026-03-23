@@ -1,17 +1,44 @@
 #include "game/Text.h"
 #include "game/Enemy.h"
 #include "game/Path.h"
+#include "game/Time.h"
 
 #include <string.h>
 
-EnemyState BasicEnemyAIController::update(const EnemyState& s, float dt) {
-    const float t = cur_t;
+
+
+EnemyState BasicEnemyAIController::update(const EnemyState& s, float dt, const EnemyTargetCtx& target_ctx) {
     EnemyState next_state;
+    memcpy(&next_state, &s, sizeof(next_state));
 
-    if(movePath) {
+    float speed = 0.5f;
+    float du = speed * dt;
+
+    const float umax = movePath ? movePath->GetCurve()->getTMax() : 0;
+    const bool b_wrapped = cur_t + du > umax;
+    const float t = std::fmod(cur_t + du, umax);
+    cur_t = t;
+
+    if(1) {
+        assert(movePath);
+
         next_state.position = movePath->Get(t);
-        next_state.forward = movePath->GetDerivative(t);
+        vec3 pos = next_state.position;
+        mat4 m = mat4(
+                target_ctx.right.x, target_ctx.up.x, target_ctx.fwd.x, target_ctx.path_pos.x,
+                target_ctx.right.y, target_ctx.up.y, target_ctx.fwd.y, target_ctx.path_pos.y,
+                target_ctx.right.z, target_ctx.up.z, target_ctx.fwd.z, target_ctx.path_pos.z, 
+                0, 0, 0, 1);
 
+        // TODO: quat?
+        next_state.position = (m * vec4(pos,1)).xyz() + target_ctx.fwd*2;
+        next_state.forward = normalize(target_ctx.pos - next_state.position);
+        calculate_basis(next_state.forward, next_state.right, next_state.up);
+
+    } else if(movePath) {
+
+        next_state.position = movePath->Get(t);
+        next_state.forward = normalize(movePath->GetDerivative(t));
 
         next_state.up = cross(next_state.forward, s.forward);
         if(length(next_state.up) < 0.0001f) {
@@ -22,16 +49,15 @@ EnemyState BasicEnemyAIController::update(const EnemyState& s, float dt) {
 
         next_state.right = cross(next_state.up, next_state.forward);
 
-        next_state.velocity = next_state.position - s.position;
-        next_state.acceleration = next_state.velocity - s.velocity;
-
-        next_state.speed = length(next_state.velocity);
-        next_state.thrust = 0;
     } else {
         next_state = s;
     }
 
-    cur_t += dt;
+    next_state.velocity = (next_state.position - s.position)/dt;
+    next_state.acceleration = (next_state.velocity - s.velocity)/dt;
+    next_state.speed = length(next_state.velocity);
+    next_state.thrust = 0;
+    next_state.num_cycles += b_wrapped ? 1 : 0;
 
     return next_state;
 }
@@ -48,24 +74,31 @@ Enemy* Enemy::Create(const char* res) {
     auto tr = obj->AddComponent<TransformComponent>();
 
     obj->mesh_comp_ = MeshComponent::Create(res);
+    obj->mesh_comp_->SetScale(vec3(0.2f));
     obj->AddComponent(obj->mesh_comp_);
     obj->mesh_comp_->SetParent(tr);
 
     auto* TextComp = obj->AddComponent<EnemyTextComp>();
     TextComp->SetParent(tr);
+    TextComp->Initialize();
+
+    obj->Initialize(nullptr);
 
     return obj;
 }
 
+static const char* const gs_labels[] = {
+    "Hello", "Catch me", "I am faster", "Game Over", "LLM was here", "Too fast for you"
+};
+
+
 void Enemy::Initialize(GameObject* intarget) 
 {
-    target_ = intarget;
-
     origin_pos = GetComponent<TransformComponent>()->GetPosition();
     quaternion q = GetComponent<TransformComponent>()->GetRotation();
     total_time = 0.0f;
 
-    statePrev = statePrev;
+    memset(&statePrev, 0, sizeof(statePrev));
     stateCur = statePrev;
     renderState = stateCur;
 
@@ -80,18 +113,66 @@ void Enemy::Initialize(GameObject* intarget)
     stateCur.speed = 0;
     stateCur.thrust = 0;
 
+    // generate random curve in local space for enemy to follow
+    vec2 off = random_vec(vec3(-2, -2, 0), vec3(2,2,0)).xy();
+    float z_back = 5;
+    float z_front = 4;
+    vec3 pt0 = vec3(off.x,off.y,-z_back);
+    vec3 pt1 = vec3(off.y,off.y,z_front-1);
+
+    myCurve = Curve<vec3>();
+
+    myCurve.addPoint(pt0 + 0.25f*(pt0 - pt1));
+
+    myCurve.addPoint(pt0);
+    myCurve.addPoint(pt1);
+
+    // generate a dstorted circle
+    const int num_circle_pts = 12;
+    vec3 last_pt = pt1;
+    float rmin = 3;
+    float rmax = 5;
+    for(int i=0;i<num_circle_pts; i++) {
+        float t = i * 2*M_PIf / num_circle_pts;
+        float r = random(rmin, rmax);
+        float x = r*cos(t);
+        float y = r*sin(t);
+        vec3 pos = vec3(x, y, z_front);
+        myCurve.addPoint(pos);
+        last_pt  = pos;
+    }
+
+    myCurve.addPoint(vec3(last_pt.x, last_pt.y, z_front-1));
+    myCurve.addPoint(vec3(last_pt.x, last_pt.y, -z_back));
+
+    myCurve.addPoint(myCurve[myCurve.count()-1] + 0.25f*(myCurve[myCurve.count()-1] - myCurve[myCurve.count()-2]));
+
+
+    Path* aPath = new class Path();
+    aPath->SetCurve(&myCurve);
+    
+    delete myPath;
+    myPath = aPath;
+
+    controller_.SetPath(myPath);
+
+    int num_labels = COUNTOF(gs_labels);
+    EnemyTextComp* txt_comp = GetComponent<EnemyTextComp>();
+    int r = random(0, num_labels);
+    txt_comp->SetText(gs_labels[r]);
+
 }
 
 void Enemy::pushTrailPoint(const vec3& point) {
     if (!trail.empty()) {
         const float spacing = length(point - trail.back());
-        if (spacing < 0.5f) {
+        if (spacing < 0.05f) {
             return;
         }
     }
 
     trail.push_back(point);
-    const size_t maxPoints = 1024;
+    const size_t maxPoints = 32;
     while (trail.size() > maxPoints) {
         trail.pop_front();
     }
@@ -104,7 +185,9 @@ void Enemy::simulateFixedStep(double dt) {
     //}
 
     statePrev = stateCur;
-    stateCur = controller_.update(stateCur, dt);
+
+    if(b_has_valid_target_) 
+        stateCur = controller_.update(stateCur, dt, target_ctx_);
 
     pushTrailPoint(stateCur.position);
 }
@@ -136,62 +219,71 @@ void Enemy::Update(float dt) {
     // actually we calculate left, so need to flip
     renderState.right = -renderState.right;
 
-    mat4 m = identity4();
-    m.setRow(0, vec4(renderState.right, 0));
-    m.setRow(1, vec4(renderState.up, 0));
-    m.setRow(2, vec4(renderState.forward, 0));
-    // also mat to quat provides rotation in the opposite direction than matrix, so invert
-    // TODO: fix!!!
-    const quaternion qnew = normalize(inverse(mat4_to_quat(m)));
+    mat3 m = mat3(
+    renderState.right.x, renderState.right.y, renderState.right.z,
+    renderState.up.x, renderState.up.y, renderState.up.z,
+    renderState.forward.x, renderState.forward.y, renderState.forward.z);
+    m = transpose(m); 
+
+    // expects column major, so transpose
+    // or actually no, we need to transpose because we want to orient object by these axes and not get its coordinates in this system
+    const quaternion qnew = mat3_to_quat(m); 
     tc->SetPosition(renderState.position);
     tc->SetRotation(qnew);
 
+    GetComponent<EnemyTextComp>()->SetColour(b_is_active_target_ ? 0xFFAAAA00 : 0);
 }
 
 void Enemy::AddRenderPackets(struct RenderFrameContext* rfc) const {
 
+    RenderList* rl = rfc->rl_;
+
+#if 0
     vec3 pos = renderState.position;
     vec3 up = renderState.up;
     vec3 right = renderState.right;
     vec3 fwd = renderState.forward;
 
-    RenderList* rl = rfc->rl_;
     rl->addDebugLine(pos, pos + 3*right, vec4(1, 0,0, 1));
     rl->addDebugLine(pos, pos + 3*up, vec4(0, 1,0, 1));
     rl->addDebugLine(pos, pos + 3*fwd, vec4(0, 0,1, 1));
+#endif
 
-    if (trail.size() >= 2) {
-        const size_t n = trail.size();
+    const size_t n = trail.size();
+    if (n >= 2) {
+        vec3* dbg_lines = new vec3[2*(n-1)];
+        vec4* colours = new vec4[n-1];
         for (size_t i = 0; i < n-1; ++i) {
-            //const float t = (float)i / (n - 1);
+            const float t = (float)i / (n - 1);
             const float alpha = 1;//0.35f + 0.65f * t;
-            const float brightness = 1;//0.25f + 0.75f * t;
+            const float brightness = 0.25f + 0.75f * t;
             vec4 colour(0.15f * brightness, 0.9f * brightness, 1.0f * brightness, alpha);
             const vec3 p = trail[i];
-            rl->addDebugLine(p, trail[i+1], colour);
+            //rl->addDebugLine(p, trail[i+1], colour);
+            dbg_lines[2*i + 0] = p;
+            dbg_lines[2*i + 1] = trail[i+1];
+            colours[i] = colour;
         }
+        rl->addDebugLines(dbg_lines, colours, n-1);
+        delete[] dbg_lines;
+        delete[] colours;
     }
+
 #if 0
-    const int nseg = curve.getNSegments();
-    vec3 p_prev = curve.getAt(0);
-    if(1)
-        for(int s = 0; s<nseg; s++) {
-            for (size_t i = 0; i < 128; ++i) {
-                const float t = (float)i / 127;
-                const float alpha = 1;
-                const float brightness = 1;//0.35f + 0.65f * t;
-                vec4 colour(0.8f * brightness, 0.8f * brightness, .1f * brightness, alpha);
-                const vec3 p = curve.getAt((float)s + t);
-                const vec3 dp = curve.getDerivativeAt((float)s + t);
-                const float vmag = length(dp);
-                const vec3 vdir = dp/vmag;
-                const vec4 vc = saturate(vec4(0.5f*vdir + vec3(0.5f), 1) * vec4(0.05f*vmag, 0.05f*vmag, 0.05f*vmag, 1.0f));
-                rl->addDebugLine(p_prev, p, colour);
-                rl->addDebugLine(p, p + 0.1f*dp, vc);
-                p_prev = p;
-            }
-        }
+    // transpose rotation, because we want to rotate by it and not transform to this coord system
+    mat4 m = mat4(
+    target_ctx_.right.x, target_ctx_.up.x, target_ctx_.fwd.x, target_ctx_.path_pos.x,
+    target_ctx_.right.y, target_ctx_.up.y, target_ctx_.fwd.y, target_ctx_.path_pos.y,
+    target_ctx_.right.z, target_ctx_.up.z, target_ctx_.fwd.z, target_ctx_.path_pos.z, 
+    0, 0, 0, 1);
+    CurveDebugDraw(myCurve, 20, false, &m, rl);
+
+    TransformComponent* tc = GetComponent<TransformComponent>();
+
+    vec3 closest_pos = spline_get_closest_point(myCurve, tc->GetPosition()).point;
+    rl->addDebugPoints(&closest_pos, 1, vec4(0,0,1,1), 10, true);
 #endif
+
 }
 
 void Enemy::SetPath(const class Path* path) {
@@ -201,4 +293,14 @@ void Enemy::SetPath(const class Path* path) {
 }
 
 
+EnemySpawner* EnemySpawner::Create() {
+    EnemySpawner* obj = new EnemySpawner();
+    obj->last_time_spawned_ = TimerGetGameTime();
+    return obj;
+}
+
+void EnemySpawner::Update(float dt) {
+
+
+}
 
