@@ -543,7 +543,6 @@ int main(int argc, char** argv)
 
     Environment.InitializeGameEngine();
 
-	timing::init();
 
     for(uint32_t i=0; i<NUM_BUFFERED_FRAMES;++i) {
         g_main_event[i] = new threading::Event();
