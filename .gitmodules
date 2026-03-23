@@ -4,3 +4,6 @@
 [submodule "third_party/Tracy"]
 	path = third_party/Tracy
 	url = https://github.com/wolfpld/tracy
+[submodule "third_party/tracy"]
+	path = third_party/tracy
+	url = https://github.com/wolfpld/tracy.git
