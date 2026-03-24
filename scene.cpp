@@ -9,11 +9,11 @@
 #include "utils/matrix.h"
 #include "utils/camera.h"
 #include "utils/math_utils.h"
-#include "utils/timing.h"
 #include "profiler/profiler.h"
 
-#include <mutex>
 #include <list>
+
+#include "game/Level.h"
 
 typedef std::list<GameObject*> ObjList_t;
 static ObjList_t g_world_objects;
@@ -57,7 +57,7 @@ const std::vector<PointLight>& scene_get_light_list() {
 void initialize_scene(const struct camera *cam, struct RenderFrameContext *rfc) {
     (void)cam;
     g_components.resize((size_t)ComponentType::kCount);
-
+#if 0
     const uint32_t NUM_OBJECTS = 3;
     for (uint32_t i = 0; i < NUM_OBJECTS; ++i) {
         MeshObject *go = MeshObject::Create("N");
@@ -91,29 +91,19 @@ void initialize_scene(const struct camera *cam, struct RenderFrameContext *rfc) 
 
         scene_add_game_object(go);
     }
-    
-    MeshObject* go = MeshObject::Create("column");
-    auto* tc = go->GetComponent<TransformComponent>();
-    tc->SetPosition(vec3(0, 0, 0));
-    tc->SetScale(vec3(4, 8, 4));
-    scene_add_game_object(go);
+#endif 
 
-    go = MeshObject::Create("floor");
-    tc = go->GetComponent<TransformComponent>();
+    MeshObject* go = MeshObject::Create("floor");
+    auto* tc = go->GetComponent<TransformComponent>();
     tc->SetPosition(vec3(0, 0, 0));
     tc->SetScale(vec3(50, 1, 50));
     scene_add_game_object(go);
 
-    go = MeshObject::Create("axes");
-    tc = go->GetComponent<TransformComponent>();
-    tc->SetPosition(vec3(0, 20, 0));
-    tc->SetScale(vec3(10, 10, 10));
-    scene_add_game_object(go);
+    scene_add_game_object(Level::Create("level1"));
 
-    go = MeshObject::Create("torus");
+    go = MeshObject::Create("gizmo");
     tc = go->GetComponent<TransformComponent>();
-    tc->SetPosition(vec3(0, 30, 0));
-    tc->SetScale(vec3(10, 10, 10));
+    tc->SetScale(vec3(0.05f, 0.05f, 0.05f));
     scene_add_game_object(go);
 
     camera loc_cam = *cam;
@@ -124,8 +114,10 @@ void initialize_scene(const struct camera *cam, struct RenderFrameContext *rfc) 
     scene_add_game_object(fo);
 
     ParticleSystemObject *pso = ParticleSystemObject::Create();
+    //pso->SetPosition(vec3(50, 0, 50));
     scene_add_game_object(pso);
 
+#if 0
 	RigidBodyObject *rb_floor = RigidBodyObject::Create(vec3(4.5f, 1, 4.5f));
     rb_floor->setKinematic(true);
     rb_floor->SetTransform(vec3(0, 0, 0), quaternion(vec3(1,0,0), M_PI/6.0f));
@@ -146,7 +138,9 @@ void initialize_scene(const struct camera *cam, struct RenderFrameContext *rfc) 
     rb_floor3->setKinematic(true);
     rb_floor3->SetTransform(vec3(0.0f, -2.0f, 4.5f), quaternion::identity());
 	scene_add_game_object(rb_floor3);
+#endif
 
+#if 0
     // make vilage
     const float rot[] = {0, 150, 30, 90, 55};
     const float scales[] = {0.1f, 0.07f, 0.12f, 0.08f, 0.1f};
@@ -161,6 +155,7 @@ void initialize_scene(const struct camera *cam, struct RenderFrameContext *rfc) 
         t->SetScale(vec3(scales[i]));
         scene_add_game_object(go);
     }
+#endif
 
     // create some point lights
     for (int i = 0; i < 10; ++i) {
