@@ -264,7 +264,7 @@ void Enemy::AddRenderPackets(struct RenderFrameContext* rfc) const {
             dbg_lines[2*i + 1] = trail[i+1];
             colours[i] = colour;
         }
-        rl->addDebugLines(dbg_lines, colours, n-1);
+        rl->addDebugLines(dbg_lines, colours, vec4(1), n-1);
         delete[] dbg_lines;
         delete[] colours;
     }

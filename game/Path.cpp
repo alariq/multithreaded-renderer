@@ -71,7 +71,7 @@ void CurveDebugDraw(const Curve<vec3>& curve, int num_pts_per_segment, bool b_dr
         }
     }
     assert(li == num_lines);
-    rl->addDebugLines(dbg_pts, colours, num_lines);
+    rl->addDebugLines(dbg_pts, colours, vec4(1), num_lines);
     delete[] dbg_pts;
     delete[] colours;
 }
