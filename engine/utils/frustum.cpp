@@ -120,3 +120,45 @@ void Frustum::makeMeshFromFrustum(const Frustum* f, char* out_vertices, int coun
     *((vec3*)out_vertices) = f->points[kFAR_TOP_LEFT];out_vertices += stride;
 
 }
+
+//requires 24 points
+bool Frustum::calculateLineList(vec3* p, int count) {
+    if(count < 24) 
+        return false;
+
+    const vec3* pts = getPoints();
+    int idx = 0;
+    p[idx++] = pts[Frustum::kFAR_TOP_LEFT];
+    p[idx++] = pts[Frustum::kFAR_TOP_RIGHT];
+    p[idx++] = pts[Frustum::kFAR_BOTTOM_LEFT];
+    p[idx++] = pts[Frustum::kFAR_BOTTOM_RIGHT];
+    p[idx++] = pts[Frustum::kFAR_TOP_LEFT];
+    p[idx++] = pts[Frustum::kFAR_BOTTOM_LEFT];
+    p[idx++] = pts[Frustum::kFAR_TOP_RIGHT];
+    p[idx++] = pts[Frustum::kFAR_BOTTOM_RIGHT];
+
+    p[idx++] = pts[Frustum::kNEAR_TOP_LEFT];
+    p[idx++] = pts[Frustum::kNEAR_TOP_RIGHT];
+    p[idx++] = pts[Frustum::kNEAR_BOTTOM_LEFT];
+    p[idx++] = pts[Frustum::kNEAR_BOTTOM_RIGHT];
+    p[idx++] = pts[Frustum::kNEAR_TOP_LEFT];
+    p[idx++] = pts[Frustum::kNEAR_BOTTOM_LEFT];
+    p[idx++] = pts[Frustum::kNEAR_TOP_RIGHT];
+    p[idx++] = pts[Frustum::kNEAR_BOTTOM_RIGHT];
+
+    p[idx++] = pts[Frustum::kNEAR_TOP_LEFT];
+    p[idx++] = pts[Frustum::kFAR_TOP_LEFT];
+
+    p[idx++] = pts[Frustum::kNEAR_TOP_RIGHT];
+    p[idx++] = pts[Frustum::kFAR_TOP_RIGHT];
+
+    p[idx++] = pts[Frustum::kNEAR_BOTTOM_LEFT];
+    p[idx++] = pts[Frustum::kFAR_BOTTOM_LEFT];
+
+    p[idx++] = pts[Frustum::kNEAR_BOTTOM_RIGHT];
+    p[idx++] = pts[Frustum::kFAR_BOTTOM_RIGHT];
+
+    assert(idx == 24);
+    return true;
+
+}

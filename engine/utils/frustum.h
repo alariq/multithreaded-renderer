@@ -15,6 +15,9 @@ public:
     };
 
     const vec3* getPoints() const { return &points[0]; }
+
+    bool calculateLineList(vec3* p, int count);
+
 private:
 
 
