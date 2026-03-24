@@ -168,18 +168,21 @@ public:
 								 prim_transform ? *prim_transform : mat4::identity()};
 		debug_prims_.emplace_back(dp);
 	}
-	void addDebugLines(const vec3* pts, const vec4* colours, uint32_t num_lines,
+	void addDebugLines(const vec3* pts, const vec4* colours, vec4 colour, uint32_t num_lines,
 					  const mat4* prim_transform = nullptr) {
 
 		vec3* vts = new vec3[num_lines*2];
-		vec4* c = new vec4[num_lines];
         memcpy(vts, pts, sizeof(vec3)*2*num_lines);
-        memcpy(c, colours, sizeof(vec4)*num_lines);
+        vec4* c = nullptr;
+        if(colours) {
+            c = new vec4[num_lines];
+            memcpy(c, colours, sizeof(vec4)*num_lines);
+        }
 		DebugPrimitive dp = {.type_ = DebugPrimitive::kLine,
 							 .b_two_sided_ = false,
                              .line_ = { .vts = vts, .colours = c },
                              .count_ = num_lines,
-							 .colour_ = vec4(1),
+							 .colour_ = colour,
 							 .transform_ =
 								 prim_transform ? *prim_transform : mat4::identity()};
 

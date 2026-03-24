@@ -1512,7 +1512,7 @@ class gosRenderer {
 
         void addDebugQuad(const vec2& size, const vec4& colour, uint32_t texture_id, const mat4* transform, bool is_two_side);
         void addDebugLine(const vec3& start, const vec3& end, const vec4& colour, const mat4* transform = nullptr);
-        void addDebugLines(const vec3* pts, const vec4* colours, uint32_t count, const mat4* transform = nullptr);
+        void addDebugLines(const vec3* pts, const vec4* colours, const vec4& colour, uint32_t count, const mat4* transform = nullptr);
         void addDebugPoints(const vec3* pos, uint32_t count, const vec4& colour, float point_size, const mat4* transform = nullptr);
         void drawDebugPrimitives(const mat4& view, const mat4& projection);
 
@@ -2486,7 +2486,7 @@ void gosRenderer::addDebugLine(const vec3& start, const vec3& end, const vec4& c
         debug_draw_calls_transparent_.push_back(ddc);
 }
 
-void gosRenderer::addDebugLines(const vec3* pts, const vec4* colours, uint32_t num_lines, const mat4* prim_transform) {
+void gosRenderer::addDebugLines(const vec3* pts, const vec4* colours, const vec4& colour, uint32_t num_lines, const mat4* prim_transform) {
 
     const uint32_t num_vertices = 2 * num_lines;
 	gosDebugDrawCall::VDecl* vertices = new gosDebugDrawCall::VDecl[num_vertices];
@@ -2494,11 +2494,11 @@ void gosRenderer::addDebugLines(const vec3* pts, const vec4* colours, uint32_t n
     for(uint32_t i=0; i<num_lines; ++i) {
         vertices[2*i + 0].pos = pts[2*i + 0];
         vertices[2*i + 0].uv = vec2(0,0);
-        vertices[2*i + 0].colour = vec4_to_uint32(colours[i]);
+        vertices[2*i + 0].colour = colours ? vec4_to_uint32(colours[i]) : 0xFFFFFFFF;
         vertices[2*i + 1].pos = pts[2*i + 1];
         vertices[2*i + 1].uv = vec2(0,0);
-        vertices[2*i + 1].colour = vec4_to_uint32(colours[i]);
-        b_has_transparency |= colours[i].w < 1.0f;
+        vertices[2*i + 1].colour = colours ? vec4_to_uint32(colours[i]) : 0xFFFFFFFF;
+        b_has_transparency |= colours ? colours[i].w < 1.0f : colour.w < 1.0f;
     }
 
     int vidx = debug_vertex_data_->addVertices(vertices, num_vertices);
@@ -2506,7 +2506,7 @@ void gosRenderer::addDebugLines(const vec3* pts, const vec4* colours, uint32_t n
     ddc.vb_start_idx_ = vidx;
 	ddc.num_vertices_ = num_vertices;
 	ddc.prim_type_ = PRIMITIVE_LINELIST;
-	ddc.colour_ = vec4(1);
+	ddc.colour_ = colour;
 	ddc.transform = prim_transform ? *prim_transform : mat4::identity();
 
     if(!b_has_transparency)
@@ -3037,9 +3037,9 @@ void _stdcall gos_AddLine(const vec3& start, const vec3& end, const vec4& colour
     g_gos_renderer->addDebugLine(start, end, colour, transform);
 }
 
-void _stdcall gos_AddLines(const vec3* pts, const vec4* colours, uint32_t num_lines, const mat4* transform/* =0*/) {
+void _stdcall gos_AddLines(const vec3* pts, const vec4* colours, const vec4& colour, uint32_t num_lines, const mat4* transform/* =0*/) {
     gosASSERT(g_gos_renderer);
-    g_gos_renderer->addDebugLines(pts, colours, num_lines, transform);
+    g_gos_renderer->addDebugLines(pts, colours, colour, num_lines, transform);
 }
 
 
