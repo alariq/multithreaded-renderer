@@ -41,6 +41,7 @@ struct SceneViewInfo {
     mat4 inv_view_mat_;
     mat4 proj_mat_;
     float fov_;
+    float aspect_;
 };
 
 class GameObject;

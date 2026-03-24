@@ -197,6 +197,7 @@ void scene_update(const camera *cam, const bool b_update_simulation, const float
     g_scene_view_info.inv_view_mat_ = cam->get_inv_view();
     g_scene_view_info.proj_mat_ = cam->get_projection();
     g_scene_view_info.fov_ = cam->get_fov();
+    g_scene_view_info.aspect_ = cam->get_aspect();
 
     std::list<GameObject *>::const_iterator it = g_world_objects.begin();
     std::list<GameObject *>::const_iterator end = g_world_objects.end();

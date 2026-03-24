@@ -217,16 +217,22 @@ void FrustumComponent::InitRenderResources() {
 
 void FrustumComponent::AddRenderPackets(struct RenderFrameContext* rfc) const {
 
-    const mat4& view = rfc->view_;
-    vec3 dir = view.getRow(2).xyz();
+    const mat4& view = b_override_ ? view_ : rfc->view_;
+    const mat4& inv_view = b_override_ ? inv_view_ : rfc->inv_view_;
+    const float zn = near_ ? near_ : rfc->z_near_;
+    const float zf = far_ ? far_ : rfc->z_far_;
+    const float fov = fov_ ? fov_ : rfc->fov_;
+    const float aspect = aspect_ ? aspect_ : rfc->aspect_;
+
+    vec3 fwd = view.getRow(2).xyz();
     vec3 right = view.getRow(0).xyz();
     vec3 up = view.getRow(1).xyz();
-    vec4 pos = rfc->inv_view_ * vec4(0, 0, 0, 1);
+    vec4 pos = inv_view * vec4(0, 0, 0, 1);
 
+    float safe_zone_deg = 0.5f;
     Frustum f;
-    f.updateFromCamera(pos.xyz(), dir, right, up, rfc->fov_,
-                              rfc->aspect_, rfc->z_near_,
-                              rfc->z_far_);
+    f.updateFromCamera(pos.xyz(), fwd, right, up, 
+        (fov - safe_zone_deg) * 3.1415f/180.0f, aspect, zn, zf);
 
     HGOSBUFFER mesh_vb = mesh_->vb_;
 	ScheduleRenderCommand(rfc, [f, mesh_vb]() {
@@ -235,12 +241,35 @@ void FrustumComponent::AddRenderPackets(struct RenderFrameContext* rfc) const {
 		Frustum::makeMeshFromFrustum(&f, (char*)&vb[0], vb_size, (int)sizeof(SVD));
 
 		for (int i = 0; i < vb_size; ++i) {
-			vb[i].uv = vec2(vb[i].pos.x, vb[i].pos.z);
+			vb[i].uv = 0.025f*vec2(vb[i].pos.x, vb[i].pos.z);
 			vb[i].normal = normalize(vb[i].pos);
 		}
 
 		gos_UpdateBuffer(mesh_vb, vb, 0, vb_size * sizeof(SVD));
 	});
+
+    class RenderList *rl = rfc->rl_;
+    if(false && mesh_) {
+        RenderPacket *rp = rl->AddPacket();
+        memset(rp, 0, sizeof(RenderPacket));
+        rp->mesh_ = *mesh_;
+        rp->m_ = mat4::identity();
+        //rp->is_debug_pass = 1;
+        rp->is_opaque_pass = 1;
+        //rp->is_transparent_pass = 1;
+        rp->debug_color = vec4(0, 1, 0, 1);
+    }
+
+    bool b_draw_wireframe_ = true;
+    if(b_draw_wireframe_) {
+        vec3 p[12*2]; // 12 lines x 2 points
+        f.calculateLineList(p, COUNTOF(p));
+        rl->addDebugLines(p, nullptr, vec4(1), 12);
+
+        vec3 p3 = pos.xyz();
+        rl->addDebugPoints(&p3, 1, vec4(1, 0, 0, 1), 10, true);
+    }
+
 }
 
 void FrustumComponent::DeinitRenderResources() {

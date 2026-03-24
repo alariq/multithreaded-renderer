@@ -281,14 +281,38 @@ template<> inline constexpr ComponentType
 get_component_type<class FrustumComponent>() { return ComponentType::kFrustumComponent; }
 class FrustumComponent: public TransformComponent, public IRenderable {
 	RenderMesh *mesh_;
+    mat4 view_, inv_view_;
+    float fov_, near_, far_, aspect_;
+    bool b_override_;
   public:
+    FrustumComponent():mesh_(nullptr), view_(mat4::identity()), 
+    inv_view_(mat4::identity()),
+    fov_(0), near_(0), far_(0), aspect_(0),
+    b_override_(false) {}
+
 	virtual ComponentType GetType() const override { return get_component_type<FrustumComponent>(); }
 	virtual void InitRenderResources() override;
 	virtual void DeinitRenderResources() override;
+    virtual IRenderable* getRenderableInterface() override { return this; }
 	virtual void AddRenderPackets(struct RenderFrameContext *) const override;
     // this will be updated by Init/Deinit Render Resoueces
 	virtual void Initialize() override {}
 	virtual void Deinitialize() override {}
+    
+    void OverrideView(const mat4* view, const mat4* inv_view = 0, float fov = 0, float n = 0, float f = 0, float aspect = 0) {
+        if(view && inv_view) {
+            view_ = *view;
+            inv_view_ = *inv_view;
+            fov_ = fov;
+            near_ = n;
+            far_ = f;
+            aspect_ = aspect;
+            b_override_ = true;
+        } else {
+            b_override_ = false;
+        }
+    }
+
 };
 
 typedef uint32_t GameObjectId;

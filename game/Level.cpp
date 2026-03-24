@@ -86,6 +86,8 @@ Level* Level::Create(const char* res) {
     obj->name_ = res;
     obj->name_ += std::to_string(obj_num++);
 
+    obj->AddComponent<FrustumComponent>();
+
     //TODO: move game text component from MainShip here
     //auto* TextComp = obj->AddComponent<GameTextComp>();
 
@@ -395,6 +397,18 @@ void Level::UpdateTextInput() {
 
 void Level::Update(float dt) {
 
+    // TODO: move to better place (this is only updated in game mode)
+    static bool b_frustum_overriden = false;
+    if(gos_GetKeyStatus(KEY_F) == KEY_PRESSED && gos_GetKeyStatus(KEY_LCONTROL) == KEY_HELD)
+    {
+        const SceneViewInfo& svi = scene_get_view_info();
+        if(b_frustum_overriden)
+            GetComponent<FrustumComponent>()->OverrideView(nullptr);
+        else
+            GetComponent<FrustumComponent>()->OverrideView(&svi.view_mat_, &svi.inv_view_mat_, svi.fov_, 1, 10, svi.aspect_);
+
+        b_frustum_overriden = !b_frustum_overriden;
+    }
 
     UpdateTextInput();
 
