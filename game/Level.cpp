@@ -38,7 +38,7 @@ void update_ship_cam(MainShip* ship) {
     }
 
     vec3 ship_pos = ship->GetComponent<TransformComponent>()->GetPosition();
-    ship_cam.set_projection(45.0f, Environment.drawableWidth, Environment.drawableHeight, 0.1f, 1000.0f);
+    ship_cam.set_projection(80.0f, Environment.drawableWidth, Environment.drawableHeight, 0.1f, 100.0f);
     //ship_cam.lookat(ship_cam_distance*vec3(1,1,1),  ship_pos, vec3(0,1,0));
     quaternion rot = ship->GetComponent<TransformComponent>()->GetRotation();
     vec3 elevation = vec3(0,1.5f,0);
@@ -59,14 +59,11 @@ void update_ship_cam(MainShip* ship) {
         slerp(ship_cam_state.cur.qrot, normalize(ship_cam_state.target.qrot), alpha);
 
     mat4 view = camera::make_lookat(
-            ship_cam_state.cur.pos - ship_cam_distance*ship_cam_state.cur.qrot.axis2() + 2*elevation,
+            ship_cam_state.cur.pos - ship_cam_distance*ship_cam_state.cur.qrot.axis2() + vec3(0, 0.2f, 0)*ship_cam_distance,
             ship_cam_state.cur.pos,
             ship_cam_state.cur.qrot.axis1());
 
     ship_cam.set_view(view);
-    //ship_cam.lookat(ship_pos - ship_cam_distance*rot.axis2() + 2*elevation, ship_pos + elevation, vec3(0,1,0));
-
-    //printf("Ship cam dist: %f\n", ship_cam_distance);
 }
 
 
