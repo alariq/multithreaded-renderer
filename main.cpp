@@ -481,7 +481,7 @@ void __stdcall Render(void)
 			switch (dp.type_) {
 			case DebugPrimitive::kLine:
                 if(dp.line_.vts)
-                    gos_AddLines(dp.line_.vts, dp.line_.colours, dp.count_, &dp.transform_);
+                    gos_AddLines(dp.line_.vts, dp.line_.colours, dp.colour_, dp.count_, &dp.transform_);
                 else
                     gos_AddLine(dp.line_.s, dp.line_.e, dp.colour_, &dp.transform_);
 				break;
