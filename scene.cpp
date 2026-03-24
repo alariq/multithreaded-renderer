@@ -183,6 +183,7 @@ void finalize_scene() {
     std::list<GameObject *>::const_iterator end = g_world_objects.end();
     for (; it != end; ++it) {
         GameObject *go = *it;
+        go->SetState(GameObject::kPendingDestroy);
         delete go;
     }
 }
@@ -192,6 +193,10 @@ const SceneViewInfo& scene_get_view_info() {
 }
 
 void scene_update(const camera *cam, const bool b_update_simulation, const float dt) {
+
+	if (!b_update_simulation)
+        return;
+
     // fill per frame view info
     g_scene_view_info.view_mat_ = cam->get_view();
     g_scene_view_info.inv_view_mat_ = cam->get_inv_view();
@@ -202,32 +207,42 @@ void scene_update(const camera *cam, const bool b_update_simulation, const float
     std::list<GameObject *>::const_iterator it = g_world_objects.begin();
     std::list<GameObject *>::const_iterator end = g_world_objects.end();
 
+    // TODO: this was called all the time, probably because transform components should be updated
+    // in any case, keep an eye
     // update transform components
-    BEGIN_ZONE_N(uc_zone, UpdateComponents,0);
+    {
+    SCOPED_ZONE_N(UpdateComponents,0);
     for(int t=0;t<(int)ComponentType::kCount;++t) {
         for(auto comp: g_components[t]) {
             comp->UpdateComponent(dt);
-		}
-	}
-    END_ZONE(uc_zone);
+        }
+    }
+    }
 
-	if (b_update_simulation) {
+    SCOPED_ZONE_N(go_Update,0);
 
-        SCOPED_ZONE_N(go_Update,0);
+    std::vector<GameObject*> pending_destroy;
+    for (; it != end; ++it) {
+        GameObject *go = *it;
+        const GameObject::State state = go->GetState();
+        if(state == GameObject::kInitialized) {
+            go->Update(dt);
+        } else if(state == GameObject::kPendingDestroy) {
+            pending_destroy.push_back(go);
+        }
 
-		for (; it != end; ++it) {
-			GameObject *go = *it;
-			go->Update(dt);
+        // if object is frustum object.... and we want to update it
+        if (0) {
+            camera loc_cam = *cam;
+            loc_cam.set_projection(45.0f, Environment.drawableWidth,
+                    Environment.drawableHeight, 4.0f, 20.0f);
+            ((FrustumObject *)go)->UpdateFrustum(&loc_cam);
+        }
+    }
 
-			// if object is frustum object.... and we want to update it
-			if (0) {
-				camera loc_cam = *cam;
-				loc_cam.set_projection(45.0f, Environment.drawableWidth,
-									   Environment.drawableHeight, 4.0f, 20.0f);
-				((FrustumObject *)go)->UpdateFrustum(&loc_cam);
-			}
-		}
-	}
+    for(auto go: pending_destroy) {
+        scene_delete_game_object(go);
+    }
 }
 
 void scene_add_game_object(GameObject* go) {
@@ -251,6 +266,7 @@ void scene_delete_game_object(GameObject* go) {
     assert(it!=e);
     if(it!=e) {
 
+        (*it)->SetState(GameObject::kDestroyed);
 	    g_world_objects.erase(it);
 
         std::vector<Component*> to_deinit;
@@ -298,6 +314,9 @@ void scene_render_update(struct RenderFrameContext *rfc, bool is_in_editor_mode)
 				vec3 loc = vec3(1, 1, 1);
 				vec3 pos1 = tc->Transform(loc);
 				vec4 pos2 = tc->GetTransform() * vec4(loc, 1);
+                if(lengthSqr(pos1 - pos2.xyz()) >= 0.0001f) {
+                    printf("error\n");
+                }
 				assert(lengthSqr(pos1 - pos2.xyz()) < 0.0001f);
 			}
 		}
