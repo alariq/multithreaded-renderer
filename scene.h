@@ -36,6 +36,13 @@ namespace ReservedObjIds {
 	};
 }
 
+struct SceneViewInfo {
+    mat4 view_mat_;
+    mat4 inv_view_mat_;
+    mat4 proj_mat_;
+    float fov_;
+};
+
 class GameObject;
 typedef uint32_t GameObjectId;
 
@@ -56,6 +63,8 @@ void scene_get_intersected_objects(
 
 void scene_add_game_object(GameObject* go);
 void scene_delete_game_object(GameObject* go);
+
+const SceneViewInfo& scene_get_view_info();
 
 const std::vector<PointLight>& scene_get_light_list();
 

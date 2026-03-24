@@ -30,6 +30,8 @@ std::vector<IRenderable*> g_renderables;
 
 static uint32_t g_obj_id_under_cursor = scene::kInvalidObjectId;
 
+static SceneViewInfo g_scene_view_info;
+
 void scene_set_object_id_under_cursor(uint32_t obj_id) {
 	g_obj_id_under_cursor = obj_id;
 }
@@ -185,7 +187,17 @@ void finalize_scene() {
     }
 }
 
+const SceneViewInfo& scene_get_view_info() {
+    return g_scene_view_info;
+}
+
 void scene_update(const camera *cam, const bool b_update_simulation, const float dt) {
+    // fill per frame view info
+    g_scene_view_info.view_mat_ = cam->get_view();
+    g_scene_view_info.inv_view_mat_ = cam->get_inv_view();
+    g_scene_view_info.proj_mat_ = cam->get_projection();
+    g_scene_view_info.fov_ = cam->get_fov();
+
     std::list<GameObject *>::const_iterator it = g_world_objects.begin();
     std::list<GameObject *>::const_iterator end = g_world_objects.end();
 
