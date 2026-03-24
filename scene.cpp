@@ -301,6 +301,8 @@ void scene_render_update(struct RenderFrameContext *rfc, bool is_in_editor_mode)
 				assert(lengthSqr(pos1 - pos2.xyz()) < 0.0001f);
 			}
 		}
+
+        go->AddRenderPackets(rfc);
 	}
 
 	rfc->point_lights_ = g_light_list;
