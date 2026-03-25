@@ -16,6 +16,7 @@ bool                resize_window           (RenderWindowHandle rw_handle, int w
 void                grab_window_input       (RenderWindowHandle rw_handle, bool grab);
 void                get_window_size         (RenderWindowHandle rw_handle, int* width, int* height);
 int                 get_window_bpp          (RenderWindowHandle rw_handle);
+float               get_dpi_scaling         (RenderWindowHandle rw_handle);
 // may be different than window size (e.g. when switching to fullscreen)
 void                get_drawable_size       (RenderWindowHandle rw_handle, int* width, int* height);
 void                swap_window             (RenderWindowHandle h);

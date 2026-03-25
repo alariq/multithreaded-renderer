@@ -2,19 +2,24 @@
 #include "gos_render.h"
 #include <stdio.h>
 #include <time.h>
-#include <queue>
 
 #include <SDL2/SDL.h>
 #include "gos_input.h"
 
-#include "utils/camera.h"
-#include "utils/shader_builder.h"
 #include "utils/gl_utils.h"
 #include "utils/timing.h"
 #include "utils/threading.h"
 #include "utils/ts_queue.h"
 
 #include "profiler/profiler.h"
+
+#if defined(USE_IMGUI)
+#include "imgui.h"
+#include "imgui_impl_sdl2.h"
+#include "imgui_impl_opengl3.h"
+#include "imgui_threaded_rendering/imgui_threaded_rendering.h"
+#endif
+
 
 #include <signal.h>
 
@@ -46,7 +51,7 @@ graphics::RenderContextHandle g_ctx = 0;
 
 // TODO: implement GPU/CPU bound stats (based on who wait for whom)
 
-const uint32_t NUM_BUFFERED_FRAMES = 2;
+const uint32_t NUM_BUFFERED_FRAMES = 1;
 threading::Event* g_main_event[NUM_BUFFERED_FRAMES];
 threading::Event* g_render_event[NUM_BUFFERED_FRAMES];
 
@@ -55,6 +60,11 @@ bool g_rendering = true;
 int RenderThreadMain(void* data);
 int gRenderFrameNumber;
 int gFrameNumber;
+
+#if defined(USE_IMGUI)
+constexpr static const int NUM_SNAPSHOTS = NUM_BUFFERED_FRAMES + 1;
+static ImDrawDataSnapshot gSnapshots[NUM_SNAPSHOTS];
+#endif
 
 
 // TODO: make them unique_ptr to better show ownership transfer ?
@@ -179,6 +189,12 @@ public:
             SCOPED_ZONE_N(draw_screen, 0);
             draw_screen();
         }
+
+#if defined(USE_IMGUI)
+        ImDrawDataSnapshot* snapshot = &gSnapshots[gRenderFrameNumber % NUM_SNAPSHOTS];
+        ImGui_ImplOpenGL3_RenderDrawData(&snapshot->DrawData);
+#endif
+
         {
             SCOPED_ZONE_N(swap_window, 0);
             graphics::swap_window(g_win);
@@ -217,6 +233,9 @@ static void process_events( void ) {
 	// sporadic mouse movement event
     if (g_focus_lost) {
         while (SDL_PollEvent(&event)) {
+#if defined(USE_IMGUI)
+            ImGui_ImplSDL2_ProcessEvent(&event);
+#endif
 			if (event.type == SDL_WINDOWEVENT &&
 				event.window.event == SDL_WINDOWEVENT_FOCUS_GAINED) {
                 SPEW(("INPUT", "Focus gained\n"));
@@ -239,6 +258,10 @@ static void process_events( void ) {
     }
 
     while( SDL_PollEvent( &event ) ) {
+
+#if defined(USE_IMGUI)
+        ImGui_ImplSDL2_ProcessEvent(&event);
+#endif
 
         switch( event.type ) {
         case SDL_KEYDOWN:
@@ -450,8 +473,6 @@ int main(int argc, char** argv)
         SPEW(("Render", "[OK] STATUS\n"));
     }
 
-    SDL_SetHint(SDL_HINT_RENDER_DRIVER, "opengl");
-
 	g_win = graphics::create_window("mt-renderer", 
             Environment.screenWidth, Environment.screenHeight,
             Environment.bitDepth, Environment.displayIndex);
@@ -478,6 +499,10 @@ int main(int argc, char** argv)
                 return 1;
 
             graphics::make_current_context(g_ctx);
+#if defined(USE_IMGUI)
+            if(!ImGui_ImplOpenGL3_CreateDeviceObjects())
+                IM_ASSERT(0 && "ImGui_ImplOpenGL3_CreateDeviceObjects() failed!");
+#endif
 
             GLenum err = glewInit();
             if (GLEW_OK != err)
@@ -569,6 +594,8 @@ int main(int argc, char** argv)
 
 		uint64_t start_tick = timing::gettickcount();
 		//timing::sleep(10*1000000);
+
+        process_events();
         
         {
             SCOPED_ZONE_N(DoGameLogic, 0);
@@ -578,7 +605,47 @@ int main(int argc, char** argv)
 #endif            
         }
 
-        process_events();
+
+#if defined(USE_IMGUI)
+        ImDrawDataSnapshot* snapshot = nullptr;
+        {
+            // Start the Dear ImGui frame
+            ImGui_ImplOpenGL3_NewFrame();
+            ImGui_ImplSDL2_NewFrame();
+            ImGui::NewFrame();
+
+            //ImGui::DockSpaceOverViewport();
+            ImGui::DockSpaceOverViewport(0, nullptr, ImGuiDockNodeFlags_PassthruCentralNode); // Create a dockspace in main viewport, central node is transparent.
+
+            {
+                static float f = 0.0f;
+                static int counter = 0;
+                static bool show_demo_window = false;
+
+                ImGui::Begin("Hello, world!");                          // Create a window called "Hello, world!" and append into it.
+
+                ImGui::Text("This is some useful text.");               // Display some text (you can use a format strings too)
+
+                ImGui::Checkbox("Demo Window", &show_demo_window);      // Edit bools storing our window open/close state
+                ImGui::SliderFloat("float", &f, 0.0f, 1.0f);            // Edit 1 float using a slider from 0.0f to 1.0f
+
+                if (ImGui::Button("Button"))                            // Buttons return true when clicked (most widgets return true when edited/activated)
+                    counter++;
+                ImGui::SameLine();
+                ImGui::Text("counter = %d", counter);
+
+                //ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
+                ImGui::End();
+
+                ImGui::ShowDemoWindow(&show_demo_window);
+            }
+            ImGui::Render();
+
+            snapshot = &gSnapshots[gFrameNumber % NUM_SNAPSHOTS];
+            snapshot->SnapUsingSwap(ImGui::GetDrawData(), ImGui::GetTime());
+        }
+#endif
+
 
         // wait for frame to which we want to push our render commands
         //SPEW(("SYNC", "Main: sync[%d]->Wait\n", ev_index));
@@ -673,6 +740,16 @@ int main(int argc, char** argv)
 		virtual int exec() override {
 
             PROF_FINALIZE_OPENGL();
+
+#if defined(USE_IMGUI)
+            ImGui_ImplOpenGL3_Shutdown();
+            ImGui_ImplSDL2_Shutdown();
+            for(ImDrawDataSnapshot& s: gSnapshots) {
+                s.Clear();
+            }
+            ImGui::DestroyContext();
+#endif
+
             gos_DestroyRenderer();
             graphics::destroy_render_context(g_ctx);
             g_rendering = false;

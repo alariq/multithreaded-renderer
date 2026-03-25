@@ -11,6 +11,12 @@
 #include <GL/gl.h>
 #include "utils/logging.h"
 
+#if defined(USE_IMGUI)
+#include "imgui.h"
+#include "imgui_impl_sdl2.h"
+#include "imgui_impl_opengl3.h"
+#endif
+
 // FIXME: think how to make it better when different parts need window
 SDL_Window* g_sdl_window = NULL;
 
@@ -25,6 +31,7 @@ struct RenderWindow {
     SDL_Window* window_;
     int width_;
     int height_;
+    float dpi_scale_;
 };
 
 struct RenderContext {
@@ -64,6 +71,9 @@ RenderWindow* create_window(const char* pwinname, int width, int height, int wan
             fprintf(stderr, "\n");
         }
     }
+
+    SDL_SetHint(SDL_HINT_RENDER_DRIVER, "opengl");
+    SDL_SetHint(SDL_HINT_WINDOWS_DPI_SCALING, "1");
 
     // initialize using 0 videodriver
     if (SDL_VideoInit(0) < 0) {
@@ -221,35 +231,45 @@ RenderWindow* create_window(const char* pwinname, int width, int height, int wan
     preferred_mode.driverdata = nullptr;
 
     //Some info about fullscreen/win size issues: https://github.com/libsdl-org/SDL/issues/8544
-    {
-        window = SDL_CreateWindow(pwinname ? pwinname : "--", 
-                SDL_WINDOWPOS_CENTERED_DISPLAY(displayIndex), 
-                SDL_WINDOWPOS_CENTERED_DISPLAY(displayIndex), 
-                preferred_mode.w, preferred_mode.h, 
-                SDL_WINDOW_OPENGL|SDL_WINDOW_ALLOW_HIGHDPI|SDL_WINDOW_BORDERLESS/*|SDL_WINDOW_FULLSCREEN_DESKTOP*/);
 
-        if (!window) {
-            fprintf(stderr, "Couldn't create window: %s\n", SDL_GetError());
-            return NULL;
-        }
-        SDL_GetWindowSize(window, &width, &height);
-
-        // NULL to use window width and height and display refresh rate
-        // only need to set mode if wanted fullscreen
-        fprintf(stderr, "Setting mode %dx%d@%d\n", preferred_mode.w, preferred_mode.h, preferred_mode.refresh_rate);
-        if (SDL_SetWindowDisplayMode(window, &preferred_mode) < 0) {
-            fprintf(stderr, "Can't set up display mode: %s\n", SDL_GetError());
-            SDL_DestroyWindow(window);
-            return NULL;
-        }
-
-        SDL_ShowWindow(window);
+    // take care about DPI (not necessary if using SDL_WINDOW_FULLSCREEN_DESKTOP, as window size will have
+    // a DPI-aware size after creation
+    float dpi = 96.0f;
+    if (SDL_GetDisplayDPI(displayIndex, &dpi, nullptr, nullptr) == 0) {
+        fprintf(stdout, "Display%d DPI: %f\n", displayIndex, dpi);
+        preferred_mode.w = preferred_mode.w * (dpi / 96);
+        preferred_mode.h = preferred_mode.h * (dpi / 96);
     }
+
+    window = SDL_CreateWindow(pwinname ? pwinname : "--", 
+            SDL_WINDOWPOS_CENTERED_DISPLAY(displayIndex), 
+            SDL_WINDOWPOS_CENTERED_DISPLAY(displayIndex), 
+            preferred_mode.w, preferred_mode.h, 
+            SDL_WINDOW_OPENGL|SDL_WINDOW_ALLOW_HIGHDPI|SDL_WINDOW_BORDERLESS/*|SDL_WINDOW_FULLSCREEN_DESKTOP*/);
+
+    if (!window) {
+        fprintf(stderr, "Couldn't create window: %s\n", SDL_GetError());
+        return NULL;
+    }
+    SDL_GetWindowSize(window, &width, &height);
+    fprintf(stdout, "Created window size: %dx%d\n", width, height);
+
+    // NULL to use window width and height and display refresh rate
+    // only need to set mode if wanted fullscreen
+    fprintf(stderr, "Setting mode %dx%d@%d\n", preferred_mode.w, preferred_mode.h, preferred_mode.refresh_rate);
+    if (SDL_SetWindowDisplayMode(window, &preferred_mode) < 0) {
+        fprintf(stderr, "Can't set up display mode: %s\n", SDL_GetError());
+        SDL_DestroyWindow(window);
+        return NULL;
+    }
+
+    SDL_ShowWindow(window);
 
     RenderWindow* rw = new RenderWindow();
     rw->window_ = window;
     rw->width_ = preferred_mode.w;
     rw->height_ = preferred_mode.h;
+    rw->dpi_scale_ = dpi / 96;
 
     g_sdl_window = window;
 
@@ -367,6 +387,48 @@ RenderContextHandle init_render_context(RenderWindowHandle render_window)
             printf("Failed to get SDL_GL_CONTEXT_MINOR_VERSION: %s\n", SDL_GetError());
         }
     }
+
+#if defined(USE_IMGUI)
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO(); (void)io;
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
+    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable; 
+    ImGui::StyleColorsDark();
+
+    ImGuiStyle& style = ImGui::GetStyle();
+    const float dpi_scale = graphics::get_dpi_scaling(render_window);
+    // Bake a fixed style scale. (until we have a solution for dynamic style scaling, changing this requires resetting Style + calling this again)
+    style.ScaleAllSizes(dpi_scale);
+    // Set initial font scale. (in docking branch: using io.ConfigDpiScaleFonts=true automatically overrides this for every window depending on the current monitor)
+    style.FontScaleDpi = dpi_scale;        
+
+    // Setup Platform/Renderer backends
+    ImGui_ImplSDL2_InitForOpenGL(rw->window_, glcontext);
+    const char* glsl_version = "#version 130";
+    ImGui_ImplOpenGL3_Init(glsl_version);
+
+
+    // Load Fonts
+    // - If fonts are not explicitly loaded, Dear ImGui will select an embedded font: either AddFontDefaultVector() or AddFontDefaultBitmap().
+    //   This selection is based on (style.FontSizeBase * style.FontScaleMain * style.FontScaleDpi) reaching a small threshold.
+    // - You can load multiple fonts and use ImGui::PushFont()/PopFont() to select them.
+    // - If a file cannot be loaded, AddFont functions will return a nullptr. Please handle those errors in your code (e.g. use an assertion, display an error and quit).
+    // - Read 'docs/FONTS.md' for more instructions and details.
+    // - Use '#define IMGUI_ENABLE_FREETYPE' in your imconfig file to use FreeType for higher quality font rendering.
+    // - Remember that in C/C++ if you want to include a backslash \ in a string literal you need to write a double backslash \\ !
+    // - Our Emscripten build process allows embedding fonts to be accessible at runtime from the "fonts/" folder. See Makefile.emscripten for details.
+    //style.FontSizeBase = 20.0f;
+    //io.Fonts->AddFontDefaultVector();
+    //io.Fonts->AddFontDefaultBitmap();
+    //io.Fonts->AddFontFromFileTTF("c:\\Windows\\Fonts\\segoeui.ttf");
+    //io.Fonts->AddFontFromFileTTF("../../misc/fonts/DroidSans.ttf");
+    //io.Fonts->AddFontFromFileTTF("../../misc/fonts/Roboto-Medium.ttf");
+    //io.Fonts->AddFontFromFileTTF("../../misc/fonts/Cousine-Regular.ttf");
+    //ImFont* font = io.Fonts->AddFontFromFileTTF("c:\\Windows\\Fonts\\ArialUni.ttf");
+    //IM_ASSERT(font != nullptr);
+#endif
 
     RenderContext* rc = new RenderContext();
     rc->glcontext_ = glcontext;
@@ -535,6 +597,13 @@ int get_window_bpp(RenderWindowHandle rw_handle) {
     assert(rw);
     Uint32 fmt = SDL_GetWindowPixelFormat(rw_handle->window_);
     return SDL_BITSPERPIXEL(fmt);
+}
+
+//==============================================================================
+float get_dpi_scaling(RenderWindowHandle rw_handle) {
+    RenderWindow* rw = (RenderWindow*)rw_handle;
+    assert(rw);
+    return rw->dpi_scale_;
 }
 
 //==============================================================================

@@ -78,6 +78,7 @@ endif()
 
 option(USE_TRACY " " ON )
 option(USE_REMOTERY OFF)
+option(USE_IMGUI ON)
 
 if(USE_TRACY)
     option ( TRACY_ENABLE " " ON )
@@ -108,9 +109,6 @@ add_definitions(-DUSE_ASSEMBLER_CODE=0)
 add_definitions(-DLINUX_BUILD)
 add_definitions(-DRMT_USE_OPENGL=1)
 
-# on Windows custom FindSDL2 is used so probably need to use SDL2main (as recommended, but it works with just "SDL2" as well just with a warning)
-find_package(SDL2 REQUIRED)
-find_package(SDL2_image REQUIRED)
 #use glew static on win
 if(MSVC)
     set(GLEW_USE_STATIC_LIBS TRUE)
@@ -175,16 +173,6 @@ include_directories(${COMMON_INCLUDE_DIRS} "./platform/include" "./engine" )
 
 message("OpenGL library linking: ${OPENGL_gl_LIBRARY}")
 message("OpenGL library include: ${OPENGL_INCLUDE_DIR}")
-
-#if(NOT ${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
-if(NOT WIN32)
-    # atomic to link atomic support for 128bit data
-    set(ADDITIONAL_LIBS dl pthread atomic SDL2::SDL2 SDL2::SDL2main SDL2_image::SDL2_image)
-	message("Not win32 system")
-else()
-	# winmm for timeGetTime, maybe switch to GetTickCount to remove this dependency
-    set(ADDITIONAL_LIBS winmm SDL2::Main)
-endif()
 
 add_executable(mt-renderer ${SOURCES})
 target_compile_definitions(mt-renderer PUBLIC $<$<CONFIG:Debug>:_ARMOR _DEBUG BUGLOG LAB_ONLY>)
