@@ -1,6 +1,7 @@
 TODO:
 
- [ ] imgui integration
+ [x] imgui integration
+     [ ] add basic imgui incapsulated propery sheet to use by the game editor
  [ ] spline editor
  [ ] better navigation
     [ ] smooth control point chasing by main ship
