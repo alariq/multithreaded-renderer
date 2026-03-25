@@ -1,0 +1,8 @@
+TODO:
+
+ [ ] imgui integration
+ [ ] spline editor
+ [ ] better navigation
+    [ ] smooth control point chasing by main ship
+    [ ] ability to chase any point (incl. points on a spline) for enemies
+    [ ] seamless transition from target to target for enemies
