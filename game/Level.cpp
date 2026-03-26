@@ -3,6 +3,7 @@
 #include "game/Text.h"
 #include "engine/profiler/profiler.h"
 #include "engine/utils/timing.h"
+#include "engine/utils/camera.h"
 #include "gameos.hpp"
 
 #include <cctype>

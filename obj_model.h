@@ -10,6 +10,7 @@
 #include <functional>
 #include <vector>
 #include <atomic>
+#include <string>
 #include <assert.h>
 
 struct RenderMesh;

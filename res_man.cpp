@@ -4,6 +4,7 @@
 #include "utils/obj_loader.h"
 #include "utils/intersection.h" // aabb
 #include "utils/logging.h"
+#include "utils/gl_utils.h"
 
 #include <string>
 #include <unordered_map>

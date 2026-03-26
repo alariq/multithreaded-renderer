@@ -7,6 +7,8 @@
 #include "engine/utils/spline.h"
 #include "engine/utils/myarray.h"
 
+#include <string>
+
 class Level: public GameObject {
 
     std::string name_;
