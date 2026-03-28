@@ -1,4 +1,5 @@
 #include "obj_loader.h"
+#include "logging.h"
 
 #include <stdio.h>
 #include <unordered_map>
@@ -13,18 +14,23 @@ static bool read_vec2(const char* line, float* p)
    return 2 == sscanf(line, "%f %f", p, p+1);
 }
 
-static bool read_face(const char* line, int32_t* face)
+static bool read_face(const char* line, int32_t face[9])
 {
     while(!isdigit(*line)) line++;
     int num_read = 0;
     int count = 0;
+    int faceidx = 0;
     do {
         num_read = sscanf(line, "%d", face);
         // skip to next number or next triplet
         while(*line!='/' && *line!=' ' && *line!='\n' && *line!='\0') line++;
         // increment face
-        while(*line=='/' || *line==' ') { line++; face++; }
+        while(*line=='/' || *line==' ') { line++; faceidx++; face++; }
         count += num_read>0 ? 1 : 0;
+        if(faceidx >= 9) {
+            log_error("Face index overflow, possibly non-triangulated mesh\n");
+            return false;
+        }
     } while(num_read>0);
 
     return count > 0;
