@@ -16,53 +16,26 @@ bool DeferredRenderer::Init(uint32_t width, uint32_t height)
     stencil_fbo_ = fbos[3];
     downsampled_fbo_ = fbos[4];
 
+    gos_g_buffer_depth = gosInvalidTextureID;
+    g_buffer_depth = 0;
+
+    gos_g_buffer_albedo = gosInvalidTextureID;
+    g_buffer_albedo = 0;
+
+    gos_g_buffer_normal = gosInvalidTextureID;
+    g_buffer_normal = 0;
+
+    gos_backbuffer = gosInvalidTextureID;
+    backbuffer = 0;
+
     // as we downsample make sure we are at least multiple of 2
     assert(0 == (height&0x1) && 0 == (width&0x1));
 
     width_ = width;
     height_ = height;
-    uint32_t wh = (height_<<16) | width_;
 
-    bool use_stencil = false;
-    gos_TextureFormat depth_format = use_stencil ? gos_Texture_Depth_Stencil : gos_Texture_Depth;
-
-    gos_g_buffer_depth =
-        gos_NewRenderTarget(depth_format, "g_bufer_depth", wh);
-    g_buffer_depth = gos_TextureGetNativeId(gos_g_buffer_depth);
-
-    gos_g_buffer_albedo =
-        gos_NewRenderTarget(gos_Texture_RGBA8, "g_buffer_albedo", wh);
-    g_buffer_albedo = gos_TextureGetNativeId(gos_g_buffer_albedo);
-
-    gos_g_buffer_normal =
-        gos_NewRenderTarget(gos_Texture_RGBA8, "g_buffer_normal", wh);
-    g_buffer_normal = gos_TextureGetNativeId(gos_g_buffer_normal);
-
-    gos_backbuffer =
-        gos_NewRenderTarget(gos_Texture_RGBA8, "backbuffer", wh);
-    backbuffer = gos_TextureGetNativeId(gos_backbuffer);
-
-    // downsampled buffers (used for particle rendering)
-    // TODO: move them to particle related code
-    ds_width_ = width / 2;
-    ds_height_ = height / 2;
-    uint32_t ds_wh = (ds_height_<<16) | ds_width_;
-    gos_downsampled_color =
-        gos_NewRenderTarget(gos_Texture_RGBA8, "downsampled_color", ds_wh);
-    downsampled_color = gos_TextureGetNativeId(gos_downsampled_color);
-    gos_downsampled_depth =
-        gos_NewRenderTarget(depth_format, "downsampled_depth", ds_wh);
-    downsampled_depth = gos_TextureGetNativeId(gos_downsampled_depth);
-
-    GLuint t[] = {g_buffer_depth, g_buffer_albedo,   g_buffer_normal,
-                  backbuffer,     downsampled_color, downsampled_depth};
-    for(GLuint tex: t) {
-        glBindTexture(GL_TEXTURE_2D, tex);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-        glBindTexture(GL_TEXTURE_2D, 0);
+    if(!RecreateRenderTargets(width, height)) {
+        return false;
     }
 
     smp_nearest_clamp_nomips_ = gos_CreateTextureSampler(
@@ -86,6 +59,57 @@ bool DeferredRenderer::Init(uint32_t width, uint32_t height)
     gos_AddRenderMaterial("null");
     gos_AddRenderMaterial("upsample_bilateral");
     gos_AddRenderMaterial("copy_depth");
+
+    b_initialized_ = true;
+    return true;
+}
+
+bool DeferredRenderer::RecreateRenderTargets(uint32_t width, uint32_t height) {
+
+    // as we downsample make sure we are at least multiple of 2
+    //assert(0 == (height&0x1) && 0 == (width&0x1));
+    width = max(width, 2U);
+    height = max(height, 2U);
+
+    width_ = width;
+    height_ = height;
+    uint32_t wh = (height_<<16) | width_;
+
+    // downsampled buffers (used for particle rendering)
+    // TODO: move them to particle related code
+    ds_width_ = width / 2;
+    ds_height_ = height / 2;
+    uint32_t ds_wh = (ds_height_<<16) | ds_width_;
+
+    bool use_stencil = false;
+    gos_TextureFormat depth_format = use_stencil ? gos_Texture_Depth_Stencil : gos_Texture_Depth;
+
+
+    DWORD* tex[] = { &gos_g_buffer_depth, &gos_g_buffer_albedo, &gos_g_buffer_normal, &gos_backbuffer, &gos_downsampled_color, &gos_downsampled_depth };
+    const char* const name[] = { "g_buffer_depth", "g_buffer_albedo", "g_buffer_normal", "backbuffer", "downsampled_color", "downsampled_depth" };
+    gos_TextureFormat fmt[] = { depth_format, gos_Texture_RGBA8, gos_Texture_RGBA8, gos_Texture_RGBA8, gos_Texture_RGBA8, depth_format };
+    uint32_t size[] = {wh, wh, wh, wh, ds_wh, ds_wh}; 
+    GLuint* texid[] = { &g_buffer_depth, &g_buffer_albedo, &g_buffer_normal, &backbuffer, &downsampled_color, &downsampled_depth };
+
+    static_assert(COUNTOF(tex) == COUNTOF(texid) && COUNTOF(tex) == COUNTOF(fmt));
+
+    for(unsigned int i=0; i< COUNTOF(tex);++i) {
+        if(*tex[i] != gosInvalidTextureID) {
+            gos_DestroyTexture(*tex[i]);
+        }
+        *tex[i] = gos_NewRenderTarget(fmt[i], name[i], size[i]);
+        *texid[i] = gos_TextureGetNativeId(*tex[i]);
+
+        glBindTexture(GL_TEXTURE_2D, *texid[i]);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glBindTexture(GL_TEXTURE_2D, 0);
+    }
+
+    // recreate FBO using new RTs
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
     bool status = false;
     // setup deferred fbo
@@ -207,6 +231,10 @@ public:
 
 void DeferredRenderer::RenderGeometry(const struct RenderFrameContext* rfc)
 {
+    if(width_ != (uint32_t)rfc->viewport_.z || height_ != (uint32_t)rfc->viewport_.w) {
+        RecreateRenderTargets(rfc->viewport_.z, rfc->viewport_.w);
+    }
+
     SCOPED_GPU_ZONE(Deferred_RenderGeometry);
     SCOPED_ZONE_N(Deferred_RenderGeometry, 0);
 
@@ -587,6 +615,7 @@ void DeferredRenderer::Present(int w, int h)
 
     RenderMesh* fs_quad = res_man_load_mesh("fs_quad");
     gos_RenderIndexedArray(fs_quad->ib_, fs_quad->vb_, fs_quad->vdecl_, fs_quad->prim_type_);
+    res_man_release_mesh(fs_quad);
 }
 
 

@@ -192,6 +192,14 @@ public:
 
 #if defined(USE_IMGUI)
         ImDrawDataSnapshot* snapshot = &gSnapshots[gRenderFrameNumber % NUM_SNAPSHOTS];
+
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        glDrawBuffer(GL_BACK);
+        const int view_w = Environment.drawableWidth;
+        const int view_h = Environment.drawableHeight;
+        gos_SetRenderViewport(0, 0, view_w, view_h);
+        glViewport(0, 0, (GLsizei)view_w, (GLsizei)view_h);
+
         ImGui_ImplOpenGL3_RenderDrawData(&snapshot->DrawData);
 #endif
 
@@ -232,10 +240,11 @@ static void process_events( void ) {
     // if we out of focus, only look for focus gain and then kill all events to not get
 	// sporadic mouse movement event
     if (g_focus_lost) {
-        while (SDL_PollEvent(&event)) {
 #if defined(USE_IMGUI)
-            ImGui_ImplSDL2_ProcessEvent(&event);
+        ImGui_ImplSDL2_ProcessEvent(&event);
 #endif
+
+        while (SDL_PollEvent(&event)) {
 			if (event.type == SDL_WINDOWEVENT &&
 				event.window.event == SDL_WINDOWEVENT_FOCUS_GAINED) {
                 SPEW(("INPUT", "Focus gained\n"));
@@ -245,11 +254,12 @@ static void process_events( void ) {
                 break;
             } if (event.type == SDL_WINDOWEVENT &&
 				event.window.event == SDL_WINDOWEVENT_RESIZED) {
-                    float w = (float)event.window.data1;
-                    float h = (float)event.window.data2;
-                    SPEW(("INPUT", "resize event while unfocused: w: %f h:%f\n", w, h));
-                    g_pending_width = (int)w;
-                    g_pending_height = (int)h;
+                    int w = max(event.window.data1, 320);
+                    int h = max(event.window.data2, 200);
+                    SPEW(("INPUT", "resize event while unfocused: w: %d h:%d\n", w, h));
+                    g_pending_width = w;
+                    g_pending_height = h;
+
             } else {
                 continue;
             }
@@ -257,7 +267,7 @@ static void process_events( void ) {
         return;
     }
 
-    while( SDL_PollEvent( &event ) ) {
+    while( SDL_PollEvent( &event ) /*&& !g_focus_lost */ ) {
 
 #if defined(USE_IMGUI)
         ImGui_ImplSDL2_ProcessEvent(&event);
@@ -276,6 +286,9 @@ static void process_events( void ) {
         case SDL_WINDOWEVENT:
         {
             switch (event.window.event) {
+            case SDL_WINDOWEVENT_MINIMIZED:
+                SPEW(("INPUT", "Minimized\n"));
+                break;
             case SDL_WINDOWEVENT_LEAVE:
                 SPEW(("INPUT", "Mouse left\n"));
                 break;
@@ -284,11 +297,19 @@ static void process_events( void ) {
                 break;
             case SDL_WINDOWEVENT_RESIZED:
             {
-                float w = (float)event.window.data1;
-                float h = (float)event.window.data2;
-                SPEW(("INPUT", "resize event: w: %f h:%f\n", w, h));
-                g_pending_width = (int)w;
-                g_pending_height = (int)h;
+                // clamp as somehow we can get very small (1pix) size
+                int w = max(event.window.data1, 320);
+                int h = max(event.window.data2, 200);
+                SPEW(("INPUT", "resize event: w: %d h:%d\n", w, h));
+                g_pending_width = w;
+                g_pending_height = h;
+
+                if(graphics::resize_window(g_win, w, h)) {
+                    //graphics::set_window_fullscreen(win_h_, reqGotoFullscreen);
+                    graphics::get_window_size(g_win, &Environment.screenWidth, &Environment.screenHeight);
+                    graphics::get_drawable_size(g_win, &Environment.drawableWidth, &Environment.drawableHeight);
+                }
+
                 break;
             }
             case SDL_WINDOWEVENT_FOCUS_LOST:
@@ -596,6 +617,16 @@ int main(int argc, char** argv)
 		//timing::sleep(10*1000000);
 
         process_events();
+
+#if defined(USE_IMGUI)
+        ImDrawDataSnapshot* snapshot = nullptr;
+            // Start the Dear ImGui frame
+            ImGui_ImplOpenGL3_NewFrame();
+            ImGui_ImplSDL2_NewFrame();
+            ImGui::NewFrame();
+            // Create a dockspace in main viewport, central node is transparent.
+            ImGui::DockSpaceOverViewport(0, nullptr, ImGuiDockNodeFlags_PassthruCentralNode);
+#endif
         
         {
             SCOPED_ZONE_N(DoGameLogic, 0);
@@ -605,45 +636,15 @@ int main(int argc, char** argv)
 #endif            
         }
 
-
 #if defined(USE_IMGUI)
-        ImDrawDataSnapshot* snapshot = nullptr;
-        {
-            // Start the Dear ImGui frame
-            ImGui_ImplOpenGL3_NewFrame();
-            ImGui_ImplSDL2_NewFrame();
-            ImGui::NewFrame();
 
-            //ImGui::DockSpaceOverViewport();
-            ImGui::DockSpaceOverViewport(0, nullptr, ImGuiDockNodeFlags_PassthruCentralNode); // Create a dockspace in main viewport, central node is transparent.
+        // Put here any additional ImGui drawing if needed
+        // ...
 
-            {
-                static float f = 0.0f;
-                static int counter = 0;
-                static bool show_demo_window = false;
+        ImGui::Render();
 
-                ImGui::Begin("Hello, world!");                          // Create a window called "Hello, world!" and append into it.
-
-                ImGui::Text("This is some useful text.");               // Display some text (you can use a format strings too)
-
-                ImGui::Checkbox("Demo Window", &show_demo_window);      // Edit bools storing our window open/close state
-                ImGui::SliderFloat("float", &f, 0.0f, 1.0f);            // Edit 1 float using a slider from 0.0f to 1.0f
-
-                if (ImGui::Button("Button"))                            // Buttons return true when clicked (most widgets return true when edited/activated)
-                    counter++;
-                ImGui::SameLine();
-                ImGui::Text("counter = %d", counter);
-
-                //ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
-                ImGui::End();
-
-                ImGui::ShowDemoWindow(&show_demo_window);
-            }
-            ImGui::Render();
-
-            snapshot = &gSnapshots[gFrameNumber % NUM_SNAPSHOTS];
-            snapshot->SnapUsingSwap(ImGui::GetDrawData(), ImGui::GetTime());
-        }
+        snapshot = &gSnapshots[gFrameNumber % NUM_SNAPSHOTS];
+        snapshot->SnapUsingSwap(ImGui::GetDrawData(), ImGui::GetTime());
 #endif
 
 
@@ -670,10 +671,14 @@ int main(int argc, char** argv)
 			  public:
 				R_handle_events(int w, int h) : w_(w), h_(h) {}
 				virtual int exec() override {
+                    // now done in Render() this could still be useful for some other stuff
+                    #if 0
                     if(w_>=0 && h_>=0) {
                         gos_SetScreenMode((uint32_t)w_, (uint32_t)h_);
                     }
+
 					gos_RendererHandleEvents();
+                    #endif
 					return 0;
 				}
 			};

@@ -245,7 +245,7 @@ RenderWindow* create_window(const char* pwinname, int width, int height, int wan
             SDL_WINDOWPOS_CENTERED_DISPLAY(displayIndex), 
             SDL_WINDOWPOS_CENTERED_DISPLAY(displayIndex), 
             preferred_mode.w, preferred_mode.h, 
-            SDL_WINDOW_OPENGL|SDL_WINDOW_ALLOW_HIGHDPI|SDL_WINDOW_BORDERLESS/*|SDL_WINDOW_FULLSCREEN_DESKTOP*/);
+            SDL_WINDOW_RESIZABLE|SDL_WINDOW_OPENGL|SDL_WINDOW_ALLOW_HIGHDPI|SDL_WINDOW_BORDERLESS/*|SDL_WINDOW_FULLSCREEN_DESKTOP*/);
 
     if (!window) {
         fprintf(stderr, "Couldn't create window: %s\n", SDL_GetError());
@@ -256,12 +256,14 @@ RenderWindow* create_window(const char* pwinname, int width, int height, int wan
 
     // NULL to use window width and height and display refresh rate
     // only need to set mode if wanted fullscreen
+#if 0
     fprintf(stderr, "Setting mode %dx%d@%d\n", preferred_mode.w, preferred_mode.h, preferred_mode.refresh_rate);
     if (SDL_SetWindowDisplayMode(window, &preferred_mode) < 0) {
         fprintf(stderr, "Can't set up display mode: %s\n", SDL_GetError());
         SDL_DestroyWindow(window);
         return NULL;
     }
+#endif
 
     SDL_ShowWindow(window);
 
@@ -465,9 +467,15 @@ bool resize_window(RenderWindowHandle rw_handle, int width, int height)
     RenderWindow* rw = (RenderWindow*)rw_handle;
     assert(rw);
 
+
+    printf("Resizing window to: %dx%d\n", width, height);
     SDL_SetWindowSize(rw->window_, width, height);
-    rw->width_ = width;
-    rw->height_ = height;
+
+    int w, h;
+    SDL_GetWindowSize(rw->window_, &w, &h);
+    printf("Actual window size got: %dx%d\n", w, h);
+    rw->width_ = w;
+    rw->height_ = h;
 
     return true;
 }
@@ -514,7 +522,7 @@ bool is_mode_supported(int width, int height, int bpp) {
     SDL_DisplayMode returned;
     
     if(NULL == SDL_GetClosestDisplayMode(displayIndex, &desired, &returned)) {
-        log_error("resize_window: %s\n", SDL_GetError());
+        log_error("is_mode_supported: %s\n", SDL_GetError());
         return false;
     }
 
@@ -587,8 +595,8 @@ void get_window_size(RenderWindowHandle rw_handle, int* width, int* height)
     SDL_GetWindowSize(rw_handle->window_, width, height);
     log_info("SDL_GetWindowSize: %dx%d\n", *width, *height);
     // sometimes window(and drawable) can actually have smaller size (e.g. like 2 pixels, happened when launching from root user)
-    assert(rw->width_ == *width);
-    assert(rw->height_ == *height);
+    //assert(rw->width_ == *width);
+    //assert(rw->height_ == *height);
 }
 
 //==============================================================================

@@ -2855,6 +2855,9 @@ typedef struct
 
 typedef void (__stdcall *gos_RebuildFunction)( DWORD, void *);
 
+
+#define gosInvalidTextureID 0
+
 //
 // Load a texture, returns a texture handle that can be passed as a renderstate
 //

@@ -28,7 +28,7 @@ void GameTextComp::AddRenderPackets(struct RenderFrameContext * rfc) const {
     char pposbuf[32];
     vec4 ppos = rfc->proj_ * rfc->view_ * vec4(GetPosition(), 1);
     // TODO: using viewport here might not work if we render to some pass which uses different WxH, need to use per pass current viewport
-    vec2 screenpos = (vec2(ppos.x/ppos.w, ppos.y/ppos.w)*vec2(0.5f, -0.5f) + vec2(0.5f))*rfc->viewport;
+    vec2 screenpos = (vec2(ppos.x/ppos.w, ppos.y/ppos.w)*vec2(0.5f, -0.5f) + vec2(0.5f))*vec2(rfc->viewport_.z, rfc->viewport_.w);
     snprintf(pposbuf, sizeof(pposbuf), "%.2f, %.2f, %.2f %.2f\n", screenpos.x, screenpos.y, ppos.z, ppos.w);
 
     uint64_t game_ticks = TimerGetGameTime();
@@ -88,7 +88,7 @@ void EnemyTextComp::AddRenderPackets(struct RenderFrameContext * rfc) const {
 
     vec4 ppos = rfc->proj_ * rfc->view_ * vec4(GetPosition(), 1);
     // TODO: using viewport here might not work if we render to some pass which uses different WxH, need to use per pass current viewport
-    vec2 screenpos = (vec2(ppos.x/ppos.w, ppos.y/ppos.w)*vec2(0.5f, -0.5f) + vec2(0.5f))*rfc->viewport;
+    vec2 screenpos = (vec2(ppos.x/ppos.w, ppos.y/ppos.w)*vec2(0.5f, -0.5f) + vec2(0.5f))*vec2(rfc->viewport_.z, rfc->viewport_.w);
 
     //char buf[256];
     //sprintf(buf, "[%s]", text);

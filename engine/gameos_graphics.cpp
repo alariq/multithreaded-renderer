@@ -1391,15 +1391,15 @@ class gosRenderer {
             return NULL;
         }
 
-        gosTexture* getTexture(DWORD texture_id) {
+        gosTexture* getTexture(DWORD texture_idx) {
             // TODO: return default texture
-            if(texture_id == INVALID_TEXTURE_ID) {
+            if(texture_idx == gosInvalidTextureID) {
                 gosASSERT(0 && "Should not be requested");
                 return NULL;
             }
-            gosASSERT(textureList_.size() > texture_id);
-            gosASSERT(textureList_[texture_id] != 0);
-            return textureList_[texture_id];
+            gosASSERT(textureList_.size() > texture_idx);
+            gosASSERT(textureList_[texture_idx] != 0);
+            return textureList_[texture_idx];
         }
 
         bool deleteTextureSampler(gosTextureSampler* ts) {
@@ -1470,6 +1470,7 @@ class gosRenderer {
 		vec4 getRenderViewport() { return render_viewport_; }
 
 		const mat4& getProj2Screen() { return projection_; }
+		void updateViewport(int w, int h);
 
         void setRenderState(gos_RenderState InRenderState, int Value) {
             renderStates_[InRenderState] = Value;
@@ -1647,14 +1648,7 @@ static GLuint gVAO = 0;
 void gosRenderer::init() {
     initRenderStates();
 
-    // x = 1/w; x =2*x - 1;
-    // y = 1/h; y= 1- y; y =2*y - 1;
-    // z = z;
-    projection_ = mat4(
-            2.0f / (float)width_, 0, 0.0f, -1.0f,
-            0, -2.0f / (float)height_, 0.0f, 1.0f,
-            0, 0, 1.0f, 0.0f,
-            0, 0, 0.0f, 1.0f);
+    updateViewport(width_, height_);
 
 	graphics::get_drawable_size(win_h_, &Environment.drawableWidth, &Environment.drawableHeight);
     SPEW(("Render", "Drawable size: %dx%d", Environment.drawableWidth, Environment.drawableHeight));
@@ -1730,7 +1724,7 @@ void gosRenderer::init() {
     // add fake texture so that no one will get 0 index, as it is invalid in this game
     DWORD tex_id = gos_NewEmptyTexture( gos_Texture_Solid, "DEBUG_this_is_not_a_real_texture_debug_it!", 1,1);
     (void)tex_id;
-    gosASSERT(tex_id == INVALID_TEXTURE_ID);
+    gosASSERT(tex_id == gosInvalidTextureID);
 
 	fog_color_ = vec4(1.0f, 1.0f, 1.0f, 1.0f);
 }
@@ -2092,6 +2086,20 @@ void gosRenderer::endFrame()
     }
 }
 
+void gosRenderer::updateViewport(int w, int h) {
+
+    width_ = w;
+    height_ = h;
+
+    // x = 1/w; x =2*x - 1;
+    // y = 1/h; y= 1- y; y =2*y - 1;
+    // z = z;
+    projection_ = mat4(2.0f / (float)w, 0, 0.0f, -1.0f,
+            0, -2.0f / (float)h, 0.0f, 1.0f,
+            0, 0, 1.0f, 0.0f,
+            0, 0, 0.0f, 1.0f);
+}
+
 void gosRenderer::handleEvents()
 {
     if(pendingRequest) {
@@ -2099,25 +2107,6 @@ void gosRenderer::handleEvents()
         width_ = reqWidth;
         height_ = reqHeight;
 
-        // x = 1/w; x =2*x - 1;
-        // y = 1/h; y= 1- y; y =2*y - 1;
-        // z = z;
-        projection_ = mat4(2.0f / (float)width_, 0, 0.0f, -1.0f,
-                0, -2.0f / (float)height_, 0.0f, 1.0f,
-                0, 0, 1.0f, 0.0f,
-                0, 0, 0.0f, 1.0f);
-
-        // probably renderer should not manage the window
-        if(graphics::resize_window(win_h_, width_, height_))
-		{
-            graphics::set_window_fullscreen(win_h_, reqGotoFullscreen);
-
-            Environment.screenWidth = width_;
-            Environment.screenHeight = height_;
-
-			graphics::get_drawable_size(win_h_, &Environment.drawableWidth, &Environment.drawableHeight);
-
-        }
         pendingRequest = false;
     }
 }
@@ -3100,7 +3089,7 @@ DWORD __stdcall gos_NewRenderTarget( gos_TextureFormat Format, const char* Name,
 
     if(!ptex->createHardwareTexture()) {
         STOP(("Failed to create texture\n"));
-        return INVALID_TEXTURE_ID;
+        return gosInvalidTextureID;
     }
 
     return g_gos_renderer->addTexture(ptex);
@@ -3112,7 +3101,7 @@ DWORD __stdcall gos_NewEmptyTexture( gos_TextureFormat Format, const char* Name,
 
     if(!ptex->createHardwareTexture()) {
         STOP(("Failed to create texture\n"));
-        return INVALID_TEXTURE_ID;
+        return gosInvalidTextureID;
     }
 
     return g_gos_renderer->addTexture(ptex);
@@ -3124,7 +3113,7 @@ DWORD __stdcall gos_NewTextureFromMemory( gos_TextureFormat Format, const char* 
     gosTexture* ptex = new gosTexture(Format, FileName, Hints, pBitmap, Size, true);
     if(!ptex->createHardwareTexture()) {
         STOP(("Failed to create texture\n"));
-        return INVALID_TEXTURE_ID;
+        return gosInvalidTextureID;
     }
 
     return g_gos_renderer->addTexture(ptex);
@@ -3135,7 +3124,7 @@ DWORD __stdcall gos_NewTextureFromFile( gos_TextureFormat Format, const char* Fi
     gosTexture* ptex = new gosTexture(Format, FileName, Hints, NULL, 0, false);
     if(!ptex->createHardwareTexture()) {
         STOP(("Failed to create texture\n"));
-        return INVALID_TEXTURE_ID;
+        return gosInvalidTextureID;
     }
     return g_gos_renderer->addTexture(ptex);
 }
@@ -3241,7 +3230,7 @@ void __stdcall gos_SetScreenMode( DWORD Width, DWORD Height, DWORD bitDepth/*=16
     gosASSERT(g_gos_renderer);
     gosASSERT((GotoFullScreen && !GotoWindowMode) || (!GotoFullScreen&&GotoWindowMode) || (!GotoFullScreen&&!GotoWindowMode));
 
-    g_gos_renderer->setScreenMode(Width, Height, bitDepth, GotoFullScreen, AntiAlias);
+    g_gos_renderer->updateViewport(Width, Height);
 }
 
 void __stdcall gos_SetupViewport( bool FillZ, float ZBuffer, bool FillBG, DWORD BGColor, float top, float left, float bottom, float right, bool ClearStencil/*=0*/, DWORD StencilValue/*=0*/)

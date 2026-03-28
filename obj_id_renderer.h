@@ -10,14 +10,14 @@ class ObjIdRenderer {
 
 	typedef struct BufferData {
 		GLuint obj_id_fbo_ = 0;
-		DWORD gos_obj_id_rt = 0;
+		DWORD gos_obj_id_rt = gosInvalidTextureID;
 		GLuint obj_id_rt = 0;
 		bool has_data_ = false;
 	} BufferData;
 
 	BufferData buf_;
 
-	GLuint pbos_[num_buffers_];
+	GLuint pbos_[num_buffers_] = {0};
     int cur_pbo_ = 0;
 
 	GLuint width_ = 0;
@@ -25,6 +25,7 @@ class ObjIdRenderer {
 
   public:
 	bool Init(uint32_t width, uint32_t height);
+	bool RecreateRenderTargets(uint32_t width, uint32_t height);
 	void Deinit();
 	void Render(const struct RenderFrameContext* rfc, GLuint scene_depth);
 	uint32_t Readback(uint32_t x, uint32_t y);

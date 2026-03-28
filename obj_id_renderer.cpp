@@ -11,23 +11,42 @@
 
 bool ObjIdRenderer::Init(uint32_t width, uint32_t height)
 {
-    width_ = width;
-    height_ = height;
-    uint32_t wh = (height_<<16) | width_;
     gos_AddRenderMaterial("obj_id");
 
+    glGenFramebuffers(1, &buf_.obj_id_fbo_);
+
+    return RecreateRenderTargets(width, height);
+}
+
+bool ObjIdRenderer::RecreateRenderTargets(uint32_t width, uint32_t height) {
+
+    width = max(width, 2U);
+    height = max(height, 2U);
+
+    width_ = width;
+    height_ = height;
+    const uint32_t wh = (height << 16) | width;
+
+    glDeleteBuffers(num_buffers_, pbos_);
     glGenBuffers(num_buffers_, pbos_);
 	for (int i = 0; i < 3; ++i) {
         glBindBuffer(GL_PIXEL_PACK_BUFFER, pbos_[i]);
-        glBufferData(GL_PIXEL_PACK_BUFFER, width_*height_, nullptr, GL_STREAM_READ);
+        glBufferData(GL_PIXEL_PACK_BUFFER, width*height, nullptr, GL_STREAM_READ);
     }
 
-    glGenFramebuffers(1, &buf_.obj_id_fbo_);
     // using floating point texture because Nsight can't visualize integer textures
+    if(buf_.gos_obj_id_rt != -1U) {
+        gos_DestroyTexture(buf_.gos_obj_id_rt);
+    }
     buf_.gos_obj_id_rt = gos_NewRenderTarget(gos_Texture_R32F, "obj_id_rt", wh);
+    if(buf_.gos_obj_id_rt == -1U) {
+        return false;
+    }
     buf_.obj_id_rt = gos_TextureGetNativeId(buf_.gos_obj_id_rt);
 
-    return buf_.gos_obj_id_rt && buf_.obj_id_fbo_;
+    CHECK_GL_ERROR;
+
+    return true;
 }
 
 void ObjIdRenderer::Deinit()
@@ -69,6 +88,10 @@ void draw_rp(HGOSRENDERMATERIAL mat, const mat4 &vp, const RenderPacket& rp) {
 
 void ObjIdRenderer::Render(const struct RenderFrameContext *rfc, GLuint scene_depth)
 {
+    if(width_ != (uint32_t)rfc->viewport_.z || height_ != (uint32_t)rfc->viewport_.w) {
+        RecreateRenderTargets(rfc->viewport_.z, rfc->viewport_.w);
+    }
+
 	GLuint fbo = buf_.obj_id_fbo_;
     glBindFramebuffer(GL_FRAMEBUFFER, fbo);
     {
@@ -84,9 +107,9 @@ void ObjIdRenderer::Render(const struct RenderFrameContext *rfc, GLuint scene_de
     gos_SetRenderViewport(0, 0, width_, height_);
     glViewport(0, 0, (GLsizei)width_, (GLsizei)height_);
 
-    glClear(GL_COLOR_BUFFER_BIT);
-    
-    gos_SetRenderState(gos_State_AlphaMode, gos_Alpha_OneZero);
+	glClear(GL_COLOR_BUFFER_BIT);
+
+	gos_SetRenderState(gos_State_AlphaMode, gos_Alpha_OneZero);
     gos_SetRenderState(gos_State_StencilEnable, 0);
     gos_SetRenderState(gos_State_Culling, gos_Cull_None);
     gos_SetRenderState(gos_State_ZCompare, 1); // less equal, equal should be enough

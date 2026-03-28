@@ -1,9 +1,16 @@
 TODO:
 
  [x] imgui integration
+     [x] make main viewport drawn into imgui window
      [ ] add basic imgui incapsulated propery sheet to use by the game editor
  [ ] spline editor
  [ ] better navigation
     [ ] smooth control point chasing by main ship
     [ ] ability to chase any point (incl. points on a spline) for enemies
     [ ] seamless transition from target to target for enemies
+ [ ] graphics
+    [ ] add skybox support
+    [ ] add billboards support
+    [ ] make parallax skyboxes (moving fraction of main camera scale/depth based)
+ [ ] editor
+    [ ] refactor UpdateCamera code into editor camera controller (zoom level, persp/proj, etc.)

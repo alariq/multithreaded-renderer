@@ -38,8 +38,12 @@ void update_ship_cam(MainShip* ship) {
         ship_cam_distance *= WheelDelta > 0 ? 1.1f : 0.9f;
     }
 
+    // TODO: fix this mess
+    extern ivec4 editor_get_3dview_rect();
+    ivec4 scene_rect = editor_get_3dview_rect();
+
     vec3 ship_pos = ship->GetComponent<TransformComponent>()->GetPosition();
-    ship_cam.set_projection(80.0f, Environment.drawableWidth, Environment.drawableHeight, 0.1f, 100.0f);
+    ship_cam.set_projection(90.0f, scene_rect.z, scene_rect.w, 0.1f, 100.0f);
     //ship_cam.lookat(ship_cam_distance*vec3(1,1,1),  ship_pos, vec3(0,1,0));
     quaternion rot = ship->GetComponent<TransformComponent>()->GetRotation();
     vec3 elevation = vec3(0,1.5f,0);
@@ -161,11 +165,11 @@ Level* Level::Create(const char* res) {
     // create player
     // -----------------------------------------------------------------------------------
     //g_main_ship = MainShip::Create("fighter1");
-    MainShip* mainShip = MainShip::Create("paper_plane2");
+    MainShip* mainShip = MainShip::Create("PaperPlane");
     TransformComponent* ftc = mainShip->GetComponent<TransformComponent>();
     //ftc->SetPosition(vec3(10, 4, 10));
     ftc->SetPosition(obj->mainCurve_.getAt(0));
-    ftc->SetScale(vec3(10));
+    ftc->SetScale(vec3(.5f));
     mainShip->Initialize(cps, nullptr /* target */, &obj->mainCurve_);
     scene_add_game_object(mainShip);
 

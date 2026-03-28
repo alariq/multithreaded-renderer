@@ -39,6 +39,8 @@ class DeferredRenderer {
     GLuint ds_width_;
     GLuint ds_height_;
 
+    bool b_initialized_;
+
     void setup();
 
     void stencil_pass(const struct RenderFrameContext* rfc);
@@ -46,6 +48,7 @@ class DeferredRenderer {
 
     public:
     bool Init(uint32_t width, uint32_t height);
+    bool RecreateRenderTargets(uint32_t width, uint32_t height);
     void RenderGeometry(const struct RenderFrameContext* rfc);
     void RenderDirectionalLighting(const struct RenderFrameContext* rfc);
     void RenderPointLighting(const struct RenderFrameContext* rfc);
@@ -55,6 +58,9 @@ class DeferredRenderer {
     void Present(int width, int height);
 
     GLuint GetSceneDepth() { return g_buffer_depth; }
+    GLuint GetSceneColour() { return backbuffer; }
     void DownsampleSceneDepth();
+
+    bool IsInitialized() { return b_initialized_; }
 
 };

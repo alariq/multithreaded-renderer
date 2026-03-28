@@ -127,7 +127,7 @@ endif()
 # ref. https://leimao.github.io/blog/CMake-Public-Private-Interface/
 target_include_directories(engine INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/..)
 # so that we can use: engine/xxx/xxx.h in the engine project as well
-target_include_directories(engine PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/..)
+target_include_directories(engine PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/.. ${IMGUI_DIR})
 
 if(USE_IMGUI)
     target_compile_definitions(engine PUBLIC USE_IMGUI)

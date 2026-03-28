@@ -3,6 +3,7 @@
 #include "obj_model.h"
 #include "res_man.h"
 #include "renderer.h"
+#include "deferred_renderer.h"
 #include "render_utils.h"
 #include "engine/gameos.hpp"
 #include "engine/utils/camera.h"
@@ -262,15 +263,109 @@ static EditorOpMode update_input_mode(const EditorOpMode ed_mode, bool mouse_but
     return ed_mode;
 }
 
+#if defined(USE_IMGUI)
+// TODO: add switch for a fullscreen when no UI is drawn and we just use our standard g_deferred_renderer.Present()
+#include "imgui.h"
+#endif
+static ivec4 g3DViewRect;
+static bool g3DViewFocused = false;
+static bool g3DViewHovered = false;
+ivec4 editor_get_3dview_rect() { return g3DViewRect; } // actually not really an editor function, but let it be here for now
+bool editor_get_3dview_hovered() { return g3DViewHovered; }
+ivec4 editor_calc_3dview(bool b_exclusive_3dview, intptr_t scene_colour) {
+
+    g3DViewFocused = true;
+    g3DViewHovered = true;
+    ivec4 rect = ivec4(0, 0, Environment.drawableWidth, Environment.drawableHeight);
+
+#if defined(USE_IMGUI)
+    if(!b_exclusive_3dview) {
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
+
+        // Unfortunately, does not work for Docking branch
+        // https://github.com/ocornut/imgui/issues/6295
+        ImGui::SetNextWindowSizeConstraints(ImVec2(250, 250), ImVec2(FLT_MAX, FLT_MAX));
+
+        ImGui::Begin("3DView", nullptr, ImGuiWindowFlags_NoTitleBar);
+
+        g3DViewFocused = ImGui::IsWindowFocused();
+        g3DViewHovered = ImGui::IsWindowHovered();
+        GameObject* go = nullptr/* get selected game object*/;
+        ImGui::Text("Name: %s", go ? go->GetName() : "None");
+        ImVec2 pos = ImGui::GetCursorScreenPos();
+        ImVec2 csize = ImGui::GetContentRegionAvail();
+
+        //ImGui::Image((ImTextureID)(intptr_t)scene_colour, csize);
+        ImGui::GetWindowDrawList()->AddImage(
+                (ImTextureID)(intptr_t)scene_colour,
+                pos, 
+                ImVec2(pos.x + csize.x, pos.y + csize.y), 
+                ImVec2(0, 1), ImVec2(1, 0)
+                );
+
+        ImGui::End();
+
+        ImGui::PopStyleVar(3);
+
+        // clamp min size here (note: when real imgui window is smaller image will be squashed,
+        // but it is better than having issues when min size becomes 0 and we fail to recreate textures
+        rect = ivec4(pos.x, pos.y, max(320.0f, csize.x), max(200.0f, csize.y));
+    }
+#endif
+    g3DViewRect = rect;
+    return rect;
+}
+void ui_draw_stuff() {
+#if defined(USE_IMGUI)
+    static float f = 0.0f;
+    static int counter = 0;
+    static bool show_demo_window = false;
+
+    ImGui::Begin("Hello, world!");                          // Create a window called "Hello, world!" and append into it.
+
+    ImGui::Text("This is some useful text.");               // Display some text (you can use a format strings too)
+
+    ImGui::Checkbox("Demo Window", &show_demo_window);      // Edit bools storing our window open/close state
+    ImGui::SliderFloat("float", &f, 0.0f, 1.0f);            // Edit 1 float using a slider from 0.0f to 1.0f
+
+    if (ImGui::Button("Button"))                            // Buttons return true when clicked (most widgets return true when edited/activated)
+        counter++;
+    ImGui::SameLine();
+    ImGui::Text("counter = %d", counter);
+
+    //ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
+    ImGui::End();
+
+    ImGui::ShowDemoWindow(&show_demo_window);
+#endif
+}
+
 void editor_update(camera *cam, const float dt) {
 
 	int XDelta, YDelta, WheelDelta;
 	float XPos, YPos;
 	DWORD buttonsPressed;
 	gos_GetMouseInfo(&XPos, &YPos, &XDelta, &YDelta, &WheelDelta, &buttonsPressed);
-	vec2 cur_mouse_proj_pos = 2 * vec2(XPos, 1 - YPos) - vec2(1);
-	const float screen_width = (float)Environment.drawableWidth;
-	const float screen_height = (float)Environment.drawableHeight;
+
+    extern ivec4 editor_get_3dview_rect();
+    ivec4 view_rect = editor_get_3dview_rect();
+    // mouse to 3d scene viewport
+    const vec2 scaler = vec2(
+            (float)Environment.drawableWidth / view_rect.z,
+            (float)Environment.drawableHeight / view_rect.w);
+
+    float lx = (XPos - view_rect.x / (float)Environment.drawableWidth) * scaler.x; 
+    //float ly = (float)g3DViewRect.w/Environment.drawableHeight - (YPos - (float)g3DViewRect.y/Environment.drawableHeight);
+    float ly = (YPos - view_rect.y / (float)Environment.drawableHeight) * scaler.y;
+
+    lx = saturate(lx);
+    ly = 1 - saturate(ly);
+
+	const vec2 cur_mouse_proj_pos = 2 * vec2(lx, ly) - vec2(1);
+	const float view_width = (float)view_rect.z;
+	const float view_height = (float)view_rect.w;
 
 	if (gos_GetKeyStatus(KEY_ESCAPE) == KEY_RELEASED) {
         if(g_active_user_editor == -1) {
@@ -453,8 +548,8 @@ void editor_update(camera *cam, const float dt) {
 				const int axis_idx = drag_type - ReservedObjIds::kGizmoScaleX;
 				const vec3 axes[7] = { vec3(1,0,0), vec3(0,1,0), vec3(0,0,1), vec3(1,0,1), vec3(1,1,0), vec3(0,1,1), vec3(1,1,1) };
 				const vec2 screen_delta =
-					proj2screen(cur_mouse_proj_pos, screen_width, screen_height) -
-					proj2screen(drag_start_mouse_proj_pos, screen_width, screen_height);
+					proj2screen(cur_mouse_proj_pos, view_width, view_height) -
+					proj2screen(drag_start_mouse_proj_pos, view_width, view_height);
 				// TODO: use distance to the object as an additional multiplier for better UX?
 				const float scale = screen_delta.x * 0.025f; 
 				const vec3 scale_axis = scale * axes[axis_idx] + vec3(1,1,1);
@@ -488,60 +583,66 @@ void editor_update(camera *cam, const float dt) {
     if(g_active_user_editor != -1) {
         g_sel_obj = registered_editors[g_active_user_editor].update(cam, dt, g_sel_obj);
     }
+
 }
 
 
-void editor_render_update(struct RenderFrameContext *rfc)
+void editor_render_update(struct RenderFrameContext *rfc, bool b_editor_mode, bool b_exclusive_3dview)
 {
-    if(g_sel_obj) {
-        auto* tc = g_sel_obj->GetComponent<TransformComponent>();
-        if(tc) {
-            if(!drag_started) {
-                // object may be updating its position
-                g_gizmo.set_position(tc->GetPosition());
-                g_gizmo.set_rotation(tc->GetRotation());
-            } else {
+    if(b_editor_mode) {
+        if(g_sel_obj) {
+            auto* tc = g_sel_obj->GetComponent<TransformComponent>();
+            if(tc) {
+                if(!drag_started) {
+                    // object may be updating its position
+                    g_gizmo.set_position(tc->GetPosition());
+                    g_gizmo.set_rotation(tc->GetRotation());
+                } else {
 
-				if ((uint32_t)drag_type >= ReservedObjIds::kGizmoMoveXZ &&
-					(uint32_t)drag_type <= ReservedObjIds ::kGizmoRotateXYZ) {
-					// a) only makes sence when we drag as its position is in absolute coord,
-					// and will not take into accout gizmo scaling
-                    // b) when mouse if not moving will draw last known position, minor, fix it later
-					float s = g_gizmo.get_gizmo_scale(rfc);
-					const mat4 tr = mat4::translation(drag_rotation_gizmo_helper_pos) *
-									mat4::scale(vec3(s * 0.05f));
-					add_debug_mesh(rfc, res_man_load_mesh("sphere"), tr,
-								   vec4(1, 1, 1, 1));
-				}
-			}
-    
-            const vec3 gp = g_gizmo.get_position();
-		    const float s = g_gizmo.get_gizmo_scale(rfc);
-			const quaternion& q = g_gizmo.get_world_space() ? quaternion::identity()
-															: g_gizmo.get_rotation_q();
-            rfc->rl_->addDebugLine(gp, gp + 2.5f*s*q.axis0(), vec4(1, 0, 0, 1));
-            rfc->rl_->addDebugLine(gp, gp + 2.5f*s*q.axis1(), vec4(0, 1, 0, 1));
-            rfc->rl_->addDebugLine(gp, gp + 2.5f*s*q.axis2(), vec4(0, 0, 1, 1));
+                    if ((uint32_t)drag_type >= ReservedObjIds::kGizmoMoveXZ &&
+                            (uint32_t)drag_type <= ReservedObjIds ::kGizmoRotateXYZ) {
+                        // a) only makes sence when we drag as its position is in absolute coord,
+                        // and will not take into accout gizmo scaling
+                        // b) when mouse if not moving will draw last known position, minor, fix it later
+                        float s = g_gizmo.get_gizmo_scale(rfc);
+                        const mat4 tr = mat4::translation(drag_rotation_gizmo_helper_pos) *
+                            mat4::scale(vec3(s * 0.05f));
+                        add_debug_mesh(rfc, res_man_load_mesh("sphere"), tr,
+                                vec4(1, 1, 1, 1));
+                    }
+                }
 
-			g_gizmo.draw(rfc);
-		}
+                const vec3 gp = g_gizmo.get_position();
+                const float s = g_gizmo.get_gizmo_scale(rfc);
+                const quaternion& q = g_gizmo.get_world_space() ? quaternion::identity()
+                    : g_gizmo.get_rotation_q();
+                rfc->rl_->addDebugLine(gp, gp + 2.5f*s*q.axis0(), vec4(1, 0, 0, 1));
+                rfc->rl_->addDebugLine(gp, gp + 2.5f*s*q.axis1(), vec4(0, 1, 0, 1));
+                rfc->rl_->addDebugLine(gp, gp + 2.5f*s*q.axis2(), vec4(0, 0, 1, 1));
+
+                g_gizmo.draw(rfc);
+            }
+        }
+
+        RenderMesh *sphere = res_man_load_mesh("sphere");
+        assert(sphere);
+        {
+            auto& light_list = scene_get_light_list();
+            rfc->rl_->ReservePackets(light_list.size());
+
+            // add lights to debug render pass
+            for (auto &l : light_list) {
+                vec4 c(l.color_.getXYZ(), 0.5f);
+                add_debug_mesh_constant_size(rfc, sphere, c, l.transform_, 1000.0f);
+            }
+        }
+
+        if(g_active_user_editor != -1) {
+            registered_editors[g_active_user_editor].render_update(rfc);
+        }
     }
 
-    RenderMesh *sphere = res_man_load_mesh("sphere");
-    assert(sphere);
-    {
-		auto& light_list = scene_get_light_list();
-        rfc->rl_->ReservePackets(light_list.size());
-
-        // add lights to debug render pass
-		for (auto &l : light_list) {
-			vec4 c(l.color_.getXYZ(), 0.5f);
-			add_debug_mesh_constant_size(rfc, sphere, c, l.transform_, 1000.0f);
-		}
-    }
-
-    if(g_active_user_editor != -1) {
-        registered_editors[g_active_user_editor].render_update(rfc);
-    }
+    if(!b_exclusive_3dview)
+        ui_draw_stuff();
 }
 

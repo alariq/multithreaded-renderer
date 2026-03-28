@@ -1,4 +1,6 @@
 #pragma once
+#include "engine/utils/vec.h"
+#include <stdint.h>
 
 struct UserEditorInterface {
     typedef class GameObject* (*update_t)(struct camera* cam, float dt, class GameObject* sel_go);
@@ -16,7 +18,12 @@ void initialize_editor();
 void finalize_editor();
 
 void editor_update(struct camera* cam, const float dt);
-void editor_render_update(struct RenderFrameContext *rfc);
+void editor_render_update(struct RenderFrameContext *rfc, bool b_editor_mode, bool b_exclusive_3dview);
 
 int editor_register_user_editor(UserEditorInterface ue_interface);
 void editor_unregister_user_editor(int id);
+#if 1
+bool editor_get_3dview_hovered();
+ivec4 editor_get_3dview_rect();
+ivec4 editor_calc_3dview(bool b_full, intptr_t scene_colour);
+#endif
