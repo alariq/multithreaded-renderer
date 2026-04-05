@@ -67,7 +67,7 @@ static void orthonormalizeBasis(vec3& forward, vec3& up, vec3& right) {
 }
 
 static r32 clampSignedUnit(r32 value) {
-    return clamp(value, -1.0, 1.0);
+    return clamp(value, -1.0f, 1.0f);
 }
 
 static r32 sanitizeReachRadius(r32 reachRadius) {
@@ -172,7 +172,7 @@ void AircraftPhysics::update(const vec4& controlInputs, WingControllerConfig cfg
     const r32 rollInput = clamp(controlInputs.x, CONTROL_INPUT_MIN, CONTROL_INPUT_MAX);
     const r32 pitchInput = clamp(controlInputs.y, CONTROL_INPUT_MIN, CONTROL_INPUT_MAX);
     const r32 brakeInput = saturate(controlInputs.z);
-    state.thrust = clamp(controlInputs.w, 0.0, MAX_THRUST);
+    state.thrust = clamp(controlInputs.w, 0.0f, MAX_THRUST);
 
     // Roll input commands desired bank angle around forward.
     const r32 desiredBank = rollInput * MAX_BANK_ANGLE;
@@ -282,7 +282,7 @@ r32 AircraftPhysics::calculateLift(r32 airspeed) const {
         LIFT_MAX_COEFFICIENT);
     const r32 rawLift = AERODYNAMIC_PRESSURE_FACTOR * AIR_DENSITY * airspeed * airspeed * WING_AREA * liftCoefficient;
     const r32 maxLift = MASS * GRAVITY * LIFT_MAX_G_FACTOR;
-    return clamp(rawLift, 0.0, maxLift);
+    return clamp(rawLift, 0.0f, maxLift);
 }
 
 r32 AircraftPhysics::calculateDrag(r32 airspeed) const {
@@ -341,7 +341,7 @@ void WingOnlyAIController::clearWaypoints() {
 }
 
 void WingOnlyAIController::setTargetSpeed(r32 speed) {
-    targetSpeed = clamp(speed, 0.0, MAX_SPEED);
+    targetSpeed = clamp(speed, 0.0f, MAX_SPEED);
 }
 
 vec4 WingOnlyAIController::getControlInputs(const WingControllerConfig& cfg, const AircraftState state, const double dt) {
@@ -431,7 +431,7 @@ vec4 WingOnlyAIController::getControlInputs(const WingControllerConfig& cfg, con
     // on intermediate points to avoid low-speed handoff yaw snaps.
     const r32 minNonFinalSpeed = std::min(cfg.nonFinalWaypointMinSpeed, targetSpeed);
     r32 desiredHorSpeedRaw = activeWaypoint.isFinal
-        ? clamp( cfg.horizontalSpeedDistanceGain * horDist, 0.0, targetSpeed)
+        ? clamp( cfg.horizontalSpeedDistanceGain * horDist, 0.0f, targetSpeed)
         : clamp( cfg.horizontalSpeedDistanceGain * horDist, minNonFinalSpeed, targetSpeed);
     debugState.desiredHorSpeedRaw = desiredHorSpeedRaw;
 
@@ -486,7 +486,7 @@ vec4 WingOnlyAIController::getControlInputs(const WingControllerConfig& cfg, con
     debugState.desiredHorSpeedRaw = desiredHorSpeedRaw;
 
     if (!desiredSpeedFilterInitialized) {
-        desiredHorSpeedFiltered = clamp(state.speed, 0.0, targetSpeed);
+        desiredHorSpeedFiltered = clamp(state.speed, 0.0f, targetSpeed);
         desiredSpeedFilterInitialized = true;
     }
     const r32 tau = max(cfg.desiredSpeedSmoothingTimeConstant, r32(dt));
@@ -498,7 +498,7 @@ vec4 WingOnlyAIController::getControlInputs(const WingControllerConfig& cfg, con
         speedFilterAlpha = saturate(speedFilterAlphaBase * r32(4.0));
     }
     desiredHorSpeedFiltered += (desiredHorSpeedRaw - desiredHorSpeedFiltered) * speedFilterAlpha;
-    desiredHorSpeedFiltered = clamp(desiredHorSpeedFiltered, 0.0, targetSpeed);
+    desiredHorSpeedFiltered = clamp(desiredHorSpeedFiltered, 0.0f, targetSpeed);
     const r32 desiredHorSpeed = desiredHorSpeedFiltered;
     debugState.desiredHorSpeedFiltered = desiredHorSpeedFiltered;
 
@@ -552,7 +552,7 @@ vec4 WingOnlyAIController::getControlInputs(const WingControllerConfig& cfg, con
         controlInputs.z = max(controlInputs.z, static_cast<float>(turnBrakeFactor));
     }
 
-    const r32 newThrust = clamp(thrustControl, 0.0, MAX_THRUST);
+    const r32 newThrust = clamp(thrustControl, 0.0f, MAX_THRUST);
     controlInputs.w = newThrust; //aircraft.setThrust(newThrust);
 
     return controlInputs;

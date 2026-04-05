@@ -305,12 +305,12 @@ vec4 max(const vec4 u, const vec4 v);
 
 /** Clamps x to [lower-upper] */
 template <typename DATA_TYPE>
-inline DATA_TYPE clamp(const DATA_TYPE x, const float lower, const float upper){
+inline DATA_TYPE clamp(const DATA_TYPE x, const DATA_TYPE lower, const DATA_TYPE upper){
 	return max(min(x, DATA_TYPE(upper)), DATA_TYPE(lower));
 }
 
 /** Clamps x to [0-1] */
-#define saturate(x) clamp(x, 0, 1)
+#define saturate(x) clamp(x, (decltype(x))0, (decltype(x))1)
 
 int signP(const int x);     /**< Returns +1 if x > 0, -1 otherwise */
 int signN(const int x);     /**< Returns +1 if x < 0, -1 otherwise */
