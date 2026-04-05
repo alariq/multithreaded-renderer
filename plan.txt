@@ -2,7 +2,7 @@ TODO:
 
  [x] imgui integration
      [x] make main viewport drawn into imgui window
-     [ ] add basic imgui incapsulated propery sheet to use by the game editor
+     [x] add basic imgui incapsulated ProperySheet to use by the game editor
  [ ] spline editor
  [ ] better navigation
     [ ] smooth control point chasing by main ship
@@ -14,3 +14,4 @@ TODO:
     [ ] make parallax skyboxes (moving fraction of main camera scale/depth based)
  [ ] editor
     [ ] refactor UpdateCamera code into editor camera controller (zoom level, persp/proj, etc.)
+    [ ] add selection through PropertySheet
