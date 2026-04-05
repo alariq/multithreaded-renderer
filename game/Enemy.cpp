@@ -2,6 +2,7 @@
 #include "game/Enemy.h"
 #include "game/Path.h"
 #include "game/Time.h"
+#include "engine/utils/imgui_property_list.h"
 
 #include <string.h>
 
@@ -285,6 +286,13 @@ void Enemy::AddRenderPackets(struct RenderFrameContext* rfc) const {
 #endif
 
 }
+
+PROPERTY_LIST_BEGIN_DERIVED(Enemy, GameObject)
+    PROPERTY_READONLY_TEXT("Name", [](const Enemy& e) { return e.GetName(); });
+    PROPERTY_READONLY_TEXT("Text", [](const Enemy& e) { return e.text_label; });
+PROPERTY_LIST_END()
+
+
 
 void Enemy::SetPath(const class Path* path) {
 

@@ -39,7 +39,7 @@ bool g_is_in_editor = true;
 bool g_render_initialized_hack = false;
 bool g_update_simulation = false;
 bool g_update_simulation_step_by_step = false;
-bool g_exclusive_3dview = false; // 3dview occupies whole window
+bool g_exclusive_3dview = WITH_EDITOR ? false : true; // 3dview occupies whole window
 uint32_t g_obj_under_cursor = scene::kInvalidObjectId;
 
 DWORD g_htexture = 0;
@@ -61,15 +61,8 @@ void __stdcall Init(void)
 {
     printf("::Init\n");
 
-#define DO_TESTS
-#if defined(DO_TESTS)
-    //extern void test_fixed_block_allocator();
-    //test_fixed_block_allocator();
-    extern void test_myarray();
-    test_myarray();
-    extern void test_spline();
-    test_spline();
-#endif
+    extern void tests_run();
+    tests_run();
 
 	const vec3 init_cam_pos(0, 15, 0);
     g_cam_controller.set_pos(init_cam_pos);
@@ -237,8 +230,10 @@ void __stdcall Update(void)
 
     start_tick = timing::gettickcount();
 
-    if(gos_GetKeyStatus(KEY_F) == KEY_PRESSED && gos_GetKeyStatus(KEY_LCONTROL)) {
-        g_exclusive_3dview = !g_exclusive_3dview;
+    if(WITH_EDITOR) {
+        if(gos_GetKeyStatus(KEY_F) == KEY_PRESSED && gos_GetKeyStatus(KEY_LCONTROL)) {
+            g_exclusive_3dview = !g_exclusive_3dview;
+        }
     }
 
     if(gos_GetKeyStatus(KEY_SPACE) == KEY_PRESSED)
@@ -329,7 +324,7 @@ void __stdcall Update(void)
     {
         {
             SCOPED_ZONE_N(scene_render_update, 0);
-            scene_render_update(rfc, g_is_in_editor);
+            scene_render_update(rfc, g_is_in_editor, g_exclusive_3dview);
         }
 
         //if(compiled with editor)

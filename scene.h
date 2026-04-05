@@ -56,7 +56,7 @@ void initialize_scene(const struct camera* cam, struct RenderFrameContext* rfc);
 void finalize_scene();
 
 void scene_update(const struct camera* cam, const bool b_update_simulation, const float dt);
-void scene_render_update(struct RenderFrameContext*, bool is_in_editor_mode);
+void scene_render_update(struct RenderFrameContext *rfc, bool is_in_editor_mode, bool b_exclusive_3dview);
 
 void scene_get_intersected_objects(
     const vec3& ws_orig, const vec3& ws_dir,

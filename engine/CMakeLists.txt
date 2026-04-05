@@ -63,6 +63,7 @@ set(SOURCES ${SOURCES}
     utils/obj_loader.h
     utils/hashing.cpp
     utils/hashing.h
+    utils/imgui_property_list.h
     #utils/simple_quadrature.h
     #utils/simple_quadrature.cpp
     utils/marshingcubes.h
@@ -130,7 +131,9 @@ target_include_directories(engine INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/..)
 target_include_directories(engine PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/.. ${IMGUI_DIR})
 
 if(USE_IMGUI)
-    target_compile_definitions(engine PUBLIC USE_IMGUI)
+    target_compile_definitions(engine PUBLIC USE_IMGUI WITH_EDITOR=1)
+else()
+    target_compile_definitions(engine PUBLIC WITH_EDITOR=0)
 endif()
 
 target_link_libraries(engine PUBLIC ${ADDITIONAL_LIBS})

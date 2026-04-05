@@ -1,11 +1,12 @@
 #pragma once
 
+#include "obj_model.h"
+#include "engine/utils/spline.h"
+#include "engine/utils/imgui_property_list.h"
+
 #include "game/ShipController.h"
 #include "game/WingController.h"
-#include "game/Text.h"
 #include "game/Path.h"
-
-#include "engine/utils/spline.h"
 
 struct CheckPoint {
     vec3 position;
@@ -50,6 +51,9 @@ class MainShip: public GameObject {
 
     public:
 
+    PROPERTY_SUPPORT(MainShip);
+    PROPERTY_POLYMORPHIC_DRAW_IMPL(MainShip)
+
     virtual ~MainShip();
 
     virtual const char* GetName() const override { return name_.c_str(); } 
@@ -61,6 +65,7 @@ class MainShip: public GameObject {
 
     virtual void Update(float dt) override;
     virtual void AddRenderPackets(struct RenderFrameContext* rfc) const override;
-
-
 };
+
+PROPERTY_LIST_DECLARE_DERIVED(MainShip, GameObject)
+

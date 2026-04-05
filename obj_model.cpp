@@ -3,6 +3,10 @@
 #include "particle_system.h"
 #include "utils/obj_loader.h"
 
+PROPERTY_LIST_BEGIN_DERIVED(GameObject, void)
+    PROPERTY_ARRAY(components_, "components");
+    PROPERTY_UINT(id_, "id", 0, UINT32_MAX, 0, PropertyFlags::kPropertyFlagReadOnly);
+PROPERTY_LIST_END()
 
 void TransformComponent::SetParent(TransformComponent* parent) {
 
@@ -68,6 +72,16 @@ void TransformComponent::UpdateComponent(float dt) {
 	}
 }
 
+PROPERTY_LIST_BEGIN_DERIVED(TransformComponent, Component)
+    PROPERTY_SECTION("TransformComponent");
+    PROPERTY_VEC3_ACC("WorldPos", 0, 0.1f,
+            [](const TransformComponent& c)->vec3{ return c.GetPosition();},
+            [](TransformComponent& c, const vec3& pos){c.SetPosition(pos);});
+    PROPERTY_VEC3(scale_, "Scale", 1);
+    PROPERTY_ARRAY(children_, "Children");
+PROPERTY_LIST_END()
+
+
 MeshComponent* MeshComponent::Create(const char *res) {
     MeshComponent* comp = new MeshComponent();
     comp->mesh_name_ = res;
@@ -122,6 +136,12 @@ void MeshComponent::AddRenderPackets(struct RenderFrameContext* rfc) const {
         rp->debug_color = vec4(0, 1, 0, 1);
     }
 }
+
+PROPERTY_LIST_BEGIN_DERIVED(MeshComponent, TransformComponent)
+    PROPERTY_SECTION("MeshComponent");
+    PROPERTY_READONLY_TEXT("Name", [](const MeshComponent& c){ return c.mesh_name_;});
+PROPERTY_LIST_END()
+
 
 ParticleSystemObject* ParticleSystemObject::Create()
 {
@@ -282,6 +302,14 @@ void FrustumComponent::DeinitRenderResources() {
     state_ = Component::kUninitialized;
 }
 
+PROPERTY_LIST_BEGIN_DERIVED(FrustumComponent, TransformComponent)
+    PROPERTY_FLOAT(fov_, "fov", 0, 30.0f, 120.0f, 1);
+    PROPERTY_FLOAT(near_, "near", 0, 30.0f, 120.0f, 1);
+    PROPERTY_FLOAT(far_, "far", 0, 30.0f, 120.0f, 1);
+    PROPERTY_FLOAT(aspect_, "aspect", 0, 30.0f, 120.0f, 1);
+    PROPERTY_BOOL(b_override_, "overriden");
+PROPERTY_LIST_END()
+
 MeshObject *MeshObject::Create(const char *res) {
     static size_t obj_num = 0;
     MeshObject *obj = new MeshObject();
@@ -296,4 +324,9 @@ MeshObject *MeshObject::Create(const char *res) {
 
     return obj;
 }
+
+PROPERTY_LIST_BEGIN_DERIVED(MeshObject, GameObject)
+    PROPERTY_READONLY_TEXT("Name", [](const MeshObject& o){ return o.GetName();});
+PROPERTY_LIST_END()
+
 

@@ -285,7 +285,18 @@ void scene_delete_game_object(GameObject* go) {
 	}
 }
 
-void scene_render_update(struct RenderFrameContext *rfc, bool is_in_editor_mode) {
+void scene_draw_object_list() {
+#if WITH_EDITOR
+    ImGui::Begin("ObjList");
+    DrawPropertySheetCollapsibleList("Objects", g_world_objects, 
+            [](const auto& item, size_t index) {
+                return item->GetName();
+            });
+    ImGui::End();
+#endif
+}
+
+void scene_render_update(struct RenderFrameContext *rfc, bool is_in_editor_mode, bool b_exclusive_3dview) {
 
     RenderList *frame_render_list = rfc->rl_;
 
@@ -396,7 +407,9 @@ void scene_render_update(struct RenderFrameContext *rfc, bool is_in_editor_mode)
         }
     }
 
-	//
+    if(!b_exclusive_3dview) {
+        scene_draw_object_list();
+    }
 }
 
 void scene_get_intersected_objects(

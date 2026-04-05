@@ -3,12 +3,16 @@
 
 #include <memory.h>
 #include "utils/vec.h"
+#include "utils/imgui_property_list.h"
 
-struct camera
+struct camera //: public imgui_props::IPolymorphicPropertyObject
 {
+    PROPERTY_SUPPORT(camera);
+    //PROPERTY_POLYMORPHIC_DRAW_IMPL(camera);
     camera();
 
 	void set_projection(const float fov, const int width, const int height, const float near, const float far);
+	void set_fov(const float fov);
 	void set_ortho_projection(const float l, const float r, const float t, const float b, const float near, const float far);
 	void get_projection(mat4* proj) const { *proj = proj_; }
 	const mat4& get_projection() const { return proj_; }
@@ -73,6 +77,19 @@ private:
     float far_;
     bool is_perspective_;
 };
+
+PROPERTY_LIST_DECLARE(camera);
+// have it in the header because it becomes unresolved even though it is explicitly instanciated
+// but because "engine" is linked as a static lib, it somehow lost (probably because not referenced anywhere
+// in "engine". If I add PROPERTY_POLYMORPHIC_DRAW_IMPL() to camera class (have to derive from 
+// imgui_props::IPolymorphicPropertyObject) then is it fine, because then GetPropertyList<camera> is
+// actually used.
+PROPERTY_LIST_BEGIN(camera)
+    PROPERTY_READONLY_TEXT("Name", [](const camera& c) { return c.is_perspective_? "Persp" : "Ortho"; });
+    PROPERTY_VEC3(wpos_, "WorldPos");
+    PROPERTY_FLOAT(fov_, "FOV", 0, 30.0f, 120.0f, 1.0f, nullptr, [](camera& c, float fov){ c.set_fov(fov); });
+    PROPERTY_BOOL(is_perspective_, "IsPerspective");
+PROPERTY_LIST_END()
 
 
 class fps_camera {

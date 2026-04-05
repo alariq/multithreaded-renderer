@@ -3,6 +3,7 @@
 #include "utils/vec.h"
 #include "utils/quaternion.h"
 #include "utils/frustum.h"
+#include "utils/imgui_property_list.h"
 #include "scene.h"
 
 #include <cstdint>
@@ -80,7 +81,7 @@ public:
     virtual ~IRenderable() {}
 };
 
-class IEditorObject {
+class IEditorObject: public imgui_props::IPolymorphicPropertyObject {
 public:
     virtual int GetIconID() const { return 1; }
     virtual int IsSelectable() const { return true; }
@@ -109,7 +110,7 @@ inline GameObject *getGameObject(GameObjectHandle go_handle) { return go_handle.
 
 template<typename T> inline constexpr ComponentType get_component_type();
 
-class Component {
+class Component: public imgui_props::IPolymorphicPropertyObject {
     friend GameObject;
 	GameObjectHandle go_handle_;
     public:
@@ -182,6 +183,9 @@ class TransformComponent : public Component {
 	}
 
   public:
+    PROPERTY_SUPPORT(TransformComponent);
+    PROPERTY_POLYMORPHIC_DRAW_IMPL(TransformComponent);
+
 	static void on_transformed_default(TransformComponent* ) {}
 	on_transformed_fptr_t on_transformed_fptr_ = on_transformed_default;
 	static const ComponentType type_ = ComponentType::kTransform;
@@ -250,6 +254,8 @@ class TransformComponent : public Component {
 	virtual void UpdateComponent(float dt) override;
 };
 
+PROPERTY_LIST_DECLARE_DERIVED(TransformComponent, Component)
+
 template<> inline constexpr ComponentType 
 get_component_type<class MeshComponent>() { return ComponentType::kMesh; }
 class MeshComponent : public TransformComponent, public IRenderable {
@@ -262,6 +268,9 @@ class MeshComponent : public TransformComponent, public IRenderable {
 	MeshComponent() : mesh_(nullptr), pending_mesh_(nullptr) {}
 
   public:
+    PROPERTY_SUPPORT(MeshComponent)
+    PROPERTY_POLYMORPHIC_DRAW_IMPL(MeshComponent)
+
     int getState() const { return (int)initState.load(); }
     virtual IRenderable* getRenderableInterface() override { return this; }
 	virtual ComponentType GetType() const override { return get_component_type<MeshComponent>(); }
@@ -277,6 +286,7 @@ class MeshComponent : public TransformComponent, public IRenderable {
 	virtual void Deinitialize() override {}
 };
 
+PROPERTY_LIST_DECLARE_DERIVED(MeshComponent, TransformComponent)
 
 template<> inline constexpr ComponentType 
 get_component_type<class FrustumComponent>() { return ComponentType::kFrustumComponent; }
@@ -286,6 +296,9 @@ class FrustumComponent: public TransformComponent, public IRenderable {
     float fov_, near_, far_, aspect_;
     bool b_override_;
   public:
+    PROPERTY_SUPPORT(FrustumComponent)
+    PROPERTY_POLYMORPHIC_DRAW_IMPL(FrustumComponent)
+
     FrustumComponent():mesh_(nullptr), view_(mat4::identity()), 
     inv_view_(mat4::identity()),
     fov_(0), near_(0), far_(0), aspect_(0),
@@ -315,6 +328,7 @@ class FrustumComponent: public TransformComponent, public IRenderable {
     }
 
 };
+PROPERTY_LIST_DECLARE_DERIVED(FrustumComponent, Component)
 
 typedef uint32_t GameObjectId;
 class GameObject: public IEditorObject {
@@ -325,6 +339,8 @@ public:
 private:
     State state_;
 public:
+    PROPERTY_SUPPORT(GameObject)
+
 	GameObjectId GetId() const { return id_; }
 
     virtual const char* GetName() const = 0;
@@ -400,6 +416,8 @@ public:
     virtual void AddRenderPackets(struct RenderFrameContext* ) const {};
 };
 
+PROPERTY_LIST_DECLARE_DERIVED(GameObject, void)
+
 class ParticleSystemObject: public GameObject {
     ParticleSystem* ps_;
 public:
@@ -441,6 +459,9 @@ protected:
         mesh_comp_(0), /*scale_(0), rot_(0), pos_(0),*/ updater_(nullptr) {}
 
 public:
+    PROPERTY_SUPPORT(MeshObject)
+    PROPERTY_POLYMORPHIC_DRAW_IMPL(MeshObject)
+
    static MeshObject* Create(const char* res);
    virtual const char* GetName() const override { return name_.c_str(); } 
 
@@ -451,3 +472,4 @@ public:
    }
 };
 
+PROPERTY_LIST_DECLARE_DERIVED(MeshObject, GameObject)

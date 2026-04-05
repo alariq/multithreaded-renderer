@@ -1,6 +1,8 @@
-#include "MainShip.h"
+#include "game/Text.h"
+#include "game/Enemy.h"
+#include "game/MainShip.h"
+#include "game/Path.h"
 
-#include "obj_model.h"
 #include "engine/utils/vec.h"
 #include "engine/utils/spline.h"
 #include "engine/profiler/profiler.h"
@@ -12,7 +14,6 @@ MainShip* MainShip::Create(const char* res) {
 
     obj->name_ = res;
     obj->name_ += std::to_string(obj_num++);
-
 
     auto tr = obj->AddComponent<TransformComponent>();
 
@@ -230,6 +231,14 @@ void MainShip::Update(float dt) {
     tc->SetPosition(renderState.position);
     tc->SetRotation(qnew);
 
+    using BaseType = typename imgui_props::PropertyBaseType<MainShip>::type;
+    if constexpr (std::is_void<BaseType>::value) {
+        printf("Base type is void\n");
+    } else {
+        BaseType* obj = this;
+        printf("Base type is not void: %p\n", obj);
+    }
+
 }
 
 void MainShip::AddRenderPackets(struct RenderFrameContext* rfc) const {
@@ -294,3 +303,7 @@ MainShip::~MainShip() {
     delete myPath;
 }
 
+
+PROPERTY_LIST_BEGIN_DERIVED(MainShip, GameObject)
+    PROPERTY_READONLY_TEXT("Name", [](const MainShip& o) { return o.GetName(); });
+PROPERTY_LIST_END()

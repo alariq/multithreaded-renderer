@@ -4,6 +4,7 @@
 #include "engine/profiler/profiler.h"
 #include "engine/utils/timing.h"
 #include "engine/utils/camera.h"
+#include "engine/utils/imgui_property_list.h"
 #include "gameos.hpp"
 
 #include <cctype>
@@ -441,3 +442,8 @@ void Level::AddRenderPackets(struct RenderFrameContext* rfc) const {
     rl->addDebugLine(pos, pos + 3*up, vec4(0, 1,0, 1));
     rl->addDebugLine(pos, pos + 3*fwd, vec4(0, 0,1, 1));
 }
+
+PROPERTY_LIST_BEGIN_DERIVED(Level, GameObject)
+    PROPERTY_INT(total_spawned_, "total enemies spawned", PropertyFlags::kPropertyFlagReadOnly);
+    //PROPERTY_CHILD_PTR(mainShip , "MainShip");
+PROPERTY_LIST_END()

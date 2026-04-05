@@ -4,6 +4,7 @@
 #include "engine/utils/vec.h"
 #include "engine/utils/math_utils.h"
 #include "engine/utils/spline.h"
+#include "engine/utils/imgui_property_list.h"
 
 #include <deque>
 #include <string>
@@ -85,7 +86,6 @@ class Enemy: public GameObject {
     std::string name_;
     class MeshComponent* mesh_comp_;
     
-
     vec3 origin_pos;
     float total_time;
 
@@ -107,6 +107,9 @@ class Enemy: public GameObject {
     void pushTrailPoint(const vec3& point);
 
   public:
+    PROPERTY_SUPPORT(Enemy);
+    PROPERTY_POLYMORPHIC_DRAW_IMPL(Enemy)
+
 	virtual const char* GetName() const override { return name_.c_str(); } 
 
     static Enemy* Create(const char* res);
@@ -122,6 +125,7 @@ class Enemy: public GameObject {
     void SetActiveTarget(bool b_is_active) { b_is_active_target_ = b_is_active; }
 };
 
+PROPERTY_LIST_DECLARE_DERIVED(Enemy, GameObject)
 
 class EnemySpawner: GameObject {
 

@@ -157,6 +157,8 @@ set(TESTS_SOURCES
     "tests/test_fixed_block_allocator.cpp"
     "tests/test_myarray.cpp"
     "tests/test_spline.cpp"
+    "tests/test_imgui_property_list.cpp"
+    "tests/tests_main.cpp"
 )
 
 list(APPEND SOURCES ${TESTS_SOURCES})

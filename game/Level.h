@@ -34,6 +34,9 @@ class Level: public GameObject {
     void UpdateTextInput();
 
   public:
+    PROPERTY_SUPPORT(Level);
+    PROPERTY_POLYMORPHIC_DRAW_IMPL(Level)
+
 	virtual const char* GetName() const override { return name_.c_str(); } 
     static Level* Create(const char* res);
 
@@ -44,3 +47,4 @@ class Level: public GameObject {
     virtual void AddRenderPackets(struct RenderFrameContext* rfc) const override;
 
 };
+PROPERTY_LIST_DECLARE_DERIVED(Level, GameObject)

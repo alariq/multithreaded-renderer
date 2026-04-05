@@ -77,6 +77,12 @@ void camera::set_ortho_projection(const float l, const float r, const float t, c
     this->set_projection(pm);
 }
 
+void camera::set_fov(const float fov)
+{
+    fov_ = fov;
+    set_projection(fov_, width_, height_, near_, far_);
+}
+
 void camera::set_view(const mat4& view_mat)
 {
 	view_ = view_mat;
@@ -185,7 +191,6 @@ vec3 camera::unproject(const vec2& p, float at_view_z, bool b_perspective, const
     vec3 wpos = (inv_view * vec4(view_pos, 1.0f)).xyz();
     return wpos;
 }
-
 
 void fps_camera::update(float dt) {
 

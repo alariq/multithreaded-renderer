@@ -16,6 +16,9 @@ class GameTextComp: public TransformComponent, public IRenderable {
     float frame_time_ms_;
     char text[128];
   public:
+    PROPERTY_SUPPORT(GameTextComp)
+    PROPERTY_POLYMORPHIC_DRAW_IMPL(GameTextComp)
+
 	virtual ComponentType GetType() const override { return get_component_type<GameTextComp>(); }
 
 	virtual void InitRenderResources() override;
@@ -30,6 +33,7 @@ class GameTextComp: public TransformComponent, public IRenderable {
 
     virtual void UpdateComponent(float dt) override;
 };
+PROPERTY_LIST_DECLARE_DERIVED(GameTextComp, TransformComponent)
 
 class EnemyTextComp: public TransformComponent, public IRenderable {
     HGOSFONT3D font_handle_;
@@ -38,6 +42,9 @@ class EnemyTextComp: public TransformComponent, public IRenderable {
     char text[32];
     bool b_is_active_;
   public:
+    PROPERTY_SUPPORT(EnemyTextComp);
+    PROPERTY_POLYMORPHIC_DRAW_IMPL(EnemyTextComp)
+
 	virtual ComponentType GetType() const override { return get_component_type<EnemyTextComp>(); }
 
 	virtual void InitRenderResources() override;
@@ -58,3 +65,4 @@ class EnemyTextComp: public TransformComponent, public IRenderable {
     const char* GetText() const { return text; }
     void SetColour(uint32_t c) { colour_ = c; }
 };
+PROPERTY_LIST_DECLARE_DERIVED(EnemyTextComp, TransformComponent)
