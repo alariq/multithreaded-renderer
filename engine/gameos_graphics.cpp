@@ -1109,7 +1109,7 @@ bool gosTexture::createHardwareTexture() {
             // SDL BGRA8888 means 0xBBGGRRAA and e.g. ARGB8888 means 0xAARRGGBB
             // but ARGB32 is a byte order 0xBBGGRRAA, seo ARGB32 == BGRA8888
             if(surface->format->BytesPerPixel==3 || surface->format->BytesPerPixel==4) {
-                SDL_Surface* s2 = SDL_ConvertSurfaceFormat(surface, surface->format->BytesPerPixel==4 ? SDL_PIXELFORMAT_ARGB32: SDL_PIXELFORMAT_RGB24, 0);
+                SDL_Surface* s2 = SDL_ConvertSurfaceFormat(surface, surface->format->BytesPerPixel==4 ? SDL_PIXELFORMAT_RGBA32: SDL_PIXELFORMAT_RGB24, 0);
                 SDL_FreeSurface(surface);
                 surface = s2;
             }
