@@ -19,7 +19,7 @@ class RigidBodyContactConstraint
         RigidBodyConstraintInfo constraint_info_;
 
         RigidBodyContactConstraint() = default;
-        ~RigidBodyContactConstraint() = default;
+        virtual ~RigidBodyContactConstraint() = default;
         virtual int &getTypeId() const { return TYPE_ID; }
 
 		bool initConstraint(struct RigidBody **rbodies, const int bod_index1,
