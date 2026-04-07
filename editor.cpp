@@ -399,7 +399,7 @@ void editor_update(camera *cam, const float dt) {
 	if (gos_GetKeyStatus(KEY_LMOUSE) == KEY_PRESSED) {
 		if (go_under_cursor) {
 			g_sel_obj = go_under_cursor;
-			const auto *tc = g_sel_obj->GetComponent<TransformComponent>();
+			const auto *tc = g_sel_obj->GetTransformInterface();
 			if (tc) {
 				g_gizmo.set_position(tc->GetPosition());
 				g_gizmo.set_rotation(tc->GetRotation());
@@ -408,7 +408,7 @@ void editor_update(camera *cam, const float dt) {
 		else if (sel_id >= ReservedObjIds::kGizmoFirst && sel_id < ReservedObjIds::kGizmoLast) {
 			gosASSERT(g_sel_obj);
 			drag_type = sel_id;
-			const auto *tc = g_sel_obj->GetComponent<TransformComponent>();
+			const auto *tc = g_sel_obj->GetTransformInterface();
 			if (tc) {
 				drag_start_obj_pos = tc->GetPosition();
 				drag_start_obj_rot = tc->GetRotation();
@@ -430,7 +430,7 @@ void editor_update(camera *cam, const float dt) {
 		gosASSERT(g_sel_obj);
 		drag_cur_mouse_world_pos = screen2world(cam, cur_mouse_proj_pos, drag_obj_view_dist);
 
-		auto *tc = g_sel_obj->GetComponent<TransformComponent>();
+		auto *tc = g_sel_obj->GetTransformInterface();
 		g_gizmo.set_position(tc->GetPosition());
 		vec3 ray_origin;
 		vec3 ray_dir;
@@ -599,7 +599,7 @@ void editor_render_update(struct RenderFrameContext *rfc, bool b_editor_mode, bo
 {
     if(b_editor_mode) {
         if(g_sel_obj) {
-            auto* tc = g_sel_obj->GetComponent<TransformComponent>();
+            auto *tc = g_sel_obj->GetTransformInterface();
             if(tc) {
                 if(!drag_started) {
                     // object may be updating its position

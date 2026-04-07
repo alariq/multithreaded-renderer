@@ -414,6 +414,8 @@ public:
     }
 
     virtual void AddRenderPackets(struct RenderFrameContext* ) const {};
+    virtual const TransformComponent* GetTransformInterface() const { return GetComponent<TransformComponent>(); };
+    virtual TransformComponent* GetTransformInterface() { return GetComponent<TransformComponent>(); };
 };
 
 PROPERTY_LIST_DECLARE_DERIVED(GameObject, void)

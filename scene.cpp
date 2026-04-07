@@ -322,7 +322,7 @@ void scene_render_update(struct RenderFrameContext *rfc, bool is_in_editor_mode,
     }
 
 	for (const GameObject* go : g_world_objects) {
-		const auto* tc = go->GetComponent<TransformComponent>();
+		const auto* tc = go->GetTransformInterface();
 		const int icon_id = go->GetIconID();
 
 		if (is_in_editor_mode && tc && icon_id > 0) {
