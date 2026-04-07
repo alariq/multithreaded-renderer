@@ -74,10 +74,12 @@ void TransformComponent::UpdateComponent(float dt) {
 
 PROPERTY_LIST_BEGIN_DERIVED(TransformComponent, Component)
     PROPERTY_SECTION("TransformComponent");
-    PROPERTY_VEC3_ACC("WorldPos", 0, 0.1f,
+    PROPERTY_VEC3_ACC("Pos", 0, 0.1f,
             [](const TransformComponent& c)->vec3{ return c.GetPosition();},
             [](TransformComponent& c, const vec3& pos){c.SetPosition(pos);});
-    PROPERTY_VEC3(scale_, "Scale", 1);
+    PROPERTY_VEC3_ACC("Scale", 0, 0.1f,
+            [](const TransformComponent& c)->vec3{ return c.GetScale();},
+            [](TransformComponent& c, const vec3& s){c.SetScale(s);});
     PROPERTY_ARRAY(children_, "Children");
 PROPERTY_LIST_END()
 
