@@ -26,19 +26,27 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS "ON")
  
 if(NOT MSVC)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -ggdb")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wshadow -Werror=return-type -Wno-unused-local-typedefs -Wno-unused-function -Werror=array-bounds -Wno-switch -Wwrite-strings -Wunused-variable -Werror=uninitialized -Werror=maybe-uninitialized -Werror=suggest-override -fno-exceptions" ) 
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -ggdb -fno-exceptions")
+    # additional warnings
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wshadow -Wwrite-strings -Wunused-variable" )
+    # warnings as errors
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror=return-type -Werror=array-bounds -Werror=uninitialized -Werror=maybe-uninitialized -Werror=suggest-override") 
+    # disabled warnings
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unused-local-typedefs -Wno-unused-function -Wno-switch" ) 
+    #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-address-of-packed-member")
+
     set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} -O2")
     set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O2")
 endif()
 
 if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
     # -fsanitize=address -fno-omit-frame-pointer -ftime-trace
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ftime-trace=/tmp/clang-traces/")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unknown-warning-option -Werror=conditional-uninitialized")
-elseif (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-  # using GCC
-elseif (CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
-  # using Intel C++
+elseif (CMAKE_CXX_COMPILER_ID STREQUAL "GNU") # using GCC
+    # compile time trace
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fplugin=externis -fplugin-arg-externis-trace-dir=/tmp/et/")
+elseif (CMAKE_CXX_COMPILER_ID STREQUAL "Intel") # using Intel C++
 elseif (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
   # using Visual Studio C++
 endif()
@@ -101,7 +109,8 @@ endif()
 
 option(WITH_ASAN "Enable address sanitizer" TRUE)
 if(${WITH_ASAN})
-    add_compile_options(-fsanitize=address -static-libasan)
+    # https://github.com/google/sanitizers/wiki/AddressSanitizerFlags
+    add_compile_options(-fsanitize=address -fsanitize-address-use-after-scope -static-libasan -fno-omit-frame-pointer)
     set(ASAN_LIB asan)
 endif()
 
