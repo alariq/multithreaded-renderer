@@ -342,6 +342,14 @@ void ui_draw_stuff() {
 #endif
 }
 
+void editor_set_selected_obj(class GameObject* go) {
+    g_sel_obj = go;
+}
+
+class GameObject* editor_get_selected_obj() {
+    return g_sel_obj;
+}
+
 void editor_update(camera *cam, const float dt) {
 
 	int XDelta, YDelta, WheelDelta;

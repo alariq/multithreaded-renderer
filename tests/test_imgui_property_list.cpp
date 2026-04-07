@@ -75,7 +75,7 @@ struct Car {
 
 PROPERTY_LIST_BEGIN(Car)
     PROPERTY_SECTION("Physics");
-    PROPERTY_VEC3(velocity, "Velocity", 0.05f);
+    PROPERTY_VEC3(velocity, "Velocity", 0, 0.05f);
     PROPERTY_FLOAT(mass, "Mass", 0, 0.0f, 5000.0f, 0.1f);
     PROPERTY_CHILD_OBJECT(wheel, "Wheel");
     PROPERTY_CHILD_PTR(spare_wheel, "Spare Wheel");

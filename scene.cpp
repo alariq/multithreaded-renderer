@@ -5,6 +5,7 @@
 #include "rigid_body_object.h"
 #include "renderer.h"
 #include "render_utils.h"
+#include "editor.h"
 
 #include "utils/matrix.h"
 #include "utils/camera.h"
@@ -15,7 +16,7 @@
 
 #include "game/Level.h"
 
-typedef std::list<GameObject*> ObjList_t;
+typedef std::vector<GameObject*> ObjList_t;
 static ObjList_t g_world_objects;
 static std::vector<std::pair<GameObject*, std::vector<Component*>>> g_init_pending;
 static std::vector<std::pair<GameObject*, std::vector<Component*>>> g_destroy_pending;
@@ -174,8 +175,8 @@ void initialize_scene(const struct camera *cam, struct RenderFrameContext *rfc) 
 
 void finalize_scene() {
 
-    std::list<GameObject *>::const_iterator it = g_world_objects.begin();
-    std::list<GameObject *>::const_iterator end = g_world_objects.end();
+    ObjList_t::const_iterator it = g_world_objects.begin();
+    ObjList_t::const_iterator end = g_world_objects.end();
     for (; it != end; ++it) {
         GameObject *go = *it;
         go->SetState(GameObject::kPendingDestroy);
@@ -199,8 +200,8 @@ void scene_update(const camera *cam, const bool b_update_simulation, const float
     g_scene_view_info.fov_ = cam->get_fov();
     g_scene_view_info.aspect_ = cam->get_aspect();
 
-    std::list<GameObject *>::const_iterator it = g_world_objects.begin();
-    std::list<GameObject *>::const_iterator end = g_world_objects.end();
+    ObjList_t::const_iterator it = g_world_objects.begin();
+    ObjList_t::const_iterator end = g_world_objects.end();
 
     // TODO: this was called all the time, probably because transform components should be updated
     // in any case, keep an eye
@@ -288,10 +289,26 @@ void scene_delete_game_object(GameObject* go) {
 void scene_draw_object_list() {
 #if WITH_EDITOR
     ImGui::Begin("ObjList");
+    int sel_index = -1;
+    GameObject* sel_go = editor_get_selected_obj();
+    int idx = 0;
+    for(auto& go : g_world_objects) {
+        if(go == sel_go) {
+            sel_index = idx;
+            break;
+        }
+        idx++;
+    }
     DrawPropertySheetCollapsibleList("Objects", g_world_objects, 
             [](const auto& item, size_t index) {
                 return item->GetName();
-            });
+            },
+            &sel_index);
+
+    if(sel_index !=-1) {
+        editor_set_selected_obj(g_world_objects[sel_index]);
+    }
+    
     ImGui::End();
 #endif
 }

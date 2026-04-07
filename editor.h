@@ -22,6 +22,11 @@ void editor_render_update(struct RenderFrameContext *rfc, bool b_editor_mode, bo
 
 int editor_register_user_editor(UserEditorInterface ue_interface);
 void editor_unregister_user_editor(int id);
+
+void editor_set_selected_obj(class GameObject* go);
+class GameObject* editor_get_selected_obj();
+
+
 #if 1
 bool editor_get_3dview_hovered();
 ivec4 editor_get_3dview_rect();

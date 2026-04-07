@@ -48,7 +48,9 @@ bool DrawPropertySheetFlatList(const char* id, TContainer& items, TLabelFn&& lab
 template <typename TContainer>
 bool DrawPropertySheetFlatList(const char* id, TContainer& items);
 template <typename TContainer, typename TLabelFn>
-bool DrawPropertySheetCollapsibleList(const char* id, TContainer& items, TLabelFn&& label_fn);
+bool DrawPropertySheetCollapsibleListEx(const char* id, TContainer& items, TLabelFn&& label_fn, typename TContainer::value_type& vt);
+template <typename TContainer, typename TLabelFn>
+bool DrawPropertySheetCollapsibleList(const char* id, TContainer& items, TLabelFn&& label_fn, int* sel_index = 0);
 template <typename TContainer>
 bool DrawPropertySheetCollapsibleList(const char* id, TContainer& items);
 
@@ -878,14 +880,12 @@ private:
     PropertyList<TObject> list_;
 };
 
-template <typename>
-struct dependent_false : std::false_type {};
-
 template <typename TObject>
 const PropertyList<TObject>& GetPropertyList()
 {
-    static_assert(dependent_false<TObject>::value,
+    static_assert(HasPropertyList<TObject>::value,
                   "GetPropertyList<T>() is not specialized. Use PROPERTY_LIST_BEGIN/END macros.");
+    
     static PropertyList<TObject> empty;
     return empty;
 }
@@ -1396,6 +1396,9 @@ bool DrawPropertySheetCollapsibleList(const char* id, TContainer& items, TLabelF
 #if defined(USE_IMGUI)
     bool changed = false;
     size_t index = 0;
+    int node_clicked = -1;
+
+    static ImGuiTreeNodeFlags base_flags = ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_OpenOnDoubleClick | ImGuiTreeNodeFlags_SpanAvailWidth;
 
     ImGui::PushID(id);
     for (auto& item : items) {
@@ -1406,7 +1409,16 @@ bool DrawPropertySheetCollapsibleList(const char* id, TContainer& items, TLabelF
             label = std::string("Item ") + std::to_string(index);
         }
 
-        const bool open = ImGui::TreeNodeEx("entry", ImGuiTreeNodeFlags_None, "%s", label.c_str());
+        ImGuiTreeNodeFlags flags = base_flags;
+        if(selected_index && *selected_index == (int)index) {
+            flags |= ImGuiTreeNodeFlags_Selected;
+        }
+        const bool open = ImGui::TreeNodeEx("entry", flags, "%s", label.c_str());
+
+        if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen()) {
+            node_clicked = (int)index;
+        }
+
         if (open) {
             changed = detail::draw_element_sheet("sheet", item) || changed;
             ImGui::TreePop();
@@ -1416,6 +1428,20 @@ bool DrawPropertySheetCollapsibleList(const char* id, TContainer& items, TLabelF
         ++index;
     }
     ImGui::PopID();
+
+    if (node_clicked != -1)
+    {
+        // see ImGui demo for selection in tree, TODO: implement multiselect support
+        // Update selection state
+        // (process outside of tree loop to avoid visual inconsistencies during the clicking frame)
+        //if (ImGui::GetIO().KeyCtrl)
+        //    selection_mask ^= (1 << node_clicked);          // Ctrl+Click to toggle
+        //else //if (!(selection_mask & (1 << node_clicked))) // Depending on selection behavior you want, may want to preserve selection when clicking on item that is part of the selection
+        //    selection_mask = (1 << node_clicked);           // Click to single-select
+                                                            //
+        if(selected_index)
+            *selected_index = node_clicked;
+    }
 
     return changed;
 #else
@@ -1433,15 +1459,6 @@ bool DrawPropertySheetCollapsibleList(const char* id, TContainer& items)
                                             [](const auto& item, size_t index) {
                                                 //return std::string("Item ") + std::to_string(index);
                                                 std::string str_name;
-#if 0
-                                                const char* name = item->GetName();
-                                                if(name && name[0]!='\0') {
-                                                    str_name = name;
-                                                } else {
-                                                    str_name = "<Unk>";
-                                                }
-#endif
-
                                                 const char* type_name = imgui_props::detail::resolve_element_type_name(item);
                                                 if(type_name && type_name[0]!='\0') {
                                                     return str_name + " | " + std::string(type_name);
