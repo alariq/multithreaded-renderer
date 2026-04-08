@@ -35,7 +35,7 @@ extern void SetRenderFrameContext(void* rfc);
 extern void* GetRenderFrameContext();
 
 
-bool g_is_in_editor = true;
+bool g_is_in_editor = WITH_EDITOR ? true : false;
 bool g_render_initialized_hack = false;
 bool g_update_simulation = false;
 bool g_update_simulation_step_by_step = false;
@@ -234,18 +234,24 @@ void __stdcall Update(void)
         if(gos_GetKeyStatus(KEY_F) == KEY_PRESSED && gos_GetKeyStatus(KEY_LCONTROL)) {
             g_exclusive_3dview = !g_exclusive_3dview;
         }
-    }
 
-    if(gos_GetKeyStatus(KEY_SPACE) == KEY_PRESSED)
-        g_update_simulation = !g_update_simulation;
+        if(editor_get_3dview_hovered()) { // TODO: move into separate update_3dvew() in editor.cpp ?
 
-    if(gos_GetKeyStatus(KEY_F1) == KEY_PRESSED)
-        g_update_simulation_step_by_step = !g_update_simulation_step_by_step;
+            if(gos_GetKeyStatus(KEY_SPACE) == KEY_PRESSED)
+                g_update_simulation = !g_update_simulation;
 
-    if(gos_GetKeyStatus(KEY_TAB) == KEY_PRESSED)
-    {
-        g_is_in_editor = !g_is_in_editor;
-        gos_SetRelativeMouseMode(!g_is_in_editor);
+            if(gos_GetKeyStatus(KEY_F1) == KEY_PRESSED)
+                g_update_simulation_step_by_step = !g_update_simulation_step_by_step;
+
+            if(gos_GetKeyStatus(KEY_TAB) == KEY_PRESSED)
+            {
+                if(!g_is_in_editor && g_camera_override) {
+                    g_cam_controller.set_pos(g_camera_override->get_pos());
+                }
+                g_is_in_editor = !g_is_in_editor;
+                gos_SetRelativeMouseMode(!g_is_in_editor);
+            }
+        }
     }
 
 	scene_set_object_id_under_cursor(g_obj_under_cursor);
