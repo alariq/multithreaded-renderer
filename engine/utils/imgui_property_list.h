@@ -1391,7 +1391,7 @@ bool DrawPropertySheetFlatList(const char* id, TContainer& items)
 }
 
 template <typename TContainer, typename TLabelFn>
-bool DrawPropertySheetCollapsibleList(const char* id, TContainer& items, TLabelFn&& label_fn)
+bool DrawPropertySheetCollapsibleList(const char* id, TContainer& items, TLabelFn&& label_fn, int* selected_index/* = 0*/)
 {
 #if defined(USE_IMGUI)
     bool changed = false;
