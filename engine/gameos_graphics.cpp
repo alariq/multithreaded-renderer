@@ -1469,7 +1469,7 @@ class gosRenderer {
 		void setRenderViewport(const vec4& vp) { render_viewport_ = vp; }
 		vec4 getRenderViewport() { return render_viewport_; }
 
-		const mat4& getProj2Screen() { return projection_; }
+		const mat4& getProj2Screen() { return projection_obsolete_; }
 		void updateViewport(int w, int h);
 
         void setRenderState(gos_RenderState InRenderState, int Value) {
@@ -1554,7 +1554,7 @@ class gosRenderer {
         graphics::RenderWindowHandle win_h_;
 
         // fits vertices into viewport
-        mat4 projection_;
+        mat4 projection_obsolete_;
 
 		vec4 fog_color_;
 
@@ -2090,14 +2090,7 @@ void gosRenderer::updateViewport(int w, int h) {
 
     width_ = w;
     height_ = h;
-
-    // x = 1/w; x =2*x - 1;
-    // y = 1/h; y= 1- y; y =2*y - 1;
-    // z = z;
-    projection_ = mat4(2.0f / (float)w, 0, 0.0f, -1.0f,
-            0, -2.0f / (float)h, 0.0f, 1.0f,
-            0, 0, 1.0f, 0.0f,
-            0, 0, 0.0f, 1.0f);
+    projection_obsolete_ = mat4::identity();
 }
 
 void gosRenderer::handleEvents()
@@ -2189,7 +2182,7 @@ void gosRenderer::drawQuads(gos_VERTEX* vertices, int count) {
         gosRenderMaterial* mat = selectBasicRenderMaterial(curStates_);
         gosASSERT(mat);
 
-        mat->setTransform(projection_);
+        mat->setTransform(projection_obsolete_);
         mat->setFogColor(fog_color_);
         quads_->draw(mat);
         quads_->rewind();
@@ -2213,7 +2206,7 @@ void gosRenderer::drawQuads(gos_VERTEX* vertices, int count) {
     gosRenderMaterial* mat = selectBasicRenderMaterial(curStates_);
     gosASSERT(mat);
 
-    mat->setTransform(projection_);
+    mat->setTransform(projection_obsolete_);
     mat->setFogColor(fog_color_);
     quads_->draw(mat);
     quads_->rewind();
@@ -2228,7 +2221,7 @@ void gosRenderer::drawLines(gos_VERTEX* vertices, int count) {
 
     if(lines_->getNumVertices() + count > lines_->getVertexCapacity()) {
         applyRenderStates();
-        basic_material_->setTransform(projection_);
+        basic_material_->setTransform(projection_obsolete_);
         basic_material_->setFogColor(fog_color_);
         lines_->draw(basic_material_);
         lines_->rewind();
@@ -2239,7 +2232,7 @@ void gosRenderer::drawLines(gos_VERTEX* vertices, int count) {
 
     // for now draw anyway because no render state saved for draw calls
     applyRenderStates();
-    basic_material_->setTransform(projection_);
+    basic_material_->setTransform(projection_obsolete_);
     basic_material_->setFogColor(fog_color_);
     lines_->draw(basic_material_);
     lines_->rewind();
@@ -2254,7 +2247,7 @@ void gosRenderer::drawPoints(gos_VERTEX* vertices, int count) {
 
     if(points_->getNumVertices() + count > points_->getVertexCapacity()) {
         applyRenderStates();
-        basic_material_->setTransform(projection_);
+        basic_material_->setTransform(projection_obsolete_);
 		basic_material_->setFogColor(fog_color_);
         points_->draw(basic_material_);
         points_->rewind();
@@ -2284,7 +2277,7 @@ void gosRenderer::drawTris(gos_VERTEX* vertices, int count) {
         gosRenderMaterial* mat = selectBasicRenderMaterial(curStates_);
         gosASSERT(mat);
 
-        mat->setTransform(projection_);
+        mat->setTransform(projection_obsolete_);
 		mat->setFogColor(fog_color_);
         tris_->draw(mat);
         tris_->rewind();
@@ -2299,7 +2292,7 @@ void gosRenderer::drawTris(gos_VERTEX* vertices, int count) {
     gosRenderMaterial* mat = selectBasicRenderMaterial(curStates_);
     gosASSERT(mat);
 
-    mat->setTransform(projection_);
+    mat->setTransform(projection_obsolete_);
     mat->setFogColor(fog_color_);
     tris_->draw(mat);
     tris_->rewind();
@@ -2322,7 +2315,7 @@ void gosRenderer::drawIndexedTris(gos_VERTEX* vertices, int num_vertices, WORD* 
         gosRenderMaterial* mat = selectBasicRenderMaterial(curStates_);
         gosASSERT(mat);
 
-        mat->setTransform(projection_);
+        mat->setTransform(projection_obsolete_);
 		mat->setFogColor(fog_color_);
         indexed_tris_->drawIndexed(mat);
         indexed_tris_->rewind();
@@ -2339,7 +2332,7 @@ void gosRenderer::drawIndexedTris(gos_VERTEX* vertices, int num_vertices, WORD* 
     gosRenderMaterial* mat = selectBasicRenderMaterial(curStates_);
     gosASSERT(mat);
 
-    mat->setTransform(projection_);
+    mat->setTransform(projection_obsolete_);
     mat->setFogColor(fog_color_);
     indexed_tris_->drawIndexed(mat);
     indexed_tris_->rewind();
@@ -2368,7 +2361,7 @@ void gosRenderer::drawIndexed(HGOSBUFFER ib, HGOSBUFFER vb, HGOSVERTEXDECLARATIO
 	vec4 vp = g_gos_renderer->getRenderViewport();
 
 	mat->getShader()->setFloat4(gosRenderMaterial::s_vp, vp);
-	mat->getShader()->setMat4(gosRenderMaterial::s_projection_, projection_);
+	mat->getShader()->setMat4(gosRenderMaterial::s_projection_, projection_obsolete_);
 
     mat->setTransform(transform);
     //mat->setFogColor(fog_color_);
@@ -2390,7 +2383,7 @@ void gosRenderer::drawIndexed(HGOSBUFFER ib, HGOSBUFFER vb, HGOSVERTEXDECLARATIO
 	// maybe getCurMaterial->set.... to not set it from outer code?
 	//vec4 vp = g_gos_renderer->getRenderViewport();
 	//mat->getShader()->setFloat4("vp", vp);
-	//mat->getShader()->setMat4("projection_", projection_);
+	//mat->getShader()->setMat4("projection_", projection_obsolete_);
 
 	gosMesh::drawIndexed(ib, vb, vdecl, pt);
 
@@ -2840,7 +2833,7 @@ void gosRenderer::drawText(const char* text) {
     //ta.WrapType
     //ta.DisableEmbeddedCodes
 
-    mat->setTransform(projection_);
+    mat->setTransform(projection_obsolete_);
     mat->setFogColor(fog_color_);
     text_->draw(mat);
     text_->rewind();
@@ -3660,11 +3653,11 @@ void __stdcall gos_SetCommonMaterialParameters(HGOSRENDERMATERIAL material)
 	gosASSERT(material);
 	gosASSERT(g_gos_renderer);
 
-	const mat4& projection = getGosRenderer()->getProj2Screen();
+	const mat4& projection_obsolete = getGosRenderer()->getProj2Screen();
 	const vec4& vp = getGosRenderer()->getRenderViewport();
 
 	// TODO: make typed parameters !!!!!!!!!!!!!!! not just float* pointers, helps track errors
-	gos_SetRenderMaterialParameterMat4(material, "projection_", projection);
+	gos_SetRenderMaterialParameterMat4(material, "projection_", projection_obsolete);
 	gos_SetRenderMaterialParameterFloat4(material, "vp", vp);
 }
 

@@ -53,7 +53,7 @@ void camera::set_projection(const float fov, const int w, const int h, const flo
     fov_ = fov;
     near_ = near; far_ = far;
 #if 1
-    mat4 pm = perspectiveMatrixX(fov * 3.1415f / 180.0f, w, h, near, far, false);
+    mat4 pm = perspectiveMatrix(fov * 3.1415f / 180.0f, w, h, near, far, b_rh, false);
 #else
     const float aspectRatio = (float)h/w;
     const float fovy = aspectRatio * fov;
@@ -131,12 +131,54 @@ void camera::lookat(const vec3& eye, const vec3& target, const vec3& up_dir)
 
 mat4 camera::make_lookat(const vec3& eye, const vec3& target, const vec3& up_dir) {
 
-    vec3 fwd = normalize(target - eye);
-    vec3 right = normalize(cross(up_dir, fwd));
-    vec3 up = cross(fwd, right);
+    vec3 fwd = target - eye;
+    float fwd_len = length(fwd);
+    if(fwd_len < 1e-9) {
+        fwd = vec3(0,0,1);
+    } else {
+        fwd = fwd / fwd_len;
+    }
+
+    vec3 up = up_dir;
+    vec3 right = cross(up, fwd);
+    float right_len = length(right);
+    if( right_len < 1e-9) {
+        calculate_basis(fwd, up, right);
+    } else {
+        right = normalize(right);
+        up = cross(fwd, right);
+    }
 
     mat4 view = mat4::identity();
     compose_view_matrix(&view, right, up, fwd, eye);
+    return view;
+}
+
+// https://registry.khronos.org/OpenGL-Refpages/gl2.1/xhtml/gluLookAt.xml
+// Because OpenGL uses RH, it means than with Identity camera matrix it will look at -Z 
+// So if one sets eye = (0,0,0) and target = (0,0,-1) this will produce Identity matrix
+mat4 camera::make_lookat_opengl(const vec3& eye, const vec3& target, const vec3& up_dir) {
+
+    vec3 fwd = target - eye;
+    float fwd_len = length(fwd);
+    if(fwd_len < 1e-9) {
+        fwd = vec3(0,0,1);
+    } else {
+        fwd = fwd / fwd_len;
+    }
+
+    vec3 up = up_dir;
+    vec3 right = cross(fwd, up);
+    float right_len = length(right);
+    if( right_len < 1e-9) {
+        calculate_basis(fwd, up, right);
+    } else {
+        right = normalize(right);
+        up = cross(right, fwd);
+    }
+
+    mat4 view = mat4::identity();
+    compose_view_matrix(&view, right, up, -fwd, eye);
     return view;
 }
 

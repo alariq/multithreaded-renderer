@@ -429,6 +429,14 @@ struct mat3 {
 		elem[2][0] = v2.x; elem[2][1] = v2.y; elem[2][2] = v2.z;
 	}
 
+    static mat3 fromBasis(const vec3 &v0, const vec3 &v1, const vec3 &v2) {
+        mat3 m;
+		m.elem[0][0] = v0.x; m.elem[0][1] = v1.x; m.elem[0][2] = v2.x;
+		m.elem[1][0] = v0.y; m.elem[1][1] = v1.y; m.elem[1][2] = v2.y;
+		m.elem[2][0] = v0.z; m.elem[2][1] = v1.z; m.elem[2][2] = v2.z;
+        return m;
+	}
+
 	vec3 &getRow(const unsigned int index){ return *((vec3 *) elem[index]); }
 
 	vec3 getCol(int col) const {
@@ -577,8 +585,12 @@ mat4 translate(const vec3 &v);
 mat4 orthoMatrix(const float left, const float right, const float top, const float bottom, const float zNear, const float zFar, const bool d3dStyle);
 
 /** Creates a perspective-correct projection matrix */
-mat4 perspectiveMatrixX(const float fov, const int width, const int height, const float zNear, const float zFar, const bool d3dStyle);
-mat4 perspectiveMatrixY(const float fov, const int width, const int height, const float zNear, const float zFar, const bool d3dStyle);
+mat4 perspectiveMatrix(const float fovx, const int width, const int height, const float zNear, const float zFar, bool b_rh, const bool d3dStyle);
+
+mat4 perspectiveMatrixX_RH(const float fovx, const int width, const int height, const float zNear, const float zFar, const bool d3dStyle);
+mat4 perspectiveMatrixX_LH(const float fovx, const int width, const int height, const float zNear, const float zFar, const bool d3dStyle);
+mat4 perspectiveMatrixY_RH(const float fovy, const int width, const int height, const float zNear, const float zFar, bool b_rh, const bool d3dStyle);
+mat4 perspectiveMatrixY_LH(const float fovy, const int width, const int height, const float zNear, const float zFar, bool b_rh, const bool d3dStyle);
 
 /** Creates a perspective-correct projection matrix */
 mat4 frustumProjMatrix(const float left, const float right, const float bottom, const float top, const float near, const float far);

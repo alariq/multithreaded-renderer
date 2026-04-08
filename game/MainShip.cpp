@@ -221,24 +221,11 @@ void MainShip::Update(float dt) {
     // actually we calculate left, so need to flip
     renderState.right = -renderState.right;
 
-    mat3 m = mat3(
-    renderState.right.x, renderState.right.y, renderState.right.z,
-    renderState.up.x, renderState.up.y, renderState.up.z,
-    renderState.forward.x, renderState.forward.y, renderState.forward.z);
-    m = transpose(m);
+    mat3 m = mat3::fromBasis(renderState.right, renderState.up, renderState.forward);
 
     const quaternion qnew = mat3_to_quat(m); // expects column major, so transpose
     tc->SetPosition(renderState.position);
     tc->SetRotation(qnew);
-
-    using BaseType = typename imgui_props::PropertyBaseType<MainShip>::type;
-    if constexpr (std::is_void<BaseType>::value) {
-        printf("Base type is void\n");
-    } else {
-        BaseType* obj = this;
-        printf("Base type is not void: %p\n", obj);
-    }
-
 }
 
 void MainShip::AddRenderPackets(struct RenderFrameContext* rfc) const {

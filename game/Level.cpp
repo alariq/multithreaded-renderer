@@ -44,7 +44,7 @@ void update_ship_cam(MainShip* ship) {
     ivec4 scene_rect = editor_get_3dview_rect();
 
     vec3 ship_pos = ship->GetComponent<TransformComponent>()->GetPosition();
-    ship_cam.set_projection(90.0f, scene_rect.z, scene_rect.w, 0.1f, 100.0f);
+    ship_cam.set_projection(90.0f, scene_rect.z, scene_rect.w, 0.1f, 1000.0f);
     //ship_cam.lookat(ship_cam_distance*vec3(1,1,1),  ship_pos, vec3(0,1,0));
     quaternion rot = ship->GetComponent<TransformComponent>()->GetRotation();
     vec3 elevation = vec3(0,1.5f,0);

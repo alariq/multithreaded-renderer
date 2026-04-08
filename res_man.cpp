@@ -129,6 +129,13 @@ static RenderMesh* CreateFSQuadRenderMesh() {
     return fs_quad;
 }
 
+// facing positive Z axis
+static RenderMesh* CreateXY_PosZ_QuadRenderMesh() {
+    SVDAdapter<> svd_adapter;
+    generate_quad(svd_adapter, vec3(-1,1,1), vec3(0.5f, -0.5f, 0.0f), 0);
+    return render_mesh_from_mesh_buffer(svd_adapter, get_svd_vdecl());
+}
+
 static RenderMesh* CreateXYQuadRenderMesh() {
     SVDAdapter<> svd_adapter;
     generate_quad(svd_adapter, vec3(1,1,1), -vec3(0.5f, 0.5f, 0.0f), 0);
@@ -179,7 +186,7 @@ void initialize_res_man() {
     def->tex_id_ = def_tex;
     g_world_meshes.insert(std::make_pair("fs_quad", std::make_pair(def, 1)));
 
-    def = CreateXYQuadRenderMesh();
+    def = CreateXY_PosZ_QuadRenderMesh();
     def->tex_id_ = def_tex;
     g_world_meshes.insert(std::make_pair("xy_quad", std::make_pair(def, 1)));
 

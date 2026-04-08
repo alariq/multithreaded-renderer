@@ -707,6 +707,7 @@ void generate_cube(MeshBuffer& mb, const vec3 scale, const vec3 offset)
 // size - size of the quad
 // center - local 0 of the quad
 // plane - 0 - XY, 1- XZ 2- YZ
+// by defalt if XY then it faces -Z and so on.
 // TODO: add uv center / size params for custom uvs?
 template<typename MeshBuffer>
 void generate_quad(MeshBuffer& mb, const vec3& size, const vec3& center, int plane)

@@ -220,14 +220,7 @@ void Enemy::Update(float dt) {
     // actually we calculate left, so need to flip
     renderState.right = -renderState.right;
 
-    mat3 m = mat3(
-    renderState.right.x, renderState.right.y, renderState.right.z,
-    renderState.up.x, renderState.up.y, renderState.up.z,
-    renderState.forward.x, renderState.forward.y, renderState.forward.z);
-    m = transpose(m); 
-
-    // expects column major, so transpose
-    // or actually no, we need to transpose because we want to orient object by these axes and not get its coordinates in this system
+    mat3 m = mat3::fromBasis(renderState.right, renderState.up, renderState.forward);
     const quaternion qnew = mat3_to_quat(m); 
     tc->SetPosition(renderState.position);
     tc->SetRotation(qnew);
@@ -270,20 +263,20 @@ void Enemy::AddRenderPackets(struct RenderFrameContext* rfc) const {
         delete[] colours;
     }
 
-#if 0
-    // transpose rotation, because we want to rotate by it and not transform to this coord system
-    mat4 m = mat4(
-    target_ctx_.right.x, target_ctx_.up.x, target_ctx_.fwd.x, target_ctx_.path_pos.x,
-    target_ctx_.right.y, target_ctx_.up.y, target_ctx_.fwd.y, target_ctx_.path_pos.y,
-    target_ctx_.right.z, target_ctx_.up.z, target_ctx_.fwd.z, target_ctx_.path_pos.z, 
-    0, 0, 0, 1);
-    CurveDebugDraw(myCurve, 20, false, &m, rl);
+    if(0) {
+        // transpose rotation, because we want to rotate by it and not transform to this coord system
+        mat4 m = mat4(
+                target_ctx_.right.x, target_ctx_.up.x, target_ctx_.fwd.x, target_ctx_.path_pos.x,
+                target_ctx_.right.y, target_ctx_.up.y, target_ctx_.fwd.y, target_ctx_.path_pos.y,
+                target_ctx_.right.z, target_ctx_.up.z, target_ctx_.fwd.z, target_ctx_.path_pos.z, 
+                0, 0, 0, 1);
+        CurveDebugDraw(myCurve, 20, false, &m, rl);
 
-    TransformComponent* tc = GetComponent<TransformComponent>();
+        TransformComponent* tc = GetComponent<TransformComponent>();
 
-    vec3 closest_pos = spline_get_closest_point(myCurve, tc->GetPosition()).point;
-    rl->addDebugPoints(&closest_pos, 1, vec4(0,0,1,1), 10, true);
-#endif
+        vec3 closest_pos = spline_get_closest_point(myCurve, tc->GetPosition()).point;
+        rl->addDebugPoints(&closest_pos, 1, vec4(0,0,1,1), 10, true);
+    }
 
 }
 

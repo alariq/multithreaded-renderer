@@ -47,6 +47,7 @@ struct camera //: public imgui_props::IPolymorphicPropertyObject
 	static void view_get_world_pos(const mat4& view, vec3* world_pos);
 
     static mat4 make_lookat(const vec3& eye, const vec3& target, const vec3& up_dir);
+    static mat4 make_lookat_opengl(const vec3& eye, const vec3& target, const vec3& up_dir);
 
 //private:
 
@@ -66,6 +67,8 @@ private:
 	mat4 inv_view_;
 	mat4 world_;
 	mat4 view_proj_inv_;
+
+    bool b_rh = false;
 
 
 	void set_projection(const mat4& proj);
@@ -89,6 +92,7 @@ PROPERTY_LIST_BEGIN(camera)
     PROPERTY_VEC3(wpos_, "WorldPos");
     PROPERTY_FLOAT(fov_, "FOV", 0, 30.0f, 120.0f, 1.0f, nullptr, [](camera& c, float fov){ c.set_fov(fov); });
     PROPERTY_BOOL(is_perspective_, "IsPerspective");
+    PROPERTY_BOOL(b_rh, "RightHanded");
 PROPERTY_LIST_END()
 
 

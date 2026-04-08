@@ -1009,8 +1009,8 @@ mat4 orthoMatrix(const float left, const float right, const float top, const flo
 	return mat;
 }
 
-mat4 perspectiveMatrixX(const float fov, const int width, const int height, const float zNear, const float zFar, const bool d3dStyle){
-	float w = tanf(0.5f * fov);
+mat4 perspectiveMatrix(const float fovx, const int width, const int height, const float zNear, const float zFar, bool b_rh, const bool d3dStyle){
+	float w = tanf(0.5f * fovx);
 	float h = (w * height) / width;
 
 	mat4 mat(
@@ -1019,22 +1019,10 @@ mat4 perspectiveMatrixX(const float fov, const int width, const int height, cons
 		0,        0,        (zFar + zNear) / (zFar - zNear), -(2 * zFar * zNear) / (zFar - zNear),
 		0,        0,        1, 0);
 
-	if (d3dStyle){
-		mat.elem[2][2] = 0.5f * (mat.elem[2][2] + mat.elem[3][2]);
-		mat.elem[2][3] = 0.5f * (mat.elem[2][3] + mat.elem[3][3]);
-	}
-	return mat;
-}
-
-mat4 perspectiveMatrixY(const float fov, const int width, const int height, const float zNear, const float zFar, const bool d3dStyle){
-	float h = tanf(0.5f * fov);
-	float w = (h * width) / height;
-
-	mat4 mat(
-		1.0f / w, 0,        0, 0,
-		0,        1.0f / h, 0, 0,
-		0,        0,        (zFar + zNear) / (zFar - zNear), -(2 * zFar * zNear) / (zFar - zNear),
-		0,        0,        1, 0);
+    if(b_rh) { // OpenGL uses RH: https://registry.khronos.org/OpenGL-Refpages/gl2.1/xhtml/gluPerspective.xml
+        mat.elem[2][2] *= -1;
+        mat.elem[3][2] *= -1;
+    }
 
 	if (d3dStyle){
 		mat.elem[2][2] = 0.5f * (mat.elem[2][2] + mat.elem[3][2]);
@@ -1043,6 +1031,25 @@ mat4 perspectiveMatrixY(const float fov, const int width, const int height, cons
 	return mat;
 }
 
+mat4 perspectiveMatrixX_RH(const float fovx, const int width, const int height, const float zNear, const float zFar, const bool d3dStyle){
+    return perspectiveMatrix(fovx, width, height, zNear, zFar, true, d3dStyle);
+}
+
+mat4 perspectiveMatrixX_LH(const float fovx, const int width, const int height, const float zNear, const float zFar, const bool d3dStyle){
+    return perspectiveMatrix(fovx, width, height, zNear, zFar, false, d3dStyle);
+}
+
+mat4 perspectiveMatrixY_RH(const float fovy, const int width, const int height, const float zNear, const float zFar, bool b_rh, const bool d3dStyle){
+    float fovx = (fovy * width) / height;
+    return perspectiveMatrix(fovx, width, height, zNear, zFar, true, d3dStyle);
+}
+
+mat4 perspectiveMatrixY_LH(const float fovy, const int width, const int height, const float zNear, const float zFar, bool b_rh, const bool d3dStyle){
+    float fovx = (fovy * width) / height;
+    return perspectiveMatrix(fovx, width, height, zNear, zFar, false, d3dStyle);
+}
+
+// Right-Handed
 mat4 frustumProjMatrix(const float left, const float right, const float bottom, const float top, const float near, const float far)
 {
 	float x,y,a,b,c,d;
