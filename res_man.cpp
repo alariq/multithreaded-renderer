@@ -168,7 +168,7 @@ void initialize_res_man() {
 
     // create default texture
     DWORD def_tex = gos_NewTextureFromFile(gos_Texture_Detect,
-                                           "data/textures/texture_density.tga");
+                                           "data/textures/notfound.tga");
     assert(def_tex);
     g_world_textures.insert(std::make_pair("default", def_tex));
 
