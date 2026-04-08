@@ -1555,6 +1555,7 @@ class gosRenderer {
 
         // fits vertices into viewport
         mat4 projection_obsolete_;
+        mat4 text2d_transform_;
 
 		vec4 fog_color_;
 
@@ -2091,6 +2092,12 @@ void gosRenderer::updateViewport(int w, int h) {
     width_ = w;
     height_ = h;
     projection_obsolete_ = mat4::identity();
+    // maps screen coords to -1..1 only used for 2D text
+    text2d_transform_ = 
+        mat4(2.0f / (float)w, 0, 0.0f, -1.0f,
+            0, -2.0f / (float)h, 0.0f, 1.0f,
+            0, 0, 1.0f, 0.0f,
+            0, 0, 0.0f, 1.0f);
 }
 
 void gosRenderer::handleEvents()
@@ -2833,7 +2840,7 @@ void gosRenderer::drawText(const char* text) {
     //ta.WrapType
     //ta.DisableEmbeddedCodes
 
-    mat->setTransform(projection_obsolete_);
+    mat->setTransform(text2d_transform_);
     mat->setFogColor(fog_color_);
     text_->draw(mat);
     text_->rewind();
