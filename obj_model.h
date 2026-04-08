@@ -99,6 +99,7 @@ enum class ComponentType: int {
     kGameText,
     kEnemyText,
     kMesh,
+    kBillboard,
     kCount
 };
 // stub for the future
@@ -344,7 +345,7 @@ public:
 	GameObjectId GetId() const { return id_; }
 
     virtual const char* GetName() const = 0;
-    virtual void Update(float dt) = 0;
+    virtual void Update(float dt) {};
     //virtual RenderMesh* GetMesh() const = 0;
     virtual void Destroy() { state_ = kPendingDestroy; }
     State GetState() const { return state_; }

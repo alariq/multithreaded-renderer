@@ -1,5 +1,6 @@
 #include "Level.h"
 #include "Time.h"
+#include "Billboard.h"
 #include "game/Text.h"
 #include "engine/profiler/profiler.h"
 #include "engine/utils/timing.h"
@@ -181,6 +182,14 @@ Level* Level::Create(const char* res) {
 
     obj->mainShip = mainShip;
     g_main_ship  = obj->mainShip;
+
+
+    // add some decorations
+    auto bb = O_Billboard::Create("clouds");
+    auto tr = bb->GetComponent<C_Billboard>();
+    tr->SetScale(vec3(100, 100, 1));
+    tr->SetPosition(vec3(500, 100, 500));
+    scene_add_game_object(bb);
 
     return obj;
 }

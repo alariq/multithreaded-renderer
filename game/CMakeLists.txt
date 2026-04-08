@@ -21,6 +21,9 @@ set(SOURCES ${SOURCES}
     Path.h
     Time.cpp
     Time.h
+    Billboard.cpp
+    Billboard.h
+
 )
 
 add_library(game ${SOURCES})
