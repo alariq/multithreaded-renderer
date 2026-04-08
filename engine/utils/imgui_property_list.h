@@ -23,6 +23,7 @@ namespace imgui_props {
 enum class PropertyKind {
     Section,
     ReadOnlyText,
+    Text,
     Bool,
     Int,
     UInt,
@@ -454,6 +455,8 @@ inline bool child_array_pointer_draw_rows(TObject& object,
 template <typename TObject>
 struct PropertyDesc {
     using TextGetter = std::string (*)(const TObject&);
+    using TextSetter = void (*)(TObject&, const std::string& s);
+
     using TextGetterCStr = const char* (*)(const TObject&);
 
     using BoolGetter = bool (*)(const TObject&);
@@ -506,9 +509,9 @@ struct PropertyDesc {
     // cannot add both get text types to a union because we may call wrong ones as they are not mutually exclusive
     // better way: have 2 distinct types, or one getter and save type info anyway to do a proper cast when calling
     // during the draw stage
-    TextGetter get_text = nullptr;
+    TextGetterCStr get_text_cstr = nullptr;
     union {
-        TextGetterCStr get_text_cstr;
+        TextGetter get_text;
         BoolGetter get_bool;
         IntGetter get_int;
         UIntGetter get_uint;
@@ -519,6 +522,7 @@ struct PropertyDesc {
     };
     
     union {
+        TextSetter set_text;
         BoolSetter set_bool;
         IntSetter set_int;
         UIntSetter set_uint;
@@ -575,6 +579,19 @@ public:
         list_.items.push_back(desc);
         return *this;
     }
+
+    PropertyListBuilder& Text(const char* label, typename PropertyDesc<TObject>::TextGetter getter, typename PropertyDesc<TObject>::TextSetter setter)
+    {
+        PropertyDesc<TObject> desc;
+        desc.label = label;
+        desc.kind = PropertyKind::Text;
+        desc.flags = 0;
+        desc.get_text = getter;
+        desc.set_text = setter;
+        list_.items.push_back(desc);
+        return *this;
+    }
+
 
     PropertyListBuilder& ReadOnlyText(const char* label, typename PropertyDesc<TObject>::TextGetter getter)
     {
@@ -916,6 +933,28 @@ bool DrawPropertyWidgetImpl(TObject& object, const PropertyDesc<TObject>& desc, 
             : detail::to_string_value(desc.get_text_cstr(object));
         if (hide_label) {
             ImGui::TextUnformatted(value.c_str());
+        } else {
+            ImGui::Text("%s: %s", desc.label ? desc.label : "", value.c_str());
+        }
+        return false;
+    }
+
+    case PropertyKind::Text: {
+        assert(hide_label);
+        const std::string value = desc.get_text
+            ? desc.get_text(object)
+            : detail::to_string_value(desc.get_text_cstr(object));
+        if (hide_label) {
+            static char buf[256] = {};
+            if(desc.set_text) {
+                if(ImGui::InputText("", buf, IM_COUNTOF(buf), 
+                            ImGuiInputTextFlags_EnterReturnsTrue)) {
+                    desc.set_text(object, std::string(buf));
+                    return true;
+                }
+            } else {
+                ImGui::TextUnformatted(value.c_str());
+            }
         } else {
             ImGui::Text("%s: %s", desc.label ? desc.label : "", value.c_str());
         }
@@ -1492,6 +1531,7 @@ template <> inline const ::imgui_props::PropertyList<TYPE>& GetPropertyList<TYPE
 
 #define PROPERTY_SECTION(LABEL) _imgui_props_builder.Section((LABEL))
 #define PROPERTY_READONLY_TEXT(LABEL, ACCESSOR) _imgui_props_builder.ReadOnlyText((LABEL), (ACCESSOR))
+#define PROPERTY_TEXT(LABEL, GETTER, SETTER) _imgui_props_builder.Text((LABEL), GETTER, SETTER)
 #define PROPERTY_BOOL(MEMBER, LABEL) _imgui_props_builder.Bool((LABEL), &_imgui_props_type::MEMBER)
 #define PROPERTY_INT(MEMBER, LABEL, ...) \
     _imgui_props_builder.Int((LABEL), &_imgui_props_type::MEMBER, ##__VA_ARGS__)
