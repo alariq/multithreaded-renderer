@@ -11,20 +11,30 @@ typedef GLvoid (APIENTRY *UNIFORM_MAT_FUNC)(GLint location, GLsizei count, GLboo
 enum ConstantType {
     CONSTANT_FLOAT,
     CONSTANT_INT,
+    CONSTANT_UINT,
+
+    CONSTANT_UVEC2,
+    CONSTANT_UVEC3,
+    CONSTANT_UVEC4,
 
     CONSTANT_VEC2,
     CONSTANT_VEC3,
     CONSTANT_VEC4,
+
     CONSTANT_IVEC2,
     CONSTANT_IVEC3,
     CONSTANT_IVEC4,
+
     CONSTANT_BOOL,
+
     CONSTANT_BVEC2,
     CONSTANT_BVEC3,
     CONSTANT_BVEC4,
+
     CONSTANT_MAT2,
     CONSTANT_MAT3,
     CONSTANT_MAT4,
+    CONSTANT_COUNT
 };
 
 enum SamplerType {
@@ -33,7 +43,10 @@ enum SamplerType {
 	SAMPLER_3D,
 	SAMPLER_CUBE,
 	SAMPLER_1D_SHADOW,
-	SAMPLER_2D_SHADOW
+	SAMPLER_2D_SHADOW,
+	SAMPLER_2D_RECT,
+	SAMPLER_2D_RECT_SHADOW,
+	SAMPLER_UINT_2D_RECT
 };
 
 struct glsl_uniform
@@ -141,7 +154,7 @@ private:
     glsl_program():shp_(0), vsh_(0), fsh_(0), hsh_(0), dsh_(0), gsh_(0), csh_(0),is_valid_(false) {};
     ~glsl_program();
 
-    static UNIFORM_FUNC uniformFuncs[15];
+    static UNIFORM_FUNC uniformFuncs[19];
 
     bool is_valid_;
 };

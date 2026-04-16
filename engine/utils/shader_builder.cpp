@@ -19,27 +19,43 @@
 std::map<std::string, glsl_shader*> glsl_shader::s_shaders[glsl_shader::NUM_SHADER_TYPES];
 
 std::map<std::string, glsl_program*> glsl_program::s_programs;
-UNIFORM_FUNC glsl_program::uniformFuncs[15] = {0};
+UNIFORM_FUNC glsl_program::uniformFuncs[19] = {0};
 
 const int constantSizes[] = {
     sizeof(float),
+    sizeof(unsigned int),
     sizeof(int),
+
+    // U
+    2*sizeof(unsigned int),
+    3*sizeof(unsigned int),
+    4*sizeof(unsigned int),
+
+    // F
     2*sizeof(float),
     3*sizeof(float),
     4*sizeof(float),
+
+    // I
     sizeof(int) * 2,
     sizeof(int) * 3,
     sizeof(int) * 4,
-    sizeof(int),
-    sizeof(int) * 2,
-    sizeof(int) * 3,
-    sizeof(int) * 4,
+
+    // B
+    sizeof(unsigned int) * 1,
+    sizeof(unsigned int) * 2,
+    sizeof(unsigned int) * 3,
+    sizeof(unsigned int) * 4,
+
+    // M
     4*sizeof(float),
     9*sizeof(float),
     16*sizeof(float),
 };
 
-void init_func_ptrs(UNIFORM_FUNC (&uniformFuncs)[15])
+static_assert(sizeof(constantSizes)/sizeof(constantSizes[0]) == CONSTANT_COUNT);
+
+void init_func_ptrs(UNIFORM_FUNC (&uniformFuncs)[19])
 {
 	// changed fromARB variants, to work with CORE profile as well (because *ARB variants are not initialized in case of CORE profile)
     uniformFuncs[CONSTANT_FLOAT] = (UNIFORM_FUNC) glUniform1fv;
@@ -50,6 +66,10 @@ void init_func_ptrs(UNIFORM_FUNC (&uniformFuncs)[15])
     uniformFuncs[CONSTANT_IVEC2] = (UNIFORM_FUNC) glUniform2iv;
     uniformFuncs[CONSTANT_IVEC3] = (UNIFORM_FUNC) glUniform3iv;
     uniformFuncs[CONSTANT_IVEC4] = (UNIFORM_FUNC) glUniform4iv;
+    uniformFuncs[CONSTANT_UINT]  = (UNIFORM_FUNC) glUniform1uiv;
+    uniformFuncs[CONSTANT_UVEC2] = (UNIFORM_FUNC) glUniform2uiv;
+    uniformFuncs[CONSTANT_UVEC3] = (UNIFORM_FUNC) glUniform3uiv;
+    uniformFuncs[CONSTANT_UVEC4] = (UNIFORM_FUNC) glUniform4uiv;
     uniformFuncs[CONSTANT_BOOL]  = (UNIFORM_FUNC) glUniform1iv;
     uniformFuncs[CONSTANT_BVEC2] = (UNIFORM_FUNC) glUniform2iv;
     uniformFuncs[CONSTANT_BVEC3] = (UNIFORM_FUNC) glUniform3iv;
@@ -430,17 +450,23 @@ void parse_uniforms(GLuint pprogram, glsl_program::UniArr_t* puniforms, glsl_pro
         glGetActiveUniform(pprogram, i, max_name_len+1, &len, &size, &type, buf);
         if(-1 == i) continue; // gl_ variable or does not correspond to an active uniform variable name in program
 
-		if(type >=GL_SAMPLER_1D && type<= GL_SAMPLER_2D_SHADOW)
+		if((type >=GL_SAMPLER_1D && type<= GL_SAMPLER_2D_RECT_SHADOW)
+            || type == GL_UNSIGNED_INT_SAMPLER_2D_RECT)
 		{
 			glsl_sampler* psampler = new glsl_sampler;
 			psampler->index_ =  glGetUniformLocation(pprogram, buf);
 			psampler->name_ = buf;
-			psampler->type_ = (SamplerType)(type - GL_SAMPLER_1D);
 
-			assert(psampler->type_ <= SAMPLER_2D_SHADOW);
+            if(type == GL_UNSIGNED_INT_SAMPLER_2D_RECT)
+                psampler->type_ = SAMPLER_UINT_2D_RECT;
+            else
+                psampler->type_ = (SamplerType)(type - GL_SAMPLER_1D);
+
+			assert(psampler->type_ <= SAMPLER_2D_RECT_SHADOW || psampler->type_ == SAMPLER_UINT_2D_RECT);
 
 			static const char *typeNames[] = {
-				"sampler_1d", "sampler_2d", "sampler_3d", "sampler_cube", "sampler_1d_shadow", "sampler_2d_shadow"
+				"sampler_1d", "sampler_2d", "sampler_3d", "sampler_cube", "sampler_1d_shadow", "sampler_2d_shadow",
+                "sampler_2d_rect", "sampler_2d_rect_shadow", "sampler_uint_2d_rect"
 			};
 			log_debug("name: %s type: %s\n", buf, typeNames[psampler->type_]);
 
@@ -464,19 +490,31 @@ void parse_uniforms(GLuint pprogram, glsl_program::UniArr_t* puniforms, glsl_pro
                 puni->type_ = CONSTANT_INT;
                 puni->num_el_ = 1;
                 break;
+            case GL_UNSIGNED_INT:
+                puni->type_ = CONSTANT_UINT;
+                puni->num_el_ = 1;
+                break;
+            case GL_UNSIGNED_INT_VEC2:
+            case GL_UNSIGNED_INT_VEC3:
+            case GL_UNSIGNED_INT_VEC4:
+                puni->type_ = (ConstantType)(CONSTANT_UVEC2 + (type - GL_UNSIGNED_INT_VEC2));
+                puni->num_el_ = size;
+                break;
             default:
                 puni->type_ = (ConstantType)(CONSTANT_VEC2 + (type - GL_FLOAT_VEC2));
                 puni->num_el_ = size;
                 break;
         }
 
+        assert(puni->type_ >= 0 && puni->type_ < CONSTANT_COUNT);
 
         size_t datasize = constantSizes[ puni->type_ ] * puni->num_el_;
         puni->data_ = new unsigned char[ datasize ];
         memset(puni->data_, 0, datasize);
 
         static const char *typeNames[] = {
-            "float", "int  ", "vec2 ", "vec3 ", "vec4 ", "ivec2", "ivec3", "ivec4",
+            "float", "int  ", "uint ", "uvec2", "uvec3", "uvec4", 
+            "vec2 ", "vec3 ", "vec4 ", "ivec2", "ivec3", "ivec4",
             "bool ", "bvec2", "bvec3", "bvec4", "mat2 ", "mat3 ", "mat4 "
         };
         log_debug("name: %s type: %s  num_el: %d\n", buf, typeNames[puni->type_], puni->num_el_);
