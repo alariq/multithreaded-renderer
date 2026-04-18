@@ -12,7 +12,9 @@ get_component_type<class EnemyTextComp>() { return ComponentType::kEnemyText; }
 class GameTextComp: public TransformComponent, public IRenderable {
     HGOSFONT3D font_handle_;
     HGOSFONT3D small_font_handle_;
+    HGOSSLUGFONT slug_font_handle_;
     float intensity_;
+    int text_size_;
     float frame_time_ms_;
     char text[128];
   public:
@@ -40,6 +42,7 @@ class EnemyTextComp: public TransformComponent, public IRenderable {
     float intensity_;
     uint32_t colour_;
     char text[32];
+    int text_size_;
     bool b_is_active_;
   public:
     PROPERTY_SUPPORT(EnemyTextComp);
