@@ -534,7 +534,7 @@ int main(int argc, char** argv)
 
             glEnable(GL_DEBUG_OUTPUT);
             glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
-            //glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 76, 1, "My debug group");
+            //glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 76, -1, "My debug group");
             glDebugMessageControlARB(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, NULL, GL_TRUE);
             glDebugMessageCallbackARB((GLDEBUGPROCARB)&OpenGLDebugLog, NULL);
 

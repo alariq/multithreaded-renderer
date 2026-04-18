@@ -4,6 +4,7 @@
 
 void RenderText2D(const TextRenderPacketList_t& rpl, const mat4& /*view*/, const mat4&/* proj*/)
 {
+    glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 1, -1, "RenderText2D");
     SCOPED_GPU_ZONE(Text2DDraw);
     SCOPED_ZONE_N(Text2DDraw, 0);
 
@@ -22,5 +23,7 @@ void RenderText2D(const TextRenderPacketList_t& rpl, const mat4& /*view*/, const
 
     gos_SetRenderState(gos_State_AlphaMode, gos_Alpha_OneZero);
     gos_SetRenderState(gos_State_ZWrite, 1);
+
+    glPopDebugGroup();
 }
 

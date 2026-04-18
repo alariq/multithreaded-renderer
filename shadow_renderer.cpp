@@ -220,6 +220,8 @@ bool ShadowRenderPass::Init(const uint32_t size, const int num_cascades)
 mat4 ShadowRenderPass::Render(const struct CSMInfo *csm_info,
                               const RenderPacketList_t &rpl) {
 
+    glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 1, -1, "ShadowRenderPass::Render");
+
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fbo_);
 
     assert(num_cascades_ <= csm_info->num_cascades_);
@@ -282,6 +284,8 @@ mat4 ShadowRenderPass::Render(const struct CSMInfo *csm_info,
     glDrawBuffer(GL_BACK);
 
     glDisable(GL_POLYGON_OFFSET_FILL);
+
+    glPopDebugGroup();
 
     return csm_info->shadow_vp_[0];
 }

@@ -354,6 +354,8 @@ glsl_shader* glsl_shader::makeShader(Shader_t stype, const char* fname, const ch
         return 0;
     }
 
+    glObjectLabel(GL_SHADER, shader, -1, fname);
+
     const char* strings[] = { prefix == nullptr ? "" : prefix, shader_source.c_str() };
     if(!compile_shader(shader, strings, sizeof(strings)/sizeof(strings[0])))
     {
@@ -583,6 +585,7 @@ glsl_program* glsl_program::makeComputeProgram(const char* name, const char* cp)
 	glsl_shader* pipeline[] = { csh };
 
     GLuint shp = glCreateProgram();
+    glObjectLabel(GL_PROGRAM, shp, -1, name);
 
 	for(size_t i=0; i< sizeof(pipeline)/sizeof(pipeline[0]); ++i)
 	{
@@ -705,6 +708,7 @@ glsl_program* glsl_program::makeProgram2(const char* name, const char* vp, const
 	glsl_shader* pipeline[] = { vsh, hsh, dsh, gsh, fsh };
 
     GLuint shp = glCreateProgram();
+    glObjectLabel(GL_PROGRAM, shp, -1, name);
 
 	GLuint last_not_null = 0;
 	for(size_t i=0; i< sizeof(pipeline)/sizeof(pipeline[0]); ++i)
