@@ -70,7 +70,10 @@ struct RenderPacket {
 
 struct TextRenderPacket {
     uint8_t* text;
+    union {
     HGOSFONT3D font_handle;
+    HGOSSLUGFONT slug_font_handle;
+    };
     uint32_t colour;
     float Size;
     uint8_t WordWrap:1;
@@ -79,7 +82,8 @@ struct TextRenderPacket {
     uint8_t Italic:1;
     uint8_t WrapType:2;
     uint8_t DisableEmbeddedCodes:1;
-    int16_t Left, Top, Right, Bottom;
+    uint8_t bSlug:1;
+    //mat4 tr;
     int16_t PosX, PosY;
 };
 
@@ -222,9 +226,27 @@ public:
             .Italic = 0, 
             .WrapType = 0, 
             .DisableEmbeddedCodes = 0,
-            .Left = 0, .Top = 0, .Right = 0, .Bottom = 0,
+            .bSlug = 0,
+            .PosX = x, .PosY = y,
+        };
+        text_pkts_.emplace_back(tp);
+    }
 
-            .PosX = x, .PosY = y
+    void addSlugTextPacket(const char* text, HGOSSLUGFONT font_handle, uint32_t colour, float size, int16_t x, int16_t y) {
+        assert(text);
+        assert(font_handle);
+        uint8_t* t = new uint8_t[strlen(text)+1];
+        memcpy(t, text, strlen(text)+1);
+        TextRenderPacket tp = { .text = t, .slug_font_handle = font_handle, .colour = colour, .Size = size,
+
+            .WordWrap = 0,
+            .Proportional = 0,
+            .Bold = 0,
+            .Italic = 0, 
+            .WrapType = 0, 
+            .DisableEmbeddedCodes = 0,
+            .bSlug = 1,
+            .PosX = x, .PosY = y,
         };
         text_pkts_.emplace_back(tp);
     }

@@ -166,21 +166,23 @@ void destroyTexture(Texture* tex)
 }
 
 
-Texture create2DTexture(int w, int h, TexFormat fmt, const uint8_t* texdata)
+Texture create2DTexture(int w, int h, TexFormat fmt, TexType type, const uint8_t* texdata)
 {
     // probably use functions for render target creation
     assert(fmt < TF_DEPTH16F &&
            "Shoud not create depth textures using this function");
 
+    GLenum gl_target = translateTexType(type);
+
     GLuint texID;
 	glGenTextures(1, &texID);
-	glBindTexture(GL_TEXTURE_2D, texID);
+	glBindTexture(gl_target , texID);
 
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexImage2D(GL_TEXTURE_2D, 0, textureInternalFormats[fmt], 
+	glTexParameteri(gl_target, GL_TEXTURE_WRAP_S, type == TT_RECTANGLE ? GL_CLAMP : GL_REPEAT);
+	glTexParameteri(gl_target, GL_TEXTURE_WRAP_T, type == TT_RECTANGLE ? GL_CLAMP : GL_REPEAT);
+	glTexParameteri(gl_target, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(gl_target, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexImage2D(gl_target, 0, textureInternalFormats[fmt], 
             w, h, 0, textureFormats[fmt], textureFormatChannelType[fmt], texdata);
     CHECK_GL_ERROR
 
@@ -191,7 +193,7 @@ Texture create2DTexture(int w, int h, TexFormat fmt, const uint8_t* texdata)
 	t.w = w;
 	t.h = h;
 	t.fmt_ = fmt;
-    t.type_ = TT_2D;
+    t.type_ = type;
     t.format = (GLenum)-1;
 
 	return t;
@@ -265,6 +267,7 @@ Texture createPBO(int w, int h, GLenum fmt, int el_size)
 
 void updateTexture(const Texture& t, void* pdata, TexFormat pdata_format/*= TF_COUNT*/) {
 
+    assert(t.type_ == TT_2D);
 	glBindTexture(GL_TEXTURE_2D, t.id);
     assert(t.fmt_ != TF_NONE && "t.format is deprecated");
     if(t.fmt_ != TF_NONE) {

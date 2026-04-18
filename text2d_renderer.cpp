@@ -16,9 +16,14 @@ void RenderText2D(const TextRenderPacketList_t& rpl, const mat4& /*view*/, const
 
     for(auto& tp: rpl)
     {
-        gos_TextSetAttributes(tp.font_handle, tp.colour, tp.Size, tp.WordWrap, tp.Proportional, tp.Bold, tp.Italic, tp.WrapType, tp.DisableEmbeddedCodes);
         gos_TextSetPosition(tp.PosX, tp.PosY);
-        gos_TextDraw((const char*)tp.text);
+        if(tp.bSlug) {
+            gos_SlugTextSetAttributes(tp.slug_font_handle, tp.colour, tp.Size);//, tp.WordWrap, tp.Proportional, tp.Bold, tp.Italic, tp.WrapType, tp.DisableEmbeddedCodes);
+            gos_SlugTextDraw((const char*)tp.text);
+        } else {
+            gos_TextSetAttributes(tp.font_handle, tp.colour, tp.Size, tp.WordWrap, tp.Proportional, tp.Bold, tp.Italic, tp.WrapType, tp.DisableEmbeddedCodes);
+            gos_TextDraw((const char*)tp.text);
+        }
     }
 
     gos_SetRenderState(gos_State_AlphaMode, gos_Alpha_OneZero);

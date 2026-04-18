@@ -40,6 +40,7 @@
 #include<string.h> // memcmp
 #include"platform_windows.h"
 
+#include "utils/render_constants.h"
 
 //#define DWORD uint32_t
 //#define WORD uint16_t
@@ -193,6 +194,7 @@ typedef struct	gos_Video*		HGOSVIDEO;
 typedef struct	gosFileStream*	HGOSFILE;
 //typedef struct	_FontInfo*		HGOSFONT3D;
 typedef class gosFont*		HGOSFONT3D;
+typedef class gosSlugFont*		HGOSSLUGFONT;
 typedef struct  gosForceEffect*	HGOSFORCEEFFECT;
 typedef struct	gos_Heap*		HGOSHEAP;
 typedef struct gos_StringRes*   HSTRRES; //sebi
@@ -954,6 +956,7 @@ char* __stdcall gos_GetFormattedTime( WORD Hour=-1, WORD Minute=-1, WORD Second=
 //  texture plus one.
 //
 HGOSFONT3D __stdcall gos_LoadFont( const char* FontFile, DWORD StartLine = 0, int CharCount = 256, DWORD TextureHandle=0 );
+HGOSSLUGFONT __stdcall gos_LoadSlugFont( const char* FontFile);
 
 //
 // This routine should be called to release storage and textures used by fonts.
@@ -973,6 +976,8 @@ void __stdcall gos_DeleteFont( HGOSFONT3D Fonthandle );
 // This API just updates internal variables, it's very fast to change any of these parameters
 //
 void __stdcall gos_TextSetAttributes( HGOSFONT3D FontHandle, DWORD Foreground, float Size, bool WordWrap, bool Proportional, bool Bold, bool Italic, DWORD WrapType=0, bool DisableEmbeddedCodes=0 );
+
+void __stdcall gos_SlugTextSetAttributes(HGOSSLUGFONT FontHandle, DWORD Foreground, float Size);
 
 //
 // Set the current position of the cursor. (Screen pixels)
@@ -1018,6 +1023,10 @@ void __stdcall gos_TextStringLength( DWORD* Width, DWORD* Height, const char *Me
 //		//					/ character (/ not followed by a special code will be displayed as - // is only required to display strings like "//color"
 //
 void __stdcall gos_TextDraw( const char *Message, ... );
+
+void __stdcall gos_SlugTextDraw(const char* text);
+
+HGOSSLUGFONT __stdcall gos_getSlugFont(const char* name);
 //
 // Same as above, but an arglist can be passed
 //
@@ -2160,6 +2169,17 @@ typedef struct
 
 } gos_VERTEX;
 
+typedef struct
+{
+	vec4 p;
+	DWORD argb;
+	vec2 uv;
+    vec4 scaleBias;
+    vec4 glyphBandScale; // glyphScale + bandScale
+    ivec4 bandMaxTexCoords; // maxBand H/V + texCoords
+
+} gos_SlugVERTEX;
+
 //
 // This vertex type is used for rendering with 2 textures at once, it is identical to the normal vertex structure, but with 2 u,v's
 //
@@ -2804,7 +2824,9 @@ enum gos_TextureFormat
     gos_Texture_RGBA8=7,         // sebi
     gos_Texture_R32UI=8,         // sebi
     gos_Texture_R32F=9,         // sebi
-    gos_Texture_R8=10         // sebi
+    gos_Texture_R8=10,        // sebi
+    gos_Texture_RGBA32F=11,    // sebi
+    gos_Texture_RG16UI=12         // sebi
 };
 
 //
@@ -2887,7 +2909,7 @@ DWORD __stdcall gos_NewTextureFromFile( gos_TextureFormat Format, const char* Fi
 //
 // Hints should be set to any combination of gos_TextureHints or 0 is a good default.
 //
-DWORD __stdcall gos_NewTextureFromMemory( gos_TextureFormat Format, const char* FileName, BYTE* pBitmap, DWORD Size, DWORD Hints=0, gos_RebuildFunction pFunc=0, void *pInstance=0 );
+DWORD __stdcall gos_NewTextureFromMemory( gos_TextureFormat Format, TexType tt, BYTE* pBitmap, DWORD Size, DWORD w, DWORD h, DWORD Hints=0, const char* Name = nullptr);
 
 #define RECT_TEX(width,height) (((height)<<16)|(width))
 

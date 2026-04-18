@@ -126,7 +126,7 @@ GLenum getGLVertexAttribType(gosVERTEX_ATTRIB_TYPE type) {
 	case gosVERTEX_ATTRIB_TYPE::kUNSIGNED_INT: return GL_UNSIGNED_INT;
 	case gosVERTEX_ATTRIB_TYPE::kFLOAT: return GL_FLOAT;
 	default:
-		gosASSERT(0 && "unknows vertex attrib type");
+		gosASSERT(0 && "unknown vertex attrib type");
 	}
 
 	return t;
@@ -183,7 +183,7 @@ public:
 
 	void apply(HGOSBUFFER vb = 0, HGOSBUFFER instance_vb = 0) {
 
-        // by conention instance vb is stream 1
+        // by convention instance vb is stream 1
 
 		for (uint32_t i = 0; i < count_; ++i) {
 
@@ -198,7 +198,7 @@ public:
                                                   : vb->buffer_);
             }
 			glEnableVertexAttribArray(rec->index);
-            if(GL_FLOAT == type) {
+            if(GL_FLOAT == type || rec->normalized) {
 				glVertexAttribPointer(rec->index, rec->num_components, type,
 									  rec->normalized ? GL_TRUE : GL_FALSE, rec->stride,
 									  BUFFER_OFFSET(rec->offset));
@@ -660,6 +660,8 @@ class gosMeshT {
 
 typedef gosMeshT<gos_VERTEX> gosMesh; 
 
+typedef gosMeshT<gos_SlugVERTEX> gosSlugMesh; 
+
 template<typename VERTEX_T>
 const std::string gosMeshT<VERTEX_T>::s_tex1 = std::string("tex1");
 template<typename VERTEX_T>
@@ -898,12 +900,11 @@ void gosMeshT<VERTEX_T>::drawIndexedInstanced(HGOSBUFFER ib, HGOSBUFFER vb, HGOS
 
 class gosTexture {
     public:
-        gosTexture(gos_TextureFormat fmt, const char* fname, DWORD hints, BYTE* pdata, DWORD size, bool from_memory)
+        gosTexture(gos_TextureFormat fmt, TexType type, const char* fname, DWORD hints, BYTE* pdata, DWORD size, DWORD w, DWORD h, bool from_memory)
         {
-
-	        //if(fmt == gos_Texture_Detect || /*fmt == gos_Texture_Keyed ||*/ fmt == gos_Texture_Bump || fmt == gos_Texture_Normal)
-            //     PAUSE((""));
-
+            tex_.w = w;
+            tex_.h = h;
+            tex_.type_ = type;
             format_ = fmt;
             if(fname) {
                 filename_ = new char[strlen(fname)+1];
@@ -1078,7 +1079,23 @@ struct gosTextAttribs {
     bool DisableEmbeddedCodes;
 };
 
+struct gosSlugTextAttribs {
+    HGOSSLUGFONT FontHandle;
+    DWORD Foreground;
+    float Size;
+    bool WordWrap;
+    bool Proportional;
+    bool Bold;
+    bool Italic;
+    DWORD WrapType;
+    bool DisableEmbeddedCodes;
+};
+
+
 bool gosTexture::createHardwareTexture() {
+
+    const TexType tex_type = tex_.type_ == TT_NONE ? TT_2D : tex_.type_;
+    bool b_is_ok = true;
 
     if(!is_from_memory_) {
 
@@ -1094,118 +1111,128 @@ bool gosTexture::createHardwareTexture() {
             Image img;
             if(!img.loadFromFile(filename_)) {
                 SPEW(("DBG", "failed to load texture from file: %s\n", filename_));
-                return false;
+                b_is_ok = false;
+            } else {
+                pixels = img.getPixels();
+                img_fmt = img.getFormat();
+                w = img.getWidth();
+                h = img.getHeight();
             }
-            pixels = img.getPixels();
-            img_fmt = img.getFormat();
-            w = img.getWidth();
-            h = img.getHeight();
         } else {
             surface = IMG_Load(filename_);
             if (!surface) {
                 SPEW(("DBG", "failed to load texture from file: %s\n", filename_));
-                return false;
+                b_is_ok = false;
+            } else {
+                // SDL BGRA8888 means 0xBBGGRRAA and e.g. ARGB8888 means 0xAARRGGBB
+                // but ARGB32 is a byte order 0xBBGGRRAA, seo ARGB32 == BGRA8888
+                if(surface->format->BytesPerPixel==3 || surface->format->BytesPerPixel==4) {
+                    SDL_Surface* s2 = SDL_ConvertSurfaceFormat(surface, surface->format->BytesPerPixel==4 ? SDL_PIXELFORMAT_RGBA32: SDL_PIXELFORMAT_RGB24, 0);
+                    SDL_FreeSurface(surface);
+                    surface = s2;
+                }
+                img_fmt = surface->format->BytesPerPixel==3 ? FORMAT_RGB8 : (surface->format->BytesPerPixel==4 ? FORMAT_RGBA8 : FORMAT_NONE);
+                pixels = (unsigned char*)surface->pixels;
+                w = surface->w;
+                h = surface->h;
             }
-            // SDL BGRA8888 means 0xBBGGRRAA and e.g. ARGB8888 means 0xAARRGGBB
-            // but ARGB32 is a byte order 0xBBGGRRAA, seo ARGB32 == BGRA8888
-            if(surface->format->BytesPerPixel==3 || surface->format->BytesPerPixel==4) {
-                SDL_Surface* s2 = SDL_ConvertSurfaceFormat(surface, surface->format->BytesPerPixel==4 ? SDL_PIXELFORMAT_RGBA32: SDL_PIXELFORMAT_RGB24, 0);
-                SDL_FreeSurface(surface);
-                surface = s2;
-            }
-            img_fmt = surface->format->BytesPerPixel==3 ? FORMAT_RGB8 : (surface->format->BytesPerPixel==4 ? FORMAT_RGBA8 : FORMAT_NONE);
-            pixels = (unsigned char*)surface->pixels;
-            w = surface->w;
-            h = surface->h;
         }
 
         // check for only those formats, because lock.unlock may incorrectly work with different channes size (e.g. 16 or 32bit or floats)
         if(img_fmt != FORMAT_RGB8 && img_fmt != FORMAT_RGBA8) {
             STOP(("Unsupported texture format when loading %s\n", filename_));
+        } else if(b_is_ok) {
+            TexFormat tf = img_fmt == FORMAT_RGB8 ? TF_RGB8 : TF_RGBA8;
+            tex_ = create2DTexture(w, h, tf, TT_2D, pixels);
+            if(surface) SDL_FreeSurface(surface);
         }
 
-        TexFormat tf = img_fmt == FORMAT_RGB8 ? TF_RGB8 : TF_RGBA8;
-        tex_ = create2DTexture(w, h, tf, pixels);
-
-        if(surface) SDL_FreeSurface(surface);
-        return tex_.isValid();
-
-    } else if(pcompdata_ && size_ > 0) {
-
-        // TODO: this is texture from memory, so maybe do not load it from file eh?
-
+    } else if(pcompdata_ && size_ > 0 && !hints_) {
         Image img;
         if(!img.loadTGA(pcompdata_, size_)) {
             SPEW(("DBG", "failed to load texture from data, filename: %s, texname: %s\n", filename_? filename_ : "NO FILENAME", texname_?texname_:"NO TEXNAME"));
-            return false;
+            b_is_ok = false;
+        } else {
+            FORMAT img_fmt = img.getFormat();
+            if(img_fmt != FORMAT_RGB8 && img_fmt != FORMAT_RGBA8) {
+                STOP(("Unsupported texture format when loading %s\n", filename_));
+            }
+
+            TexFormat tf = img_fmt == FORMAT_RGB8 ? TF_RGB8 : TF_RGBA8;
+            tex_ = create2DTexture(img.getWidth(), img.getHeight(), tf, tex_type, img.getPixels());
         }
-
-        FORMAT img_fmt = img.getFormat();
-
-        if(img_fmt != FORMAT_RGB8 && img_fmt != FORMAT_RGBA8) {
-            STOP(("Unsupported texture format when loading %s\n", filename_));
-        }
-
-        TexFormat tf = img_fmt == FORMAT_RGB8 ? TF_RGB8 : TF_RGBA8;
-        tex_ = create2DTexture(img.getWidth(), img.getHeight(), tf, img.getPixels());
-        return tex_.isValid();
     } else if(format_ == gos_Texture_Depth) {
-        GLuint tex_id =
-            createRenderTexture(tex_.w, tex_.h, GL_DEPTH_COMPONENT32F, 1);
+        GLuint tex_id = createRenderTexture(tex_.w, tex_.h, GL_DEPTH_COMPONENT32F, 1);
         tex_.id = tex_id;
         tex_.fmt_ = TF_DEPTH32F;
-        tex_.type_ = TT_2D;
+        tex_.type_ = tex_type;
         tex_.format = GL_DEPTH_COMPONENT;
-        return tex_.isValid();
     } else if(format_ == gos_Texture_Depth_Stencil) {
-        GLuint tex_id =
-            createRenderTexture(tex_.w, tex_.h, GL_DEPTH32F_STENCIL8, 1);
+        GLuint tex_id = createRenderTexture(tex_.w, tex_.h, GL_DEPTH32F_STENCIL8, 1);
         tex_.id = tex_id;
         tex_.fmt_ = TF_DEPTH32F_S8;
-        tex_.type_ = TT_2D;
+        tex_.type_ = tex_type;
         tex_.format = GL_DEPTH32F_STENCIL8;
-        return tex_.isValid();
     } else if(format_ == gos_Texture_RGBA8) {
-        GLuint tex_id =
-            createRenderTexture(tex_.w, tex_.h, GL_RGBA8, 1);
+        GLuint tex_id = createRenderTexture(tex_.w, tex_.h, GL_RGBA8, 1);
         tex_.id = tex_id;
         tex_.fmt_ = TF_RGBA8;
-        tex_.type_ = TT_2D;
+        tex_.type_ = tex_type;
         tex_.format = GL_RGBA8;
-        return tex_.isValid();
     } else if(format_ == gos_Texture_R32UI) {
         GLuint tex_id = createRenderTexture(tex_.w, tex_.h, GL_R32UI, 1);
         tex_.id = tex_id;
         tex_.fmt_ = TF_R32UI;
-        tex_.type_ = TT_2D;
+        tex_.type_ = tex_type;
         tex_.format = GL_R32UI;
-        return tex_.isValid();
     } else if(format_ == gos_Texture_R32F) {
         GLuint tex_id = createRenderTexture(tex_.w, tex_.h, GL_R32F, 1);
         tex_.id = tex_id;
         tex_.fmt_ = TF_R32F;
-        tex_.type_ = TT_2D;
+        tex_.type_ = tex_type;
         tex_.format = GL_R32F;
-        return tex_.isValid();
     } else if(format_ == gos_Texture_R8) {
         GLuint tex_id = createRenderTexture(tex_.w, tex_.h, GL_R8, 1);
         tex_.id = tex_id;
         tex_.fmt_ = TF_R8;
-        tex_.type_ = TT_2D;
+        tex_.type_ = tex_type;
         tex_.format = GL_R8;
-        return tex_.isValid();
+    } else if(format_ == gos_Texture_RG16UI) {
+        tex_.fmt_ = TF_RG16UI;
+        tex_.type_ = tex_type;
+        tex_.format = GL_RG16UI;
+        if(hints_ && pcompdata_ && size_) {
+            tex_ = create2DTexture(tex_.w, tex_.h, tex_.fmt_, tex_.type_, pcompdata_);
+        } else {
+            tex_.id = createRenderTexture(tex_.w, tex_.h, GL_RG16UI, 1);
+        }
+    } else if(format_ == gos_Texture_RGBA32F) {
+        tex_.fmt_ = TF_RGBA32F;
+        tex_.type_ = tex_type;
+        tex_.format = GL_RGBA32F;
+        if(hints_ && pcompdata_ && size_) {
+            tex_ = create2DTexture(tex_.w, tex_.h, tex_.fmt_, tex_.type_, pcompdata_);
+        } else {
+            tex_.id = createRenderTexture(tex_.w, tex_.h, GL_RGBA32F, 1);
+        }
     } 
     else {
+        //gosASSERT(0 && "How did we end up like this?");
         gosASSERT(tex_.w >0 && tex_.h > 0);
 
         TexFormat tf = TF_RGBA8; // TODO: check format_ and do appropriate stuff
         DWORD* pdata = new DWORD[tex_.w*tex_.h];
         for(int i=0;i<tex_.w*tex_.h;++i)
             pdata[i] = 0xFF00FFFF;
-        tex_ = create2DTexture(tex_.w, tex_.h, tf, (const uint8_t*)pdata);
+        tex_ = create2DTexture(tex_.w, tex_.h, tf, tex_type, (const uint8_t*)pdata);
         delete[] pdata;
-        return tex_.isValid();
     }
+
+    if(tex_.isValid() && (texname_ || filename_)) {
+        glObjectLabel(GL_TEXTURE, tex_.id, -1, texname_ ? texname_ : filename_);
+    }
+
+    return b_is_ok && tex_.isValid();
 
 }
 
@@ -1242,6 +1269,46 @@ class gosFont {
         char* font_id_;
         gosGlyphInfo gi_;
         DWORD tex_id_;
+        uint32_t ref_count_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+class gosSlugFont { // TODO: derive from gosFont?
+        friend class gosRenderer;
+    public:
+        static gosSlugFont* load(const char* fontFile);
+
+        int getLineSpacing() const { return font_data_.lineSpacing; }
+        int getUnitsPerEM() const { return font_data_.unitsPerEm; }
+
+        const SlugCodePoint& getCodePointInfo(int c) const { return font_data_.codePoints[c]; }
+        const SlugCodePoint* findCodePoint(const SlugFontData& font_data, uint32_t codePoint) const;
+
+        int getCharAdvance(int c) const;
+        const gosGlyphMetrics& getGlyphMetrics(int c) const;
+
+        DWORD getCurveTextureId() const { return curves_tex_id_; }
+        DWORD getBandsTextureId() const { return bands_tex_id_; }
+
+        const char* getName() const { return font_name_; }
+        const char* getId() const { return font_id_; }
+
+        uint32_t getRefCount() { return ref_count_; }
+        uint32_t addRef() { return ++ref_count_; }
+        uint32_t decRef() { gosASSERT(ref_count_>0); return --ref_count_; }
+
+        SlugFontData font_data_;
+    private:
+        static uint32_t destroy(gosSlugFont* font);
+        gosSlugFont():font_name_(0), font_id_(0), 
+        curves_tex_id_(0), bands_tex_id_(0), ref_count_(1) {};
+
+        ~gosSlugFont();
+
+        char* font_name_;
+        char* font_id_;
+        DWORD curves_tex_id_;
+        DWORD bands_tex_id_;
         uint32_t ref_count_;
 };
 
@@ -1313,6 +1380,12 @@ class gosRenderer {
             return (uint32_t)(fontList_.size()-1);
         }
 
+        uint32_t addSlugFont(gosSlugFont* font) {
+            gosASSERT(font);
+            slugFontList_.push_back(font);
+            return (uint32_t)(slugFontList_.size()-1);
+        }
+
 		uint32_t addBuffer(gosBuffer* buffer) {
 			gosASSERT(buffer);
 			bufferList_.push_back(buffer);
@@ -1347,6 +1420,31 @@ class gosRenderer {
                 gosFont* cur_font = *it;
                 if(0 == gosFont::destroy(cur_font))
                     fontList_.erase(it);
+            }
+        }
+
+        // TODO: do same as with texture?
+        void deleteSlugFont(gosSlugFont* font) {
+            // FIXME: bad use object list, with stable ids
+            // to not waste space
+            
+            struct equals_to {
+                gosSlugFont* fnt_;
+                bool operator()(gosSlugFont* fnt) {
+                    return fnt == fnt_;
+                }
+            };
+
+            equals_to eq;
+            eq.fnt_ = font;
+
+            std::vector<gosSlugFont*>::iterator it = 
+                std::find_if(slugFontList_.begin(), slugFontList_.end(), eq);
+            if(it != slugFontList_.end())
+            {
+                gosSlugFont* cur_font = *it;
+                if(0 == gosSlugFont::destroy(cur_font))
+                    slugFontList_.erase(it);
             }
         }
 
@@ -1391,6 +1489,25 @@ class gosRenderer {
             return NULL;
         }
 
+        gosSlugFont* findSlugFont(const char* font_id) {
+            
+            struct equals_to {
+                const char* font_id_;
+                bool operator()(const gosSlugFont* fnt) {
+                    return strcmp(fnt->getId(), font_id_)==0;
+                }
+            };
+
+            equals_to eq;
+            eq.font_id_ = font_id;
+
+            std::vector<gosSlugFont*>::iterator it = 
+                std::find_if(slugFontList_.begin(), slugFontList_.end(), eq);
+            if(it != slugFontList_.end())
+                return *it;
+            return NULL;
+        }
+
         gosTexture* getTexture(DWORD texture_idx) {
             // TODO: return default texture
             if(texture_idx == gosInvalidTextureID) {
@@ -1430,6 +1547,8 @@ class gosRenderer {
             uint32_t flags = getFlagsFromStates();
             return materialDB_[name][flags];
         }
+
+        gosSlugTextAttribs& getSlugTextAttributes() { return curSlugTextAttribs_; }
 
         gosTextAttribs& getTextAttributes() { return curTextAttribs_; }
         void setTextPos(int x, int y) { curTextPosX_ = x; curTextPosY_ = y; }
@@ -1510,6 +1629,7 @@ class gosRenderer {
 		void drawInstanced(HGOSBUFFER vb, HGOSBUFFER instanced_vb, uint32_t instance_count, HGOSVERTEXDECLARATION vdecl, gosPRIMITIVETYPE pt);
 		void drawIndexedInstanced(HGOSBUFFER ib, HGOSBUFFER vb, HGOSBUFFER instanced_vb, uint32_t instance_count, HGOSVERTEXDECLARATION vdecl, gosPRIMITIVETYPE pt);
         void drawText(const char* text);
+        void drawSlugText(const char* text);
 
         void addDebugQuad(const vec2& size, const vec4& colour, uint32_t texture_id, const mat4* transform, bool is_two_side);
         void addDebugLine(const vec3& start, const vec3& end, const vec4& colour, const mat4* transform = nullptr);
@@ -1564,6 +1684,7 @@ class gosRenderer {
         std::vector<gosTexture*> textureList_;
         std::vector<gosTextureSampler*> samplerList_;
         std::vector<gosFont*> fontList_;
+        std::vector<gosSlugFont*> slugFontList_;
         std::vector<gosBuffer*> bufferList_;
         std::vector<gosVertexDeclaration*> vertexDeclarationList_;
         std::vector<gosRenderMaterial*> materialList_;
@@ -1590,6 +1711,7 @@ class gosRenderer {
 
         // text data
         gosTextAttribs curTextAttribs_;
+        gosSlugTextAttribs curSlugTextAttribs_;
 
         int curTextPosX_;
         int curTextPosY_;
@@ -1621,9 +1743,11 @@ class gosRenderer {
         gosMesh* lines_;
         gosMesh* points_;
         gosMesh* text_;
+        gosSlugMesh* slug_text_;
         gosRenderMaterial* basic_material_;
         gosRenderMaterial* basic_tex_material_;
         gosRenderMaterial* text_material_;
+        gosRenderMaterial* slug_text_material_;
 
         gosRenderMaterial* basic_lighted_material_;
         gosRenderMaterial* basic_tex_lighted_material_;
@@ -1669,6 +1793,8 @@ void gosRenderer::init() {
     gosASSERT(points_);
     text_ = gosMesh::makeMesh(PRIMITIVE_TRIANGLELIST, 4024 * 6);
     gosASSERT(text_);
+    slug_text_ = gosSlugMesh::makeMesh(PRIMITIVE_TRIANGLELIST, 4024 * 6);
+    gosASSERT(slug_text_);
 
     {
         gos_AddRenderMaterial("debug_prims");
@@ -1677,8 +1803,8 @@ void gosRenderer::init() {
         gosASSERT(debug_vertex_data_);
     }
 
-    const char* shader_list[] = {"gos_vertex", "gos_tex_vertex", "gos_text", "gos_vertex_lighted", "gos_tex_vertex_lighted", "simple"};
-    gosRenderMaterial** shader_ptr_list[] = { &basic_material_, &basic_tex_material_, &text_material_, &basic_lighted_material_, &basic_tex_lighted_material_, &simple_material_};
+    const char* shader_list[] = {"gos_vertex", "gos_tex_vertex", "gos_text", "gos_text_slug", "gos_vertex_lighted", "gos_tex_vertex_lighted", "simple"};
+    gosRenderMaterial** shader_ptr_list[] = { &basic_material_, &basic_tex_material_, &text_material_, &slug_text_material_, &basic_lighted_material_, &basic_tex_lighted_material_, &simple_material_};
 
     static_assert(COUNTOF(shader_list) == COUNTOF(shader_ptr_list), "Arrays myst have same size");
     uint32_t combinations[] = {0, SHADER_FLAG_INDEX_TO_MASK(gosGLOBAL_SHADER_FLAGS::ALPHA_TEST)};
@@ -1740,6 +1866,7 @@ void gosRenderer::destroy() {
     gosMesh::destroy(lines_);
     gosMesh::destroy(points_);
     gosMesh::destroy(text_);
+    gosSlugMesh::destroy(slug_text_);
 
     for(size_t i=0; i<materialList_.size(); i++) {
         gosRenderMaterial::destroy(materialList_[i]);
@@ -1751,6 +1878,11 @@ void gosRenderer::destroy() {
         while(gosFont::destroy(fontList_[i])) {};
     }
     fontList_.clear();
+
+    for(size_t i=0; i<slugFontList_.size(); i++) {
+        while(gosSlugFont::destroy(slugFontList_[i])) {};
+    }
+    slugFontList_.clear();
 
     for(size_t i=0; i<textureList_.size(); i++) {
         delete textureList_[i];
@@ -2038,7 +2170,9 @@ void gosRenderer::applyRenderStates() {
 
        gosTexture* tex = gosTextureHandle == INVALID_TEXTURE_ID ? 0 : this->getTexture(gosTextureHandle);
        if(tex) {
-           glBindTexture(GL_TEXTURE_2D, tex->getTextureId());
+           GLuint tex_type = translateTexType(tex->getTextureType());
+           gosASSERT(tex_type == GL_TEXTURE_2D || tex_type == GL_TEXTURE_RECTANGLE);
+           glBindTexture(tex_type, tex->getTextureId());
            if(samplerStates_[i]) {
                 glBindSampler(i, samplerStates_[i]->gl_sampler);
            } else {
@@ -2095,7 +2229,7 @@ void gosRenderer::updateViewport(int w, int h) {
     // maps screen coords to -1..1 only used for 2D text
     text2d_transform_ = 
         mat4(2.0f / (float)w, 0, 0.0f, -1.0f,
-            0, -2.0f / (float)h, 0.0f, 1.0f,
+            0, 2.0f / (float)h, 0.0f, -1.0f,
             0, 0, 1.0f, 0.0f,
             0, 0, 0.0f, 1.0f);
 }
@@ -2617,7 +2751,8 @@ static int get_next_break(const char* text) {
     return (int32_t)(text - start - 1);
 }
 
-int findTextBreak(const char* text, const int count, const gosFont* font, const int region_width, int* out_str_width) {
+template<typename T>
+int findTextBreak(const char* text, const int count, const T* font, const int region_width, int* out_str_width) {
 
     int width = 0;
     int pos = 0;
@@ -2662,7 +2797,8 @@ int findTextBreak(const char* text, const int count, const gosFont* font, const 
     return pos;
 }
 // returnes num lines in text which should be wrapped in region_width
-int calcTextHeight(const char* text, const int count, const gosFont* font, int region_width)
+template < typename T> 
+int calcTextHeight(const char* text, const int count, const T* font, int region_width)
 {
     int pos = 0;
     int num_lines = 0;
@@ -2720,6 +2856,232 @@ void addCharacter(gosMesh* text_, const float u, const float v, const float u2, 
     text_->addVertices(&bl, 1);
 
 }
+
+
+HGOSVERTEXDECLARATION get_slug_vdecl() {
+
+    static const gosVERTEX_FORMAT_RECORD slug_vdecl[] = {
+        {0, 4, false, sizeof(gos_SlugVERTEX), 0, gosVERTEX_ATTRIB_TYPE::kFLOAT, 0},
+        {1, 4, true, sizeof(gos_SlugVERTEX),  offsetof(gos_SlugVERTEX, argb), gosVERTEX_ATTRIB_TYPE::kUNSIGNED_BYTE, 0},
+        {2, 2, false, sizeof(gos_SlugVERTEX), offsetof(gos_SlugVERTEX, uv), gosVERTEX_ATTRIB_TYPE::kFLOAT, 0},
+        {3, 4, false, sizeof(gos_SlugVERTEX), offsetof(gos_SlugVERTEX, scaleBias), gosVERTEX_ATTRIB_TYPE::kFLOAT, 0},
+        {4, 4, false, sizeof(gos_SlugVERTEX), offsetof(gos_SlugVERTEX, glyphBandScale), gosVERTEX_ATTRIB_TYPE::kFLOAT, 0},
+        {5, 4, false, sizeof(gos_SlugVERTEX), offsetof(gos_SlugVERTEX, bandMaxTexCoords), gosVERTEX_ATTRIB_TYPE::kUNSIGNED_INT, 0},
+    };
+
+    static auto vdecl = gos_CreateVertexDeclaration(
+        slug_vdecl, sizeof(slug_vdecl) / sizeof(gosVERTEX_FORMAT_RECORD));
+    return vdecl;
+}
+
+HGOSTEXTURESAMPLER get_slug_sampler() {
+    static auto sampler = gos_CreateTextureSampler(
+            gos_TextureClamp, gos_TextureClamp, gos_TextureClamp, gos_FilterNone,
+            gos_FilterNone, gos_FilterNone, false);
+    return sampler;
+}
+
+void addSlugCharacter(gosSlugMesh* text_, vec2 uv, vec2 uv2, vec2 p0, vec2 p1, 
+        vec4 scaleBias, vec4 glyphBandScale, ivec4 bandMaxTexCoords) {
+
+    gos_SlugVERTEX tr, tl, br, bl;
+
+    tl.p = vec4(p0.x, p0.y, 0, 1);
+    tl.uv = uv;
+    tl.argb = 0xffffffff;
+    tl.scaleBias = scaleBias;
+    tl.glyphBandScale = glyphBandScale;
+    tl.bandMaxTexCoords = bandMaxTexCoords;
+
+    tr.p = vec4(p1.x, p0.y, 0, 1);
+    tr.uv = vec2(uv2.x, uv.y);
+    tr.argb = 0xffffffff;
+    tr.scaleBias = scaleBias;
+    tr.glyphBandScale = glyphBandScale;
+    tr.bandMaxTexCoords = bandMaxTexCoords;
+
+    bl.p = vec4(p0.x, p1.y, 0, 1);
+    bl.uv = vec2(uv.x, uv2.y);
+    bl.argb = 0xffffffff;
+    bl.scaleBias = scaleBias;
+    bl.glyphBandScale = glyphBandScale;
+    bl.bandMaxTexCoords = bandMaxTexCoords;
+
+    br.p = vec4(p1.x, p1.y, 0, 1);
+    br.uv = uv2;
+    br.argb = 0xffffffff;
+    br.scaleBias = scaleBias;
+    br.glyphBandScale = glyphBandScale;
+    br.bandMaxTexCoords = bandMaxTexCoords;
+
+    text_->addVertices(&tl, 1);
+    text_->addVertices(&tr, 1);
+    text_->addVertices(&bl, 1);
+
+    text_->addVertices(&tr, 1);
+    text_->addVertices(&br, 1);
+    text_->addVertices(&bl, 1);
+
+}
+
+void gosRenderer::drawSlugText(const char* text) {
+
+    if(beforeDrawCall()) return;
+
+    int count = strlen(text);
+    gosASSERT(slug_text_->getNumVertices() + 6 * count <= slug_text_->getVertexCapacity());
+
+    int ix, iy;
+    getTextPos(ix, iy);
+	float x = (float)ix, y = (float)iy;
+    const float start_x = x;
+
+    const gosSlugTextAttribs& ta = g_gos_renderer->getSlugTextAttributes();
+    const gosSlugFont* font = ta.FontHandle;
+    gosASSERT(font);
+
+
+    const DWORD curve_tex_id = font->getCurveTextureId();
+    const DWORD band_tex_id = font->getBandsTextureId();
+    const gosTexture* curve_tex = getTexture(curve_tex_id);
+    const gosTexture* band_tex = getTexture(band_tex_id);
+    gosTextureInfo curve_ti;
+    gosTextureInfo band_ti;
+    curve_tex->getTextureInfo(&curve_ti);
+    band_tex->getTextureInfo(&band_ti);
+    
+
+    float dpi = 96; // TODO: get real dpi
+    float pointSize = ta.Size;
+    float ppem = pointSize * dpi / 72;
+    float upem = (float)font->getUnitsPerEM();
+    // pixel_coordinate = em_coordinate * ppem /upem 
+    const float scale = ppem / upem;
+    
+    const int lineSpacing = font->getLineSpacing();
+
+    const int region_width = getTextRegionWidth() / scale;
+    const int region_height = getTextRegionHeight() / scale;
+
+    int y_off = 0;
+    const int num_lines = region_width==0 ? 1 : calcTextHeight(text, count, font, region_width);
+    if(ta.WrapType == 3) { // center in Y direction as well
+        y_off = (region_height - num_lines * lineSpacing) / 2;
+    }
+    y += y_off * scale;
+
+    const vec4 vaScaleBias = vec4(text2d_transform_.elem[0][0], text2d_transform_.elem[1][1],
+            text2d_transform_.elem[0][3], text2d_transform_.elem[1][3]);
+
+    int pos = 0;
+    int str_width = 0;
+    int x_off = 0;
+    while(pos < count) {
+
+        x = start_x;
+        int num_chars = region_width==0 ? count : findTextBreak(text + pos, count - pos, font, region_width, &str_width);
+
+        // WrapType		- 0=Left aligned, 1=Right aligned, 2=Centered, 3=Centered in region (X and Y)
+        switch(ta.WrapType) {
+            case 0: break;
+            case 1: x_off = region_width - str_width; break;
+            case 2: x_off = (region_width - str_width) / 2; break;
+            case 3: // see vertical centering above
+                    x_off = (region_width - str_width) / 2;
+                    break;
+        }
+
+        for(int i=0; i<num_chars; ++i) {
+
+            const char c = text[i + pos];
+            const SlugCodePoint* cp = font->findCodePoint(font->font_data_, c);
+            
+            int char_off_x = cp->bearingX;
+            int char_off_y = cp->minY;
+            int char_w = cp->width;
+            int char_h = cp->height;
+
+            // if geometry is present (can be absent for e.g. space bar)
+            if(cp && cp->bandCount) {
+
+                float width = (float)cp->width;
+                float height = (float)cp->height;
+
+                float dimX = (float)cp->bandDimX;
+                float dimY = (float)cp->bandDimY;
+
+                float num_b_h = (float)cp->bandCount;
+                float num_b_v = (float)cp->bandCount;
+                float tc_x = (float)cp->bandsTexCoordX;
+                float tc_y = (float)cp->bandsTexCoordY;
+
+                //const vec4 vaGlyphBandScale = vec4(width, height, width/dimX, height/dimY);
+                const vec4 vaGlyphBandScale = vec4(width, height, 1.0f/dimX, 1.0f/dimY);
+                const ivec4 vaBandMaxTexCoords = ivec4(num_b_h-1, num_b_v-1, tc_x, tc_y);
+
+                vec2 p1 = vec2((float)(x + (int)(scale*(x_off + char_off_x + char_w))), (float)(y + (int)(scale*(y_off + char_off_y))));
+                vec2 p0 = vec2((float)(x + (int)(scale*(x_off + char_off_x))),          (float)(y + (int)(scale*(y_off + char_off_y + char_h))));
+                addSlugCharacter(slug_text_, vec2(0, 0), vec2(1, 1), p0, p1, 
+                        vaScaleBias, vaGlyphBandScale, vaBandMaxTexCoords);
+            }
+
+            //TODO: https://harfbuzz-world.cc/?preset=english&size=57&snippet=1#shape
+
+            x += (int)(scale*cp->advance);
+        }
+        y += lineSpacing;
+        pos += num_chars;
+    }
+
+    slug_text_->updateBufferData();
+
+    // FIXME: save states before messing with it, because user code can set its ow and does not know that something was changed by us
+    
+    int prev_texture = getRenderState(gos_State_Texture);
+    int prev_texture2 = getRenderState(gos_State_Texture2);
+    int prev_filter = getRenderState(gos_State_Filter);
+    HGOSTEXTURESAMPLER prev_sampler_0 = samplerStates_[0];
+    HGOSTEXTURESAMPLER prev_sampler_1 = samplerStates_[1];
+
+    // All states are set by client code
+    // so we only set font texture
+    setSamplerState(0, get_slug_sampler());
+    setSamplerState(1, get_slug_sampler());
+    setRenderState(gos_State_Texture, curve_tex_id);
+    setRenderState(gos_State_Texture2, band_tex_id);
+    setRenderState(gos_State_Filter, gos_FilterNone);
+
+    applyRenderStates();
+    gosRenderMaterial* mat = slug_text_material_;
+
+    //ta.Foreground
+    vec4 fg;
+    fg.x = (float)((ta.Foreground & 0xFF0000) >> 16);
+    fg.y = (float)((ta.Foreground & 0xFF00) >> 8);
+    fg.z = (float)(ta.Foreground & 0xFF);
+    fg.w = (float)((ta.Foreground & 0xFF000000) >> 24);
+    fg = fg / 255.0f;
+    mat->getShader()->setFloat4(s_Foreground, fg);
+    //mat->setTransform(text2d_transform_);
+
+
+    mat->apply();
+
+    mat->setSamplerUnit("curvesTex", 0);
+    mat->setSamplerUnit("bandsTex", 1);
+
+    slug_text_->draw(get_slug_vdecl(), PRIMITIVE_COUNT, 0, slug_text_->getNumVertices());
+    slug_text_->rewind();
+
+    setRenderState(gos_State_Texture, prev_texture);
+    setRenderState(gos_State_Texture2, prev_texture2);
+    setRenderState(gos_State_Filter, prev_filter);
+    setSamplerState(0, prev_sampler_0);
+    setSamplerState(1, prev_sampler_1);
+
+    afterDrawCall();
+}
+
 
 void gosRenderer::drawText(const char* text) {
     gosASSERT(text);
@@ -2790,21 +3152,24 @@ void gosRenderer::drawText(const char* text) {
 
             const gosGlyphMetrics& gm = font->getGlyphMetrics(c);
             int char_off_x = gm.minx;
-            int char_off_y = font_ascent - gm.maxy;
+            int uv_off_y = font_ascent - gm.maxy;
+            int char_off_y = gm.miny;
             int char_w = gm.maxx - gm.minx;
             int char_h = gm.maxy - gm.miny;
 
             uint32_t iu0 = gm.u + char_off_x;
-            uint32_t iv0 = gm.v + char_off_y;
+            uint32_t iv0 = gm.v + uv_off_y + char_h;
             uint32_t iu1 = iu0 + char_w;
-            uint32_t iv1 = iv0 + char_h;
+            uint32_t iv1 = gm.v + uv_off_y;
 
             float u0 = (float)iu0 * oo_tex_width;
             float v0 = (float)iv0 * oo_tex_height;
             float u1 = (float)iu1 * oo_tex_width;
             float v1 = (float)iv1 * oo_tex_height;
 
-            addCharacter(text_, u0, v0, u1, v1, (float)(x + char_off_x), (float)(y + char_off_y), (float)(x + char_off_x + char_w), (float)(y + char_off_y + char_h));
+            addCharacter(text_, u0, v0, u1, v1, 
+                    (float)(x + char_off_x),          (float)(y + char_off_y), 
+                    (float)(x + char_off_x + char_w), (float)(y + char_off_y + char_h));
 
             x += font->getCharAdvance(c);
         }
@@ -2818,7 +3183,7 @@ void gosRenderer::drawText(const char* text) {
     // All states are set by client code
     // so we only set font texture
     setRenderState(gos_State_Texture, tex_id);
-    setRenderState(gos_State_Filter, gos_FilterNone);
+    setRenderState(gos_State_Filter, gos_FilterBiLinear);
 
     // for now draw anyway because no render state saved for draw calls
     applyRenderStates();
@@ -2882,6 +3247,7 @@ void gos_RendererHandleEvents() {
 }
 
 
+////////////////////////////////////////////////////////////////////////////////
 gosFont::~gosFont()
 {
     if(tex_id_ != INVALID_TEXTURE_ID)
@@ -2892,7 +3258,6 @@ gosFont::~gosFont()
     delete[] font_id_;
 }
 
-////////////////////////////////////////////////////////////////////////////////
 gosFont* gosFont::load(const char* fontFile) {
 
     char fname[256];
@@ -2916,7 +3281,7 @@ gosFont* gosFont::load(const char* fontFile) {
     formatted_len = S_snprintf(glyphName, glyphNameSize, "%s/%s%s", dir, fname, glyph_ext);
 	gosASSERT(formatted_len <= glyphNameSize - 1);
 
-    gosTexture* ptex = new gosTexture(gos_Texture_Alpha, textureName, 0, NULL, 0, false);
+    gosTexture* ptex = new gosTexture(gos_Texture_Alpha, TT_2D, textureName, 0, NULL, 0, 0, 0, false);
     if(!ptex || !ptex->createHardwareTexture()) {
         STOP(("Failed to create font texture: %s\n", textureName));
     }
@@ -2986,6 +3351,78 @@ const gosGlyphMetrics& gosFont::getGlyphMetrics(int c) const {
     return gi_.glyphs_[pos];
 }
 
+////////////////////////////////////////////////////////////////////////////////
+gosSlugFont::~gosSlugFont()
+{
+    if(curves_tex_id_ != INVALID_TEXTURE_ID)
+        getGosRenderer()->deleteTexture(curves_tex_id_);
+
+    if(bands_tex_id_ != INVALID_TEXTURE_ID)
+        getGosRenderer()->deleteTexture(bands_tex_id_);
+
+    gos_destroy_slug_font(font_data_);
+    delete[] font_name_;
+    delete[] font_id_;
+}
+
+gosSlugFont* gosSlugFont::load(const char* fontFile) {
+
+    gosSlugFont* font = new gosSlugFont();
+    if(!gos_load_slug_font(fontFile, font->font_data_)) {
+        delete font;
+        STOP(("Failed to load font glyphs: %s\n", fontFile));
+        return NULL;
+    }
+
+    char fname[256];
+    char dir[256];
+    char ext[16];
+    _splitpath(fontFile, NULL, dir, fname, ext);
+
+    font->font_name_ = new char[strlen(fname) + 1];
+    strcpy(font->font_name_, fname);
+
+    font->font_id_ = new char[strlen(fontFile) + 1];
+    strcpy(font->font_id_, fontFile);
+
+    DWORD hints = 1;
+
+    DWORD w = font->font_data_.curvesTexWidth;
+    DWORD h = font->font_data_.curvesTexHeight;
+    DWORD bytes = font->font_data_.curvesTexBytes;
+    font->curves_tex_id_ = gos_NewTextureFromMemory(gos_Texture_RGBA32F, TT_RECTANGLE, (BYTE*)font->font_data_.curvesTexture, bytes, w, h, hints, "slug_curves");
+
+    w = font->font_data_.bandsTexWidth;
+    h = font->font_data_.bandsTexHeight;
+    bytes = font->font_data_.bandsTexBytes;
+    font->bands_tex_id_ = gos_NewTextureFromMemory(gos_Texture_RG16UI, TT_RECTANGLE, (BYTE*)font->font_data_.bandsTexture, bytes, w, h, hints, "slug_bands");
+
+    return font;
+}
+
+uint32_t gosSlugFont::destroy(gosSlugFont* font) {
+    uint32_t rc = font->decRef();
+    if(0 == rc) {
+        delete font;
+    }
+
+    return rc;
+}
+
+int gosSlugFont::getCharAdvance(int c) const {
+    const SlugCodePoint* cp = findCodePoint(font_data_, c);
+    return cp ? cp->advance : 0;
+}
+
+const SlugCodePoint* gosSlugFont::findCodePoint(const SlugFontData& font_data, uint32_t codePoint) const
+{
+    for (uint16_t i = 0; i < font_data.codePointsCount; ++i) {
+        if (font_data.codePoints[i].codePoint == codePoint) {
+            return &font_data.codePoints[i];
+        }
+    }
+    return nullptr;
+}
 
 
 
@@ -3069,6 +3506,17 @@ void __stdcall gos_DeleteFont( HGOSFONT3D FontHandle )
     getGosRenderer()->deleteFont(font);
 }
 
+HGOSSLUGFONT __stdcall gos_LoadSlugFont( const char* FontFile) {
+    gosSlugFont* font = getGosRenderer()->findSlugFont(FontFile);
+    if(!font) {
+        font = gosSlugFont::load(FontFile);
+        getGosRenderer()->addSlugFont(font);
+    } else {
+        font->addRef();
+    }
+    return font;
+}
+
 DWORD __stdcall gos_TextureGetNativeId( DWORD Handle )
 {
     gosTexture* texture = getGosRenderer()->getTexture(Handle);
@@ -3106,11 +3554,9 @@ DWORD __stdcall gos_NewEmptyTexture( gos_TextureFormat Format, const char* Name,
 
     return g_gos_renderer->addTexture(ptex);
 }
-DWORD __stdcall gos_NewTextureFromMemory( gos_TextureFormat Format, const char* FileName, BYTE* pBitmap, DWORD Size, DWORD Hints/*=0*/, gos_RebuildFunction pFunc/*=0*/, void *pInstance/*=0*/)
+DWORD __stdcall gos_NewTextureFromMemory( gos_TextureFormat Format, TexType type, BYTE* pBitmap, DWORD Size, DWORD w, DWORD h, DWORD Hints/*=0*/, const char* Name/* = nullptr*/)
 {
-    gosASSERT(pFunc == 0);
-
-    gosTexture* ptex = new gosTexture(Format, FileName, Hints, pBitmap, Size, true);
+    gosTexture* ptex = new gosTexture(Format, type, Name, Hints, pBitmap, Size, w, h, true);
     if(!ptex->createHardwareTexture()) {
         STOP(("Failed to create texture\n"));
         return gosInvalidTextureID;
@@ -3121,7 +3567,7 @@ DWORD __stdcall gos_NewTextureFromMemory( gos_TextureFormat Format, const char* 
 
 DWORD __stdcall gos_NewTextureFromFile( gos_TextureFormat Format, const char* FileName, DWORD Hints/*=0*/, gos_RebuildFunction pFunc/*=0*/, void *pInstance/*=0*/)
 {
-    gosTexture* ptex = new gosTexture(Format, FileName, Hints, NULL, 0, false);
+    gosTexture* ptex = new gosTexture(Format, TT_2D, FileName, Hints, NULL, 0, 0, 0, false);
     if(!ptex->createHardwareTexture()) {
         STOP(("Failed to create texture\n"));
         return gosInvalidTextureID;
@@ -3258,6 +3704,17 @@ void __stdcall gos_GetRenderViewport(float* x, float* y, float* w, float* h)
 	*h = vp.w;
 }
 
+void __stdcall gos_SlugTextDraw(const char* text)
+{
+    gosASSERT(g_gos_renderer);
+    g_gos_renderer->drawSlugText(text);
+}
+
+HGOSSLUGFONT __stdcall gos_getSlugFont(const char* name)
+{
+    return g_gos_renderer->findSlugFont(name);
+}
+
 
 void __stdcall gos_TextDraw( const char *Message, ... )
 {
@@ -3332,6 +3789,17 @@ void __stdcall gos_TextSetAttributes( HGOSFONT3D FontHandle, DWORD Foreground, f
     ta.WrapType = WrapType;
     ta.DisableEmbeddedCodes = DisableEmbeddedCodes;
 }
+
+void __stdcall gos_SlugTextSetAttributes( HGOSSLUGFONT FontHandle, DWORD Foreground, float Size)
+{
+    gosASSERT(g_gos_renderer);
+
+    gosSlugTextAttribs& ta = g_gos_renderer->getSlugTextAttributes();
+    ta.FontHandle = FontHandle;
+    ta.Foreground = Foreground;
+    ta.Size = Size;
+}
+
 
 void __stdcall gos_TextSetPosition( int XPosition, int YPosition )
 {
@@ -3718,6 +4186,8 @@ HGOSTEXTURESAMPLER __stdcall gos_CreateTextureSampler(gos_TextureAddressMode add
     glSamplerParameteri(ts->gl_sampler, GL_TEXTURE_COMPARE_FUNC,
                         translateCompareMode(cmp_func));
 
+    // this probably does now work as texture should be bound
+    // also there are other textures than 2D
     if(address_r == gos_TextureClampToBorder || address_t == gos_TextureClampToBorder || address_s == gos_TextureClampToBorder) {
         glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, (float*)&border_colour);
     }

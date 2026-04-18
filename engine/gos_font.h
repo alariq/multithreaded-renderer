@@ -24,4 +24,48 @@ struct gosGlyphInfo {
 
 bool gos_load_glyphs(const char* glyphFile, gosGlyphInfo& gi);
 
+#pragma pack(push, 1)
+struct SlugCodePoint {
+	uint32_t codePoint;
+	uint32_t width;
+	uint32_t height;
+	uint32_t bandCount;
+	uint32_t bandDimX;
+	uint32_t bandDimY;
+	uint16_t bandsTexCoordX;
+	uint16_t bandsTexCoordY;
+    int32_t advance;
+    int32_t bearingX;
+    int32_t minX;
+    int32_t maxX;
+    int32_t minY;
+    int32_t maxY;
+};
+#pragma pack(pop)
+
+#define SLUG_TEXTURE_WIDTH  4096
+#define SLUG_TEXTURE_MASK  0xFFF
+#define SLUG_TEXTURE_SHIFT    12
+
+struct SlugFontData {
+    int lineSpacing;
+    int unitsPerEm;
+    uint16_t codePointsCount;
+    SlugCodePoint* codePoints;
+
+    uint16_t curvesTexWidth;
+    uint16_t curvesTexHeight;
+    uint32_t curvesTexBytes;
+    float* curvesTexture; // GL_RGBA32F [x1 y1 x2 y2]
+                          //
+    uint16_t bandsTexWidth;
+    uint16_t bandsTexHeight;
+    uint32_t bandsTexBytes;
+
+    uint16_t* bandsTexture;
+};
+
+bool gos_load_slug_font(const char* file, SlugFontData& sfd);
+void gos_destroy_slug_font(SlugFontData& sfd);
+
 #endif // GOS_FONT_H

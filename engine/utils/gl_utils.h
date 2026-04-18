@@ -79,7 +79,7 @@ static int ogl_check_val(T input, T reference, const char* message)
     }
 }
 
-Texture create2DTexture(int w, int h, TexFormat fmt, const uint8_t* texdata);
+Texture create2DTexture(int w, int h, TexFormat fmt, TexType type, const uint8_t* texdata);
 Texture createDynamicTexture(int w, int h, TexFormat fmt);
 Texture create3DTextureF(int w, int h, int depth);
 
@@ -873,5 +873,7 @@ void generate_torus(MeshBuffer &mb, float radius, float thickness,
 
     assert(idx == (unsigned int)mb.ib_size_);
 }
+
+GLenum translateTexType(TexType tt);
 
 #endif // __GL_UTILS_H__
