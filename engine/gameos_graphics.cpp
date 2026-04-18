@@ -1836,7 +1836,8 @@ void gosRenderer::init() {
             materialList_.push_back(pmat);
             materialDB_[ shader_list[sh_idx] ].insert(std::make_pair(combinations[i], pmat));
 
-            *shader_ptr_list[sh_idx] = pmat;
+            if(i == 0) // only assign materials once, using versions without any extra defines
+                *shader_ptr_list[sh_idx] = pmat;
         }
     }
 
@@ -1849,7 +1850,7 @@ void gosRenderer::init() {
     break_draw_call_num_ = 0;
 
     // add fake texture so that no one will get 0 index, as it is invalid in this game
-    DWORD tex_id = gos_NewEmptyTexture( gos_Texture_Solid, "DEBUG_this_is_not_a_real_texture_debug_it!", 1,1);
+    DWORD tex_id = gos_NewEmptyTexture(gos_Texture_sRGB_A8, "DEBUG_this_is_not_a_real_texture_debug_it!", 1,1);
     (void)tex_id;
     gosASSERT(tex_id == gosInvalidTextureID);
 

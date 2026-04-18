@@ -1,29 +1,30 @@
 TODO:
 
- [x] imgui integration
-     [x] make main viewport drawn into imgui window
-     [x] add basic imgui incapsulated ProperySheet to use by the game editor
-     [ ] fix 3d view to not being processed if it is not "active"
+ [o] imgui integration
+   [x] make main viewport drawn into imgui window
+   [x] add basic imgui incapsulated ProperySheet to use by the game editor
+   [ ] fix 3d view to not being processed if it is not "active"
  [ ] spline editor
- [ ] better navigation
-    [ ] smooth control point chasing by main ship
-    [ ] ability to chase any point (incl. points on a spline) for enemies
-    [ ] seamless transition from target to target for enemies
- [ ] graphics
-    [ ] add skybox support
-    [x] add billboards support
-    [ ] make parallax skyboxes (moving fraction of main camera scale/depth based)
-    [ ] debug names for OpenGL resources / passes for better debugging
-    [ ] sRGB correct rendering
-    [ ] HDR (at least 10bit buffers)
-    [ ] check why ALPHA_TEST is defined for shaders when I am not using it
-    [ ] Font rendering
-        [ ] slug font rendering
-        [ ] SDF font rendering?
-        [ ] 3d text positioning
- [ ] editor
-    [ ] refactor UpdateCamera code into editor camera controller (zoom level, persp/proj, etc.)
-    [x] add selection through PropertySheet
-    [ ] zoom to selected object
-    [ ] multi-selection (transform a bunch of objects at once)
-    [ ] Support for gizmos not attached to GameObjects, but to e.g. spline control points). Each object its own pass to draw gizmos?
+ [o] better navigation
+   [ ] smooth control point chasing by main ship
+   [ ] ability to chase any point (incl. points on a spline) for enemies
+   [ ] seamless transition from target to target for enemies
+ [o] graphics
+   [ ] add skybox support
+   [x] add billboards support
+   [ ] make parallax skyboxes (moving fraction of main camera scale/depth based)
+   [x] debug names for OpenGL resources / passes for better debugging
+   [ ] sRGB correct rendering
+   [ ] HDR (at least 10bit buffers)
+   [x] check why ALPHA_TEST is defined for shaders when I am not using it
+   [o] Font rendering
+     [x] slug font rendering
+     [ ] SDF font rendering?
+     [ ] 3d text positioning
+ [o] editor
+   [ ] refactor UpdateCamera code into editor camera controller (zoom level, persp/proj, etc.)
+   [x] add selection through PropertySheet
+   [ ] zoom to selected object
+   [ ] multi-selection (transform a bunch of objects at once)
+   [ ] Support for gizmos not attached to GameObjects, but to e.g. spline control points). Each object its own pass to draw gizmos?
+ 
