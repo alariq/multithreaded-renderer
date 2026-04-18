@@ -11,6 +11,7 @@
 #define DEPTH_NONE 0        /**< Disable depthstencil. */
 #define BLEND_NONE (-1)     /**< Disable blending. */
 
+// must be in sync with getTexType
 enum TexType {
     TT_NONE,
     TT_1D,
@@ -22,23 +23,33 @@ enum TexType {
     TT_3D,
     TT_CUBE_MAP,
     TT_CUBE_MAP_ARRAY,
+    TT_RECTANGLE,
     TT_COUNT
 };
 
 enum TexFormat {
     TF_NONE,
+
     TF_R8,
     TF_RG8,
     TF_RGB8,
     TF_RGBA8,
+
     TF_R32F,
     TF_RG32F,
     TF_RGB32F,
     TF_RGBA32F,
+
+    TF_R16UI,
+    TF_RG16UI,
+    TF_RGB16UI,
+    TF_RGBA16UI,
+
     TF_R32UI,
     TF_RG32UI,
     TF_RGB32UI,
     TF_RGBA32UI,
+
     TF_DEPTH16F,
     TF_DEPTH32F,
     TF_DEPTH16F_S8,

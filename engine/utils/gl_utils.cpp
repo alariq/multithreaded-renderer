@@ -29,10 +29,15 @@ const GLint textureFormats[TF_COUNT] = {
     GL_RGB,
     GL_RGBA,
 
-	GL_R32UI,
-	GL_RG32UI,
-	GL_RGB32UI,
-	GL_RGBA32UI,
+    GL_RED_INTEGER,
+    GL_RG_INTEGER,
+    GL_RGB_INTEGER,
+    GL_RGBA_INTEGER,
+
+    GL_RED_INTEGER,
+    GL_RG_INTEGER,
+    GL_RGB_INTEGER,
+    GL_RGBA_INTEGER,
 
     GL_DEPTH_COMPONENT,
     GL_DEPTH_COMPONENT,
@@ -52,6 +57,11 @@ const GLint textureInternalFormats[TF_COUNT] = {
     GL_RGB32F,
     GL_RGBA32F,
 
+	GL_R16UI,
+	GL_RG16UI,
+	GL_RGB16UI,
+	GL_RGBA16UI,
+
 	GL_R32UI,
 	GL_RG32UI,
 	GL_RGB32UI,
@@ -69,6 +79,7 @@ const int textureFormatNumChannels[TF_COUNT] = {
     1, 2, 3, 4,
 	1, 2, 3, 4,
 	1, 2, 3, 4,
+	1, 2, 3, 4,
     1, 1, 1, 1
 };
 
@@ -76,6 +87,7 @@ const GLint textureFormatChannelType[TF_COUNT] = {
     0,
     GL_UNSIGNED_BYTE, GL_UNSIGNED_BYTE, GL_UNSIGNED_BYTE, GL_UNSIGNED_BYTE,
     GL_FLOAT, GL_FLOAT, GL_FLOAT, GL_FLOAT,
+	GL_UNSIGNED_SHORT,GL_UNSIGNED_SHORT,GL_UNSIGNED_SHORT,GL_UNSIGNED_SHORT,
 	GL_UNSIGNED_INT,GL_UNSIGNED_INT,GL_UNSIGNED_INT,GL_UNSIGNED_INT,
     // not much sense for depth formats...
     GL_HALF_FLOAT, GL_FLOAT, GL_UNSIGNED_INT, GL_FLOAT
@@ -85,8 +97,9 @@ const static uint32_t textureFormatChannelSize[TF_COUNT] = {
     0,
     1, 1, 1, 1,
     4, 4, 4, 4,
+	2, 2, 2, 2,
 	4, 4, 4, 4,
-    2, 4, 4, 4 // ot much sense for depth/depth-stencil
+    2, 4, 4, 4 // not much sense for depth/depth-stencil
 };
 
 uint32_t
@@ -98,6 +111,7 @@ getTexFormatPixelSize(TexFormat fmt) {
     return textureFormatChannelSize[fmt] * textureFormatNumChannels[fmt];
 }
 
+// must be in sync with TexType
 const GLuint textureType[TT_COUNT] = {
     0,
     GL_TEXTURE_1D,
@@ -109,9 +123,10 @@ const GLuint textureType[TT_COUNT] = {
     GL_TEXTURE_3D,
     GL_TEXTURE_CUBE_MAP,
     GL_TEXTURE_CUBE_MAP_ARRAY,
+    GL_TEXTURE_RECTANGLE
 };
 
-GLuint getTexType(TexType tt) {
+GLenum translateTexType(TexType tt) {
     assert(tt > TT_NONE && tt < TT_COUNT);
     return textureType[tt];
 }
@@ -273,7 +288,7 @@ void updateTexture(const Texture& t, void* pdata, TexFormat pdata_format/*= TF_C
 
 void setSamplerParams(TexType tt, TexAddressMode address_mode, TexFilterMode filter) {
 
-    GLuint tex_type = getTexType(tt);
+    GLuint tex_type = translateTexType(tt);
 
     GLint tam = getTextureAddressMode(address_mode);
     GLint tfm = getTextureFilterMode(filter);
