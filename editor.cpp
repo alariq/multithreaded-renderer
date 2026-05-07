@@ -290,6 +290,10 @@ ivec4 editor_calc_3dview(bool b_exclusive_3dview, intptr_t scene_colour) {
 
         ImGui::Begin("3DView", nullptr, ImGuiWindowFlags_NoTitleBar);
 
+        if (ImGui::IsWindowHovered()) {
+            ImGui::SetWindowFocus();
+        }
+
         g3DViewFocused = ImGui::IsWindowFocused();
         g3DViewHovered = ImGui::IsWindowHovered();
         GameObject* go = nullptr/* get selected game object*/;
