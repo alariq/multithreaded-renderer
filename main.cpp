@@ -337,6 +337,13 @@ void __stdcall Update(void)
 		{
             SCOPED_ZONE_N(editor_render_update, 0);
 			editor_render_update(rfc, g_is_in_editor, g_exclusive_3dview);
+#if WITH_EDITOR
+            if(!g_exclusive_3dview) {
+                ImGui::Begin("Property");
+                imgui_props::DrawPropertySheetTable("camera", g_camera);
+                ImGui::End();
+            }
+#endif
         }
         {
             SCOPED_ZONE_N(ParticleSystemManager_RenderUpdate, 0);
