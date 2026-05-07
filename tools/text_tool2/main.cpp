@@ -132,8 +132,8 @@ static bool ProcessCodePoint(const stbtt_fontinfo* font, int codePoint, bool* b_
 			curve.x3 = (float)vert.x - gx1;
 			curve.y3 = (float)vert.y - gy1;
             // as suggested by https://github.com/EricLengyel/Slug/tree/main (Tips & Tricks)
-			curve.x2 = floorf((curve.x1 + curve.x3) / 2.0f);
-			curve.y2 = floorf((curve.y1 + curve.y3) / 2.0f);
+			curve.x2 = curve.x3;// floorf((curve.x1 + curve.x3) / 2.0f);
+			curve.y2 = curve.y3;//floorf((curve.y1 + curve.y3) / 2.0f);
 			g_curves.push(curve);
 			curve.first = false;
 		}
