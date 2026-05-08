@@ -33,6 +33,7 @@
 #define __cdecl
 //#pragma warning( disable: 4091)					// typedef was ignored on this declaration
 #include<inttypes.h>
+#include "utils/my_types.h"
 //typedef int64_t __int64;
 #include<stdlib.h> // size_t 
 #include<errno.h> // size_t 
