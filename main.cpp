@@ -447,7 +447,6 @@ public:
 void render_quad(uint32_t tex_id, const vec4& scale_offset, HGOSRENDERMATERIAL mat_override)
 {
 	gos_SetRenderViewport(0, 0, Environment.drawableWidth, Environment.drawableHeight);
-    glViewport(0, 0, (GLsizei)Environment.drawableWidth, (GLsizei)Environment.drawableHeight);
     
     gos_SetRenderState(gos_State_ZCompare, 0);
     gos_SetRenderState(gos_State_ZWrite, 1);
@@ -511,7 +510,7 @@ void __stdcall Render(void)
 
     const uint32_t view_w = rfc->viewport_.z;
     const uint32_t view_h = rfc->viewport_.w;
-    gos_SetScreenMode(view_w, view_h);
+    gos_SetRenderViewport(0, 0, view_w, view_h);
 
 	{
 		SCOPED_ZONE_N(DebugDraw, 0);
@@ -549,8 +548,6 @@ void __stdcall Render(void)
     // render shadows first
     mat4 new_shadow_view_proj = g_shadow_pass->Render(&csm_info, rfc->rl_->GetRenderPackets());
 
-    gos_SetRenderViewport(0, 0, view_w, view_h);
-    glViewport(0, 0, (GLsizei)view_w, (GLsizei)view_h);
 
     mat4 view_mat, proj_mat;
     if(render_from_shadow_camera)

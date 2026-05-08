@@ -2482,37 +2482,6 @@ void gosRenderer::drawIndexedTris(gos_VERTEX* vertices, int num_vertices, WORD* 
     afterDrawCall();
 }
 
-void gosRenderer::drawIndexed(HGOSBUFFER ib, HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl, const float* mvp, gosPRIMITIVETYPE pt)
-{
-    gosASSERT(ib && vb && mvp);
-    gosASSERT((ib->count_ % 3) == 0);
-
-    if(beforeDrawCall()) return;
-
-    applyRenderStates();
-
-
-    gosRenderMaterial* mat = selectLightedRenderMaterial(curStates_);
-    gosASSERT(mat);
-
-	mat4 transform(	mvp[0], mvp[1], mvp[2], mvp[3], 
-					mvp[4], mvp[5], mvp[6], mvp[7],
-					mvp[8], mvp[9], mvp[10], mvp[11],
-					mvp[12], mvp[13], mvp[14], mvp[15]);
-
-	vec4 vp = g_gos_renderer->getRenderViewport();
-
-	mat->getShader()->setFloat4(gosRenderMaterial::s_vp, vp);
-	mat->getShader()->setMat4(gosRenderMaterial::s_projection_, projection_obsolete_);
-
-    mat->setTransform(transform);
-    //mat->setFogColor(fog_color_);
-
-	gosMesh::drawIndexed(ib, vb, vdecl, mat, pt);
-
-    afterDrawCall();
-}
-
 void gosRenderer::drawIndexed(HGOSBUFFER ib, HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl, gosPRIMITIVETYPE pt)
 {
     gosASSERT(ib && vb);
@@ -3480,12 +3449,6 @@ void _stdcall gos_RenderDebugPrimitives(const mat4& view_mat, const mat4& proj_m
     g_gos_renderer->drawDebugPrimitives(view_mat, proj_mat);
 }
 
-void __stdcall gos_GetViewport( float* pViewportMulX, float* pViewportMulY, float* pViewportAddX, float* pViewportAddY )
-{
-    gosASSERT(g_gos_renderer);
-    g_gos_renderer->getViewportTransform(pViewportMulX, pViewportMulY, pViewportAddX, pViewportAddY);
-}
-
 HGOSFONT3D __stdcall gos_LoadFont( const char* FontFile, DWORD StartLine/* = 0*/, int CharCount/* = 256*/, DWORD TextureHandle/*=0*/)
 {
 
@@ -3634,12 +3597,6 @@ void __stdcall gos_RenderIndexedArray( gos_VERTEX_2UV* pVertexArray, DWORD Numbe
    gosASSERT(0 && "not implemented");
 }
 
-void __stdcall gos_RenderIndexedArray(HGOSBUFFER ib, HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl, const float* mvp, gosPRIMITIVETYPE pt)
-{
-    gosASSERT(g_gos_renderer);
-    g_gos_renderer->drawIndexed(ib, vb, vdecl, mvp, pt);
-}
-
 void __stdcall gos_RenderIndexedArray(HGOSBUFFER ib, HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl, gosPRIMITIVETYPE pt)
 {
     gosASSERT(g_gos_renderer);
@@ -3694,15 +3651,12 @@ void __stdcall gos_SetRenderViewport(uint32_t x, uint32_t y, uint32_t w, uint32_
 	g_gos_renderer->setRenderViewport(vec4(x, y, w, h));
 }
 
-void __stdcall gos_GetRenderViewport(float* x, float* y, float* w, float* h)
+void __stdcall gos_SetRenderViewport(int32_t x, int32_t y, int32_t w, int32_t h)
 {
-    gosASSERT(x && y && w && h);
     gosASSERT(g_gos_renderer);
-	vec4 vp = g_gos_renderer->getRenderViewport();
-	*x = vp.x;
-	*y = vp.y;
-	*w = vp.z;
-	*h = vp.w;
+	glViewport(x, y, w, h);
+    g_gos_renderer->setRenderViewport(vec4(x, y, w, h));
+    g_gos_renderer->updateViewport(w, h);
 }
 
 void __stdcall gos_SlugTextDraw(const char* text)
@@ -4122,19 +4076,6 @@ void __stdcall gos_SetRenderMaterialUniformBlockBindingPoint(HGOSRENDERMATERIAL 
 {
 	gosASSERT(material && name);
 	material->setUniformBlock(name, slot);
-}
-
-void __stdcall gos_SetCommonMaterialParameters(HGOSRENDERMATERIAL material)
-{
-	gosASSERT(material);
-	gosASSERT(g_gos_renderer);
-
-	const mat4& projection_obsolete = getGosRenderer()->getProj2Screen();
-	const vec4& vp = getGosRenderer()->getRenderViewport();
-
-	// TODO: make typed parameters !!!!!!!!!!!!!!! not just float* pointers, helps track errors
-	gos_SetRenderMaterialParameterMat4(material, "projection_", projection_obsolete);
-	gos_SetRenderMaterialParameterFloat4(material, "vp", vp);
 }
 
 HGOSTEXTURESAMPLER __stdcall gos_CreateTextureSampler(gos_TextureAddressMode address_s,

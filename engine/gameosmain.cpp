@@ -198,7 +198,6 @@ public:
         const int view_w = Environment.drawableWidth;
         const int view_h = Environment.drawableHeight;
         gos_SetRenderViewport(0, 0, view_w, view_h);
-        glViewport(0, 0, (GLsizei)view_w, (GLsizei)view_h);
 
         ImGui_ImplOpenGL3_RenderDrawData(&snapshot->DrawData);
 #endif

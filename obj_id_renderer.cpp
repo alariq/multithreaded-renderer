@@ -104,8 +104,7 @@ void ObjIdRenderer::Render(const struct RenderFrameContext *rfc, GLuint scene_de
         gosASSERT(checkFramebufferStatus(GL_FRAMEBUFFER));
     }
 
-    gos_SetRenderViewport(0, 0, width_, height_);
-    glViewport(0, 0, (GLsizei)width_, (GLsizei)height_);
+    gos_SetRenderViewport(0, 0, (GLsizei)width_, (GLsizei)height_);
 
 	glClear(GL_COLOR_BUFFER_BIT);
 

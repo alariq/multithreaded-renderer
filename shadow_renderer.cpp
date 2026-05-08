@@ -246,9 +246,7 @@ mat4 ShadowRenderPass::Render(const struct CSMInfo *csm_info,
 
         glClear(GL_DEPTH_BUFFER_BIT);
 
-        gos_SetRenderViewport(0, 0, width_, height_);
-
-        glViewport(0, 0, (GLsizei)width_, (GLsizei)height_);
+        gos_SetRenderViewport(0, 0, (GLsizei)width_, (GLsizei)height_);
 
         // TODO: do occlusion check against each cascade!
 

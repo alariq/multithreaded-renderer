@@ -2227,34 +2227,6 @@ typedef enum
 
 
 //
-// Setup a viewport, must be called before drawing
-//
-// Defines the region of the monitor the 3D objects will be rendered too.
-// 0.0 0.0 1.0 1.0 would be whole screen with 0,0 in the top left
-// 1.0 1.0 0.0 0.0 would be whole screen with 0,0 in bottom right
-// -0.5 -0.5 0.5 0.5 would be whole screen with 0.0 in the middle
-//
-// If FillZ is true the ZBuffer will be cleared with the value Zbuffer (0.0 to 1.0)
-// If FillBG is true the background will be cleared to the color BGColor
-//
-// Normal applications will fill the Z buffer with 1.0
-//
-void __stdcall gos_SetupViewport( bool FillZ, float ZBuffer, bool FillBG, DWORD BGColor, float top, float left, float bottom, float right, bool ClearStencil=0, DWORD StencilValue=0 );
-
-//
-// The values returned must be used to transform the x,y coords into the current
-// viewport window. This is how the values should be used.
-//
-// x = x*ViewportMulX + ViewportAddX
-// y = y*ViewportMulY + ViewportAddY
-//
-// If you call gos_SetupViewport you should call this function again. You should also
-// call this function at least once per frame as when the window size changes, these
-// values may change.
-//
-void __stdcall gos_GetViewport( float* pViewportMulX, float* pViewportMulY, float* pViewportAddX, float* pViewportAddY );
-
-//
 // Draw points, pass a pointer to an array of gos_VERTEX's - every vertex is a new point
 //  (you must set the texture to 0 if you want to disable texture mapping on the points)
 //
@@ -2312,8 +2284,7 @@ void __stdcall gos_RenderArrayInstanced(HGOSBUFFER vb, HGOSBUFFER instance_vb, u
 void __stdcall gos_RenderIndexedInstanced(HGOSBUFFER ib, HGOSBUFFER vb, HGOSBUFFER instance_vb, uint32_t instance_count, HGOSVERTEXDECLARATION vdecl, gosPRIMITIVETYPE pt); //sebi
 
 
-void __stdcall gos_SetRenderViewport(uint32_t x, uint32_t y, uint32_t w, uint32_t h);
-void __stdcall gos_GetRenderViewport(float* x, float* y, float* w, float* h); //sebi
+void __stdcall gos_SetRenderViewport(int32_t x, int32_t y, int32_t w, int32_t h);
 
 //
 // Set a renderstate
@@ -2595,9 +2566,6 @@ void __stdcall gos_ApplyRenderMaterial(HGOSRENDERMATERIAL material);
 void __stdcall gos_SetRenderMaterialParameterFloat4(HGOSRENDERMATERIAL material, const char* name, const float* v);
 void __stdcall gos_SetRenderMaterialParameterMat4(HGOSRENDERMATERIAL material, const char* name, const float* m);
 void __stdcall gos_SetRenderMaterialUniformBlockBindingPoint(HGOSRENDERMATERIAL material, const char* name, uint32_t slot);
-void __stdcall gos_SetCommonMaterialParameters(HGOSRENDERMATERIAL material);
-
-
 
 //
 // Returns a handle to a vertex buffer
@@ -2760,50 +2728,6 @@ void __stdcall gos_SetSamplerState(uint32_t index, HGOSTEXTURESAMPLER sampler);
 //
 void __stdcall gos_SetScreenMode( DWORD Width, DWORD Height, DWORD bitDepth=16, DWORD Device=0, bool disableZBuffer=0, bool AntiAlias=0, bool RenderToVram=0, bool GotoFullScreen=0, int DirtyRectangle=0, bool GotoWindowMode=0, bool EnableStencil=0, DWORD Renderer=0 );
 
-//
-// This API sets the current gamma correction value. The default value is 1.0 (no correction applied). All color values are effected by (value/255 ^ (1.0/gamma)).
-//
-void __stdcall gos_SetGammaValue( float Gamma );					// Default 1.0
-void __stdcall gos_SetBrightnessValue( DWORD Brightness );		// Value range 0-10,000, default 750 (See DirectX docs)
-void __stdcall gos_SetContrastValue( DWORD Contrast );			// Value range 0-20,000, default 10,000 (See DirectX docs)
-
-
-//
-// When this is executed the WHOLE back buffer will be saved to the copy surface
-//  (if you requested the Z buffer to be saved, it will also be copied).
-//  You should call this when you have drawn the initial background scene.
-//
-void __stdcall gosDirtyRectangleSaveTarget();
-
-//
-// Specifies a region that has been rendered to on the back buffer.
-//  Before the next BeginScene, GameOS will copy all these regions specified in the previous
-//  frame from the copy buffer to the back buffer. In this way the whole scene does not have
-//  to be re-rendered, only the areas that actually are animating or moving. If you open the
-//  debugger (Control Break) or use frame graphs the whole screen will be invalidated and it
-//  will be completly restored from the copy of the back buffer. This may be slower if the
-//  copy is in system memory, but at least all the debugger functions should still operate as normal.
-//
-void __stdcall gosDirtyRectangeRestoreArea( DWORD Left, DWORD Top, DWORD Right, DWORD Bottom );
-
-//
-// The application should call this API at the start of UpdateRenderers.
-//  If this returns TRUE it should re-render the whole scene and save the back buffer again.
-//  This will happen if the saved surfaces were in video memory and the mode has been changed.
-//  If it returns false the application can assume all the dirty rectangles have been copied over
-//  and it is free to continue rendering. On some hardware, where it is not possible to save/restore
-//  the back buffer this may return true every frame.
-//
-bool __stdcall gosDirtyRectangeLostTarget();
-
-
-
-
-
-
-
-
-//////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////
 // *************************    Texture Manager API	  ************************* //
 //////////////////////////////////////////////////////////////////////////////////

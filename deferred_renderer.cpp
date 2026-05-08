@@ -247,8 +247,7 @@ void DeferredRenderer::RenderGeometry(const struct RenderFrameContext* rfc)
 
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, deferred_fbo_);
 
-    gos_SetRenderViewport(0, 0, width_, height_);
-    glViewport(0, 0, (GLsizei)width_, (GLsizei)height_);
+    gos_SetRenderViewport(0, 0, (GLsizei)width_, (GLsizei)height_);
 
     glClear(GL_DEPTH_BUFFER_BIT|GL_COLOR_BUFFER_BIT);
 
@@ -272,8 +271,7 @@ void DeferredRenderer::RenderDirectionalLighting(const struct RenderFrameContext
 
     glBindFramebuffer(GL_FRAMEBUFFER, lighting_fbo_);
 
-    gos_SetRenderViewport(0, 0, width_, height_);
-    glViewport(0, 0, (GLsizei)width_, (GLsizei)height_);
+    gos_SetRenderViewport(0, 0, (GLsizei)width_, (GLsizei)height_);
 
     glClear(GL_COLOR_BUFFER_BIT);
     
@@ -310,12 +308,11 @@ void DeferredRenderer::RenderPointLighting(const struct RenderFrameContext* rfc)
     SCOPED_GPU_ZONE(Deferred_RenderPointLighting);
     SCOPED_ZONE_N(Deferred_RenderPointLighting, 0);
 
-    // forward_fbo_ has depth so shold be a bit faster due to depth culling
+    // forward_fbo_ has depth so should be a bit faster due to depth culling
     //glBindFramebuffer(GL_FRAMEBUFFER, lighting_fbo_);
     glBindFramebuffer(GL_FRAMEBUFFER, forward_fbo_);
 
-    gos_SetRenderViewport(0, 0, width_, height_);
-    glViewport(0, 0, (GLsizei)width_, (GLsizei)height_);
+    gos_SetRenderViewport(0, 0, (GLsizei)width_, (GLsizei)height_);
 
     gos_SetRenderState(gos_State_Culling, gos_Cull_CW);
     gos_SetRenderState(gos_State_ZCompare, 3);
@@ -372,8 +369,7 @@ void DeferredRenderer::stencil_pass(const struct RenderFrameContext* rfc) {
 
     glBindFramebuffer(GL_FRAMEBUFFER, stencil_fbo_);
 
-    gos_SetRenderViewport(0, 0, width_, height_);
-    glViewport(0, 0, (GLsizei)width_, (GLsizei)height_);
+    gos_SetRenderViewport(0, 0, (GLsizei)width_, (GLsizei)height_);
 
     // draw back and front faces
     gos_SetRenderState(gos_State_Culling, gos_Cull_None);
@@ -476,8 +472,7 @@ void DeferredRenderer::RenderForward(std::function<void(void)> f)
     gos_SetSamplerState(1, 0);
     gos_SetSamplerState(2, 0);
 
-    gos_SetRenderViewport(0, 0, width_, height_);
-    glViewport(0, 0, (GLsizei)width_, (GLsizei)height_);
+    gos_SetRenderViewport(0, 0, (GLsizei)width_, (GLsizei)height_);
 
     gos_SetRenderState(gos_State_ZCompare, 1);
     gos_SetRenderState(gos_State_ZWrite, false);
