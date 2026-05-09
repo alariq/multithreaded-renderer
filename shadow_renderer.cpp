@@ -5,6 +5,7 @@
 #include "engine/utils/gl_utils.h"
 #include "engine/utils/gl_fbo.h"
 #include "engine/utils/frustum.h"
+#include "engine/profiler/profiler.h"
 
 #include <cfloat>
 
@@ -220,7 +221,8 @@ bool ShadowRenderPass::Init(const uint32_t size, const int num_cascades)
 mat4 ShadowRenderPass::Render(const struct CSMInfo *csm_info,
                               const RenderPacketList_t &rpl) {
 
-    glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 1, -1, "ShadowRenderPass::Render");
+    SCOPED_GPU_ZONE(ShadowRenderPass_Render);
+    SCOPED_ZONE_N(ShadowRenderPass_Render, 0);
 
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fbo_);
 
@@ -282,8 +284,6 @@ mat4 ShadowRenderPass::Render(const struct CSMInfo *csm_info,
     glDrawBuffer(GL_BACK);
 
     glDisable(GL_POLYGON_OFFSET_FILL);
-
-    glPopDebugGroup();
 
     return csm_info->shadow_vp_[0];
 }

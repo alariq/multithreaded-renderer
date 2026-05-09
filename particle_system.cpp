@@ -2,6 +2,7 @@
 #include "renderer.h"
 #include "engine/utils/math_utils.h"
 #include "engine/utils/vec.h"
+#include "engine/profiler/profiler.h"
 #include <cmath>
 #include <cassert>
 
@@ -589,6 +590,9 @@ public:
 
 void RenderParticles(const RenderPacketList_t& rpl, const mat4& view, const mat4& proj)
 {
+    SCOPED_ZONE_N(RenderParticles, 0);
+    SCOPED_GPU_ZONE(RenderParticles);
+
     RenderPacketList_t::const_iterator it = rpl.begin();
     RenderPacketList_t::const_iterator end = rpl.end();
 

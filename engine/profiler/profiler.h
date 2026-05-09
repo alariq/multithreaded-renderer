@@ -15,8 +15,22 @@
 #include "engine/utils/graphics.h" // for glXXX functions required by TracyOpenGL.hpp
 #include "tracy/TracyOpenGL.hpp"
 
+struct ScopedGLMarker {
+    ScopedGLMarker(const char* name) {
+        glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 1, -1, name);
+    }
+    ~ScopedGLMarker() {
+        glPopDebugGroup();
+    }
+};
+
 #define prof_initialize()
 #define prof_finalize()
+
+
+#define PROF_CONCATENATE_MACRO_(a, b) a##b
+#define PROF_CONCATENATE_MACRO(a, b) PROF_CONCATENATE_MACRO_(a, b)
+#define SCOPED_GL_MARKER(name) ScopedGLMarker PROF_CONCATENATE_MACRO(marker, __LINE__)(#name)
 
 typedef TracyCZoneCtx prof_zone_id;
 
@@ -46,7 +60,7 @@ typedef TracyCZoneCtx prof_zone_id;
 #define FRAME_MARK() FrameMark
 #define PROF_SET_THREAD_NAME(name) TracyCSetThreadName(name)
 
-#define SCOPED_GPU_ZONE(name) TracyGpuZone(#name)
+#define SCOPED_GPU_ZONE(name) TracyGpuZone(#name); SCOPED_GL_MARKER(name);
 
 #define PROF_INIT_OPENGL() TracyGpuContext; TracyGpuContextName("GPU", 3);
 #define PROF_FINALIZE_OPENGL()
@@ -123,7 +137,8 @@ typedef int prof_zone_id;
 #define FRAME_MARK()
 #define PROF_SET_THREAD_NAME(name)
 
-#define SCOPED_GPU_ZONE(name)
+//TODO: if DEBUG_BUILD
+#define SCOPED_GPU_ZONE(name) SCOPED_GL_MARKER(name);
 
 #define PROF_INIT_OPENGL() 
 #define PROF_FINALIZE_OPENGL()

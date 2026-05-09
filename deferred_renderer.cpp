@@ -473,6 +473,9 @@ void DeferredRenderer::RenderPointLighting2(const struct RenderFrameContext* rfc
 
 void DeferredRenderer::RenderForward(std::function<void(void)> f)
 {
+    SCOPED_GPU_ZONE(RenderForward);
+    SCOPED_ZONE_N(RenderForward, 0);
+
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, forward_fbo_);
 
     gos_SetRenderState(gos_State_Texture, 0);
