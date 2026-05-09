@@ -64,7 +64,7 @@ void GameTextComp::UpdateComponent(float dt) {
 }
 
 PROPERTY_LIST_BEGIN_DERIVED(GameTextComp, Component)
-    PROPERTY_FLOAT(intensity_, "intensity", 0, 1, 0.01f);
+    PROPERTY_FLOAT(intensity_, "intensity", 0, 0, 1, 0.01f);
     PROPERTY_INT(text_size_,"text size", 0, 1);
     PROPERTY_READONLY_TEXT("text", [](const GameTextComp& c) { return c.text; });
 PROPERTY_LIST_END()
@@ -129,8 +129,8 @@ void EnemyTextComp::SetText(const char* t) {
 
 
 PROPERTY_LIST_BEGIN_DERIVED(EnemyTextComp, Component)
-    PROPERTY_FLOAT(intensity_, "intensity", 0, 1, 0.01f);
-    PROPERTY_UINT(colour_,"colour", 0, 0xFFFFFFFF, 1);
+    PROPERTY_FLOAT(intensity_, "intensity", 0, 0, 1, 0.01f);
+    PROPERTY_UINT(colour_,"colour", 0, 0, 0xFFFFFFFF, 1);
     PROPERTY_INT(text_size_,"text size", 0, 1);
     PROPERTY_READONLY_TEXT("text", [](const EnemyTextComp& c) { return c.text; });
     PROPERTY_BOOL(b_is_active_, "is active");
