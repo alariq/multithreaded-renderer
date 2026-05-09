@@ -138,6 +138,8 @@ RenderWindow* create_window(const char* pwinname, int width, int height, int wan
         Uint32 Rmask, Gmask, Bmask, Amask;
 
         int ndisp = SDL_GetNumVideoDisplays();
+        displayIndex = displayIndex < 0 ? 0 : displayIndex;
+        displayIndex = displayIndex >= ndisp ? 0 : displayIndex;
 
         fprintf(stderr, "Number of displays: %d\n", ndisp);
         for (i = 0; i < ndisp; ++i) {
@@ -167,7 +169,7 @@ RenderWindow* create_window(const char* pwinname, int width, int height, int wan
                 for (int mode_idx = 0; mode_idx < m; ++mode_idx) {
                     SDL_GetDisplayMode(i, mode_idx, &mode);
                     // get preferred mode either from given display or just first available display
-                    if(mode_idx == 0 && (displayIndex == i || (i==0 && (displayIndex > ndisp-1 || displayIndex<0)))) {
+                    if(mode_idx == 0 && displayIndex == i) {
                         preferred_mode = mode;
                     }
                     SDL_PixelFormatEnumToMasks(mode.format, &bpp, &Rmask,

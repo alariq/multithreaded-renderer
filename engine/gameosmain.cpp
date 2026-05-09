@@ -314,6 +314,12 @@ static void process_events( void ) {
             case SDL_WINDOWEVENT_FOCUS_LOST:
                 SPEW(("INPUT", "Focus lost\n"));
                 g_focus_lost = true;
+                // maybe only for Fullscreen
+                //graphics::grab_window_input(g_win, false);
+                break;
+            case SDL_WINDOWEVENT_FOCUS_GAINED:
+                SPEW(("INPUT", "Focus gained, not expected\n"));
+                g_focus_lost = false;
                 break;
             case SDL_WINDOWEVENT_CLOSE:
                 event.type = SDL_QUIT;
@@ -770,7 +776,7 @@ int main(int argc, char** argv)
     assert(0 == g_render_job_queue->size());
     delete g_render_job_queue;
 
-    SPEW(("EXIT", "Destroying window"));
+    SPEW(("EXIT", "Destroying window\n"));
     graphics::destroy_window(g_win);
 
     return 0;

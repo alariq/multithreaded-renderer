@@ -45,7 +45,7 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unknown-warning-option -Werror=conditional-uninitialized")
 elseif (CMAKE_CXX_COMPILER_ID STREQUAL "GNU") # using GCC
     # compile time trace
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fplugin=externis -fplugin-arg-externis-trace-dir=/tmp/et/")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fplugin=externis -fplugin-arg-externis-trace-dir=/tmp/")
 elseif (CMAKE_CXX_COMPILER_ID STREQUAL "Intel") # using Intel C++
 elseif (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
   # using Visual Studio C++
