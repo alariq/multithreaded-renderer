@@ -2787,7 +2787,7 @@ enum gos_TextureHints
 	gosHint_ForceAlpha=8192,		// When gos_Texture_Detect is specified as a format, an alpha texture (KEYED or ALPHA) will be returned. If a solid texture is loaded, the blue channel will be used as the alpha
 	gosHint_Compress0=16384,		// Bit 0 of compression
 	gosHint_Compress1=32768,		// Bit 1 of compression.  00=no compress, 01=some compress 10=very compressed
-    gosHint_Gamma,                   // Gamma to Linear convertion on read
+    gosHint_Gamma=32768<<1,         // Gamma to Linear convertion on read
 
 };
 

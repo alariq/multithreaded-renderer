@@ -1172,18 +1172,17 @@ bool gosTexture::createHardwareTexture() {
             }
             if(surface) SDL_FreeSurface(surface);
         }
-
-    } else if(pcompdata_ && size_ > 0 && !hints_) {
-        STOP(("Should load image data first"));
-        b_is_ok = false;
     } else {
         tex_.fmt = translate_gos_format(format_);
+        if(hints_ & gosHint_Gamma) {
+            tex_.fmt = (tex_.fmt == TF_RGBA8) ? TF_SRGB8_ALPHA8 : TF_SRGB8;
+        }
         tex_.gl_internal_format = getInternalTextureFormat(tex_.fmt);
         tex_.type = tex_type;
         
-        if(hints_ && pcompdata_ && size_) {
+        if(pcompdata_ && size_) {
             tex_ = create2DTexture(tex_type, tex_.fmt, tex_.w, tex_.h, pcompdata_);
-            if(isImageTexture(tex_.fmt)) {
+            if(isImageTexture(tex_.fmt) && tex_.type != TT_RECTANGLE) {
                 generateMipmaps(&tex_);
             }
         } else {
