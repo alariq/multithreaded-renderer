@@ -145,6 +145,7 @@ set(SOURCES
     "debug_renderer.cpp"
     "text2d_renderer.cpp"
     "deferred_renderer.cpp"
+    "forward_renderer.cpp"
     "obj_id_renderer.cpp"
     "renderer.cpp"
     "renderer.h"
