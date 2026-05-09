@@ -2025,7 +2025,7 @@ enum gos_CullMode
 //
 // Compare modes (Used for Stencil functions)
 //
-enum gos_CompareMode
+enum gos_CompareMode: u8
 {
 	gos_Cmp_Never=1,			// Always fail the test
 	gos_Cmp_Less=2,				// Accept when value is less than the reference
@@ -2042,7 +2042,7 @@ typedef gos_CompareMode gos_CompareFunc;
 //
 // Functions for stencil operations
 //
-enum gos_StencilFunctions
+enum gos_StencilFunctions: u8
 {
 	gos_Stencil_Keep=1,			// Do not update the stencil buffer
 	gos_Stencil_Zero=2,			// Set stencil buffer to 0
@@ -2130,8 +2130,8 @@ enum gos_RenderState
 	gos_State_StencilFail_Front,		// Default: gos_Stencil_Keep		Operation on the stencil buffer to perform when the function fails
 	gos_State_StencilFail_Back,		    // Default: gos_Stencil_Keep		Operation on the stencil buffer to perform when the function fails
 
-	gos_State_StencilPass_Front,		// Default: gos_Stencil_Keep		Operation on the stencil buffer to perform when the function passes and so does the Z buffer test
-	gos_State_StencilPass_Back,		    // Default: gos_Stencil_Keep		Operation on the stencil buffer to perform when the function passes and so does the Z buffer test
+	gos_State_StencilZPass_Front,		// Default: gos_Stencil_Keep		Operation on the stencil buffer to perform when the function passes and so does the Z buffer test
+	gos_State_StencilZPass_Back,		    // Default: gos_Stencil_Keep		Operation on the stencil buffer to perform when the function passes and so does the Z buffer test
 
 	gos_State_Multitexture,		// Default: gos_Multitexture_None	Select multitexture mode for rendering (see gos_GetMachineInformation to see if modes are valid)
 
@@ -2146,6 +2146,16 @@ enum gos_RenderState
     gos_State_PointSize,
 
 	gos_MaxState				// Marker for last render state
+};
+
+struct gosRSStencil {
+	u8 enable;
+    gos_CompareMode func_f, func_b;
+    i32 ref_f, ref_b;
+    u32 mask_f, mask_b;
+    gos_StencilFunctions sfail_f, sfail_b;
+    gos_StencilFunctions zfail_f, zfail_b;
+    gos_StencilFunctions zpass_f, zpass_b;
 };
 
 //
@@ -2292,6 +2302,8 @@ void __stdcall gos_SetRenderViewport(int32_t x, int32_t y, int32_t w, int32_t h)
 // All renderstates have defaults, they stay set over multiple frames until changed.
 //
 void __stdcall gos_SetRenderState( gos_RenderState RenderState, int Value );
+
+void gos_SetRS(const gosRSStencil& s);
 
 //void __stdcall gos_SetRenderState( gos_RenderState RenderState, DWORD Value ); // sebi
 

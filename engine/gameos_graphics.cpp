@@ -1896,8 +1896,8 @@ void gosRenderer::initRenderStates() {
 	renderStates_[gos_State_StencilZFail_Back] = gos_Stencil_Keep;
 	renderStates_[gos_State_StencilFail_Front] = gos_Stencil_Keep;
 	renderStates_[gos_State_StencilFail_Back] = gos_Stencil_Keep;
-	renderStates_[gos_State_StencilPass_Front] = gos_Stencil_Keep;
-	renderStates_[gos_State_StencilPass_Back] = gos_Stencil_Keep;
+	renderStates_[gos_State_StencilZPass_Front] = gos_Stencil_Keep;
+	renderStates_[gos_State_StencilZPass_Back] = gos_Stencil_Keep;
 	renderStates_[gos_State_Multitexture] = gos_Multitexture_None;
 	renderStates_[gos_State_Ambient] = 0xffffff;
 	renderStates_[gos_State_Lighting] = 0;
@@ -2030,7 +2030,7 @@ void gosRenderer::applyRenderStates() {
             GLenum cmp = translateCompareMode(renderStates_[gos_State_StencilFunc_Front + i]);
             GLenum sfail = translateStencilOp(renderStates_[gos_State_StencilFail_Front + i]);
             GLenum zfail = translateStencilOp(renderStates_[gos_State_StencilZFail_Front + i]);
-            GLenum zpass = translateStencilOp(renderStates_[gos_State_StencilPass_Front + i]);
+            GLenum zpass = translateStencilOp(renderStates_[gos_State_StencilZPass_Front + i]);
 
             glStencilFuncSeparate(face, cmp, ref, mask);
             glStencilOpSeparate(face, sfail, zfail, zpass);
@@ -2040,7 +2040,7 @@ void gosRenderer::applyRenderStates() {
             curStates_[gos_State_StencilFunc_Front + i] = renderStates_[gos_State_StencilFunc_Front + i];
             curStates_[gos_State_StencilFail_Front + i] = renderStates_[gos_State_StencilFail_Front + i];
             curStates_[gos_State_StencilZFail_Front + i] = renderStates_[gos_State_StencilZFail_Front + i];
-            curStates_[gos_State_StencilPass_Front + i] = renderStates_[gos_State_StencilPass_Front + i];
+            curStates_[gos_State_StencilZPass_Front + i] = renderStates_[gos_State_StencilZPass_Front + i];
         }
     } else {
         glDisable(GL_STENCIL_TEST);
@@ -3582,26 +3582,26 @@ void __stdcall gos_SetRenderState( gos_RenderState RenderState, int Value )
     g_gos_renderer->setRenderState(RenderState, Value);
 }
 
-void __stdcall gos_SetScreenMode( DWORD Width, DWORD Height, DWORD bitDepth/*=16*/, DWORD Device/*=0*/, bool disableZBuffer/*=0*/, bool AntiAlias/*=0*/, bool RenderToVram/*=0*/, bool GotoFullScreen/*=0*/, int DirtyRectangle/*=0*/, bool GotoWindowMode/*=0*/, bool EnableStencil/*=0*/, DWORD Renderer/*=0*/)
+void gos_SetRS(const gosRSStencil& s)
 {
-    gosASSERT(g_gos_renderer);
-    gosASSERT((GotoFullScreen && !GotoWindowMode) || (!GotoFullScreen&&GotoWindowMode) || (!GotoFullScreen&&!GotoWindowMode));
+    gos_SetRenderState(gos_State_StencilEnable, s.enable);
+    gos_SetRenderState(gos_State_StencilRef_Front, s.ref_f);
+    gos_SetRenderState(gos_State_StencilRef_Back, s.ref_b);
 
-    g_gos_renderer->updateViewport(Width, Height);
-}
+    gos_SetRenderState(gos_State_StencilMask_Front, s.mask_f);
+    gos_SetRenderState(gos_State_StencilMask_Back, s.mask_b);
 
-void __stdcall gos_SetupViewport( bool FillZ, float ZBuffer, bool FillBG, DWORD BGColor, float top, float left, float bottom, float right, bool ClearStencil/*=0*/, DWORD StencilValue/*=0*/)
-{
-    gosASSERT(g_gos_renderer);
-    g_gos_renderer->setupViewport(FillZ, ZBuffer, FillBG, BGColor, top, left, bottom, right, ClearStencil, StencilValue);
-}
+    gos_SetRenderState(gos_State_StencilFunc_Front, s.func_f);
+    gos_SetRenderState(gos_State_StencilFunc_Back, s.func_b);
 
+    gos_SetRenderState(gos_State_StencilFail_Front, s.sfail_f);
+    gos_SetRenderState(gos_State_StencilFail_Back, s.sfail_b);
 
-void __stdcall gos_SetRenderViewport(uint32_t x, uint32_t y, uint32_t w, uint32_t h)
-{
-    gosASSERT(g_gos_renderer);
-	//glViewport(x, y, w, h);
-	g_gos_renderer->setRenderViewport(vec4(x, y, w, h));
+    gos_SetRenderState(gos_State_StencilZFail_Front, s.zfail_f);
+    gos_SetRenderState(gos_State_StencilZFail_Back, s.zfail_b);
+
+    gos_SetRenderState(gos_State_StencilZPass_Front, s.zpass_f);
+    gos_SetRenderState(gos_State_StencilZPass_Back, s.zpass_b);
 }
 
 void __stdcall gos_SetRenderViewport(int32_t x, int32_t y, int32_t w, int32_t h)
