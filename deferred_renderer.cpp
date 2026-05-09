@@ -531,8 +531,7 @@ void DeferredRenderer::RenderDownsampledForward(std::function<void(void)> f, con
     gos_SetSamplerState(1, 0);
     gos_SetSamplerState(2, 0);
 
-    gos_SetRenderViewport(0, 0, ds_width_, ds_height_);
-    glViewport(0, 0, (GLsizei)ds_width_, (GLsizei)ds_height_);
+    gos_SetRenderViewport(0, 0, (i32)ds_width_, (i32)ds_height_);
     //glClearColor(0,0,0,0);
     glClear(GL_COLOR_BUFFER_BIT); // leave depth!
     //glClearColor(0,0,0,0);
@@ -548,8 +547,7 @@ void DeferredRenderer::RenderDownsampledForward(std::function<void(void)> f, con
     // upsample & blend result with main color buffer by drawing quad
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, forward_fbo_);
 
-    gos_SetRenderViewport(0, 0, width_, height_);
-    glViewport(0, 0, (GLsizei)width_, (GLsizei)height_);
+    gos_SetRenderViewport(0, 0, (GLsizei)width_, (GLsizei)height_);
     
     gos_SetRenderState(gos_State_StencilEnable, 0);
     gos_SetRenderState(gos_State_ZCompare, 1);
@@ -593,9 +591,7 @@ void DeferredRenderer::Present(int w, int h)
     glDrawBuffer(GL_BACK);
     glClear(GL_DEPTH_BUFFER_BIT|GL_COLOR_BUFFER_BIT);
 
-	gos_SetRenderViewport(0, 0, w, h);
-    glViewport(0, 0, (GLsizei)w, (GLsizei)h);
-
+    gos_SetRenderViewport(0, 0, (GLsizei)w, (GLsizei)h);
     
     gos_SetRenderState(gos_State_Texture, gos_backbuffer);
     gos_SetSamplerState(0, smp_nearest_clamp_nomips_);
