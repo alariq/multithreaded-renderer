@@ -31,6 +31,7 @@ class DeferredRenderer {
 
     HGOSTEXTURESAMPLER smp_nearest_clamp_nomips_;
     HGOSTEXTURESAMPLER smp_linear_wrap_nomips_;
+    HGOSTEXTURESAMPLER smp_linear_wrap_mips_;
     HGOSTEXTURESAMPLER smp_linear_clamp_nomips_;
 
     GLuint width_;

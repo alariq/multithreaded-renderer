@@ -6,6 +6,9 @@
 #include "profiler/profiler.h"
 #include <functional>
 
+
+#define STENCIL_MASK_GEOMETRY 0x1
+
 bool DeferredRenderer::Init(uint32_t width, uint32_t height)
 {
     GLuint fbos[5]; 
@@ -46,6 +49,10 @@ bool DeferredRenderer::Init(uint32_t width, uint32_t height)
         gos_TextureWrap, gos_TextureWrap, gos_TextureWrap, gos_FilterBiLinear,
         gos_FilterBiLinear, gos_FilterNone, false);
 
+    smp_linear_wrap_mips_ = gos_CreateTextureSampler(
+        gos_TextureWrap, gos_TextureWrap, gos_TextureWrap, gos_FilterBiLinear,
+        gos_FilterBiLinear, gos_FilterBiLinear, true);
+
     smp_linear_clamp_nomips_ = gos_CreateTextureSampler(
         gos_TextureClamp, gos_TextureClamp, gos_TextureClamp, gos_FilterBiLinear,
         gos_FilterBiLinear, gos_FilterNone, false);
@@ -80,9 +87,9 @@ bool DeferredRenderer::RecreateRenderTargets(uint32_t width, uint32_t height) {
     ds_height_ = height / 2;
     uint32_t ds_wh = (ds_height_<<16) | ds_width_;
 
-    bool use_stencil = false;
+    bool use_stencil = true;
     gos_TextureFormat depth_format = use_stencil ? gos_Texture_Depth_Stencil : gos_Texture_Depth;
-
+    const GLenum ds_attachment = use_stencil  ? GL_DEPTH_STENCIL_ATTACHMENT : GL_DEPTH_ATTACHMENT;
 
     DWORD* tex[] = { &gos_g_buffer_depth, &gos_g_buffer_albedo, &gos_g_buffer_normal, &gos_backbuffer, &gos_downsampled_color, &gos_downsampled_depth };
     const char* const name[] = { "g_buffer_depth", "g_buffer_albedo", "g_buffer_normal", "backbuffer", "downsampled_color", "downsampled_depth" };
@@ -118,9 +125,7 @@ bool DeferredRenderer::RecreateRenderTargets(uint32_t width, uint32_t height) {
         glDrawBuffers(sizeof(drawBuffers)/sizeof(drawBuffers[0]), drawBuffers);
         glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, g_buffer_albedo, 0);
         glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, g_buffer_normal, 0);
-        glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, g_buffer_depth, 0);
-        if(use_stencil)
-            glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_TEXTURE_2D, g_buffer_depth, 0);
+        glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, ds_attachment, GL_TEXTURE_2D, g_buffer_depth, 0);
         status = checkFramebufferStatus(GL_FRAMEBUFFER);
         assert(status);
     }
@@ -132,6 +137,10 @@ bool DeferredRenderer::RecreateRenderTargets(uint32_t width, uint32_t height) {
         GLuint drawBuffers[] = { GL_COLOR_ATTACHMENT0 };
         glDrawBuffers(sizeof(drawBuffers)/sizeof(drawBuffers[0]), drawBuffers);
         glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, backbuffer, 0);
+        // to only apply lighting to rendered geometry (otherwise ambient is applied to empty space)
+        // could also just check z depth value in a shader
+        if(use_stencil)
+            glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_TEXTURE_2D, g_buffer_depth, 0);
         status = checkFramebufferStatus(GL_FRAMEBUFFER);
         assert(status);
     }
@@ -142,9 +151,7 @@ bool DeferredRenderer::RecreateRenderTargets(uint32_t width, uint32_t height) {
         GLuint drawBuffers[] = { GL_COLOR_ATTACHMENT0 };
         glDrawBuffers(sizeof(drawBuffers)/sizeof(drawBuffers[0]), drawBuffers);
         glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, backbuffer, 0);
-        glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, g_buffer_depth, 0);
-        if(use_stencil)
-            glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_TEXTURE_2D, g_buffer_depth, 0);
+        glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, ds_attachment, GL_TEXTURE_2D, g_buffer_depth, 0);
         status = checkFramebufferStatus(GL_FRAMEBUFFER);
         assert(status);
     }
@@ -154,9 +161,7 @@ bool DeferredRenderer::RecreateRenderTargets(uint32_t width, uint32_t height) {
     {
         GLuint drawBuffers[] = { GL_NONE };
         glDrawBuffers(sizeof(drawBuffers)/sizeof(drawBuffers[0]), drawBuffers);
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, g_buffer_depth, 0);
-        if(use_stencil)
-            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_TEXTURE_2D, g_buffer_depth, 0);
+        glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, ds_attachment, GL_TEXTURE_2D, g_buffer_depth, 0);
         status = checkFramebufferStatus(GL_FRAMEBUFFER);
         assert(status);
     }
@@ -167,9 +172,7 @@ bool DeferredRenderer::RecreateRenderTargets(uint32_t width, uint32_t height) {
         GLuint drawBuffers[] = { GL_COLOR_ATTACHMENT0 };
         glDrawBuffers(sizeof(drawBuffers)/sizeof(drawBuffers[0]), drawBuffers);
         glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 , GL_TEXTURE_2D, downsampled_color, 0);
-        glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, downsampled_depth, 0);
-        if(use_stencil)
-            glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_TEXTURE_2D, downsampled_depth, 0);
+        glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, ds_attachment, GL_TEXTURE_2D, downsampled_depth, 0);
         status = checkFramebufferStatus(GL_FRAMEBUFFER);
         assert(status);
     }
@@ -242,15 +245,24 @@ void DeferredRenderer::RenderGeometry(const struct RenderFrameContext* rfc)
     RenderPacketList_t::const_iterator end = rpl.end();
 
     DeferredShapeRenderer r;
-    r.setup(rfc->view_, rfc->proj_, checker_tex_, smp_linear_wrap_nomips_);
+    r.setup(rfc->view_, rfc->proj_, checker_tex_, smp_linear_wrap_mips_);
 
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, deferred_fbo_);
 
     gos_SetRenderViewport(0, 0, (GLsizei)width_, (GLsizei)height_);
 
-    glClear(GL_DEPTH_BUFFER_BIT|GL_COLOR_BUFFER_BIT);
+    glClear(GL_DEPTH_BUFFER_BIT|GL_STENCIL_BUFFER_BIT|GL_COLOR_BUFFER_BIT);
 
-    gos_SetRenderState(gos_State_StencilEnable, 0);
+    gos_SetRS(gosRSStencil{
+            .enable = true,
+            .func_f = gos_Cmp_Always, .func_b = gos_Cmp_Always,
+            .ref_f = 1, .ref_b = 1,
+            .mask_f = STENCIL_MASK_GEOMETRY, .mask_b = STENCIL_MASK_GEOMETRY,
+            .sfail_f = gos_Stencil_Keep, .sfail_b = gos_Stencil_Keep,
+            .zfail_f = gos_Stencil_Keep, .zfail_b = gos_Stencil_Keep,
+            .zpass_f = gos_Stencil_Replace, .zpass_b = gos_Stencil_Replace,
+            });
+    
     gos_SetRenderState(gos_State_ZCompare, 1);
     gos_SetRenderState(gos_State_ZWrite, true);
     gos_SetRenderState(gos_State_AlphaMode, gos_Alpha_OneZero);
@@ -261,6 +273,8 @@ void DeferredRenderer::RenderGeometry(const struct RenderFrameContext* rfc)
         if(rp.is_opaque_pass)
             r.render(rp);
     }
+
+    gos_SetRenderState(gos_State_StencilEnable, 0);
 }
 
 void DeferredRenderer::RenderDirectionalLighting(const struct RenderFrameContext* rfc)
@@ -299,8 +313,21 @@ void DeferredRenderer::RenderDirectionalLighting(const struct RenderFrameContext
     gos_ApplyRenderMaterial(mat);
 
     RenderMesh* fs_quad = res_man_load_mesh("fs_quad");
+
+
+    gos_SetRS(gosRSStencil{
+            .enable = true,
+            .func_f = gos_Cmp_Equal, .func_b = gos_Cmp_Equal,
+            .ref_f = 1, .ref_b = 1,
+            .mask_f = STENCIL_MASK_GEOMETRY, .mask_b = STENCIL_MASK_GEOMETRY,
+            .sfail_f = gos_Stencil_Keep, .sfail_b = gos_Stencil_Keep,
+            .zfail_f = gos_Stencil_Keep, .zfail_b = gos_Stencil_Keep,
+            .zpass_f = gos_Stencil_Keep, .zpass_b = gos_Stencil_Keep,
+            });
+
     gos_RenderIndexedArray(fs_quad->ib_, fs_quad->vb_, fs_quad->vdecl_, fs_quad->prim_type_);
-}
+
+    gos_SetRS(gosRSStencil{ .enable = false }); }
 
 void DeferredRenderer::RenderPointLighting(const struct RenderFrameContext* rfc)
 {
@@ -377,25 +404,18 @@ void DeferredRenderer::stencil_pass(const struct RenderFrameContext* rfc) {
     // no blending
     gos_SetRenderState(gos_State_AlphaMode, gos_Alpha_OneZero);
 
-    gos_SetRenderState(gos_State_StencilEnable, 1);
-    // values for stencil test are not interesting
-    gos_SetRenderState(gos_State_StencilRef_Front, 0);
-    gos_SetRenderState(gos_State_StencilRef_Back, 0);
-    gos_SetRenderState(gos_State_StencilMask_Front, 0);
-    gos_SetRenderState(gos_State_StencilMask_Back, 0);
-
-    gos_SetRenderState(gos_State_StencilFunc_Front, gos_Cmp_Always);
-    gos_SetRenderState(gos_State_StencilFunc_Back, gos_Cmp_Always);
-
-    // for front faces
-    gos_SetRenderState(gos_State_StencilZFail_Front, gos_Stencil_Decr); // Z fail
-    gos_SetRenderState(gos_State_StencilPass_Front, gos_Stencil_Keep); // Z pass
-    // for back faces
-    gos_SetRenderState(gos_State_StencilZFail_Back, gos_Stencil_Incr); // Z fail
-    gos_SetRenderState(gos_State_StencilPass_Back, gos_Stencil_Keep); // Z pass
-    // we always pass stencil test so nothing interesting here
-    gos_SetRenderState(gos_State_StencilFail_Front, gos_Stencil_Keep);
-    gos_SetRenderState(gos_State_StencilFail_Back, gos_Stencil_Keep);
+    gos_SetRS(gosRSStencil{
+                .enable = true,
+                .func_f = gos_Cmp_Always, .func_b = gos_Cmp_Always,
+                // values for stencil test are not interesting
+                .ref_f = 0, .ref_b = 0,
+                // mask is 0 because anyway we have Cmp_Always (see glStencilFunc[Separate])
+                .mask_f = 0, .mask_b = 0,
+                // we always pass stencil test so nothing interesting here
+                .sfail_f = gos_Stencil_Keep, .sfail_b = gos_Stencil_Keep,
+                .zfail_f = gos_Stencil_Decr, .zfail_b = gos_Stencil_Incr,
+                .zpass_f = gos_Stencil_Keep, .zpass_b = gos_Stencil_Keep,
+        });
 
     glClear(GL_STENCIL_BUFFER_BIT);
     HGOSRENDERMATERIAL mat = gos_getRenderMaterial("null");
@@ -411,23 +431,15 @@ void DeferredRenderer::RenderPointLighting2(const struct RenderFrameContext* rfc
         gos_SetRenderState(gos_State_ZCompare, 0);
         gos_SetRenderState(gos_State_ZWrite, 0);
 
-        gos_SetRenderState(gos_State_StencilEnable, 1);
-
-        gos_SetRenderState(gos_State_StencilRef_Front, 0);
-        gos_SetRenderState(gos_State_StencilRef_Back, 0);
-
-        gos_SetRenderState(gos_State_StencilMask_Front, 0xff);
-        gos_SetRenderState(gos_State_StencilMask_Back, 0xff);
-
-        gos_SetRenderState(gos_State_StencilFunc_Front, gos_Cmp_NotEqual);
-        gos_SetRenderState(gos_State_StencilFunc_Back, gos_Cmp_NotEqual);
-
-        gos_SetRenderState(gos_State_StencilPass_Front, gos_Stencil_Keep);
-        gos_SetRenderState(gos_State_StencilPass_Back, gos_Stencil_Keep);
-        gos_SetRenderState(gos_State_StencilZFail_Front, gos_Stencil_Keep);
-        gos_SetRenderState(gos_State_StencilZFail_Back, gos_Stencil_Keep);
-        gos_SetRenderState(gos_State_StencilFail_Front, gos_Stencil_Keep);
-        gos_SetRenderState(gos_State_StencilFail_Back, gos_Stencil_Keep);
+        gos_SetRS(gosRSStencil{
+                .enable = true,
+                .func_f = gos_Cmp_NotEqual, .func_b = gos_Cmp_NotEqual,
+                .ref_f = 0, .ref_b = 0,
+                .mask_f = 0xff, .mask_b = 0xff,
+                .sfail_f = gos_Stencil_Keep, .sfail_b = gos_Stencil_Keep,
+                .zfail_f = gos_Stencil_Keep, .zfail_b = gos_Stencil_Keep,
+                .zpass_f = gos_Stencil_Keep, .zpass_b = gos_Stencil_Keep,
+        });
 
 #if defined(DEBUG_POINT_LIGTH_STENCIL)
         // draw fullscreen quad only where stencil is marked
@@ -587,6 +599,7 @@ void DeferredRenderer::RenderDownsampledForward(std::function<void(void)> f, con
 
 void DeferredRenderer::Present(int w, int h)
 {
+    glEnable(GL_FRAMEBUFFER_SRGB);
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glDrawBuffer(GL_BACK);
     glClear(GL_DEPTH_BUFFER_BIT|GL_COLOR_BUFFER_BIT);
@@ -606,6 +619,8 @@ void DeferredRenderer::Present(int w, int h)
     RenderMesh* fs_quad = res_man_load_mesh("fs_quad");
     gos_RenderIndexedArray(fs_quad->ib_, fs_quad->vb_, fs_quad->vdecl_, fs_quad->prim_type_);
     res_man_release_mesh(fs_quad);
+
+    glDisable(GL_FRAMEBUFFER_SRGB);
 }
 
 
