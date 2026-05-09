@@ -96,7 +96,7 @@ void C_Billboard::AddRenderPackets(struct RenderFrameContext* rfc) const {
         //rp->mesh_.two_sided_ = 1;
         rp->m_ = GetTransform();
         //rp->is_debug_pass = 1;
-        rp->is_opaque_pass = 1;
+        rp->is_forward_pass = 1;
         rp->debug_color = vec4(0, 1, 0, 1);
     }
 }

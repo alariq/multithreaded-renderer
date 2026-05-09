@@ -18,6 +18,7 @@
 #include "debug_renderer.h"
 #include "text2d_renderer.h"
 #include "deferred_renderer.h"
+#include "forward_renderer.h"
 #include "obj_id_renderer.h"
 
 #include <cstdlib>
@@ -48,6 +49,7 @@ uint32_t g_show_cascade_index = 2;
 bool render_from_shadow_camera = false;
 
 DeferredRenderer g_deferred_renderer;
+ForwardRenderer g_forward_renderer;
 ObjIdRenderer g_obj_id_renderer;
 
 camera g_camera;
@@ -496,6 +498,7 @@ void __stdcall Render(void)
 		uint32_t h = (uint32_t)Environment.drawableHeight;
         g_deferred_renderer.Init(w, h);
         g_obj_id_renderer.Init(w, h);
+        g_forward_renderer.Init();
 
         initialized = true;
 
@@ -618,9 +621,10 @@ void __stdcall Render(void)
     }
 
     g_deferred_renderer.RenderForward(
-        [&rpl, &trpl, &view_mat, &proj_mat, downsampled_particles]() {
+        [&rpl, &trpl, &view_mat, &proj_mat, rfc, downsampled_particles]() {
             if (!downsampled_particles)
                 RenderParticles(rpl, view_mat, proj_mat);
+            g_forward_renderer.Render(rfc);
             RenderDebugObjects(rpl, view_mat, proj_mat);
             gos_RenderDebugPrimitives(view_mat, proj_mat);
             RenderText2D(trpl, view_mat, proj_mat);

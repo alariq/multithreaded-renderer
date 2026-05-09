@@ -61,7 +61,8 @@ struct RenderPacket {
     const class GameObject* go_;
 #endif
     uint32_t is_render_to_shadow: 1;
-    uint32_t is_transparent_pass: 1;
+    uint32_t is_particle_pass: 1;
+    uint32_t is_forward_pass: 1;
     uint32_t is_opaque_pass: 1;
     uint32_t is_debug_pass: 1;
     uint32_t is_selection_pass: 1;

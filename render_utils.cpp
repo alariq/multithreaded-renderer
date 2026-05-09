@@ -19,7 +19,7 @@ void add_debug_mesh(struct RenderFrameContext *rfc, const RenderMesh *mesh, cons
 
     rp->is_opaque_pass = 0;
     rp->is_render_to_shadow = 0;
-    rp->is_transparent_pass = 0;
+    rp->is_particle_pass = 0;
 }
 
 void add_debug_sphere_constant_size(struct RenderFrameContext *rfc, const vec3& pos, float no_scale_distance, const vec4& color) {

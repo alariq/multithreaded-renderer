@@ -416,7 +416,7 @@ public:
         rp->mesh_.num_instances = (uint32_t)size_;
         rp->m_ = mat4::identity();
         rp->is_render_to_shadow = 0;
-        rp->is_transparent_pass = 1;
+        rp->is_particle_pass = 1;
     }
 
     void UpdateVertexData(struct RenderFrameContext* rfc)
@@ -602,7 +602,7 @@ void RenderParticles(const RenderPacketList_t& rpl, const mat4& view, const mat4
     for(;it!=end;++it)
     {
         const RenderPacket& rp = (*it);
-        if(rp.is_transparent_pass)
+        if(rp.is_particle_pass)
             pr.render(rp);
     }
     gos_SetRenderState(gos_State_AlphaMode, gos_Alpha_OneZero);
