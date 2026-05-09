@@ -167,8 +167,7 @@ void initialize_res_man() {
     assert(!is_res_man_initialized);
 
     // create default texture
-    DWORD def_tex = gos_NewTextureFromFile(gos_Texture_Detect,
-                                           "data/textures/notfound.tga");
+    DWORD def_tex = gos_NewTextureFromFile("data/textures/notfound.tga", gosHint_Gamma);
     assert(def_tex);
     g_world_textures.insert(std::make_pair("default", def_tex));
 
@@ -240,7 +239,7 @@ DWORD res_man_load_texture(const std::string& name) {
         tex_id = tex_it->second;
     } else {
         std::string tex_fname = "data/textures/" + name + ".tga";
-        tex_id = gos_NewTextureFromFile(gos_Texture_Detect, tex_fname.c_str());
+        tex_id = gos_NewTextureFromFile(tex_fname.c_str(), gosHint_Gamma);
         if(0 == tex_id) {
             printf("Failed to load: %s\n", tex_fname.c_str());
             tex_id = g_world_textures["default"];

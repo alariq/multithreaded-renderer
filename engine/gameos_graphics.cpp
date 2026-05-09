@@ -900,11 +900,24 @@ void gosMeshT<VERTEX_T>::drawIndexedInstanced(HGOSBUFFER ib, HGOSBUFFER vb, HGOS
 
 class gosTexture {
     public:
+        gosTexture(const char* fname, DWORD hints)
+        {
+            filename_ = new char[strlen(fname)+1];
+            strcpy(filename_, fname);
+            texname_ = NULL;
+            hints_ = hints;
+            plocked_area_ = NULL;
+            size_ = 0;
+            pcompdata_ = NULL;
+            is_locked_ = false;
+            is_from_memory_ = false;
+        }
+
         gosTexture(gos_TextureFormat fmt, TexType type, const char* fname, DWORD hints, BYTE* pdata, DWORD size, DWORD w, DWORD h, bool from_memory)
         {
             tex_.w = w;
             tex_.h = h;
-            tex_.type_ = type;
+            tex_.type = type;
             format_ = fmt;
             if(fname) {
                 filename_ = new char[strlen(fname)+1];
@@ -932,9 +945,6 @@ class gosTexture {
 
         gosTexture(gos_TextureFormat fmt, DWORD hints, DWORD w, DWORD h, const char* texname)
         {
-	        //if(fmt == gos_Texture_Detect /*|| fmt == gos_Texture_Keyed*/ || fmt == gos_Texture_Bump || fmt == gos_Texture_Normal)
-            //     PAUSE((""));
-
             format_ = fmt;
             if(texname) {
                 texname_ = new char[strlen(texname)+1];
@@ -975,7 +985,7 @@ class gosTexture {
         }
 
         uint32_t getTextureId() const { return tex_.id; }
-        TexType getTextureType() const { return tex_.type_; }
+        TexType getTextureType() const { return tex_.type; }
 
 		BYTE *Lock(int mip_level, const gos_LockFlags lock_flags, int *pitch) {
 			gosASSERT(is_locked_ == false);
@@ -987,21 +997,14 @@ class gosTexture {
 
             gosASSERT(lock_flags);
 			gosASSERT(!plocked_area_);
-#if 0 
-            glBindTexture(GL_TEXTURE_2D, tex_.id);
-            GLint pack_row_length;
-            GLint pack_alignment;
-            glGetIntegerv(GL_PACK_ROW_LENGTH, &pack_row_length);
-            glGetIntegerv(GL_PACK_ALIGNMENT, &pack_alignment);
-            glBindTexture(GL_TEXTURE_2D, 0);
-#endif
+
 			// always return rgba8 formatted data
 			lock_type_read_only_ = lock_flags == gosLockFlags_Read;
-			const uint32_t ts = tex_.w * tex_.h * getTexFormatPixelSize(tex_.fmt_);
+			const uint32_t ts = tex_.w * tex_.h * getTexFormatPixelSize(tex_.fmt);
 			plocked_area_ = new BYTE[ts];
 			if (lock_flags & gosLockFlags_Read) {
-				getTextureData(tex_, 0, plocked_area_, tex_.fmt_);
-				if (tex_.fmt_ == TF_RGBA8) {
+				getTextureData(tex_, 0, plocked_area_, tex_.fmt);
+				if (tex_.fmt == TF_RGBA8) {
 					for (int y = 0; y < tex_.h; ++y) {
 						for (int x = 0; x < tex_.w; ++x) {
 							DWORD rgba = ((DWORD*)plocked_area_)[tex_.w * y + x];
@@ -1022,7 +1025,7 @@ class gosTexture {
 			gosASSERT(is_locked_ == true);
 
 			if (!lock_type_read_only_) {
-				if (this->tex_.fmt_ == TF_RGBA8) {
+				if (this->tex_.fmt == TF_RGBA8) {
 					for (int y = 0; y < tex_.h; ++y) {
 						for (int x = 0; x < tex_.w; ++x) {
 							DWORD bgra = ((DWORD *)plocked_area_)[tex_.w * y + x];
@@ -1035,7 +1038,7 @@ class gosTexture {
 						}
 					}
 				}
-				updateTexture(tex_, plocked_area_, tex_.fmt_);
+				updateTexture(tex_, plocked_area_);
 			}
 
 			delete[] plocked_area_;
@@ -1091,10 +1094,26 @@ struct gosSlugTextAttribs {
     bool DisableEmbeddedCodes;
 };
 
+static TexFormat translate_gos_format(gos_TextureFormat gos_fmt) {
+    switch(gos_fmt) {
+        case gos_Texture_Depth: return TF_DEPTH32F;
+        case gos_Texture_Depth_Stencil: return TF_DEPTH24_S8;
+        case gos_Texture_RGB8: return TF_RGB8;
+        case gos_Texture_RGBA8: return TF_RGBA8;
+        case gos_Texture_R32UI: return TF_R32UI;
+        case gos_Texture_R32F: return TF_R32F;
+        case gos_Texture_R8: return TF_R8;
+        case gos_Texture_RGBA32F: return TF_RGBA32F;
+        case gos_Texture_RG16UI: return TF_RG16UI;
+        default:
+            gosASSERT("Incorrect gos fomat\n");
+            return TF_NONE;
+    }
+}
 
 bool gosTexture::createHardwareTexture() {
 
-    const TexType tex_type = tex_.type_ == TT_NONE ? TT_2D : tex_.type_;
+    const TexType tex_type = tex_.type == TT_NONE ? TT_2D : tex_.type;
     bool b_is_ok = true;
 
     if(!is_from_memory_) {
@@ -1141,91 +1160,35 @@ bool gosTexture::createHardwareTexture() {
         // check for only those formats, because lock.unlock may incorrectly work with different channes size (e.g. 16 or 32bit or floats)
         if(img_fmt != FORMAT_RGB8 && img_fmt != FORMAT_RGBA8) {
             STOP(("Unsupported texture format when loading %s\n", filename_));
+            b_is_ok = false;
         } else if(b_is_ok) {
             TexFormat tf = img_fmt == FORMAT_RGB8 ? TF_RGB8 : TF_RGBA8;
-            tex_ = create2DTexture(w, h, tf, TT_2D, pixels);
+            if(hints_ & gosHint_Gamma) {
+                tf = (tf == TF_RGBA8) ? TF_SRGB8_ALPHA8 : TF_SRGB8;
+            }
+            tex_ = create2DTexture(TT_2D, tf, w, h, pixels);
+            if(isImageTexture(tex_.fmt)) {
+                generateMipmaps(&tex_);
+            }
             if(surface) SDL_FreeSurface(surface);
         }
 
     } else if(pcompdata_ && size_ > 0 && !hints_) {
-        Image img;
-        if(!img.loadTGA(pcompdata_, size_)) {
-            SPEW(("DBG", "failed to load texture from data, filename: %s, texname: %s\n", filename_? filename_ : "NO FILENAME", texname_?texname_:"NO TEXNAME"));
-            b_is_ok = false;
-        } else {
-            FORMAT img_fmt = img.getFormat();
-            if(img_fmt != FORMAT_RGB8 && img_fmt != FORMAT_RGBA8) {
-                STOP(("Unsupported texture format when loading %s\n", filename_));
+        STOP(("Should load image data first"));
+        b_is_ok = false;
+    } else {
+        tex_.fmt = translate_gos_format(format_);
+        tex_.gl_internal_format = getInternalTextureFormat(tex_.fmt);
+        tex_.type = tex_type;
+        
+        if(hints_ && pcompdata_ && size_) {
+            tex_ = create2DTexture(tex_type, tex_.fmt, tex_.w, tex_.h, pcompdata_);
+            if(isImageTexture(tex_.fmt)) {
+                generateMipmaps(&tex_);
             }
-
-            TexFormat tf = img_fmt == FORMAT_RGB8 ? TF_RGB8 : TF_RGBA8;
-            tex_ = create2DTexture(img.getWidth(), img.getHeight(), tf, tex_type, img.getPixels());
-        }
-    } else if(format_ == gos_Texture_Depth) {
-        GLuint tex_id = createRenderTexture(tex_.w, tex_.h, GL_DEPTH_COMPONENT32F, 1);
-        tex_.id = tex_id;
-        tex_.fmt_ = TF_DEPTH32F;
-        tex_.type_ = tex_type;
-        tex_.format = GL_DEPTH_COMPONENT;
-    } else if(format_ == gos_Texture_Depth_Stencil) {
-        GLuint tex_id = createRenderTexture(tex_.w, tex_.h, GL_DEPTH32F_STENCIL8, 1);
-        tex_.id = tex_id;
-        tex_.fmt_ = TF_DEPTH32F_S8;
-        tex_.type_ = tex_type;
-        tex_.format = GL_DEPTH32F_STENCIL8;
-    } else if(format_ == gos_Texture_RGBA8) {
-        GLuint tex_id = createRenderTexture(tex_.w, tex_.h, GL_RGBA8, 1);
-        tex_.id = tex_id;
-        tex_.fmt_ = TF_RGBA8;
-        tex_.type_ = tex_type;
-        tex_.format = GL_RGBA8;
-    } else if(format_ == gos_Texture_R32UI) {
-        GLuint tex_id = createRenderTexture(tex_.w, tex_.h, GL_R32UI, 1);
-        tex_.id = tex_id;
-        tex_.fmt_ = TF_R32UI;
-        tex_.type_ = tex_type;
-        tex_.format = GL_R32UI;
-    } else if(format_ == gos_Texture_R32F) {
-        GLuint tex_id = createRenderTexture(tex_.w, tex_.h, GL_R32F, 1);
-        tex_.id = tex_id;
-        tex_.fmt_ = TF_R32F;
-        tex_.type_ = tex_type;
-        tex_.format = GL_R32F;
-    } else if(format_ == gos_Texture_R8) {
-        GLuint tex_id = createRenderTexture(tex_.w, tex_.h, GL_R8, 1);
-        tex_.id = tex_id;
-        tex_.fmt_ = TF_R8;
-        tex_.type_ = tex_type;
-        tex_.format = GL_R8;
-    } else if(format_ == gos_Texture_RG16UI) {
-        tex_.fmt_ = TF_RG16UI;
-        tex_.type_ = tex_type;
-        tex_.format = GL_RG16UI;
-        if(hints_ && pcompdata_ && size_) {
-            tex_ = create2DTexture(tex_.w, tex_.h, tex_.fmt_, tex_.type_, pcompdata_);
         } else {
-            tex_.id = createRenderTexture(tex_.w, tex_.h, GL_RG16UI, 1);
+            tex_.id = createRenderTexture(tex_.w, tex_.h, tex_.fmt, 1);
         }
-    } else if(format_ == gos_Texture_RGBA32F) {
-        tex_.fmt_ = TF_RGBA32F;
-        tex_.type_ = tex_type;
-        tex_.format = GL_RGBA32F;
-        if(hints_ && pcompdata_ && size_) {
-            tex_ = create2DTexture(tex_.w, tex_.h, tex_.fmt_, tex_.type_, pcompdata_);
-        } else {
-            tex_.id = createRenderTexture(tex_.w, tex_.h, GL_RGBA32F, 1);
-        }
-    } 
-    else {
-        //gosASSERT(0 && "How did we end up like this?");
-        gosASSERT(tex_.w >0 && tex_.h > 0);
-
-        TexFormat tf = TF_RGBA8; // TODO: check format_ and do appropriate stuff
-        DWORD* pdata = new DWORD[tex_.w*tex_.h];
-        for(int i=0;i<tex_.w*tex_.h;++i)
-            pdata[i] = 0xFF00FFFF;
-        tex_ = create2DTexture(tex_.w, tex_.h, tf, tex_type, (const uint8_t*)pdata);
-        delete[] pdata;
     }
 
     if(tex_.isValid() && (texname_ || filename_)) {
@@ -1623,7 +1586,6 @@ class gosRenderer {
         void drawPoints(gos_VERTEX* vertices, int count);
         void drawTris(gos_VERTEX* vertices, int count);
         void drawIndexedTris(gos_VERTEX* vertices, int num_vertices, WORD* indices, int num_indices);
-		void drawIndexed(HGOSBUFFER ib, HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl, const float* mvp, gosPRIMITIVETYPE pt);
 		void drawIndexed(HGOSBUFFER ib, HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl, gosPRIMITIVETYPE pt);
 		void draw(HGOSBUFFER vb, HGOSVERTEXDECLARATION vdecl, gosPRIMITIVETYPE pt, uint32_t first, uint32_t count);
 		void drawInstanced(HGOSBUFFER vb, HGOSBUFFER instanced_vb, uint32_t instance_count, HGOSVERTEXDECLARATION vdecl, gosPRIMITIVETYPE pt);
@@ -1850,7 +1812,7 @@ void gosRenderer::init() {
     break_draw_call_num_ = 0;
 
     // add fake texture so that no one will get 0 index, as it is invalid in this game
-    DWORD tex_id = gos_NewEmptyTexture(gos_Texture_sRGB_A8, "DEBUG_this_is_not_a_real_texture_debug_it!", 1,1);
+    DWORD tex_id = gos_NewEmptyTexture(gos_Texture_RGB8, "DEBUG_this_is_not_a_real_texture_debug_it!", 1,1);
     (void)tex_id;
     gosASSERT(tex_id == gosInvalidTextureID);
 
@@ -2181,14 +2143,6 @@ void gosRenderer::applyRenderStates() {
                glBindSampler(i, 0);
                setSamplerParams(tex->getTextureType(), address_mode, filter);
            }
-
-           gosTextureInfo texinfo;
-           tex->getTextureInfo(&texinfo);
-           if(renderStates_[gos_State_TextureMapBlend] == gos_BlendDecal && texinfo.format_ == gos_Texture_Alpha)
-           {
-               PAUSE((""));
-           }
-
        } else {
            glBindTexture(GL_TEXTURE_2D, 0);
        }
@@ -3250,8 +3204,7 @@ gosFont* gosFont::load(const char* fontFile) {
 
     formatted_len = S_snprintf(glyphName, glyphNameSize, "%s/%s%s", dir, fname, glyph_ext);
 	gosASSERT(formatted_len <= glyphNameSize - 1);
-
-    gosTexture* ptex = new gosTexture(gos_Texture_Alpha, TT_2D, textureName, 0, NULL, 0, 0, 0, false);
+    gosTexture* ptex = new gosTexture(textureName, gosHint_Gamma);
     if(!ptex || !ptex->createHardwareTexture()) {
         STOP(("Failed to create font texture: %s\n", textureName));
     }
@@ -3529,9 +3482,9 @@ DWORD __stdcall gos_NewTextureFromMemory( gos_TextureFormat Format, TexType type
     return g_gos_renderer->addTexture(ptex);
 }
 
-DWORD __stdcall gos_NewTextureFromFile( gos_TextureFormat Format, const char* FileName, DWORD Hints/*=0*/, gos_RebuildFunction pFunc/*=0*/, void *pInstance/*=0*/)
+DWORD __stdcall gos_NewTextureFromFile(const char* FileName, DWORD Hints/*=0*/)
 {
-    gosTexture* ptex = new gosTexture(Format, TT_2D, FileName, Hints, NULL, 0, 0, 0, false);
+    gosTexture* ptex = new gosTexture(FileName, Hints);
     if(!ptex->createHardwareTexture()) {
         STOP(("Failed to create texture\n"));
         return gosInvalidTextureID;

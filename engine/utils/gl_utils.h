@@ -13,14 +13,15 @@
 #define BUFFER_OFFSET(bytes) ((GLubyte*) NULL + (bytes))
 
 struct Texture {
-	Texture():id(0), w(0), h(0), depth(1), fmt_(TF_NONE), type_(TT_NONE) {}
+	Texture():id(0), gl_internal_format(0), w(0), h(0), depth(1), mips(0), fmt(TF_NONE), type(TT_NONE) {}
     bool isValid() { return id > 0; }
 
 	GLuint id;
-	GLenum format;
+	GLenum gl_internal_format;
 	int w, h, depth;
-    TexFormat fmt_;
-    TexType type_;
+    int mips; // -1 means full mip chain
+    TexFormat fmt;
+    TexType type;
 
 };
 
@@ -79,7 +80,11 @@ static int ogl_check_val(T input, T reference, const char* message)
     }
 }
 
-Texture create2DTexture(int w, int h, TexFormat fmt, TexType type, const uint8_t* texdata);
+bool isImageTexture(TexFormat f);
+
+Texture create2DTexture(TexType type, TexFormat fmt, int w, int h, const uint8_t* texdata);
+void generateMipmaps(Texture* t); 
+
 Texture createDynamicTexture(int w, int h, TexFormat fmt);
 Texture create3DTextureF(int w, int h, int depth);
 
@@ -87,17 +92,15 @@ Texture create3DTextureF(int w, int h, int depth);
 void setSamplerParams(TexType tt, TexAddressMode address_mode, TexFilterMode filter);
 
 // pdata_format - specifies format of data provided in pdata
-void updateTexture(const Texture& t, void* pdata, TexFormat pdata_format = TF_COUNT);
+void updateTexture(const Texture& t, void* pdata);
 void destroyTexture(Texture* tex);
 // fmt - desired format of returned data
 void getTextureData(const Texture& t, int lod, unsigned char* poutdata, TexFormat fmt = TF_COUNT);
 unsigned int getPixelSize(const TexFormat fmt);
-Texture createPBO(int w, int h, GLenum fmt, int el_size);
 void draw_quad(float x0, float y0, float x1, float y1);
 
 struct glsl_program;
 void applyTexture(glsl_program* program, int unit, const char* name, GLuint texid);
-void applyPBO(glsl_program* program, int unit, const char* name, const Texture pbo, const Texture tex);
 
 typedef void (*render_func_t)(int w, int h, void* puserdata);
 
@@ -328,8 +331,6 @@ glMesh<VERTEX>::~glMesh()
 }
 
 void draw_textured_cube(GLuint textureId);
-
-Texture load_texture_from_file(const char* texName);
 
 struct SIMPLE_VERTEX_PTN;
 glMesh<SIMPLE_VERTEX_PTN>* make_mesh_from_file(const char* filepath);

@@ -2738,20 +2738,15 @@ void __stdcall gos_SetScreenMode( DWORD Width, DWORD Height, DWORD bitDepth=16, 
 //
 enum gos_TextureFormat
 {
-	gos_Texture_Detect=-1,		// Looks at the texture alpha channel and makes it a solid, keyed or alpha
-	gos_Texture_Solid=0,		// 565 or 555 (no transparency or translucency)
-	gos_Texture_Keyed=1,		// 1555 (only a single bit of alpha)
-	gos_Texture_Alpha=2,		// 4444 or failing that 8888 (maximum alpha with at least 12 bits of RGB - ie: not 8332)
-	gos_Texture_Bump=3,			// dUdV bump map (create from monochrome image)
-	gos_Texture_Normal=4,		// texture map of normals (create from monochrome image)
-    gos_Texture_Depth=5,        // sebi: depth render target
-    gos_Texture_Depth_Stencil=6,// sebi: depth-stencil render target
-    gos_Texture_RGBA8=7,         // sebi
-    gos_Texture_R32UI=8,         // sebi
-    gos_Texture_R32F=9,         // sebi
-    gos_Texture_R8=10,        // sebi
-    gos_Texture_RGBA32F=11,    // sebi
-    gos_Texture_RG16UI=12         // sebi
+    gos_Texture_Depth,
+    gos_Texture_Depth_Stencil,
+    gos_Texture_RGB8,
+    gos_Texture_RGBA8,
+    gos_Texture_R32UI,
+    gos_Texture_R32F,
+    gos_Texture_R8,
+    gos_Texture_RGBA32F,
+    gos_Texture_RG16UI
 };
 
 //
@@ -2780,6 +2775,8 @@ enum gos_TextureHints
 	gosHint_ForceAlpha=8192,		// When gos_Texture_Detect is specified as a format, an alpha texture (KEYED or ALPHA) will be returned. If a solid texture is loaded, the blue channel will be used as the alpha
 	gosHint_Compress0=16384,		// Bit 0 of compression
 	gosHint_Compress1=32768,		// Bit 1 of compression.  00=no compress, 01=some compress 10=very compressed
+    gosHint_Gamma,                   // Gamma to Linear convertion on read
+
 };
 
 enum gos_LockFlags {
@@ -2805,56 +2802,15 @@ typedef void (__stdcall *gos_RebuildFunction)( DWORD, void *);
 
 #define gosInvalidTextureID 0
 
-//
 // Load a texture, returns a texture handle that can be passed as a renderstate
-//
-// Detect		- will look at the file's alpha channel, if no alpha found, 'Solid', within 10% varience of 0 and 255 'keyed', varied alpha means 'alpha'
-// Solid		- will load into a 555 or 565 texture (no transparentcy or translucency)
-// Keyed		- will load into the smallest alpha surface ie: 1555
-// Alpha		- will load into the largest alpha + at least 15 bit RGB surface ie: 4444 or 8888
-//
-// The file can only be a 24 or 32 bit compressed or uncompressed .TGA file currently
-//
-// Hints should be set to any combination of gos_TextureHints or 0 is a good default.
-//
-//
-DWORD __stdcall gos_NewTextureFromFile( gos_TextureFormat Format, const char* FileName, DWORD Hints=0, gos_RebuildFunction pFunc=0, void *pInstance=0 );
+DWORD __stdcall gos_NewTextureFromFile(const char* FileName, DWORD Hints=0);
 
-//
 // Loads a texture from a memory image, returns a texture handle
-//
-// Detect		- will look at the file alpha channel, if no alpha found, 'Solid', within 10% varience of 0 and 255 'keyed', varied alpha means 'alpha'
-// Solid		- will load into a 555 or 565 texture (no transparentcy or translucency)
-// Keyed		- will load into the smallest alpha surface ie: 1555
-// Alpha		- will load into the largest alpha + at least 15 bit RGB surface ie: 4444 or 8888
-//
-// The filename is used to decode the image (if .TGA or .JPG) and for friendlier debugging
-//
-// GameOS does not require the texture memory after this call - it can be reused or freed by the application
-//
-// Hints should be set to any combination of gos_TextureHints or 0 is a good default.
-//
 DWORD __stdcall gos_NewTextureFromMemory( gos_TextureFormat Format, TexType tt, BYTE* pBitmap, DWORD Size, DWORD w, DWORD h, DWORD Hints=0, const char* Name = nullptr);
 
 #define RECT_TEX(width,height) (((height)<<16)|(width))
 
-//
-//
 // Creates and empty texture, returns a texture handle
-//
-// Only square textures can be created, so only a width is specified.
-//
-// Only textures with sizes already allocated in heaps can be created (ie: 512, 256, 128, 64, 32 or 16*16)
-//
-// Detect       - Not a valid option
-// Solid		- will load into a 555 or 565 texture (no transparentcy or translucency)
-// Keyed		- will load into the smallest alpha surface ie: 1555
-// Alpha		- will load into the largest alpha + at least 15 bit RGB surface ie: 4444 or 8888
-//
-// The name passed is only used for better debugging - it can be NULL.
-//
-// Hints should be set to any combination of gos_TextureHints or 0 is a good default.
-//
 // For square textures, place the width in HeightWidth
 // For Rectangular textures, use RECT_TEX(width,height) to pack the width and height values
 //

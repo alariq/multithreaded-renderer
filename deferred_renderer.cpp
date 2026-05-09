@@ -50,8 +50,7 @@ bool DeferredRenderer::Init(uint32_t width, uint32_t height)
         gos_TextureClamp, gos_TextureClamp, gos_TextureClamp, gos_FilterBiLinear,
         gos_FilterBiLinear, gos_FilterNone, false);
 
-    checker_tex_ = gos_NewTextureFromFile(gos_Texture_Detect,
-                                          "data/textures/texture_density.tga");
+    checker_tex_ = gos_NewTextureFromFile("data/textures/texture_density.tga", gosHint_Gamma);
 
     gos_AddRenderMaterial("deferred");
     gos_AddRenderMaterial("lightpass");

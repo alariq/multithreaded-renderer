@@ -30,6 +30,9 @@ enum TexType {
 enum TexFormat {
     TF_NONE,
 
+    TF_SRGB8,
+    TF_SRGB8_ALPHA8,
+
     TF_R8,
     TF_RG8,
     TF_RGB8,
@@ -52,7 +55,7 @@ enum TexFormat {
 
     TF_DEPTH16F,
     TF_DEPTH32F,
-    TF_DEPTH16F_S8,
+    TF_DEPTH24_S8,
     TF_DEPTH32F_S8,
     TF_COUNT
 };

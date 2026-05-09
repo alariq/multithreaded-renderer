@@ -19,6 +19,10 @@
 //
 const GLint textureFormats[TF_COUNT] = {
     0,
+
+    GL_RGB,
+    GL_RGBA,
+
     GL_RED,
     GL_RG,
     GL_RGB,
@@ -47,6 +51,10 @@ const GLint textureFormats[TF_COUNT] = {
 
 const GLint textureInternalFormats[TF_COUNT] = {
     0,
+
+    GL_SRGB8,
+    GL_SRGB8_ALPHA8,
+
     GL_R8,
     GL_RG8,
     GL_RGB8,
@@ -76,6 +84,7 @@ const GLint textureInternalFormats[TF_COUNT] = {
 
 const int textureFormatNumChannels[TF_COUNT] = {
     0,
+    3, 4,
     1, 2, 3, 4,
 	1, 2, 3, 4,
 	1, 2, 3, 4,
@@ -85,6 +94,7 @@ const int textureFormatNumChannels[TF_COUNT] = {
 
 const GLint textureFormatChannelType[TF_COUNT] = {
     0,
+    GL_UNSIGNED_BYTE, GL_UNSIGNED_BYTE,
     GL_UNSIGNED_BYTE, GL_UNSIGNED_BYTE, GL_UNSIGNED_BYTE, GL_UNSIGNED_BYTE,
     GL_FLOAT, GL_FLOAT, GL_FLOAT, GL_FLOAT,
 	GL_UNSIGNED_SHORT,GL_UNSIGNED_SHORT,GL_UNSIGNED_SHORT,GL_UNSIGNED_SHORT,
@@ -95,6 +105,7 @@ const GLint textureFormatChannelType[TF_COUNT] = {
 
 const static uint32_t textureFormatChannelSize[TF_COUNT] = {
     0,
+    1, 1,
     1, 1, 1, 1,
     4, 4, 4, 4,
 	2, 2, 2, 2,
@@ -165,14 +176,20 @@ void destroyTexture(Texture* tex)
         glDeleteTextures(1, &tex->id);
 }
 
+bool isImageTexture(TexFormat f) {
+    return f >= TF_SRGB8 && f <=TF_RGBA8;
+}
 
-Texture create2DTexture(int w, int h, TexFormat fmt, TexType type, const uint8_t* texdata)
+Texture create2DTexture(TexType type, TexFormat fmt, int w, int h, const uint8_t* texdata)
 {
     // probably use functions for render target creation
     assert(fmt < TF_DEPTH16F &&
            "Shoud not create depth textures using this function");
 
     GLenum gl_target = translateTexType(type);
+    GLenum gl_format = textureFormats[fmt];
+    GLint gl_internal_format = textureInternalFormats[fmt];
+    GLenum gl_channel_type = textureFormatChannelType[fmt];
 
     GLuint texID;
 	glGenTextures(1, &texID);
@@ -180,23 +197,67 @@ Texture create2DTexture(int w, int h, TexFormat fmt, TexType type, const uint8_t
 
 	glTexParameteri(gl_target, GL_TEXTURE_WRAP_S, type == TT_RECTANGLE ? GL_CLAMP : GL_REPEAT);
 	glTexParameteri(gl_target, GL_TEXTURE_WRAP_T, type == TT_RECTANGLE ? GL_CLAMP : GL_REPEAT);
-	glTexParameteri(gl_target, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	glTexParameteri(gl_target, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexImage2D(gl_target, 0, textureInternalFormats[fmt], 
-            w, h, 0, textureFormats[fmt], textureFormatChannelType[fmt], texdata);
-    CHECK_GL_ERROR
+	glTexParameteri(gl_target, GL_TEXTURE_MAG_FILTER, type == TT_RECTANGLE ? GL_NEAREST : GL_LINEAR);
+	glTexParameteri(gl_target, GL_TEXTURE_MIN_FILTER, type == TT_RECTANGLE ? GL_NEAREST : GL_LINEAR_MIPMAP_LINEAR);
 
-	//glGenerateMipmap(GL_TEXTURE_2D);
+    glTexImage2D(gl_target, 0, gl_internal_format, w, h, 0, gl_format, gl_channel_type, texdata);
 
 	Texture t;
 	t.id = texID;
 	t.w = w;
 	t.h = h;
-	t.fmt_ = fmt;
-    t.type_ = type;
-    t.format = (GLenum)-1;
+    t.mips = 1;
+	t.fmt = fmt;
+    t.type = type;
+    t.gl_internal_format = gl_internal_format;
+    
+    return t;
 
-	return t;
+}
+
+void generateMipmaps(Texture* t) {
+#if 0
+    int num_mips = ... // funcion parameter
+    int calced_mips = 0;
+    int size = max(w, h);
+    while(size>0) {
+        calced_mips++;
+        size = size >> 1;
+    }
+
+    if(num_mips == -1) {
+        num_mips = calced_mips;
+    } else {
+        num_mips = min(num_mips, calced_mips);
+    }
+
+
+    assert(num_mips = 0 || texdata);
+
+    int my_w = w;
+    int my_h = h;
+    int offset = 0;
+
+    for(int mip=0; mip < texdata_mips; ++mip) {
+        glTexImage2D(gl_target, mip, gl_internal_format, my_w, my_h, 0, gl_format, gl_channel_type, texdata + offset);
+        CHECK_GL_ERROR;
+        offset += my_w * my_h;
+        my_w = my_w >> 1;
+        my_h = my_h >> 1;
+    }
+
+    if(texdata && num_mips > 1) {
+        glGenerateMipmap(GL_TEXTURE_2D);
+    }
+#endif
+
+    assert(t->type != TT_RECTANGLE);
+
+    GLenum gl_target = translateTexType(t->type);
+	glBindTexture(gl_target , t->id);
+    glGenerateMipmap(gl_target);
+    glBindTexture(gl_target, 0);
+    t->mips = -1; // full chain
 }
 
 Texture createDynamicTexture(int w, int h, TexFormat fmt)
@@ -217,9 +278,9 @@ Texture createDynamicTexture(int w, int h, TexFormat fmt)
 	t.id = texID;
 	t.w = w;
 	t.h = h;
-	t.fmt_ = fmt;
-    t.type_ = TT_2D;
-    t.format = (GLenum)-1;
+	t.fmt = fmt;
+    t.type = TT_2D;
+    t.gl_internal_format = (GLenum)-1;
 
 	return t;
 }
@@ -242,50 +303,25 @@ Texture create3DTextureF(int w, int h, int depth)
 	t.w = w;
 	t.h = h;
 	t.depth = depth;
-	t.format = GL_RED;
-    t.type_ = TT_3D;
-    t.fmt_ = TF_R32F;
+	t.gl_internal_format = GL_RED;
+    t.type = TT_3D;
+    t.fmt = TF_R32F;
 
 	return t;
 }
 
-Texture createPBO(int w, int h, GLenum fmt, int el_size)
-{
-	GLuint pbo;
-	glGenBuffers(1, &pbo);
-	glBindBuffer(GL_ARRAY_BUFFER, pbo);
-	glBufferData(GL_ARRAY_BUFFER,	w*h*4*el_size,	NULL, GL_STATIC_DRAW);
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
-	Texture t;
-	t.id = pbo;
-	t.w = w;
-	t.h = h;
-	t.format = fmt;
+void updateTexture(const Texture& t, void* pdata) {
 
-	return t;
-}
+    assert(t.type == TT_2D);
+    assert(t.fmt != TF_NONE && "t.format is deprecated");
 
-void updateTexture(const Texture& t, void* pdata, TexFormat pdata_format/*= TF_COUNT*/) {
-
-    assert(t.type_ == TT_2D);
 	glBindTexture(GL_TEXTURE_2D, t.id);
-    assert(t.fmt_ != TF_NONE && "t.format is deprecated");
-    if(t.fmt_ != TF_NONE) {
-        // TODO: keep this all in platform dependent data of texture
-        //GLint int_fmt = textureInternalFormats[t.fmt_];
-        GLenum fmt = (pdata_format == TF_COUNT) ? textureFormats[t.fmt_] : textureFormats[pdata_format];
-        GLenum ch_type = textureFormatChannelType[t.fmt_];
-	    //glTexImage2D(GL_TEXTURE_2D, 0, int_fmt, t.w, t.h, 0, fmt, ch_type, pdata);
-        
-	    //glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, t.w, t.h, 0, GL_RGBA, GL_UNSIGNED_BYTE, pdata);
-        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, t.w, t.h, fmt, ch_type, pdata);
-		CHECK_GL_ERROR
-		//glGenerateMipmap(GL_TEXTURE_2D);
-    } else {
-        // deprecated
-	    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, t.w, t.h, 0, t.format, GL_UNSIGNED_BYTE, pdata);
-        CHECK_GL_ERROR
-    }
+
+    GLenum fmt = textureFormats[t.fmt];
+    GLenum ch_type = textureFormatChannelType[t.fmt];
+    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, t.w, t.h, fmt, ch_type, pdata);
+    CHECK_GL_ERROR
+
 	glBindTexture(GL_TEXTURE_2D, 0);
 }
 
@@ -308,8 +344,8 @@ void setSamplerParams(TexType tt, TexAddressMode address_mode, TexFilterMode fil
 void getTextureData(const Texture& t, int lod, unsigned char* poutdata, TexFormat format/*= TF_COUNT*/) {
 
     glBindTexture(GL_TEXTURE_2D, t.id);
-    GLenum fmt = (format == TF_COUNT) ? textureFormats[t.fmt_] : textureFormats[format];
-    GLenum ch_type = textureFormatChannelType[t.fmt_];
+    GLenum fmt = (format == TF_COUNT) ? textureFormats[t.fmt] : textureFormats[format];
+    GLenum ch_type = textureFormatChannelType[t.fmt];
     glGetTexImage(GL_TEXTURE_2D, lod, fmt, ch_type, poutdata);
     CHECK_GL_ERROR
     glBindTexture(GL_TEXTURE_2D, 0);
@@ -345,19 +381,6 @@ void applyTexture(glsl_program* program, int unit, const char* name, GLuint texi
 		glBindTexture(GL_TEXTURE_2D, texid);
 		glUniform1i(program->samplers_[ name ]->index_, unit);
         CHECK_GL_ERROR
-	}
-}
-
-void applyPBO(glsl_program* program, int unit, const char* name, const Texture pbo, const Texture tex)
-{
-	if(program->samplers_.count( name ))
-	{
-		assert(pbo.h==tex.h && pbo.w==tex.w && pbo.format==tex.format);
-		glActiveTexture(GL_TEXTURE0 + unit);
-		glBindTexture(GL_TEXTURE_2D, tex.id);
-		glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pbo.id);
-		glTexImage2D(GL_TEXTURE_2D, 0, pbo.format, pbo.w, pbo.h, 0, pbo.format, GL_UNSIGNED_BYTE, 0);
-		glUniform1i(program->samplers_[ name ]->index_, unit);
 	}
 }
 
@@ -501,45 +524,6 @@ void draw_textured_cube(GLuint textureId)
 
 	if(textureId)
 		glBindTexture(GL_TEXTURE_2D, 0);
-}
-
-
-Texture load_texture_from_file(const char* texName)
-{
-	Texture t;
-
-	Image* fontTexture_ = new Image();
-	if( false == fontTexture_->loadFromFile(texName) )
-		return t;
-	
-	// support only 32bit textures :P
-
-	int bpp = getBytesPerPixel(fontTexture_->getFormat());
-	assert(bpp == 3 || bpp == 4);
-	GLenum format = bpp==3 ? GL_RGB : GL_RGBA;
-
-	glGenTextures(1, &t.id);
-	glBindTexture(GL_TEXTURE_2D, t.id);
-
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexImage2D(GL_TEXTURE_2D, 0, format, fontTexture_->getWidth(), 
-		fontTexture_->getHeight(), 0, format, GL_UNSIGNED_BYTE, 
-		fontTexture_->getPixels());
-
-
-	t.w = fontTexture_->getWidth();
-	t.h = fontTexture_->getHeight();
-	t.format = format;
-	t.depth = 1;
-
-	glBindTexture(GL_TEXTURE_2D, 0);
-	
-	delete fontTexture_;
-
-	return t;
 }
 
 /*

@@ -11,7 +11,7 @@
 #include "utils/gl_fbo.h"
 #include "utils/gl_utils.h" // CHECK_GL_ERROR
 
-GLuint createRenderTexture(uint32_t w, uint32_t h, int int_fmt, uint32_t levels)
+GLuint createRenderTexture(uint32_t w, uint32_t h, TexFormat fmt, uint32_t levels)
 {
 	GLuint rt;
 	glGenTextures(1, &rt);
@@ -22,7 +22,7 @@ GLuint createRenderTexture(uint32_t w, uint32_t h, int int_fmt, uint32_t levels)
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
-	glTexStorage2D(GL_TEXTURE_2D, levels, int_fmt, w, h);
+	glTexStorage2D(GL_TEXTURE_2D, levels, textureInternalFormats[fmt], w, h);
 
 	glBindTexture(GL_TEXTURE_2D, 0);
 
