@@ -31,7 +31,7 @@ void main(void)
     //TODO: move to a single place (duplicatd deferred.frag)
     vec3 ambient = vec3(0.1, 0.05, 0.05);
 
-    vec3 c = albedo.rgb;// + ambient;
+    vec3 c = diffuse.rgb + ambient;
     FragColor = vec4(c*albedo.w, albedo.w);
 }
 
