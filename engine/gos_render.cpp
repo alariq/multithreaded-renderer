@@ -107,6 +107,8 @@ RenderWindow* create_window(const char* pwinname, int width, int height, int wan
     SDL_GL_SetAttribute( SDL_GL_DOUBLEBUFFER, 1 );
 
     SDL_GL_SetAttribute(SDL_GL_ACCELERATED_VISUAL, 1);
+    // need this if we want to use GL_FRAMEBUFFER_SRGB
+    SDL_GL_SetAttribute(SDL_GL_FRAMEBUFFER_SRGB_CAPABLE, 1);
 
     // 4x multisampling :P
     // disable, and add as setting later.

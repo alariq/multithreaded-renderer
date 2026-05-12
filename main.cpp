@@ -494,6 +494,8 @@ void __stdcall Render(void)
         gos_AddRenderMaterial("directional_shadow");
         gos_AddRenderMaterial("particle");
 
+        initialize_render_editor();
+
 		uint32_t w = (uint32_t)Environment.drawableWidth;
 		uint32_t h = (uint32_t)Environment.drawableHeight;
         g_deferred_renderer.Init(w, h);

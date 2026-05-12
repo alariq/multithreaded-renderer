@@ -15,6 +15,7 @@ struct UserEditorInterface {
 };
 
 void initialize_editor();
+void initialize_render_editor();
 void finalize_editor();
 
 void editor_update(struct camera* cam, const float dt);

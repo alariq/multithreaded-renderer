@@ -13,6 +13,7 @@
 #include "utils/logging.h"
 #include "utils/math_utils.h"
 #include "utils/camera_utils.h"
+#include "profiler/profiler.h"
 
 #include <algorithm>
 #include <vector>
@@ -192,6 +193,11 @@ void initialize_editor()
 {
 }
 
+void initialize_render_editor()
+{
+    gos_AddRenderMaterial("imgui");
+}
+
 void finalize_editor()
 {
 }
@@ -266,6 +272,9 @@ static EditorOpMode update_input_mode(const EditorOpMode ed_mode, bool mouse_but
 #if defined(USE_IMGUI)
 // TODO: add switch for a fullscreen when no UI is drawn and we just use our standard g_deferred_renderer.Present()
 #include "imgui.h"
+
+static ImVec2 DisplayPos;
+static ImVec2 DisplaySize;
 #endif
 static ivec4 g3DViewRect;
 static bool g3DViewFocused = false;
@@ -273,6 +282,8 @@ static bool g3DViewHovered = false;
 ivec4 editor_get_3dview_rect() { return g3DViewRect; } // actually not really an editor function, but let it be here for now
 bool editor_get_3dview_hovered() { return g3DViewHovered; }
 ivec4 editor_calc_3dview(bool b_exclusive_3dview, intptr_t scene_colour) {
+
+    SCOPED_GL_MARKER("Draw3dView");
 
     g3DViewFocused = true;
     g3DViewHovered = true;
@@ -301,6 +312,42 @@ ivec4 editor_calc_3dview(bool b_exclusive_3dview, intptr_t scene_colour) {
         ImVec2 pos = ImGui::GetCursorScreenPos();
         ImVec2 csize = ImGui::GetContentRegionAvail();
 
+        ImGuiIO& io = ImGui::GetIO();
+        // this is not strictly thread safe as lambda is exeuted in a separate thread,
+        // but DisplayPos/Size are not changing that often and even if they are
+        // it is not of a big deal. but ImGui::DrawData is gone, so we cannot get these
+        // from Imgui:::GetDrawData() TODO: Talk to Omar, maybe to pass draw_data to Callback as well.
+        DisplaySize = io.DisplaySize;
+        // ok, until we use multiple viewports
+        DisplayPos = ImGui::GetMainViewport()->Pos;
+
+        ImGui::GetWindowDrawList()->AddCallback([](const ImDrawList* parent_list, const ImDrawCmd* cmd) {
+                HGOSRENDERMATERIAL imgui_mat = gos_getRenderMaterial("imgui");
+
+				float L = DisplayPos.x;
+				float R = DisplayPos.x + DisplaySize.x;
+				float T = DisplayPos.y;
+				float B = DisplayPos.y + DisplaySize.y;
+				const float ortho_projection[4][4] =
+				{
+				{ 2.0f / (R - L),   0.0f,         0.0f,   0.0f },
+				{ 0.0f,         2.0f / (T - B),   0.0f,   0.0f },
+				{ 0.0f,         0.0f,        -1.0f,   0.0f },
+				{ (R + L) / (L - R),  (T + B) / (B - T),  0.0f,   1.0f },
+				};
+
+                mat4 m;
+                memcpy(&m.elem[0][0], &ortho_projection[0][0], sizeof(float)*16);
+                // we pass matrices to OpenGL transposed (row-major order)
+                // see glUniformMatrix "transpose = GL_TRUE" parameter
+                // but this ortho_projection is in column-major (directly taken from ImGui code)
+                // therefore we transpose it
+                m = transpose(m);
+
+                gos_SetRenderMaterialParameterMat4(imgui_mat, "ProjMtx", (const float*)m);
+                gos_ApplyRenderMaterial(imgui_mat);
+        }, nullptr);
+
         //ImGui::Image((ImTextureID)(intptr_t)scene_colour, csize);
         ImGui::GetWindowDrawList()->AddImage(
                 (ImTextureID)(intptr_t)scene_colour,
@@ -308,6 +355,8 @@ ivec4 editor_calc_3dview(bool b_exclusive_3dview, intptr_t scene_colour) {
                 ImVec2(pos.x + csize.x, pos.y + csize.y), 
                 ImVec2(0, 1), ImVec2(1, 0)
                 );
+
+        ImGui::GetWindowDrawList()->AddCallback(ImDrawCallback_ResetRenderState, nullptr);
 
         ImGui::End();
 
