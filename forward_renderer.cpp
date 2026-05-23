@@ -111,7 +111,7 @@ void ForwardRenderer::Render(const struct RenderFrameContext* rfc)
     gos_SetRS(gosRSStencil{.enable = false});
 
     // premultiplied transparency
-    gos_SetRenderState(gos_State_AlphaMode, gos_Alpha_AlphaOne);
+    gos_SetRenderState(gos_State_AlphaMode, gos_Alpha_OneInvAlpha);
 
     for(auto& rp: tmp)
         fr.render(rp);

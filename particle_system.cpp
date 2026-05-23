@@ -601,7 +601,7 @@ void RenderParticles(const RenderPacketList_t& rpl, const mat4& view, const mat4
 
     gos_SetRenderState(gos_State_ZCompare, 1);
     gos_SetRenderState(gos_State_ZWrite, false);
-    gos_SetRenderState(gos_State_AlphaMode, gos_Alpha_AlphaInvAlpha);
+    gos_SetRenderState(gos_State_AlphaMode, gos_Alpha_OneInvAlpha);
     gos_SetRenderState(gos_State_Culling, gos_Cull_None);
     for(;it!=end;++it)
     {
