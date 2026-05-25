@@ -3077,6 +3077,7 @@ vec2 PBDUnifiedTimestep::getBoundaryGrad(PBDUnifiedSimulation* sim, int i, const
 		}
 	}
 
+    (void)contacts;
     //return contacts!=0 ? grad/contacts : vec2(0.0f);
     return grad;
 }

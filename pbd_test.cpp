@@ -422,14 +422,14 @@ void scene_rigid_body_restitution_test(PBDUnifiedSimulation* sim) {
     vec2 world_size = pbd_unified_sim_get_world_bounds(sim);
 
     const int num_rb = 4;
-    float e = 1.0f;
+    //float e = 1.0f;
     vec2 dp = vec2(5.0f*r, 0.0f);
 	vec2 pos = vec2(13.0f * r, world_size.y * 0.5f);
 	for (int i = 0; i < num_rb; ++i) {
 		/*int idx = */pbd_unified_sim_add_box_rigid_body(sim, 3, 2, pos, 0, 1000);
 		//pbd_unified_sim_particle_set_params(sim, idx, 0.0f, 0.0f, e);
         pos += dp;
-		e -= 1.0f / num_rb;
+		//e -= 1.0f / num_rb;
 	}
 }
 #endif
