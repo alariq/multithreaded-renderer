@@ -14,7 +14,10 @@ TODO:
    [x] add billboards support
    [ ] make parallax skyboxes (moving fraction of main camera scale/depth based)
    [x] debug names for OpenGL resources / passes for better debugging
-   [ ] sRGB correct rendering
+   [x] sRGB correct rendering
+   [ ] fix transparency for gizmo
+   [ ] fix scaling for debug sphere (currently dependent on 3d view size)
+   [ ] fix regression in point lighting (probably related to sRGB or alpha states)
    [ ] HDR (at least 10bit buffers)
    [x] check why ALPHA_TEST is defined for shaders when I am not using it
    [o] Font rendering
@@ -26,5 +29,6 @@ TODO:
    [x] add selection through PropertySheet
    [ ] zoom to selected object
    [ ] multi-selection (transform a bunch of objects at once)
-   [ ] Support for gizmos not attached to GameObjects, but to e.g. spline control points). Each object its own pass to draw gizmos?
+   [x] Support for gizmos not attached to GameObjects, but to e.g. spline control points). Each object its own pass to draw gizmos?
+   [ ] properly fix race condition in g_obj_under_cursor
  
