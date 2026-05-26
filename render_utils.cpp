@@ -14,8 +14,8 @@ void add_debug_mesh(struct RenderFrameContext *rfc, const RenderMesh *mesh, cons
 	rp->debug_color = color;
 
     rp->is_debug_pass = 1;
-	rp->is_selection_pass = (selection_id && selection_id > ReservedObjIds::kLast) ? 1 : 0;
-	rp->is_gizmo_pass = (selection_id && selection_id < ReservedObjIds::kLast) ? 1 : 0;
+	rp->is_selection_pass = (selection_id && selection_id > ReservedObjIds::kGizmoLast) ? 1 : 0;
+	rp->is_gizmo_pass = (selection_id && selection_id <= ReservedObjIds::kGizmoLast) ? 1 : 0;
 
     rp->is_opaque_pass = 0;
     rp->is_render_to_shadow = 0;

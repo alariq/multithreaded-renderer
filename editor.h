@@ -1,5 +1,6 @@
 #pragma once
 #include "engine/utils/vec.h"
+#include "engine/utils/quaternion.h"
 #include <stdint.h>
 
 struct UserEditorInterface {
@@ -14,6 +15,22 @@ struct UserEditorInterface {
     name_t name;
 };
 
+struct ITransformInterface {
+    virtual void SetPosition(vec3, void* userdata) = 0;
+    virtual vec3 GetPosition(void* userdata) const = 0;
+    virtual void SetRotation(quaternion, void* userdata) = 0;
+    virtual quaternion GetRotation(void* userdata) const = 0;
+
+    virtual void SetScale(vec3 s, void* userdata) = 0;
+    virtual vec3 GetScale(void* userdata) const = 0;
+    virtual vec3 GetWorldSpaceScale(void* userdata) const = 0;
+    virtual void SetWorldSpaceScale(const vec3 ws, void* userdata) = 0;
+
+    virtual bool HasMove() const = 0;
+    virtual bool HasRotate() const = 0;
+    virtual bool HasScale() const = 0;
+};
+
 void initialize_editor();
 void initialize_render_editor();
 void finalize_editor();
@@ -23,6 +40,9 @@ void editor_render_update(struct RenderFrameContext *rfc, bool b_editor_mode, bo
 
 int editor_register_user_editor(UserEditorInterface ue_interface);
 void editor_unregister_user_editor(int id);
+
+// returns selection buffer object index
+int editor_add_gizmo(struct ITransformInterface*, void* userdata);
 
 void editor_set_selected_obj(class GameObject* go);
 class GameObject* editor_get_selected_obj();

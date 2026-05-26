@@ -31,8 +31,9 @@ namespace ReservedObjIds {
 		kGizmoScaleYZ,
 		kGizmoScaleXYZ,
 		kGizmoLast,
-		// here can go other ids
-		kLast,
+        kFirstEditorObjectId,
+        kFirstGameObjectId = 0x100,
+		//kLast,
 	};
 }
 
@@ -49,7 +50,7 @@ typedef uint32_t GameObjectId;
 
 namespace scene {
 	constexpr uint32_t kInvalidObjectId = 0xffffffff;
-	constexpr uint32_t kFirstGameObjectId = ReservedObjIds::kLast;
+	constexpr uint32_t kFirstGameObjectId = ReservedObjIds::kFirstGameObjectId;
 }
 
 void initialize_scene(const struct camera* cam, struct RenderFrameContext* rfc);

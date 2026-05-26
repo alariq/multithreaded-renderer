@@ -5,6 +5,7 @@
 #include "utils/frustum.h"
 #include "utils/imgui_property_list.h"
 #include "scene.h"
+#include "editor.h"
 
 #include <cstdint>
 #include <algorithm>
@@ -85,6 +86,8 @@ class IEditorObject: public imgui_props::IPolymorphicPropertyObject {
 public:
     virtual int GetIconID() const { return 1; }
     virtual int IsSelectable() const { return true; }
+    virtual const struct ITransformInterface* GetTransformInterface() const = 0;
+    virtual ITransformInterface* GetTransformInterface() = 0;
 };
 
 // TODO: use array with compile time hashes as Component type
@@ -135,7 +138,7 @@ class Component: public imgui_props::IPolymorphicPropertyObject {
 template<> inline constexpr ComponentType 
 get_component_type<class TransformComponent>() { return ComponentType::kTransform; }
 
-class TransformComponent : public Component {
+class TransformComponent : public Component, public ITransformInterface {
   public:
 	typedef void (*on_transformed_fptr_t)(TransformComponent*);
 
@@ -199,7 +202,7 @@ class TransformComponent : public Component {
 	virtual void Initialize() override { state_ = kInitialized; }
 	virtual void Deinitialize() override { state_ = kUninitialized; }
 
-	mat4 GetTransform() const {
+	const mat4& GetTransform() const {
 		assert(!b_need_recalculate);
 		return wtransform_;
 	}
@@ -253,6 +256,20 @@ class TransformComponent : public Component {
 	void RemoveChild(TransformComponent *child);
 
 	virtual void UpdateComponent(float dt) override;
+
+    bool IsValid() { return true; }
+    void SetPosition(vec3 p, void* ) override { SetPosition(p); }
+    vec3 GetPosition(void* ) const override { return GetPosition(); } 
+    void SetRotation(quaternion q, void* ) override { SetRotation(q); }
+    quaternion GetRotation(void* ) const override { return GetRotation(); }
+    void SetScale(vec3 s, void* ) override { SetScale(s); }
+    vec3 GetScale(void* ) const override { return GetScale(); }
+    vec3 GetWorldSpaceScale(void* ) const override { return GetWorldSpaceScale(); }
+    void SetWorldSpaceScale(const vec3 ws, void* ) override { SetWorldSpaceScale(ws); }
+
+    virtual bool HasMove() const override { return true; }
+    virtual bool HasRotate() const override { return true; }
+    virtual bool HasScale() const override { return true; }
 };
 
 PROPERTY_LIST_DECLARE_DERIVED(TransformComponent, Component)
@@ -415,8 +432,8 @@ public:
     }
 
     virtual void AddRenderPackets(struct RenderFrameContext* ) const {};
-    virtual const TransformComponent* GetTransformInterface() const { return GetComponent<TransformComponent>(); };
-    virtual TransformComponent* GetTransformInterface() { return GetComponent<TransformComponent>(); };
+    virtual const TransformComponent* GetTransformInterface() const override { return GetComponent<TransformComponent>(); };
+    virtual TransformComponent* GetTransformInterface() override { return GetComponent<TransformComponent>(); };
 };
 
 PROPERTY_LIST_DECLARE_DERIVED(GameObject, void)

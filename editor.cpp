@@ -20,12 +20,6 @@
 #include <cassert>
 #include <cfloat> // FLT_MAX
 
-enum class EditorOpMode {
-	kMove,
-	kRotate,
-	kScale
-};
-
 enum class GizmoMode {
 	kMove,
 	kRotate,
@@ -56,16 +50,8 @@ class Gizmo {
 	const quaternion& get_rotation_q() const { return rot_q_; }
 	void set_world_space(bool ws) { bWorldSpace = ws; }
 	bool get_world_space() { return bWorldSpace; }
-	void update_mode(const EditorOpMode ed_mode) {
-		if (EditorOpMode::kMove == ed_mode)
-			mode_ = GizmoMode::kMove;
-		else if (EditorOpMode::kRotate == ed_mode)
-			mode_ = GizmoMode::kRotate;
-		else if (EditorOpMode::kScale == ed_mode)
-			mode_ = GizmoMode::kScale;
-		else
-			mode_ = GizmoMode::kMove;
-	}
+	void set_mode(const GizmoMode mode) { mode_ = mode; }
+    GizmoMode get_mode() const { return mode_; }
 
 	float get_gizmo_scale(const struct RenderFrameContext* rfc) const {
 		return get_scale(pos_, rfc->view_, rfc->proj_, rfc->fov_, rfc->b_is_perspective_);
@@ -184,8 +170,30 @@ const float Gizmo::kScreenPercentage = .05f;
 Gizmo g_gizmo;
 
 // TODO: move all variables in a single Editor state
-static EditorOpMode s_editor_mode = EditorOpMode::kMove;
 static GameObject* g_sel_obj = nullptr;
+
+struct TIWrapper {
+    ITransformInterface* ti_ = nullptr;
+    void* ud_ = nullptr;
+
+    void Init(ITransformInterface* ti, void* ud) { ti_ = ti; ud_ = ud; }
+    bool IsValid() const { return ti_; }
+
+    void SetPosition(vec3 p) { assert(IsValid()); ti_->SetPosition(p, ud_); }
+    vec3 GetPosition() const { assert(IsValid()); return ti_->GetPosition(ud_); }
+    void SetRotation(quaternion q) { assert(IsValid()); ti_->SetRotation(q, ud_); }
+    quaternion GetRotation() const { assert(IsValid()); return ti_->GetRotation(ud_); }
+    void SetScale(vec3 s) { assert(IsValid()); ti_->SetScale(s, ud_); }
+    vec3 GetScale() const { assert(IsValid()); return ti_->GetScale(ud_); }
+    vec3 GetWorldSpaceScale() const { assert(IsValid()); return ti_->GetWorldSpaceScale(ud_); }
+    void SetWorldSpaceScale(const vec3 ws) { assert(IsValid()); ti_->SetWorldSpaceScale(ws, ud_); }
+    bool HasMove() const { return IsValid() ? ti_->HasMove() : false; }
+    bool HasRotate() const { return IsValid() ? ti_->HasRotate() : false; }
+    bool HasScale() const { return IsValid() ? ti_->HasScale() : false; }
+};
+
+//TODO: clear it on object destroy
+static TIWrapper g_sel_tr;
 
 static std::vector<UserEditorInterface> registered_editors;
 static int g_active_user_editor = -1;
@@ -240,6 +248,13 @@ GameObject* select_object_under_cursor(const camera *cam, float x, float y) {
     return closest_obj;
 }
 
+std::vector<std::pair<uint32_t, std::pair<ITransformInterface*, void*>>> g_transformables;
+int editor_add_gizmo(struct ITransformInterface* ti, void* userdata) {
+    int id = g_transformables.size() + ReservedObjIds::kFirstEditorObjectId;
+    g_transformables.push_back(std::make_pair(id, std::make_pair(ti, userdata)));
+    return id;
+}
+
 // drag related variables
 static bool drag_started = false;
 static vec3 drag_start_mouse_world_pos;
@@ -255,15 +270,15 @@ static int drag_type;
 
 static vec3 drag_rotation_gizmo_helper_pos;
 
-static EditorOpMode update_input_mode(const EditorOpMode ed_mode, bool mouse_buttons_pressed) {
+static GizmoMode update_input_mode(const GizmoMode ed_mode, bool mouse_buttons_pressed) {
 
     if(!mouse_buttons_pressed) {
         if(gos_GetKeyStatus(KEY_Q) == KEY_PRESSED)
-            return EditorOpMode::kMove;
+            return GizmoMode::kMove;
         if(gos_GetKeyStatus(KEY_W) == KEY_PRESSED)
-            return EditorOpMode::kRotate;
+            return GizmoMode::kRotate;
         if(gos_GetKeyStatus(KEY_E) == KEY_PRESSED)
-            return EditorOpMode::kScale;
+            return GizmoMode::kScale;
     }
 
     return ed_mode;
@@ -451,8 +466,13 @@ void editor_update(camera *cam, const float dt) {
 	if (gos_GetKeyStatus(KEY_1) == KEY_RELEASED)
 		g_gizmo.set_world_space(!g_gizmo.get_world_space());
 		
-	s_editor_mode = update_input_mode(s_editor_mode, !!buttonsPressed);
-	g_gizmo.update_mode(s_editor_mode);
+	GizmoMode gizmo_mode = update_input_mode(g_gizmo.get_mode(), !!buttonsPressed);
+    if((gizmo_mode == GizmoMode::kMove && g_sel_tr.HasMove()) ||
+       (gizmo_mode == GizmoMode::kRotate && g_sel_tr.HasRotate()) ||
+       (gizmo_mode == GizmoMode::kScale && g_sel_tr.HasScale())) {
+
+        g_gizmo.set_mode(gizmo_mode);
+    }
 
 	const uint32_t sel_id = scene_get_object_id_under_cursor();
 	GameObject *go_under_cursor = nullptr;
@@ -463,21 +483,20 @@ void editor_update(camera *cam, const float dt) {
 	if (gos_GetKeyStatus(KEY_LMOUSE) == KEY_PRESSED) {
 		if (go_under_cursor) {
 			g_sel_obj = go_under_cursor;
-			const auto *tc = g_sel_obj->GetTransformInterface();
-			if (tc) {
-				g_gizmo.set_position(tc->GetPosition());
-				g_gizmo.set_rotation(tc->GetRotation());
+            g_sel_tr.Init(g_sel_obj->GetTransformInterface(), nullptr);
+			if (g_sel_tr.IsValid()) {
+				g_gizmo.set_position(g_sel_tr.GetPosition());
+				g_gizmo.set_rotation(g_sel_tr.GetRotation());
 			}
 		}
 		else if (sel_id >= ReservedObjIds::kGizmoFirst && sel_id < ReservedObjIds::kGizmoLast) {
 			gosASSERT(g_sel_obj);
 			drag_type = sel_id;
-			const auto *tc = g_sel_obj->GetTransformInterface();
-			if (tc) {
-				drag_start_obj_pos = tc->GetPosition();
-				drag_start_obj_rot = tc->GetRotation();
-				drag_start_obj_scale = tc->GetScale();
-				drag_start_obj_world_scale = tc->GetWorldSpaceScale();
+			if (g_sel_tr.IsValid()) {
+				drag_start_obj_pos = g_sel_tr.GetPosition();
+				drag_start_obj_rot = g_sel_tr.GetRotation();
+				drag_start_obj_scale = g_sel_tr.GetScale();
+				drag_start_obj_world_scale = g_sel_tr.GetWorldSpaceScale();
 				mat4 vm = cam->get_view();
 				vec3 vp = (vm * vec4(drag_start_obj_pos, 1.0f)).getXYZ();
 				drag_obj_view_dist = vp.z;
@@ -488,14 +507,26 @@ void editor_update(camera *cam, const float dt) {
 				drag_started = true;
 			}
 		}
+        else if(sel_id >= ReservedObjIds::kFirstEditorObjectId && sel_id < ReservedObjIds::kFirstGameObjectId) {
+            for(auto pair: g_transformables) {
+                if(pair.first == sel_id) {
+                    g_sel_tr.Init(pair.second.first, pair.second.second);
+                    g_gizmo.set_position(g_sel_tr.GetPosition());
+                    g_gizmo.set_rotation(g_sel_tr.GetRotation());
+                }
+            }
+        } else {
+            g_sel_tr.Init(nullptr, nullptr);
+        }
 	}
+
     const bool lmouse_down = gos_GetKeyStatus(KEY_LMOUSE) == KEY_PRESSED || gos_GetKeyStatus(KEY_LMOUSE) == KEY_HELD;
 	if (drag_started && lmouse_down && drag_start_mouse_proj_pos!=cur_mouse_proj_pos) {
 		gosASSERT(g_sel_obj);
 		drag_cur_mouse_world_pos = screen2world(cam, cur_mouse_proj_pos, drag_obj_view_dist);
 
-		auto *tc = g_sel_obj->GetTransformInterface();
-		g_gizmo.set_position(tc->GetPosition());
+        const vec3 sel_obj_pos = g_sel_tr.GetPosition();
+		g_gizmo.set_position(sel_obj_pos);
 		vec3 ray_origin;
 		vec3 ray_dir;
         if(cam->get_is_perspective()) {
@@ -521,7 +552,7 @@ void editor_update(camera *cam, const float dt) {
 				vec3 pr_start = project_on_vector(ray_dir, drag_start_mouse_world_pos, axis);
 				vec3 pr_end = project_on_vector(ray_dir, drag_cur_mouse_world_pos, axis);
 				vec3 upd_pos = drag_start_obj_pos + (pr_end - pr_start);
-				tc->SetPosition(upd_pos);
+				g_sel_tr.SetPosition(upd_pos);
 				break;
 			}
 			case ReservedObjIds::kGizmoMoveXZ:
@@ -529,7 +560,7 @@ void editor_update(camera *cam, const float dt) {
 			case ReservedObjIds::kGizmoMoveYZ:
 			{
 				const int plane_idx = drag_type - ReservedObjIds::kGizmoMoveXZ;
-				vec3 cur_pos = tc->GetPosition(); // maybe start pos?
+				vec3 cur_pos = sel_obj_pos; // maybe start pos?
 				const vec4 planes[3] = {vec4(0.0f, 1.0f, 0.0f, cur_pos.y),
 										vec4(0.0f, 0.0f, 1.0f, cur_pos.z),
 										vec4(1.0f, 0.0f, 0.0f, cur_pos.x)};
@@ -543,14 +574,14 @@ void editor_update(camera *cam, const float dt) {
 				vec3 upd_pos = ray_plane_intersect(ray_dir, ray_origin, plane);
 				drag_rotation_gizmo_helper_pos = upd_pos;
 
-				tc->SetPosition(upd_pos - offset);
+				g_sel_tr.SetPosition(upd_pos - offset);
 				break;
 			}
 			case ReservedObjIds::kGizmoRotateX:
 			case ReservedObjIds::kGizmoRotateY:
 			case ReservedObjIds::kGizmoRotateZ:
 			{
-				vec3 cur_pos = tc->GetPosition();
+				vec3 cur_pos = sel_obj_pos;
 				int plane_idx = drag_type - ReservedObjIds::kGizmoRotateX;
 				const vec4 wplanes[3] = {vec4(1.0f, 0.0f, 0.0f, cur_pos.x),
 										vec4(0.0f, 1.0f, 0.0f, cur_pos.y),
@@ -579,7 +610,7 @@ void editor_update(camera *cam, const float dt) {
 
 				quaternion add_rot = quaternion(rot_axis, angle * k);
 				quaternion upd_rot = add_rot * drag_start_obj_rot;
-				tc->SetRotation(upd_rot);
+				g_sel_tr.SetRotation(upd_rot);
 				g_gizmo.set_rotation(upd_rot);
 
 				break;
@@ -603,7 +634,7 @@ void editor_update(camera *cam, const float dt) {
 
 				quaternion add_rot = quaternion(axis, angle);
 				quaternion upd_rot = add_rot * drag_start_obj_rot;
-				tc->SetRotation(upd_rot);
+				g_sel_tr.SetRotation(upd_rot);
 				g_gizmo.set_rotation(upd_rot);
 
 				drag_rotation_gizmo_helper_pos = upd_pos;
@@ -630,10 +661,10 @@ void editor_update(camera *cam, const float dt) {
 				// could be handled by adding 4th matrix Sw so the wole stack will be: T * Sw * R * Sl,
 				// but I think it is a bit of an overkill, so no support for World Space scale at the moment
 				if (g_gizmo.get_world_space()) {
-					tc->SetWorldSpaceScale(drag_start_obj_world_scale * scale_axis);
+					g_sel_tr.SetWorldSpaceScale(drag_start_obj_world_scale * scale_axis);
 				}
 				else {
-					tc->SetScale(drag_start_obj_scale * scale_axis);
+					g_sel_tr.SetScale(drag_start_obj_scale * scale_axis);
 				}
 				break;
 			}
@@ -656,24 +687,25 @@ void editor_update(camera *cam, const float dt) {
         g_sel_obj = registered_editors[g_active_user_editor].update(cam, dt, g_sel_obj);
     }
 
+    g_transformables.clear();
 }
 
 
 void editor_render_update(struct RenderFrameContext *rfc, bool b_editor_mode, bool b_exclusive_3dview)
 {
+
     if(b_editor_mode) {
         if(g_sel_obj) {
-            auto *tc = g_sel_obj->GetTransformInterface();
-            if(tc) {
+            if(g_sel_tr.IsValid()) {
                 if(!drag_started) {
                     // object may be updating its position
-                    g_gizmo.set_position(tc->GetPosition());
-                    g_gizmo.set_rotation(tc->GetRotation());
+                    g_gizmo.set_position(g_sel_tr.GetPosition());
+                    g_gizmo.set_rotation(g_sel_tr.GetRotation());
                 } else {
 
                     if ((uint32_t)drag_type >= ReservedObjIds::kGizmoMoveXZ &&
                             (uint32_t)drag_type <= ReservedObjIds ::kGizmoRotateXYZ) {
-                        // a) only makes sence when we drag as its position is in absolute coord,
+                        // a) only makes sense when we drag as its position is in absolute coord,
                         // and will not take into accout gizmo scaling
                         // b) when mouse if not moving will draw last known position, minor, fix it later
                         float s = g_gizmo.get_gizmo_scale(rfc);

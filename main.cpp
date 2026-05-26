@@ -259,9 +259,6 @@ void __stdcall Update(void)
 	scene_set_object_id_under_cursor(g_obj_under_cursor);
 
 	UpdateCamera(dt_sec, g_is_in_editor, editor_get_3dview_rect());
-    if(g_is_in_editor) {
-	    editor_update(&g_camera, dt_sec);
-    }
 
     // TODO: we call it even in game mode becase game can run in editor viewport
     // need to add something like WITH_EDITOR, so we can distinguish between
@@ -294,7 +291,10 @@ void __stdcall Update(void)
         }
     }
 
-	g_obj_under_cursor = scene::kInvalidObjectId;
+    if(g_is_in_editor) {
+	    editor_update(&g_camera, dt_sec);
+    }
+
 
 	// prepare list of objects to render
     BEGIN_ZONE_N(acq_zone, AcquireRenderList, 0);
