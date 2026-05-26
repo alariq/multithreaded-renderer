@@ -290,6 +290,12 @@ ivec4 editor_calc_3dview(bool b_exclusive_3dview, intptr_t scene_colour) {
     ivec4 rect = ivec4(0, 0, Environment.drawableWidth, Environment.drawableHeight);
 
 #if defined(USE_IMGUI)
+
+    ImGuiIO& io = ImGui::GetIO();
+    if((ImGui::GetMainViewport()->Flags & ImGuiViewportFlags_IsMinimized) || io.DisplaySize.x == 0 || io.DisplaySize.y == 0) {
+        return ivec4(0, 0, 1, 1);
+    }
+
     if(!b_exclusive_3dview) {
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
         ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
@@ -312,7 +318,6 @@ ivec4 editor_calc_3dview(bool b_exclusive_3dview, intptr_t scene_colour) {
         ImVec2 pos = ImGui::GetCursorScreenPos();
         ImVec2 csize = ImGui::GetContentRegionAvail();
 
-        ImGuiIO& io = ImGui::GetIO();
         // this is not strictly thread safe as lambda is exeuted in a separate thread,
         // but DisplayPos/Size are not changing that often and even if they are
         // it is not of a big deal. but ImGui::DrawData is gone, so we cannot get these
@@ -320,7 +325,6 @@ ivec4 editor_calc_3dview(bool b_exclusive_3dview, intptr_t scene_colour) {
         DisplaySize = io.DisplaySize;
         // ok, until we use multiple viewports
         DisplayPos = ImGui::GetMainViewport()->Pos;
-
         ImGui::GetWindowDrawList()->AddCallback([](const ImDrawList* parent_list, const ImDrawCmd* cmd) {
                 HGOSRENDERMATERIAL imgui_mat = gos_getRenderMaterial("imgui");
 
@@ -342,8 +346,15 @@ ivec4 editor_calc_3dview(bool b_exclusive_3dview, intptr_t scene_colour) {
                 // see glUniformMatrix "transpose = GL_TRUE" parameter
                 // but this ortho_projection is in column-major (directly taken from ImGui code)
                 // therefore we transpose it
+                const float width = R - L;
+                const float height = B - T;
+                assert(width > 0.0f && height != 0.0f);
                 m = transpose(m);
-
+                assert(std::isfinite(m.elem[0][0]));
+                assert(std::isfinite(m.elem[1][1]));
+                assert(std::isfinite(m.elem[3][0]));
+                assert(std::isfinite(m.elem[3][1]));
+                
                 gos_SetRenderMaterialParameterMat4(imgui_mat, "ProjMtx", (const float*)m);
                 gos_ApplyRenderMaterial(imgui_mat);
         }, nullptr);
