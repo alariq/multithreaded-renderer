@@ -200,6 +200,8 @@ class Curve {
     
         int getNumSegments() const { return pts_.size() >= 4 ? pts_.size() - 3 : 0; }
         int getNumNodes() const { return pts_.size() >= 2 ? pts_.size() - 2 : 0; }
+        vec3 getNodeValue(int i) const { assert(i >= 0 && i < getNumNodes()); return pts_[i+1]; }
+        void setNodeValue(int i, const T& p);
 
         float GetLength(float t0, float t1) const;
 

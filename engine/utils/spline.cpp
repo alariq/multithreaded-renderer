@@ -145,6 +145,19 @@ r32 Curve<T>::GetLength(r32 t0, r32 t1) const
 template float Curve<float>::GetLength(float t0, float t1) const;
 template float Curve<vec3>::GetLength(float t0, float t1) const;
 
+
+template<typename T>
+void Curve<T>::setNodeValue(int i, const T& p)
+{
+    assert(i >= 0 && i < getNumNodes());
+    pts_[i+1] = p;
+    segment_lengths_.reset();
+}
+
+template void Curve<float>::setNodeValue(int i, const float& p);
+template void Curve<vec3>::setNodeValue(int i, const vec3& p);
+
+
 SplineClosestPointResult spline_get_closest_point(
     const Curve<vec3>& curve,
     const vec3& position,
