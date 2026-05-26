@@ -16,8 +16,7 @@ void add_debug_mesh_constant_size(struct RenderFrameContext *rfc, const struct R
 
 // only useful for 2d screen aligned objects
 // pixels - approx amount of pixels object should have on the screen
-void add_debug_mesh_constant_size_px(struct RenderFrameContext *rfc, const struct RenderMesh *mesh,
+void add_debug_mesh_constant_size_px(struct RenderFrameContext *rfc, const RenderMesh *mesh, float world_bounds,
 										 const vec4 &color, const mat4 &tr_m,
                                          const uint32_t pixels,
 										 uint32_t selection_id = 0);
-

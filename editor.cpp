@@ -98,11 +98,11 @@ class Gizmo {
 		const float al = kAxisLength;
 		const float aw = kAxisWidth;
 
-		const mat4 tr_x = mat4::translation(pos) * rot * mat4::translation(vec3(al * scaler, 0.0f, 0.0f)) * 
+		const mat4 tr_x = mat4::translation(pos) * rot * mat4::translation(vec3(0.5f * al * scaler, 0.0f, 0.0f)) * 
 						  mat4::scale(vec3(al, aw, aw) * scaler);
-		const mat4 tr_y = mat4::translation(pos) * rot * mat4::translation(vec3(0.0f, al *scaler, 0.0f)) * 
+		const mat4 tr_y = mat4::translation(pos) * rot * mat4::translation(vec3(0.0f, 0.5f * al *scaler, 0.0f)) * 
 						  mat4::scale(vec3(aw, al, aw) * scaler);
-		const mat4 tr_z = mat4::translation(pos) * rot * mat4::translation(vec3(0.0f, 0.0f, al * scaler)) * 
+		const mat4 tr_z = mat4::translation(pos) * rot * mat4::translation(vec3(0.0f, 0.0f, 0.5f * al * scaler)) * 
 						  mat4::scale(vec3(aw, aw, al) * scaler);
 
 		uint32_t axis_x_id = GizmoMode::kMove == mode ? ReservedObjIds::kGizmoMoveX : 0;
@@ -116,11 +116,11 @@ class Gizmo {
 			const float cl = aw*kScaleCubesScale;
 			const mat4 scale_cube_scale = mat4::scale(vec3(cl, cl, cl) * scaler);
 			const mat4 tr_sx =
-				mat4::translation(pos) * rot * mat4::translation(vec3(2.0f * al * scaler, 0.0f, 0.0f)) * scale_cube_scale ;
+				mat4::translation(pos) * rot * mat4::translation(vec3(1.0f * al * scaler, 0.0f, 0.0f)) * scale_cube_scale ;
 			const mat4 tr_sy =
-				mat4::translation(pos) * rot * mat4::translation(vec3(0.0f, 2.0f * al * scaler, 0.0f)) * scale_cube_scale ;
+				mat4::translation(pos) * rot * mat4::translation(vec3(0.0f, 1.0f * al * scaler, 0.0f)) * scale_cube_scale ;
 			const mat4 tr_sz =
-				mat4::translation(pos) * rot * mat4::translation(vec3(0.0f, 0.0f, 2.0f * al * scaler)) * scale_cube_scale ;
+				mat4::translation(pos) * rot * mat4::translation(vec3(0.0f, 0.0f, 1.0f * al * scaler)) * scale_cube_scale ;
 
 			add_debug_mesh(rfc, cube, tr_sx, vec4(1.0f, 0.15f, 0.15f, 1.0f),
 						   ReservedObjIds::kGizmoScaleX);
@@ -135,7 +135,7 @@ class Gizmo {
 		}
 
         const float sl = al*0.25f*scaler;
-        const float st = al*scaler;
+        const float st = 0.5f*al*scaler;
 		const mat4 tr_xz = mat4::translation(pos) * rot * mat4::translation(vec3(st, 0.0f, st)) * mat4::scale(vec3(sl, sl*0.01f, sl));
 		const mat4 tr_yx = mat4::translation(pos) * rot * mat4::translation(vec3(st, st, 0.0f)) * mat4::scale(vec3(sl, sl, sl*0.01f));
 		const mat4 tr_yz = mat4::translation(pos) * rot * mat4::translation(vec3(0.0f, st, st)) * mat4::scale(vec3(sl*0.01f, sl, sl));
@@ -176,10 +176,10 @@ class Gizmo {
 	}
 };
 
-const float Gizmo::kAxisLength = 1.0f;
-const float Gizmo::kAxisWidth = .05f;
-const float Gizmo::kRotSphereRadius = 1.5f;
-const float Gizmo::kScaleCubesScale = 1.2f;
+const float Gizmo::kAxisLength = 2*1.0f;
+const float Gizmo::kAxisWidth = 2*.05f;
+const float Gizmo::kRotSphereRadius = 2*1.5f;
+const float Gizmo::kScaleCubesScale = 2*1.2f;
 const float Gizmo::kScreenPercentage = .05f;
 Gizmo g_gizmo;
 

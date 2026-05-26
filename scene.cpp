@@ -328,8 +328,8 @@ void scene_render_update(struct RenderFrameContext *rfc, bool is_in_editor_mode,
 		if (is_in_editor_mode && tc && icon_id > 0) {
 			RenderMesh* mesh = res_man_load_mesh("xy_quad");
 			vec3 pos = tc->Transform(vec3(0));
-			add_debug_mesh_constant_size_px(rfc, mesh, vec4(0, 0.5, 1, 1),
-											mat4::translation(pos), 10, go->GetId());
+			add_debug_mesh_constant_size_px(rfc, mesh, 1, vec4(0, 0.5, 1, 1),
+											mat4::translation(pos), 20, go->GetId());
 
 			if (true) {
 				// just a test that quaternions do same thing as matrix, should be in a

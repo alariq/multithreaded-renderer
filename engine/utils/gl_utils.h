@@ -487,11 +487,11 @@ void  draw_mesh_ptn(bool b_wireframe, camera* pcam, glsl_program* pmat, glMesh<T
 }
 
 template<typename MeshBuffer>
-void subdivide(MeshBuffer& mb, int& vb_offset, typename MeshBuffer::ib_type& ib_offset, vec3 a, vec3 b, vec3 c, int subdiv_count)
+void subdivide(MeshBuffer& mb, int& vb_offset, typename MeshBuffer::ib_type& ib_offset, vec3 a, vec3 b, vec3 c, float r, int subdiv_count)
 {
-    vec3 ab = normalize(lerp(a, b, 0.5f));
-    vec3 bc = normalize(lerp(b, c, 0.5f));
-    vec3 ca = normalize(lerp(c, a, 0.5f));
+    vec3 ab = r * normalize(lerp(a, b, 0.5f));
+    vec3 bc = r * normalize(lerp(b, c, 0.5f));
+    vec3 ca = r * normalize(lerp(c, a, 0.5f));
     static const bool ccw = true;
 
     if(0 == subdiv_count-1) { 
@@ -523,10 +523,10 @@ void subdivide(MeshBuffer& mb, int& vb_offset, typename MeshBuffer::ib_type& ib_
         vb_offset+=3;
         ib_offset+=3;
     } else {
-        subdivide(mb, vb_offset, ib_offset, a, ab, ca, subdiv_count-1);
-        subdivide(mb, vb_offset, ib_offset, ca, ab, bc, subdiv_count-1);
-        subdivide(mb, vb_offset, ib_offset, ca, bc, c, subdiv_count-1);
-        subdivide(mb, vb_offset, ib_offset, ab, b, bc, subdiv_count-1);
+        subdivide(mb, vb_offset, ib_offset, a, ab, ca, r, subdiv_count-1);
+        subdivide(mb, vb_offset, ib_offset, ca, ab, bc, r, subdiv_count-1);
+        subdivide(mb, vb_offset, ib_offset, ca, bc, c, r, subdiv_count-1);
+        subdivide(mb, vb_offset, ib_offset, ab, b, bc, r, subdiv_count-1);
     }
 }
 
@@ -585,6 +585,9 @@ void generate_tetrahedron(MeshBuffer& mb)
 template<typename MeshBuffer>
 void generate_sphere(MeshBuffer& mb, unsigned int subdiv_count)
 {
+    // default radius is 0.5f
+    // could use vertices from here as well
+    // https://www.geometrictools.com/Documentation/PlatonicSolids.pdf
     const float oo_sqrt2 = 1.0f / sqrt(2.0f);
     const vec3 A(0.0f, 1.0f, oo_sqrt2);
     const vec3 B(0.0f, -1.0f, oo_sqrt2);
@@ -601,17 +604,18 @@ void generate_sphere(MeshBuffer& mb, unsigned int subdiv_count)
     vec3 c = C;
     vec3 d = D;
 
-    vec3 na = normalize(vec3(a.x, a.y, a.z));
-    vec3 nb = normalize(vec3(b.x, b.y, b.z));
-    vec3 nc = normalize(vec3(c.x, c.y, c.z));
-    vec3 nd = normalize(vec3(d.x, d.y, d.z));
+    const float r = 0.5f;
+    vec3 na = r * normalize(vec3(a.x, a.y, a.z));
+    vec3 nb = r * normalize(vec3(b.x, b.y, b.z));
+    vec3 nc = r * normalize(vec3(c.x, c.y, c.z));
+    vec3 nd = r * normalize(vec3(d.x, d.y, d.z));
 
     typename MeshBuffer::ib_type ib_offset = 0;
     int vb_offset = 0;
-    subdivide(mb, vb_offset, ib_offset, nb, na, nc, subdiv_count);
-    subdivide(mb, vb_offset, ib_offset, nb, nc, nd, subdiv_count);
-    subdivide(mb, vb_offset, ib_offset, nb, nd, na, subdiv_count);
-    subdivide(mb, vb_offset, ib_offset, na, nd, nc, subdiv_count);
+    subdivide(mb, vb_offset, ib_offset, nb, na, nc, r, subdiv_count);
+    subdivide(mb, vb_offset, ib_offset, nb, nc, nd, r, subdiv_count);
+    subdivide(mb, vb_offset, ib_offset, nb, nd, na, r, subdiv_count);
+    subdivide(mb, vb_offset, ib_offset, na, nd, nc, r, subdiv_count);
     assert(vb_offset<=(int)mb.vb_size_);
     assert(ib_offset<=(int)mb.ib_size_);
 }
@@ -620,14 +624,14 @@ template<typename MeshBuffer>
 void generate_cube(MeshBuffer& mb, const vec3 scale, const vec3 offset)
 {
     mb.allocate_vb(36);
-    vec3 xyz = vec3(1,1,1)*scale + offset;
-    vec3 _yz = vec3(-1,1,1)*scale + offset;
-    vec3 x_z = vec3(1,-1,1)*scale + offset;
-    vec3 xy_ = vec3(1,1,-1)*scale + offset;
-    vec3 x__ = vec3(1,-1,-1)*scale + offset;
-    vec3 _y_ = vec3(-1,1,-1)*scale + offset;
-    vec3 __z = vec3(-1,-1,1)*scale + offset;
-    vec3 ___ = vec3(-1,-1,-1)*scale + offset;
+    vec3 xyz = vec3(0.5f,0.5f,0.5f)*scale + offset;
+    vec3 _yz = vec3(-0.5f,0.5f,0.5f)*scale + offset;
+    vec3 x_z = vec3(0.5f,-0.5f,0.5f)*scale + offset;
+    vec3 xy_ = vec3(0.5f,0.5f,-0.5f)*scale + offset;
+    vec3 x__ = vec3(0.5f,-0.5f,-0.5f)*scale + offset;
+    vec3 _y_ = vec3(-0.5f,0.5f,-0.5f)*scale + offset;
+    vec3 __z = vec3(-0.5f,-0.5f,0.5f)*scale + offset;
+    vec3 ___ = vec3(-0.5f,-0.5f,-0.5f)*scale + offset;
 
     vec3 nx = vec3(1,0,0);
     vec3 ny = vec3(0,1,0);

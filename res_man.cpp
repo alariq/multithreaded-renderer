@@ -158,7 +158,7 @@ static RenderMesh *CreateAxesRenderMesh() {
 static RenderMesh *CreateTorusRenderMesh() {
 
     SVDAdapter<> svd_adapter;
-    generate_torus(svd_adapter, 1.0f, 0.035f, 32, 32);
+    generate_torus(svd_adapter, .5f, 0.035f, 32, 32);
     return render_mesh_from_mesh_buffer(svd_adapter, get_svd_vdecl());
 }
 
