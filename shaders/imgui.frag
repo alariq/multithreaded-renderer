@@ -20,5 +20,5 @@ vec3 linear_to_srgb(vec3 cl) {
 void main()
 {
     vec4 c = Frag_Color * texture(tex1, Frag_UV.st);
-    Out_Color = vec4(linear_to_srgb(c.rgb), c.w);
+    Out_Color = vec4(linear_to_srgb(c.rgb), 1);
 }
