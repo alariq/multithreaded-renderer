@@ -4,6 +4,10 @@
 #include <memory.h>
 #include "utils/vec.h"
 #include "utils/imgui_property_list.h"
+#include "utils/my_types.h"
+
+//kNone - not aligned to any plane k<Right><Up>
+enum class ePlanes:u8 { kNone, kZY, kXY, kXZ };
 
 struct camera //: public imgui_props::IPolymorphicPropertyObject
 {
@@ -49,6 +53,11 @@ struct camera //: public imgui_props::IPolymorphicPropertyObject
     static mat4 make_lookat(const vec3& eye, const vec3& target, const vec3& up_dir);
     static mat4 make_lookat_opengl(const vec3& eye, const vec3& target, const vec3& up_dir);
 
+    // I do not like it, either just pass it so view matrix will be created based on it
+    // or some other way, this is fragile
+    void set_ortho_plane(ePlanes plane) { ortho_plane_ = plane; }
+    ePlanes get_ortho_plane() { return ortho_plane_; }
+
 //private:
 
     float get_fov() const { return fov_; }
@@ -79,6 +88,7 @@ private:
     float near_;
     float far_;
     bool is_perspective_;
+    ePlanes ortho_plane_;
 };
 
 PROPERTY_LIST_DECLARE(camera);
@@ -138,8 +148,9 @@ class ortho_camera {
     public:
 
     static const int NUM_VIEWS = 3;
-    static const constexpr vec3 la_targets[NUM_VIEWS] = { vec3(-1,0,0), vec3(0,0,-1), vec3(0,-1,0) };
-    static const constexpr vec3 la_ups[NUM_VIEWS] = { vec3(0,1,0), vec3(0,1,0), vec3(0,0,1) };
+    static const constexpr vec3 targets[NUM_VIEWS] = { vec3(-1,0,0), vec3(0,0,-1), vec3(0,-1,0) };
+    static const constexpr vec3 ups[NUM_VIEWS] = { vec3(0,1,0), vec3(0,1,0), vec3(0,0,1) };
+    static const constexpr ePlanes view_type[NUM_VIEWS] = { ePlanes::kZY, ePlanes::kXY, ePlanes::kXZ };
 
     float dx, dy, dz;
 
@@ -156,6 +167,7 @@ class ortho_camera {
     void set_pos(const vec3& pos) { pos_ = pos; }
     void update(float dt);
     mat4 get_view() const { return view_ ; }
+    ePlanes get_view_type() const { return view_type[proj_idx_]; }
 };
 
 

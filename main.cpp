@@ -181,6 +181,8 @@ void UpdateCamera(float dt, bool b_editor, ivec4 view_rect)
         g_camera.set_view(g_cam_controller.get_view());
 	}
 
+    g_camera.set_ortho_plane(g_use_parallel_projection ? g_ortho_cam_controller.get_view_type() : ePlanes::kNone);
+
     if(RMB_down) {
         bool b_full = false;
         int wrap_min_x = b_full ? 0 : view_x;

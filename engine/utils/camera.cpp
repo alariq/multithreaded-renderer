@@ -266,10 +266,9 @@ void ortho_camera::set_proj_idx(int i) {
 
 void ortho_camera::update(float dt) {
 
-    mat4 view = camera::make_lookat(vec3(0), la_targets[proj_idx_], la_ups[proj_idx_]);
+    mat4 view = camera::make_lookat(vec3(0), targets[proj_idx_], ups[proj_idx_]);
 
     pos_ = project_vector_on_plane(pos_, vec4(view.getForwardVec(), 0)); 
-
     pos_ += dx * view.getRightVec();
     pos_ += dy * view.getUpVec();
 
@@ -277,7 +276,7 @@ void ortho_camera::update(float dt) {
     //    cam_proj += view_.getForwardVec() * (WheelDelta>0 ? 20 : -20);
     //}
 
-    // get far enough
+    // get far enough (TODO: use scroll instead of hardcoded value)
     pos_ += -200 * view.getForwardVec();
 
 	// update view matrix

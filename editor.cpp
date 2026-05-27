@@ -7,6 +7,7 @@
 #include "render_utils.h"
 #include "engine/gameos.hpp"
 #include "engine/utils/camera.h"
+#include "engine/utils/my_types.h"
 #include "utils/logging.h"
 #include "utils/vec.h"
 #include "utils/quaternion.h"
@@ -28,6 +29,27 @@ enum class GizmoMode {
 
 
 class Gizmo {
+    public:
+    enum:u32 { 
+		kMoveX = 0x01,
+		kMoveY = 0x02,
+		kMoveZ = 0x04,
+
+		kRotateX = 0x8,
+		kRotateY = 0x10,
+		kRotateZ = 0x20,
+
+		kScaleX = 0x40,
+		kScaleY = 0x80,
+		kScaleZ = 0x100,
+
+        kMove = kMoveX|kMoveY|kMoveZ,
+        kRotate = kRotateX|kRotateY|kRotateZ,
+        kScale = kScaleX|kScaleY|kScaleZ,
+        kAll = kMove|kRotate|kScale,
+    };
+    private:
+
 	static const float kAxisLength;
 	static const float kAxisWidth;
 	static const float kRotSphereRadius;
@@ -39,6 +61,7 @@ class Gizmo {
 	mat4 rot_ = mat4::identity();
     quaternion rot_q_ = quaternion::identity();
 	bool bWorldSpace = false;
+    u32 flags_ = kAll;
 
   public:
 	// controlled object position
@@ -52,6 +75,27 @@ class Gizmo {
 	bool get_world_space() { return bWorldSpace; }
 	void set_mode(const GizmoMode mode) { mode_ = mode; }
     GizmoMode get_mode() const { return mode_; }
+    void set_flags(u32 flags) { flags_ = flags; }
+    u32 get_flags() { return flags_; }
+
+    void update_mode(GizmoMode new_mode, bool bCanMove, bool bCanRotate, bool bCanScale) {
+        if((new_mode == GizmoMode::kMove && bCanMove) ||
+                (new_mode == GizmoMode::kRotate && bCanRotate) ||
+                (new_mode == GizmoMode::kScale && bCanScale)) {
+            mode_ = new_mode;
+        } else if((mode_ == GizmoMode::kMove && bCanMove) ||
+                (mode_ == GizmoMode::kRotate && bCanRotate) ||
+                (mode_ == GizmoMode::kScale && bCanScale)) {
+            // keep exising mode
+        } else {
+            // try find suitable and fallback to move otherwise
+            assert(bCanMove || bCanRotate || bCanScale);
+            mode_ = bCanMove ? GizmoMode::kMove : 
+                bCanRotate ? GizmoMode::kRotate : 
+                bCanScale ? GizmoMode::kScale : GizmoMode::kMove;
+        }
+    }
+
 
 	float get_gizmo_scale(const struct RenderFrameContext* rfc) const {
 		return get_scale(pos_, rfc->view_, rfc->proj_, rfc->fov_, rfc->b_is_perspective_, rfc->viewport_.z);
@@ -94,9 +138,12 @@ class Gizmo {
 		uint32_t axis_x_id = GizmoMode::kMove == mode ? ReservedObjIds::kGizmoMoveX : 0;
 		uint32_t axis_y_id = GizmoMode::kMove == mode ? ReservedObjIds::kGizmoMoveY : 0;
 		uint32_t axis_z_id = GizmoMode::kMove == mode ? ReservedObjIds::kGizmoMoveZ : 0;
-		add_debug_mesh(rfc, cube, tr_x, vec4(1.0f, 0.15f, 0.15f, 1.0f), axis_x_id);
-		add_debug_mesh(rfc, cube, tr_y, vec4(0.15f, 1.0f, 0.15f, 1.0f), axis_y_id);
-		add_debug_mesh(rfc, cube, tr_z, vec4(0.15f, 0.15f, 1.0f, 1.0f), axis_z_id);
+        if(flags_ & kMoveX)
+            add_debug_mesh(rfc, cube, tr_x, vec4(1.0f, 0.15f, 0.15f, 1.0f), axis_x_id);
+        if(flags_ & kMoveY)
+            add_debug_mesh(rfc, cube, tr_y, vec4(0.15f, 1.0f, 0.15f, 1.0f), axis_y_id);
+        if(flags_ & kMoveZ)
+            add_debug_mesh(rfc, cube, tr_z, vec4(0.15f, 0.15f, 1.0f, 1.0f), axis_z_id);
 
 		if (GizmoMode::kScale == mode) {
 			const float cl = aw*kScaleCubesScale;
@@ -108,15 +155,19 @@ class Gizmo {
 			const mat4 tr_sz =
 				mat4::translation(pos) * rot * mat4::translation(vec3(0.0f, 0.0f, 1.0f * al * scaler)) * scale_cube_scale ;
 
-			add_debug_mesh(rfc, cube, tr_sx, vec4(1.0f, 0.15f, 0.15f, 1.0f),
+            if(flags_ & kScaleX)
+                add_debug_mesh(rfc, cube, tr_sx, vec4(1.0f, 0.15f, 0.15f, 1.0f),
 						   ReservedObjIds::kGizmoScaleX);
-			add_debug_mesh(rfc, cube, tr_sy, vec4(0.15f, 1.0f, 0.15f, 1.0f),
+            if(flags_ & kScaleY)
+                add_debug_mesh(rfc, cube, tr_sy, vec4(0.15f, 1.0f, 0.15f, 1.0f),
 						   ReservedObjIds::kGizmoScaleY);
-			add_debug_mesh(rfc, cube, tr_sz, vec4(0.15f, 0.15f, 1.0f, 1.0f),
+            if(flags_ & kScaleZ)
+                add_debug_mesh(rfc, cube, tr_sz, vec4(0.15f, 0.15f, 1.0f, 1.0f),
 						   ReservedObjIds::kGizmoScaleZ);
 
-			const mat4 tr_sxyz = mat4::translation(pos) * scale_cube_scale;
-			add_debug_mesh(rfc, cube, tr_sxyz, vec4(0.15f, 0.15f, 1.0f, 1.0f),
+            const mat4 tr_sxyz = mat4::translation(pos) * scale_cube_scale;
+            if((flags_ & (kScaleX|kScaleY|kScaleZ)) == (kScaleX|kScaleY|kScaleZ))
+                add_debug_mesh(rfc, cube, tr_sxyz, vec4(0.15f, 0.15f, 1.0f, 1.0f),
 						   ReservedObjIds::kGizmoScaleXYZ);
 		}
 
@@ -133,9 +184,17 @@ class Gizmo {
 															: ReservedObjIds::kGizmoScaleYX;
 			uint32_t plane_yz_id = GizmoMode::kMove == mode ? ReservedObjIds::kGizmoMoveYZ
 															: ReservedObjIds::kGizmoScaleYZ;
-			add_debug_mesh(rfc, cube, tr_xz, vec4(1.0f, 0.0f, 1.0f, .25f), plane_xz_id);
-			add_debug_mesh(rfc, cube, tr_yx, vec4(1.0f, 1.0f, 0.0f, .25f), plane_yx_id);
-			add_debug_mesh(rfc, cube, tr_yz, vec4(0.0f, 1.0f, 1.0f, .25f), plane_yz_id);
+            if((GizmoMode::kMove == mode && (flags_ & (kMoveX|kMoveZ))==(kMoveX|kMoveZ)) || 
+                (GizmoMode::kScale == mode && (flags_ & (kScaleX|kScaleZ))==(kScaleX|kScaleZ)))
+                add_debug_mesh(rfc, cube, tr_xz, vec4(1.0f, 0.0f, 1.0f, .25f), plane_xz_id);
+
+            if((GizmoMode::kMove == mode && (flags_ & (kMoveX|kMoveY))==(kMoveX|kMoveY)) || 
+                (GizmoMode::kScale == mode && (flags_ & (kScaleX|kScaleY))==(kScaleX|kScaleY)))
+                add_debug_mesh(rfc, cube, tr_yx, vec4(1.0f, 1.0f, 0.0f, .25f), plane_yx_id);
+
+            if((GizmoMode::kMove == mode && (flags_ & (kMoveZ|kMoveY))==(kMoveZ|kMoveY)) || 
+                (GizmoMode::kScale == mode && (flags_ & (kScaleZ|kScaleY))==(kScaleZ|kScaleY)))
+                add_debug_mesh(rfc, cube, tr_yz, vec4(0.0f, 1.0f, 1.0f, .25f), plane_yz_id);
 		} else {
 			RenderMesh *torus = res_man_load_mesh("torus");
 			RenderMesh *sphere = res_man_load_mesh("sphere");
@@ -148,14 +207,18 @@ class Gizmo {
 			const mat4 tr_rz = mat4::translation(pos) * rot * mat4::scale(vec3(sr, sr, 0.01f) * scaler);
 
 			const mat4 tr_s = mat4::translation(pos) * mat4::scale(vec3(sr, sr, sr) * scaler);
-			add_debug_mesh(rfc, sphere, tr_s, vec4(.5f, 0.5f, .5f, .4f),
+            if((flags_ & (kRotateX|kRotateY|kRotateZ)) == (kRotateX|kRotateY|kRotateZ))
+                add_debug_mesh(rfc, sphere, tr_s, vec4(.5f, 0.5f, .5f, .4f),
 						   ReservedObjIds::kGizmoRotateXYZ);
 
-			add_debug_mesh(rfc, torus, tr_rx, vec4(1.0f, 0.f, 0.f, 1.0f),
+            if(flags_ & kRotateX)
+                add_debug_mesh(rfc, torus, tr_rx, vec4(1.0f, 0.f, 0.f, 1.0f),
 						   ReservedObjIds::kGizmoRotateX);
-			add_debug_mesh(rfc, torus, tr_ry, vec4(0.f, 1.0f, 0.f, 1.0f),
+            if(flags_ & kRotateY)
+                add_debug_mesh(rfc, torus, tr_ry, vec4(0.f, 1.0f, 0.f, 1.0f),
 						   ReservedObjIds::kGizmoRotateY);
-			add_debug_mesh(rfc, torus, tr_rz, vec4(0.f, 0.f, 1.0f, 1.0f),
+            if(flags_ & kRotateZ)
+                add_debug_mesh(rfc, torus, tr_rz, vec4(0.f, 0.f, 1.0f, 1.0f),
 						   ReservedObjIds::kGizmoRotateZ);
 
 		}
@@ -187,9 +250,9 @@ struct TIWrapper {
     vec3 GetScale() const { assert(IsValid()); return ti_->GetScale(ud_); }
     vec3 GetWorldSpaceScale() const { assert(IsValid()); return ti_->GetWorldSpaceScale(ud_); }
     void SetWorldSpaceScale(const vec3 ws) { assert(IsValid()); ti_->SetWorldSpaceScale(ws, ud_); }
-    bool HasMove() const { return IsValid() ? ti_->HasMove() : false; }
-    bool HasRotate() const { return IsValid() ? ti_->HasRotate() : false; }
-    bool HasScale() const { return IsValid() ? ti_->HasScale() : false; }
+    bool HasMove() const { return IsValid() ? ti_->HasMove() : true; }
+    bool HasRotate() const { return IsValid() ? ti_->HasRotate() : true; }
+    bool HasScale() const { return IsValid() ? ti_->HasScale() : true; }
 };
 
 //TODO: clear it on object destroy
@@ -467,12 +530,22 @@ void editor_update(camera *cam, const float dt) {
 		g_gizmo.set_world_space(!g_gizmo.get_world_space());
 		
 	GizmoMode gizmo_mode = update_input_mode(g_gizmo.get_mode(), !!buttonsPressed);
-    if((gizmo_mode == GizmoMode::kMove && g_sel_tr.HasMove()) ||
-       (gizmo_mode == GizmoMode::kRotate && g_sel_tr.HasRotate()) ||
-       (gizmo_mode == GizmoMode::kScale && g_sel_tr.HasScale())) {
+    g_gizmo.update_mode(gizmo_mode, g_sel_tr.HasMove(), g_sel_tr.HasRotate(), g_sel_tr.HasScale());
 
-        g_gizmo.set_mode(gizmo_mode);
+    u32 flags = Gizmo::kAll;
+    if(cam->get_ortho_plane() == ePlanes::kXY) {
+        flags &= ~(Gizmo::kMoveZ|Gizmo::kScaleZ);
+        flags &= ~(Gizmo::kRotateX|Gizmo::kRotateY);
     }
+    if(cam->get_ortho_plane() == ePlanes::kXZ) {
+        flags &= ~(Gizmo::kMoveY|Gizmo::kScaleY);
+        flags &= ~(Gizmo::kRotateX|Gizmo::kRotateZ);
+    }
+    if(cam->get_ortho_plane() == ePlanes::kZY) {
+        flags &= ~(Gizmo::kMoveX|Gizmo::kScaleX);
+        flags &= ~(Gizmo::kRotateZ|Gizmo::kRotateY);
+    }
+    g_gizmo.set_flags(flags);
 
 	const uint32_t sel_id = scene_get_object_id_under_cursor();
 	GameObject *go_under_cursor = nullptr;
@@ -485,6 +558,7 @@ void editor_update(camera *cam, const float dt) {
 			g_sel_obj = go_under_cursor;
             g_sel_tr.Init(g_sel_obj->GetTransformInterface(), nullptr);
 			if (g_sel_tr.IsValid()) {
+                g_gizmo.update_mode(g_gizmo.get_mode(), g_sel_tr.HasMove(), g_sel_tr.HasRotate(), g_sel_tr.HasScale());
 				g_gizmo.set_position(g_sel_tr.GetPosition());
 				g_gizmo.set_rotation(g_sel_tr.GetRotation());
 			}
@@ -511,6 +585,7 @@ void editor_update(camera *cam, const float dt) {
             for(auto pair: g_transformables) {
                 if(pair.first == sel_id) {
                     g_sel_tr.Init(pair.second.first, pair.second.second);
+                    g_gizmo.update_mode(g_gizmo.get_mode(), g_sel_tr.HasMove(), g_sel_tr.HasRotate(), g_sel_tr.HasScale());
                     g_gizmo.set_position(g_sel_tr.GetPosition());
                     g_gizmo.set_rotation(g_sel_tr.GetRotation());
                 }
