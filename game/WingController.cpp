@@ -106,7 +106,6 @@ static WingControllerConfig sanitizeConfig(const WingControllerConfig& in) {
     out.vyMax = max(in.vyMax, r32(0.0));
     out.pitchAuthorityGain = max(in.pitchAuthorityGain, r32(0.0));
     out.verticalSpeedTimeConstant = max(in.verticalSpeedTimeConstant, r32(0.01));
-    out.horizontalSpeedDistanceGain = max(in.horizontalSpeedDistanceGain, r32(0.0));
     out.nonFinalWaypointMinSpeed = max(in.nonFinalWaypointMinSpeed, r32(0.0));
     out.desiredSpeedSmoothingTimeConstant = max(in.desiredSpeedSmoothingTimeConstant, r32(0.01));
     out.headingErrorRollGain = max(in.headingErrorRollGain, 0.0f);
@@ -120,10 +119,8 @@ static WingControllerConfig sanitizeConfig(const WingControllerConfig& in) {
     out.verticalSpeedPitchDamping = max(in.verticalSpeedPitchDamping, r32(0.0));
     out.thrustSpeedGain = max(in.thrustSpeedGain, r32(0.0));
     out.turnSpeedLimitSafetyFactor = clamp(in.turnSpeedLimitSafetyFactor, r32(0.05), r32(1.0));
-    out.turnSpeedLimitLookaheadDistanceFactor = max(in.turnSpeedLimitLookaheadDistanceFactor, r32(0.05));
     out.headingSpeedCapStartDeg = clamp(in.headingSpeedCapStartDeg, r32(0.0), r32(179.0));
-    out.headingSpeedCapFullDeg = clamp(in.headingSpeedCapFullDeg, r32(0.0), r32(179.0));
-    out.headingSpeedCapFullDeg = max(out.headingSpeedCapFullDeg, out.headingSpeedCapStartDeg + r32(1e-3));
+    out.headingSpeedCapFullDeg = clamp(in.headingSpeedCapFullDeg, r32(0.0), r32(179.0)); out.headingSpeedCapFullDeg = max(out.headingSpeedCapFullDeg, out.headingSpeedCapStartDeg + r32(1e-3));
     out.climbSpeedLimitSafetyFactor = clamp(in.climbSpeedLimitSafetyFactor, r32(0.05), r32(1.0));
     return out;
 }
@@ -132,16 +129,13 @@ WingControllerConfig::WingControllerConfig()
     : vyMax(6.0),
       pitchAuthorityGain(1.0),
       verticalSpeedTimeConstant(0.5),
-      //horizontalSpeedDistanceGain(0.08),
-      horizontalSpeedDistanceGain(0.98),
       //nonFinalWaypointMinSpeed(30.0),
-      nonFinalWaypointMinSpeed(5.0),
+      nonFinalWaypointMinSpeed(5.0), // m/s
       desiredSpeedSmoothingTimeConstant(0.50),
       headingErrorRollGain(0.25),
       lateralPositionAccelGain(0.030),
       lateralSpeedAccelDamping(0.55),
-      //approachSlowdownDistance(400.0),
-      approachSlowdownDistance(4.0),
+      approachSlowdownDistance(0.0),
       //brakeAltitudeWindow(35.0),
       brakeAltitudeWindow(3.5),
       //brakeDistanceMargin(120.0),
@@ -151,7 +145,6 @@ WingControllerConfig::WingControllerConfig()
       verticalSpeedPitchDamping(0.15),
       thrustSpeedGain(20.0),
       turnSpeedLimitSafetyFactor(0.55),
-      turnSpeedLimitLookaheadDistanceFactor(0.75),
       headingSpeedCapStartDeg(15.0),
       headingSpeedCapFullDeg(120.0),
       climbSpeedLimitSafetyFactor(0.90) {}
@@ -374,8 +367,7 @@ vec4 WingOnlyAIController::getControlInputs(const WingControllerConfig& cfg, con
     vec3 dirToTarget = activeWaypoint.position - state.position;
     r32 distanceToTarget = length(dirToTarget);
 
-    int waypointSwitchGuard = 0;
-    while (hasActiveWaypoint && distanceToTarget <= activeWaypoint.reachRadius && waypointSwitchGuard < 16) {
+    while (hasActiveWaypoint && distanceToTarget <= activeWaypoint.reachRadius) {
         if (activeWaypoint.isFinal) {
             finalWaypointReached = true;
             hasActiveWaypoint = false;
@@ -388,7 +380,6 @@ vec4 WingOnlyAIController::getControlInputs(const WingControllerConfig& cfg, con
         }
         dirToTarget = activeWaypoint.position - state.position;
         distanceToTarget = length(dirToTarget);
-        waypointSwitchGuard++;
     }
 
     const r32 altitudeError = activeWaypoint.position.y - state.position.y;
@@ -398,11 +389,10 @@ vec4 WingOnlyAIController::getControlInputs(const WingControllerConfig& cfg, con
 
     const vec3 horizontalVelocity(state.velocity.x, 0.0f, state.velocity.z);
     const r32 horizontalSpeed = length(horizontalVelocity);
-    vec3 forwardDirection = horizontalSpeed > EPS
-        ? normalizeSafe(horizontalVelocity)
-        : vec3(state.forward.x, 0.0f, state.forward.z);
+    vec3 forwardDirection = horizontalSpeed > EPS ? horizontalVelocity / horizontalSpeed : vec3(state.forward.x, 0.0f, state.forward.z);
+
     if (length(forwardDirection) <= EPS) {
-        assert(0 && "never happens");
+        assert(0 && "only happens when we go straight up or down (forward=(0,+/-1, 0)), could be ok");
         forwardDirection = vec3(1.0f, 0.0f, 0.0f);
     } else {
         forwardDirection = normalizeSafe(forwardDirection);
@@ -410,29 +400,25 @@ vec4 WingOnlyAIController::getControlInputs(const WingControllerConfig& cfg, con
 
     // When directly under/over waypoint, keep current forward heading instead of
     // snapping to an arbitrary world axis (which causes yaw spikes/loiter).
-    const vec3 targetDirection = horDist > EPS
-        ? normalizeSafe(horizontalToTarget)
-        : forwardDirection;
-    const vec3 dirToTargetUnit = distanceToTarget > EPS
-        ? normalizeSafe(dirToTarget)
-        : vec3(0.0f, 0.0f, 0.0f);
+    const vec3 targetHorDir = horDist > EPS ? horizontalToTarget / horDist : forwardDirection;
+    const vec3 dirToTargetUnit = distanceToTarget > EPS ? dirToTarget / distanceToTarget : vec3(0.0f, 0.0f, 0.0f);
 
     const vec3 rightDirection(-forwardDirection.z, 0.0f, forwardDirection.x);
 
-    const r32 targetAngle = std::atan2(targetDirection.z, targetDirection.x);
-    const r32 currentAngle = std::atan2(forwardDirection.z, forwardDirection.x);
-    r32 headingError = targetAngle - currentAngle;
+    const r32 targetHeading = std::atan2(targetHorDir.z, targetHorDir.x);
+    const r32 currentHeading = std::atan2(forwardDirection.z, forwardDirection.x);
+    r32 headingError = targetHeading - currentHeading;
     while (headingError > M_PI) headingError -= 2 * M_PI;
     while (headingError < -M_PI) headingError += 2 * M_PI;
     debugState.headingErrorRad = headingError;
 
-    const r32 approachFactor = saturate(horDist / cfg.approachSlowdownDistance);
+    // 0 - no slowdown at WP
+    const r32 approachFactor = cfg.approachSlowdownDistance > 0 ? saturate(horDist / cfg.approachSlowdownDistance) : 1.0f;
+
     // Slow down for all waypoints, but keep a non-zero pass-through floor
     // on intermediate points to avoid low-speed handoff yaw snaps.
-    const r32 minNonFinalSpeed = std::min(cfg.nonFinalWaypointMinSpeed, targetSpeed);
-    r32 desiredHorSpeedRaw = activeWaypoint.isFinal
-        ? clamp( cfg.horizontalSpeedDistanceGain * horDist, 0.0f, targetSpeed)
-        : clamp( cfg.horizontalSpeedDistanceGain * horDist, minNonFinalSpeed, targetSpeed);
+    const r32 minSpeed = std::min(activeWaypoint.isFinal ? 0 : cfg.nonFinalWaypointMinSpeed, targetSpeed);
+    r32 desiredHorSpeedRaw = lerp(minSpeed, targetSpeed, approachFactor);
     debugState.desiredHorSpeedRaw = desiredHorSpeedRaw;
 
     // Turn-feasibility limiter:
@@ -443,16 +429,34 @@ vec4 WingOnlyAIController::getControlInputs(const WingControllerConfig& cfg, con
     const r32 absHeadErr = abs(headingError);
     if (horDist > EPS && absHeadErr > 1e-3) {
         const r32 maxTurnAccel = GRAVITY * std::tan(MAX_BANK_ANGLE);
-        const r32 lookaheadDistance = std::min(horDist,
-            std::max(activeWaypoint.reachRadius, cfg.approachSlowdownDistance * cfg.turnSpeedLimitLookaheadDistanceFactor));
-        const r32 denom = std::max(2.0 * std::sin(0.5 * absHeadErr), 1e-3);
+
+        // calculate imaginary trajectory radius which plane will have if it would turn to current WP
+        // chord = lookaheadDistance 
+        // requiredTurnRadius - radius of a circle with imaginary center and arc part which goes from plane position to WP
+        // current plane dir is tangential to this arc. we use hord formula
+        // hord = 2 * R * sin(0.5 * alpha). absHeadErr is actually half alpha, but in case our direction is away from WP
+        // this will produce wrong results (e.g. if absHeadErr goes from 90 to 180 this will actually allow more speed
+        // e.g. alpha = 180, hord = 2*R*sin(0.5*(2*180)) => R is huge (as if we are headed straight to WP)
+        // so to not handle these cases, I just clamp it at 180 
+        const r32 chordAngle = clamp(2.0f*absHeadErr, 0.0f, M_PIf);
+        const r32 lookaheadDistance = std::min(horDist, std::max(activeWaypoint.reachRadius, cfg.approachSlowdownDistance));
+        const r32 denom = 2.0 * std::sin(0.5 * chordAngle);
         const r32 requiredTurnRadius = max(lookaheadDistance / denom, r32(1.0));
+
+        // now using centripetal accleration formula a = V^2 / R we get our max allowable speed
         const r32 feasibleTurnSpeed = sqrt(max(maxTurnAccel * requiredTurnRadius, r32(0.0)));
-        turnSpeedLimit = feasibleTurnSpeed * cfg.turnSpeedLimitSafetyFactor;
+
+        // if we are headed away from WP then even more reduce speed limit
+        // TODO: come up with better solution
+        const r32 slowdownK = saturate((absHeadErr - M_PI_2f)/M_PI_2f); // 0..180 -> -1..1 clamped to 0..1
+        turnSpeedLimit = feasibleTurnSpeed * lerp(1.0f, 0.5f, slowdownK) * cfg.turnSpeedLimitSafetyFactor;
         desiredHorSpeedRaw = min(desiredHorSpeedRaw, turnSpeedLimit);
     }
     debugState.turnSpeedLimit = turnSpeedLimit;
 
+    // This might not bee needed anymore after slowdownK
+    // TODO: check with different waypoints
+    
     // Additional heading-based cap:
     // large heading errors should proactively reduce speed, even when the
     // waypoint is far enough that pure radius math looks permissive.
@@ -498,6 +502,7 @@ vec4 WingOnlyAIController::getControlInputs(const WingControllerConfig& cfg, con
         speedFilterAlpha = saturate(speedFilterAlphaBase * r32(4.0));
     }
     desiredHorSpeedFiltered += (desiredHorSpeedRaw - desiredHorSpeedFiltered) * speedFilterAlpha;
+    //TODO: clamp(x, minSpeed, targetSpeed) ?
     desiredHorSpeedFiltered = clamp(desiredHorSpeedFiltered, 0.0f, targetSpeed);
     const r32 desiredHorSpeed = desiredHorSpeedFiltered;
     debugState.desiredHorSpeedFiltered = desiredHorSpeedFiltered;
@@ -510,33 +515,31 @@ vec4 WingOnlyAIController::getControlInputs(const WingControllerConfig& cfg, con
     const r32 desiredBank = clamp(desiredBankFromPd + headingBankBias, -MAX_BANK_ANGLE, MAX_BANK_ANGLE);
     const r32 rollControl = clamp(desiredBank / MAX_BANK_ANGLE, CONTROL_INPUT_MIN, CONTROL_INPUT_MAX);
 
-    const r32 desiredFlightPathAngle = std::asin(clampSignedUnit(dirToTargetUnit.y));
-    const r32 currentFlightPathAngle = state.speed > EPS
-        ? std::asin(clampSignedUnit(state.velocity.y / std::max(state.speed, EPS)))
+    const r32 desiredPitchAngle = std::asin(clampSignedUnit(dirToTargetUnit.y));
+    const r32 currentPitchAngle = state.speed > EPS
+        ? std::asin(clampSignedUnit(state.velocity.y / state.speed))
         : 0.0;
-    const r32 flightPathAngleError = desiredFlightPathAngle - currentFlightPathAngle;
+    const r32 flightPitchError = desiredPitchAngle - currentPitchAngle;
 
     const r32 pitchControl = clamp(
         altitudeError * cfg.altitudeErrorPitchGain +
-        flightPathAngleError * cfg.waypointDirectionPitchGain -
+        flightPitchError * cfg.waypointDirectionPitchGain -
         state.velocity.y * cfg.verticalSpeedPitchDamping,
         CONTROL_INPUT_MIN,
         CONTROL_INPUT_MAX);
 
     const r32 desiredVerticalSpeed = cfg.vyMax * pitchControl;
-    const vec3 desiredVelocity = targetDirection * static_cast<float>(desiredHorSpeed) +
-                                 vec3(0.0f, static_cast<float>(desiredVerticalSpeed), 0.0f);
+    const vec3 desiredVelocity = targetHorDir * desiredHorSpeed + vec3(0.0f, desiredVerticalSpeed, 0.0f);
     const r32 desiredSpeed = length(desiredVelocity);
     const r32 speedError = desiredSpeed - state.speed;
     const r32 thrustControl = speedError * cfg.thrustSpeedGain;
 
-    controlInputs.x = static_cast<float>(rollControl);
-    controlInputs.y = static_cast<float>(pitchControl);
+    controlInputs.x = rollControl;
+    controlInputs.y = pitchControl;
 
     const r32 maxBrakeDecel = MAX_BRAKE_FORCE / MASS;
     const r32 stoppingDistance = state.speed * state.speed / (2.0 * std::max(maxBrakeDecel, EPS));
-    const r32 predictiveBrakeFactor = saturate(
-        (stoppingDistance - distanceToTarget) / cfg.brakeDistanceMargin);
+    const r32 predictiveBrakeFactor = saturate((stoppingDistance - distanceToTarget) / cfg.brakeDistanceMargin);
     const r32 speedBrakeDenominator = max(desiredSpeed, r32(1.0));
     const r32 speedBrakeFactor = saturate((state.speed - desiredSpeed) / speedBrakeDenominator);
     const r32 brakeAltitudeFactor = saturate((cfg.brakeAltitudeWindow - std::abs(altitudeError)) / cfg.brakeAltitudeWindow);

@@ -13,7 +13,7 @@ struct WingControllerConfig {
     r32 vyMax;
     r32 pitchAuthorityGain;
     r32 verticalSpeedTimeConstant;
-    r32 horizontalSpeedDistanceGain;
+    r32 horizontalSpeedWPApproachGain;
     r32 nonFinalWaypointMinSpeed;
     r32 desiredSpeedSmoothingTimeConstant;
     r32 headingErrorRollGain;
@@ -27,7 +27,6 @@ struct WingControllerConfig {
     r32 verticalSpeedPitchDamping;
     r32 thrustSpeedGain;
     r32 turnSpeedLimitSafetyFactor;
-    r32 turnSpeedLimitLookaheadDistanceFactor;
     r32 headingSpeedCapStartDeg;
     r32 headingSpeedCapFullDeg;
     r32 climbSpeedLimitSafetyFactor;
@@ -108,8 +107,6 @@ public:
 
 private:
     AircraftState state;
-    //r32 dt;
-    //WingControllerConfig config;
 
     r32 calculateLift(r32 airspeed) const;
     r32 calculateDrag(r32 airspeed) const;
