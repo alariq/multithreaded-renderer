@@ -1,23 +1,85 @@
+#include "obj_model.h"
 #include "game/Path.h"
 #include "renderer.h"
+#include "res_man.h"
+#include "render_utils.h"
 #include <assert.h>
 #include "engine/utils/vec.h"
+#include "editor.h"
 
-void Path::SetCurve(const Curve<vec3>* c) {
+void C_Curve::SetCurve(Curve<vec3>* c) {
     curve_ = c;
 }
 
-int32_t Path::GetNumNodes() const {
+int32_t C_Curve::GetNumNodes() const {
     return curve_->getNumSegments();
 }
 
-vec3 Path::Get(float t) const {
+vec3 C_Curve::Get(float t) const {
     return curve_->getAt(t);
 }
 
-vec3 Path::GetDerivative(float t) const {
+vec3 C_Curve::GetDerivative(float t) const {
     return curve_->getDerivativeAt(t);
 }
+
+void C_Curve::Initialize() {
+    TransformComponent::Initialize();
+
+}
+
+void C_Curve::UpdateComponent(float dt) {
+    //for(int i=0;i<curve_->getNumNodes();++i) {
+    //}
+}
+
+void C_Curve::AddRenderPackets(struct RenderFrameContext* rfc) const {
+    CurveDebugDraw(*curve_, 10, false, &GetTransform(), rfc->rl_);
+
+    // :(
+    ITransformInterface* ti = const_cast<ITransformInterface*>((const ITransformInterface*)this);
+    RenderMesh* mesh = res_man_load_mesh("sphere");
+    for(int i=0;i<curve_->getNumNodes();++i) {
+        vec3 node_pos = curve_->getNodeValue(i);
+        vec3 pos = this->Transform(node_pos);
+        const int id = editor_add_gizmo(ti, (void*)(ptrdiff_t)i);
+        add_debug_mesh_constant_size_px(rfc, mesh, 1, vec4(0.25f, 0.0125f, 0.0125f, 1), mat4::translation(pos), 10, id);
+    }
+}
+
+void C_Curve::SetPosition(vec3 p, void* userdata) {
+    int idx = (int)((ptrdiff_t)userdata & 0xffffffff);
+    assert(!isnan(p.x));
+    curve_->setNodeValue(idx, p);
+
+}
+vec3 C_Curve::GetPosition(void* userdata) const {
+    int idx = (int)((ptrdiff_t)userdata & 0xffffffff);
+    return curve_->getNodeValue(idx);
+}
+
+PROPERTY_LIST_BEGIN_DERIVED(C_Curve, TransformComponent)
+    PROPERTY_SECTION("C_Curve");
+PROPERTY_LIST_END()
+
+
+O_Path* O_Path::Create(const char *name) {
+    static size_t obj_num = 0;
+    O_Path *obj = new O_Path();
+    obj->name_ = name;
+    obj->name_ += std::to_string(obj_num++);
+
+    auto tr = obj->AddComponent<TransformComponent>();
+    auto cc = obj->AddComponent<C_Curve>();
+    cc->SetParent(tr);
+
+    return obj;
+}
+
+PROPERTY_LIST_BEGIN_DERIVED(O_Path, GameObject)
+    PROPERTY_READONLY_TEXT("Name", [](const O_Path& o){ return o.GetName();});
+PROPERTY_LIST_END()
+
 
 void CurveDebugDraw(const Curve<vec3>& curve, int num_pts_per_segment, bool b_draw_basis, const mat4* transform, RenderList* rl) {
     const int nseg = curve.getNumSegments();
@@ -75,5 +137,4 @@ void CurveDebugDraw(const Curve<vec3>& curve, int num_pts_per_segment, bool b_dr
     delete[] dbg_pts;
     delete[] colours;
 }
-
 

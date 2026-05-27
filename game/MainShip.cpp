@@ -26,16 +26,13 @@ MainShip* MainShip::Create(const char* res) {
     auto* TextComp = obj->AddComponent<GameTextComp>();
     TextComp->SetParent(tr);
 
-    obj->curve = nullptr;
-
     return obj;
 }
 
-void MainShip::Initialize(const std::vector<CheckPoint>& cps, GameObject* intarget, const Curve<vec3>* master_curve) 
+void MainShip::Initialize(const std::vector<CheckPoint>& cps, GameObject* intarget, C_Curve* master_curve) 
 {
     target_ = intarget;
-    curve = master_curve;
-    repar = new ReparameterizeByArclength<vec3>(*curve);
+    repar = new ReparameterizeByArclength<vec3>(*master_curve->GetCurve());
 
     radius = 10.0f;
     origin_pos = GetComponent<TransformComponent>()->GetPosition();
@@ -76,8 +73,7 @@ void MainShip::Initialize(const std::vector<CheckPoint>& cps, GameObject* intarg
     // add dummy last point of a spline
     //curve.addPoint(check_points_[CPCount-1].position + 0.25f*(check_points_[CPCount-1].position - check_points_[CPCount-2].position));
 
-    myPath = new Path();
-    myPath->SetCurve(master_curve);
+    levelCurve = master_curve;
 
     accumulator = 0;
 
@@ -263,13 +259,10 @@ void MainShip::AddRenderPackets(struct RenderFrameContext* rfc) const {
         delete[] colours;
     }
 
-    if(curve && false) {
-        CurveDebugDraw(*curve, 100, false, nullptr, rl);
-    }
-
-    SCOPED_ZONE_NAMED(DebugDrawRemappedNodes, 0);
+	SCOPED_ZONE_NAMED(DebugDrawRemappedNodes, 0);
     constexpr int num_intervals = 25;
     vec3* pts = new vec3[num_intervals];
+    const Curve<vec3>* curve = levelCurve->GetCurve();
     float tot_len = curve->getTotalLength();
     for(int i=0;i<num_intervals;++i) {
         float s = tot_len * (float)i / num_intervals;
@@ -287,7 +280,6 @@ void MainShip::AddRenderPackets(struct RenderFrameContext* rfc) const {
 
 MainShip::~MainShip() {
     delete repar;
-    delete myPath;
 }
 
 

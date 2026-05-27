@@ -103,6 +103,7 @@ enum class ComponentType: int {
     kEnemyText,
     kMesh,
     kBillboard,
+    kCurve,
     kCount
 };
 // stub for the future

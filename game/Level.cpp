@@ -120,6 +120,9 @@ Level* Level::Create(const char* res) {
     }
     obj->mainCurve_.addPoint(cps[num_cps-1].position + 0.25f*(cps[num_cps-1].position - cps[num_cps-2].position));
 
+    // create component from the curve
+    obj->mainCurveComp_ = obj->AddComponent<C_Curve>();
+    obj->mainCurveComp_->SetCurve(&obj->mainCurve_);
 
     // generate toruses along the main curve checkpoints
     // -----------------------------------------------------------------------------------
@@ -172,7 +175,7 @@ Level* Level::Create(const char* res) {
     //ftc->SetPosition(vec3(10, 4, 10));
     ftc->SetPosition(obj->mainCurve_.getAt(0));
     ftc->SetScale(vec3(.5f));
-    mainShip->Initialize(cps, nullptr /* target */, &obj->mainCurve_);
+    mainShip->Initialize(cps, nullptr /* target */, obj->mainCurveComp_);
     scene_add_game_object(mainShip);
 
     // init main ship camera

@@ -69,13 +69,13 @@ struct EnemyState {
 // maybe have a separate path follower component to just follow path
 // and seprate for other enemy related things
 class BasicEnemyAIController {
-    const class Path* movePath;
+    const class C_Curve* movePath;
     float cur_t;
     
     public:
         EnemyState update(const EnemyState& s, float dt, const EnemyTargetCtx& ctx);
 
-        void SetPath(const class Path* path) {
+        void SetPath(const class C_Curve* path) {
             cur_t = 0;
             movePath = path;
         }
@@ -85,6 +85,7 @@ class Enemy: public GameObject {
 
     std::string name_;
     class MeshComponent* mesh_comp_;
+    class C_Curve* curve_comp_;
     
     vec3 origin_pos;
     float total_time;
@@ -94,8 +95,8 @@ class Enemy: public GameObject {
     double accumulator;
 
     std::deque<vec3> trail;
+    // no need for this anymore? info in curve_comp_
     Curve<vec3> myCurve;
-    const Path* myPath = nullptr;
 
     char text_label[16];
     bool b_is_active_target_ = false;
@@ -119,7 +120,6 @@ class Enemy: public GameObject {
 
     virtual void AddRenderPackets(struct RenderFrameContext* rfc) const override;
 
-    void SetPath(const Path* path);
     void UpdateTargetCtx(const EnemyTargetCtx& ctx) { target_ctx_ = ctx; b_has_valid_target_ = true; }
     const EnemyState& GetState() const { return stateCur; }
     void SetActiveTarget(bool b_is_active) { b_is_active_target_ = b_is_active; }

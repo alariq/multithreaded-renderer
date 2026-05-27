@@ -13,8 +13,9 @@ class Level: public GameObject {
 
     std::string name_;
 
+    // do we need to store is as a separate member?
     Curve<vec3> mainCurve_;
-    const Path* mainPath = nullptr;
+    C_Curve* mainCurveComp_;
     MainShip* mainShip = nullptr;
 
     BufferT<Enemy*, int> enemies_;

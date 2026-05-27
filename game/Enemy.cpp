@@ -75,6 +75,7 @@ Enemy* Enemy::Create(const char* res) {
     auto tr = obj->AddComponent<TransformComponent>();
 
     obj->mesh_comp_ = MeshComponent::Create(res);
+    obj->curve_comp_ = C_Curve::Create(res);
     obj->mesh_comp_->SetScale(vec3(0.2f));
     obj->AddComponent(obj->mesh_comp_);
     obj->mesh_comp_->SetParent(tr);
@@ -148,14 +149,8 @@ void Enemy::Initialize(GameObject* intarget)
 
     myCurve.addPoint(myCurve[myCurve.count()-1] + 0.25f*(myCurve[myCurve.count()-1] - myCurve[myCurve.count()-2]));
 
-
-    Path* aPath = new class Path();
-    aPath->SetCurve(&myCurve);
-    
-    delete myPath;
-    myPath = aPath;
-
-    controller_.SetPath(myPath);
+    curve_comp_->SetCurve(&myCurve);
+    controller_.SetPath(curve_comp_);
 
     int num_labels = COUNTOF(gs_labels);
     EnemyTextComp* txt_comp = GetComponent<EnemyTextComp>();
@@ -284,14 +279,6 @@ PROPERTY_LIST_BEGIN_DERIVED(Enemy, GameObject)
     PROPERTY_READONLY_TEXT("Name", [](const Enemy& e) { return e.GetName(); });
     PROPERTY_READONLY_TEXT("Text", [](const Enemy& e) { return e.text_label; });
 PROPERTY_LIST_END()
-
-
-
-void Enemy::SetPath(const class Path* path) {
-
-    myPath = path;
-    controller_.SetPath(myPath);
-}
 
 
 EnemySpawner* EnemySpawner::Create() {
