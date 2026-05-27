@@ -54,24 +54,24 @@ class Gizmo {
     GizmoMode get_mode() const { return mode_; }
 
 	float get_gizmo_scale(const struct RenderFrameContext* rfc) const {
-		return get_scale(pos_, rfc->view_, rfc->proj_, rfc->fov_, rfc->b_is_perspective_);
+		return get_scale(pos_, rfc->view_, rfc->proj_, rfc->fov_, rfc->b_is_perspective_, rfc->viewport_.z);
     }
 
-	static float get_scale(const vec3& pos, const mat4& view, const mat4& proj, const float fov, bool b_is_perspective) {
+	static float get_scale(const vec3& pos, const mat4& view, const mat4& proj, const float fov, bool b_is_perspective, float viewport_width) {
         if(b_is_perspective) {
             // get how many world units will be wisible horizontally at given pos_.z;
             const float view_z = (view * vec4(pos, 1.0f)).z;
-            const float max_x_at_z = 2.0f*(1.0f/proj.elem[0][0])*view_z;
+            const float max_x_at_z = 2.0f * (1.0f/proj.elem[0][0]) * view_z / viewport_width;
             return max_x_at_z * kScreenPercentage;
         } else {
-            const float max_x = 2.0f / proj.elem[0][0];
+            const float max_x = 2.0f / proj.elem[0][0] / viewport_width;
             return max_x * kScreenPercentage;
         }
 	}
 
-	float get_rotation_sphere_radius(const camera* cam) const {
+	float get_rotation_sphere_radius(const camera* cam, float viewport_width) const {
 		return kRotSphereRadius * get_scale(pos_, cam->get_view(), cam->get_projection(),
-												  cam->get_fov(), cam->get_is_perspective());
+												  cam->get_fov(), cam->get_is_perspective(), viewport_width);
 	}
 
 	void draw(struct RenderFrameContext* rfc) {
@@ -80,7 +80,7 @@ class Gizmo {
 		const mat4 rot = bWorldSpace ? mat4::identity() : rot_;
 
 		RenderMesh *cube = res_man_load_mesh("cube");
-		const float scaler = get_scale(pos_, rfc->view_, rfc->proj_, rfc->fov_, rfc->b_is_perspective_);
+		const float scaler = get_scale(pos_, rfc->view_, rfc->proj_, rfc->fov_, rfc->b_is_perspective_, rfc->viewport_.z);
 		const float al = kAxisLength;
 		const float aw = kAxisWidth;
 
@@ -166,7 +166,7 @@ const float Gizmo::kAxisLength = 2*1.0f;
 const float Gizmo::kAxisWidth = 2*.05f;
 const float Gizmo::kRotSphereRadius = 2*1.5f;
 const float Gizmo::kScaleCubesScale = 2*1.2f;
-const float Gizmo::kScreenPercentage = .05f;
+const float Gizmo::kScreenPercentage = 75.0f;
 Gizmo g_gizmo;
 
 // TODO: move all variables in a single Editor state
@@ -547,10 +547,12 @@ void editor_update(camera *cam, const float dt) {
 				static const vec3 axes[3] = {vec3(1.0f, 0.0f, 0.0f), vec3(0.0f, 1.0f, 0.0f),
 											 vec3(0.0f, 0.0f, 1.0f)};
 				vec3 axis = axes[axis_idx];
+                vec3 fwd = cam->get_view().getForwardVec();
 				if(!g_gizmo.get_world_space())
 					axis = quat_get_axis(g_gizmo.get_rotation_q(), axis_idx);
-				vec3 pr_start = project_on_vector(ray_dir, drag_start_mouse_world_pos, axis);
-				vec3 pr_end = project_on_vector(ray_dir, drag_cur_mouse_world_pos, axis);
+				vec3 pr_start = project_on_vector2(ray_dir, drag_start_mouse_world_pos, axis, fwd);
+				vec3 pr_end = project_on_vector2(ray_dir, drag_cur_mouse_world_pos, axis, fwd);
+
 				vec3 upd_pos = drag_start_obj_pos + (pr_end - pr_start);
 				g_sel_tr.SetPosition(upd_pos);
 				break;
@@ -596,7 +598,7 @@ void editor_update(camera *cam, const float dt) {
 
 				vec3 start_pos = ray_plane_intersect(ray_dir_start, ray_origin, plane);
 				vec3 upd_pos = ray_plane_intersect(ray_dir, ray_origin, plane);
-				float r = g_gizmo.get_rotation_sphere_radius(cam);
+				float r = g_gizmo.get_rotation_sphere_radius(cam, view_width);
 				drag_rotation_gizmo_helper_pos = normalize(upd_pos - cur_pos) * r + cur_pos;
 				// calculate angle between 2 vectors
 				vec3 v0 = normalize(start_pos - drag_start_obj_pos);
@@ -617,7 +619,7 @@ void editor_update(camera *cam, const float dt) {
 			}
 			case ReservedObjIds::kGizmoRotateXYZ:
 			{
-				float r = g_gizmo.get_rotation_sphere_radius(cam);
+				float r = g_gizmo.get_rotation_sphere_radius(cam, view_width);
 				vec4 sphere = vec4(drag_start_obj_pos, r);
 
 				vec3 start_pos = ray_sphere_intersect(ray_dir_start, ray_origin, sphere);

@@ -139,6 +139,29 @@ inline vec3 project_on_vector(const vec3 ray_dir, const vec3 ray_origin, const v
 	return int_dot * axis;
 }
 
+// used for gizmo
+// uses viewdir as additional direction to choose plane which passes through axis not arabitrarily
+// but to maximize dot product, otherwise there could be cases where in ortho we pick axis which is
+// perp. to our ray_dir (and in case of ortho - viewdir) causing NaNs.
+// we do not use ray_dir directly because depending on it it may pick b1 or b2 and then object movement
+// jumps from one position to another
+inline vec3 project_on_vector2(const vec3 ray_dir, const vec3 ray_origin, const vec3& axis, const vec3& viewdir) {
+	// get some plane (which our axis lies at) to intersect with
+	vec3 b1, b2;
+	calculate_basis(axis, b1, b2);
+    vec3 best = abs(dot(b1, viewdir)) > abs(dot(b2, viewdir)) ? b1 : b2;
+	vec3 int_pt = ray_plane_intersect(ray_dir, ray_origin, vec4(best, 0.0));
+	float int_dot = dot(int_pt, axis);
+	return int_dot * axis;
+}
+
+inline vec3 project_on_vector_real(const vec3 ray_dir, const vec3 ray_origin, const vec3& axis) {
+	// get some plane (which our axis lies at) to intersect with
+	vec3 int_pt = ray_plane_intersect(ray_dir, ray_origin, vec4(axis, 0.0));
+	float int_dot = dot(int_pt, axis);
+	return int_dot * axis;
+}
+
 inline vec3 project_vector_on_plane(const vec3& v, const vec4& plane) {
 	const vec3 n = plane.xyz(); // plane normal
     return v - dot(v, n) * n;
