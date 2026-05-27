@@ -168,7 +168,8 @@ void initialize_scene(const struct camera *cam, struct RenderFrameContext *rfc) 
         vec3 p =
             random_vec(vec3(-50.0f, 5.0f, -50.0f), vec3(50.0f, 15.0f, 50.0f));
         l.pos = p;
-        l.transform_ = translate(p) * mat4::scale(vec3(l.radius_));
+        // default sphere mesh has radius 0.5f
+        l.transform_ = translate(p) * mat4::scale(vec3(2*l.radius_));
         g_light_list.push_back(l);
     }
 }

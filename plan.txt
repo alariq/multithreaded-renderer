@@ -15,9 +15,9 @@ TODO:
    [ ] make parallax skyboxes (moving fraction of main camera scale/depth based)
    [x] debug names for OpenGL resources / passes for better debugging
    [x] sRGB correct rendering
-   [ ] fix transparency for gizmo
-   [ ] fix scaling for debug sphere (currently dependent on 3d view size)
-   [ ] fix regression in point lighting (probably related to sRGB or alpha states)
+   [x] fix transparency for gizmo
+   [x] fix scaling for debug sphere (currently dependent on 3d view size)
+   [x] fix regression in point lighting (probably related to sRGB or alpha states)
    [ ] HDR (at least 10bit buffers)
    [x] check why ALPHA_TEST is defined for shaders when I am not using it
    [o] Font rendering
