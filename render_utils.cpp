@@ -33,12 +33,13 @@ void add_debug_sphere_constant_size(struct RenderFrameContext *rfc, const vec3& 
 // no_scale_distance - distance at which desired object will be drawn with no scale applied
 void add_debug_mesh_constant_size(struct RenderFrameContext *rfc, const RenderMesh *mesh,
 										 const vec4 &color, const mat4 &tr_m,
-                                         const float no_scale_distance/* = .1f*/,
+                                         const float no_scale_distance/* = 1.0f*/,
 										 uint32_t selection_id/* = 0*/) {
 
 	const float oo_no_scale_distance = 1.0f / no_scale_distance;
-	const float cam_z = rfc->b_is_perspective_ ? (rfc->view_ * tr_m.getTranslationPoint()).z : 0.1f*no_scale_distance;
-	const mat4 tr = tr_m * mat4::scale(vec3(cam_z * oo_no_scale_distance));
+	const float cam_z = rfc->b_is_perspective_ ? (rfc->view_ * tr_m.getTranslationPoint()).z : no_scale_distance;
+	const float k = (1.0f/rfc->proj_.elem[0][0]) / (rfc->viewport_.z / 2.0f);
+	const mat4 tr = tr_m * mat4::scale(vec3(k*cam_z * oo_no_scale_distance));
 	add_debug_mesh(rfc, mesh, tr, color, selection_id);
 }
 

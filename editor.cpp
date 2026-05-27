@@ -814,7 +814,7 @@ void editor_render_update(struct RenderFrameContext *rfc, bool b_editor_mode, bo
             // add lights to debug render pass
             for (auto &l : light_list) {
                 vec4 c(l.color_.getXYZ(), 0.5f);
-                add_debug_mesh_constant_size(rfc, sphere, c, l.transform_, 1000.0f);
+                add_debug_mesh_constant_size(rfc, sphere, c, l.transform_, 1.0f);
             }
         }
 

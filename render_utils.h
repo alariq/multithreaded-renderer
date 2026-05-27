@@ -11,7 +11,7 @@ void add_debug_sphere_constant_size(struct RenderFrameContext *rfc, const vec3& 
 // no_scale_distance - distance at which desired object will be drawn with no scale applied
 void add_debug_mesh_constant_size(struct RenderFrameContext *rfc, const struct RenderMesh *mesh,
 										 const vec4 &color, const mat4 &tr_m,
-                                         const float no_scale_distance = .1f,
+                                         const float no_scale_distance = 1.0f,
 										 uint32_t selection_id = 0);
 
 // only useful for 2d screen aligned objects
