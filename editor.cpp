@@ -198,7 +198,7 @@ class Gizmo {
 		} else {
 			RenderMesh *torus = res_man_load_mesh("torus");
 			RenderMesh *sphere = res_man_load_mesh("sphere");
-			const float sr = kRotSphereRadius;
+			const float sr = 2.0f*kRotSphereRadius; // because default sphere mesh geom is 0.5f radius
 
 			const mat4 tr_rx = mat4::translation(pos) * rot * mat4::rotationY(90 * M_PI / 180.0f) *
 							   mat4::scale(vec3(sr, sr, 0.01f) * scaler);
@@ -227,7 +227,7 @@ class Gizmo {
 
 const float Gizmo::kAxisLength = 2*1.0f;
 const float Gizmo::kAxisWidth = 2*.05f;
-const float Gizmo::kRotSphereRadius = 2*1.5f;
+const float Gizmo::kRotSphereRadius = 1.5f;
 const float Gizmo::kScaleCubesScale = 2*1.2f;
 const float Gizmo::kScreenPercentage = 75.0f;
 Gizmo g_gizmo;
