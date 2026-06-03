@@ -162,9 +162,8 @@ ParticleSystemObject::~ParticleSystemObject() {
     delete ps_;
 }
 
-FrustumObject *FrustumObject::Create(const camera *pcam) {
+FrustumObject *FrustumObject::Create() {
     FrustumObject *o = new FrustumObject();
-    //o->UpdateFrustum(pcam);
     return o;
 }
 #if 0

@@ -55,44 +55,8 @@ const std::vector<PointLight>& scene_get_light_list() {
 	return g_light_list;
 }
 
-void initialize_scene(const struct camera *cam, struct RenderFrameContext *rfc) {
-    (void)cam;
+void initialize_scene() {
     g_components.resize((size_t)ComponentType::kCount);
-#if 0
-    const uint32_t NUM_OBJECTS = 3;
-    for (uint32_t i = 0; i < NUM_OBJECTS; ++i) {
-        MeshObject *go = MeshObject::Create("N");
-        vec3 base_pos = random_vec(vec3(-15, 5, -15), vec3(15, 10, 15));
-        auto* tr_comp = go->GetComponent<TransformComponent>();
-        tr_comp->SetPosition(base_pos);
-        tr_comp->SetScale(random_vec(vec3(1), vec3(2.5)));
-        vec3 ang = random_vec(vec3(0), vec3(2.0f * 3.1415f));
-        quaternion rot_q = euler_to_quat(ang.x, ang.y, ang.z);
-        tr_comp->SetRotation(rot_q);
-#if 1
-        float start_time =
-            (float)timing::ticks2ms(timing::gettickcount()) / 1000;
-        const float amplitude = random(12.0f, 30.0f);
-        const float phase = random(0.0f, 2.0f * 3.1415f);
-        go->SetUpdater([base_pos, start_time, amplitude,
-                        phase](float dt, MeshObject *gobj) mutable {
-            auto* tc = gobj->GetComponent<TransformComponent>();
-            vec3 p = tc->GetPosition();
-            p.y =
-                base_pos.y + amplitude * 0.5f * (sin(phase + start_time) + 1.0f);
-            start_time += dt;
-#if DO_BAD_THING_FOR_TEST
-            go->SetPosition(random_vec(vec3(-10), vec3(10)) +
-                            vec3(1000, 1000, 1000));
-            // timing::sleep(100000);
-#endif
-            tc->SetPosition(p);
-        });
-#endif
-
-        scene_add_game_object(go);
-    }
-#endif 
 
     MeshObject* go = MeshObject::Create("floor");
     auto* tc = go->GetComponent<TransformComponent>();
@@ -107,12 +71,8 @@ void initialize_scene(const struct camera *cam, struct RenderFrameContext *rfc) 
     tc->SetScale(vec3(0.05f, 0.05f, 0.05f));
     scene_add_game_object(go);
 
-    camera loc_cam = *cam;
-    // drawableWidth/Height may not be filled yet as renderer might not be initialized yet
-    loc_cam.set_projection(45, Environment.screenWidth,
-                           Environment.screenHeight, 2.0f, 20.0f);
-    FrustumObject *fo = FrustumObject::Create(&loc_cam);
-    scene_add_game_object(fo);
+    //FrustumObject *fo = FrustumObject::Create();
+    //scene_add_game_object(fo);
 
     ParticleSystemObject *pso = ParticleSystemObject::Create();
     //pso->SetPosition(vec3(50, 0, 50));

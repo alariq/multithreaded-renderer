@@ -53,7 +53,7 @@ namespace scene {
 	constexpr uint32_t kFirstGameObjectId = ReservedObjIds::kFirstGameObjectId;
 }
 
-void initialize_scene(const struct camera* cam, struct RenderFrameContext* rfc);
+void initialize_scene();
 void finalize_scene();
 
 void scene_update(const struct camera* cam, const bool b_update_simulation, const float dt);

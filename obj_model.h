@@ -455,7 +455,7 @@ class FrustumObject: public GameObject {
     FrustumComponent* frustum_comp_;
 
     public:
-        static FrustumObject* Create(const camera* pcam);
+        static FrustumObject* Create();
         virtual const char* GetName() const override { return "frustum"; };
         virtual void Update(float /*dt*/) override {}
         void UpdateFrustum(const camera* pcam);
