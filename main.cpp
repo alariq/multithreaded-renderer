@@ -3,6 +3,8 @@
 #include "engine/utils/camera.h"
 #include "engine/utils/obj_loader.h"
 #include "engine/utils/matrix.h"
+#include "engine/utils/ringbuffer.h"
+#include "engine/utils/logging.h"
 #include "engine/utils/imgui_property_list.h"
 #include "engine/profiler/profiler.h"
 #include "engine/gameos.hpp"
@@ -35,13 +37,17 @@ extern int GetCurrentFrame();
 extern void SetRenderFrameContext(void* rfc);
 extern void* GetRenderFrameContext();
 
+struct RetiredRTContext {
+    u32 id_under_cursor;
+    int frame_idx_dbg;
+};
+SPSCRingBufferT<RetiredRTContext, 3> gRetiredCtxs;
 
 bool g_is_in_editor = WITH_EDITOR ? true : false;
 bool g_render_initialized_hack = false;
 bool g_update_simulation = false;
 bool g_update_simulation_step_by_step = false;
 bool g_exclusive_3dview = WITH_EDITOR ? false : true; // 3dview occupies whole window
-uint32_t g_obj_under_cursor = scene::kInvalidObjectId;
 
 DWORD g_htexture = 0;
 ShadowRenderPass* g_shadow_pass = nullptr;
@@ -213,6 +219,11 @@ void __stdcall Update(void)
     RenderFrameContext* rfc = new RenderFrameContext();
 	rfc->commands_.clear();
 
+    RetiredRTContext rrtc;
+    if(gRetiredCtxs.pop(rrtc)) {
+        scene_set_object_id_under_cursor(rrtc.id_under_cursor);
+    }
+
     static bool initialization_done = false;
     if(!initialization_done)
     {
@@ -258,8 +269,6 @@ void __stdcall Update(void)
         }
     }
 
-	scene_set_object_id_under_cursor(g_obj_under_cursor);
-
 	UpdateCamera(dt_sec, g_is_in_editor, editor_get_3dview_rect());
 
     // TODO: we call it even in game mode becase game can run in editor viewport
@@ -296,7 +305,6 @@ void __stdcall Update(void)
     if(g_is_in_editor) {
 	    editor_update(&g_camera, dt_sec);
     }
-
 
 	// prepare list of objects to render
     BEGIN_ZONE_N(acq_zone, AcquireRenderList, 0);
@@ -356,12 +364,9 @@ void __stdcall Update(void)
         }
 	}
 
-    END_ZONE(list_idx);
+    SetRenderFrameContext(rfc);
 
-    
-	//uint64_t sleep_ms = std::max(33ll - (long long)(dt_sec * 1000), 1ll);
-	//timing::sleep(sleep_ms*1000000);
-    //timing::sleep(32000000ull);
+    END_ZONE(list_idx);
 }
 
 class ShapeRenderer {
@@ -512,8 +517,8 @@ void __stdcall Render(void)
     ParticleSystemManager::Instance().InitRenderResources();
 
     const RenderFrameContext* rfc = (RenderFrameContext*)GetRenderFrameContext();
-    assert(rfc);
-    assert(rfc->frame_number_ == RendererGetCurrentFrame());
+    assert(rfc && rfc->frame_number_ == RendererGetCurrentFrame());
+
 
     const uint32_t view_w = rfc->viewport_.z;
     const uint32_t view_h = rfc->viewport_.w;
@@ -642,11 +647,14 @@ void __stdcall Render(void)
 		DWORD buttonspressed;
 		gos_GetMouseInfo(&xpos, &ypos, &xdelta, &ydelta, &wheeldelta, &buttonspressed);
 
-
         // mouse to texture space
         uint32_t tx = Environment.drawableWidth*xpos - (uint32_t)rfc->viewport_.x;
         uint32_t ty = (uint32_t)rfc->viewport_.w - (Environment.drawableHeight*ypos - (uint32_t)rfc->viewport_.y);
-		g_obj_under_cursor = g_obj_id_renderer.Readback(tx, ty);
+		u32 obj_id = g_obj_id_renderer.Readback(tx, ty);
+
+        if(!gRetiredCtxs.push({.id_under_cursor = obj_id, .frame_idx_dbg = rfc->frame_number_})) {
+            log_warning("not enough space for retired context");
+        }
 	}
 
     if(g_exclusive_3dview) {

@@ -53,6 +53,8 @@ set(SOURCES ${SOURCES}
     utils/ts_queue.h
     utils/spline.cpp
     utils/spline.h
+    utils/ringbuffer.cpp
+    utils/ringbuffer.h
     utils/string_utils.cpp
     utils/string_utils.h
     utils/file_utils.cpp
