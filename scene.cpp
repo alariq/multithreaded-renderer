@@ -80,46 +80,6 @@ void initialize_scene() {
     //pso->SetPosition(vec3(50, 0, 50));
     scene_add_game_object(pso);
 
-#if 0
-	RigidBodyObject *rb_floor = RigidBodyObject::Create(vec3(4.5f, 1, 4.5f));
-    rb_floor->setKinematic(true);
-    rb_floor->SetTransform(vec3(0, 0, 0), quaternion(vec3(1,0,0), M_PI/6.0f));
-	scene_add_game_object(rb_floor);
-
-	RigidBodyObject *rb_floor2 = RigidBodyObject::Create(vec3(5.5f, 2, 5.5f));
-    rb_floor2->setKinematic(true);
-    rb_floor2->SetTransform(vec3(0.0f, -0.0f, 4.5f), quaternion(vec3(1,0,0), -M_PI/6.0f));
-	scene_add_game_object(rb_floor2);
-
-    vec3 er = random_vec(vec3(0), vec3(2.0f * 3.1415f));
-    quaternion qrot = euler_to_quat(er.x, er.y, er.z);
-	RigidBodyObject *rb_cube = RigidBodyObject::Create(vec3(1, 1, 1));
-    rb_cube->SetTransform(vec3(0, 3, 0), qrot);
-	scene_add_game_object(rb_cube);
-
-	RigidBodyObject *rb_floor3 = RigidBodyObject::Create(vec3(25.5f, 0.5f, 25.5f));
-    rb_floor3->setKinematic(true);
-    rb_floor3->SetTransform(vec3(0.0f, -2.0f, 4.5f), quaternion::identity());
-	scene_add_game_object(rb_floor3);
-#endif
-
-#if 0
-    // make vilage
-    const float rot[] = {0, 150, 30, 90, 55};
-    const float scales[] = {0.1f, 0.07f, 0.12f, 0.08f, 0.1f};
-    const vec2 pos[] = {vec2(10, 10), vec2(-10, -10), vec2(30, 35),
-                        vec2(10, -25), vec2(-30, 5)};
-    for (int i = 0; i < 5; ++i) {
-        go = MeshObject::Create("single_room_building");
-        auto* t = go->GetComponent<TransformComponent>();
-        vec3 ang = vec3(0.0f, -rot[i] * 3.1415f / 180.0f, 0.0f);
-        t->SetRotation(euler_to_quat(ang.x, ang.y, ang.z));
-        t->SetPosition(vec3(pos[i].x, 0.0f, pos[i].y));
-        t->SetScale(vec3(scales[i]));
-        scene_add_game_object(go);
-    }
-#endif
-
     // create some point lights
     for (int i = 0; i < 10; ++i) {
         PointLight l;

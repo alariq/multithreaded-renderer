@@ -164,39 +164,9 @@ ParticleSystemObject::~ParticleSystemObject() {
 
 FrustumObject *FrustumObject::Create() {
     FrustumObject *o = new FrustumObject();
+    o->AddComponent<FrustumComponent>();
     return o;
 }
-#if 0
-void FrustumObject::UpdateFrustum(const camera *pcam) {
-    mat4 view;
-    pcam->get_view(&view);
-    vec3 dir = view.getRow(2).xyz();
-    vec3 right = view.getRow(0).xyz();
-    vec3 up = view.getRow(1).xyz();
-    vec4 pos = pcam->get_inv_view() * vec4(0, 0, 0, 1);
-
-    frustum_.updateFromCamera(pos.xyz(), dir, right, up, pcam->get_fov(),
-                              pcam->get_aspect(), pcam->get_near(),
-                              pcam->get_far());
-
-    frustum_comp_->frustum_ = frustum_;
-
-    // dangerous: we are on a game thread
-    if (mesh_) {
-        const int vb_size = Frustum::kNUM_FRUSTUM_PLANES * 6;
-        SVD vb[vb_size];
-        Frustum::makeMeshFromFrustum(&frustum_, (char *)&vb[0], vb_size,
-                                     (int)sizeof(SVD));
-
-        for (int i = 0; i < vb_size; ++i) {
-            vb[i].uv = vec2(vb[i].pos.x, vb[i].pos.z);
-            vb[i].normal = normalize(vb[i].pos);
-        }
-        gos_UpdateBuffer(mesh_->vb_, vb, 0, vb_size * sizeof(SVD));
-    }
-    //
-}
-#endif
 
 void FrustumComponent::InitRenderResources() {
 
