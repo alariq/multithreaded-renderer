@@ -621,6 +621,7 @@ void ui_draw_stuff() {
 
 void editor_set_selected_obj(class GameObject* go) {
     g_sel_obj = go;
+    g_sel_tr.Init(g_sel_obj->GetTransformInterface(), nullptr);
 }
 
 class GameObject* editor_get_selected_obj() {
@@ -699,7 +700,6 @@ void editor_update(camera *cam, const float dt) {
 			}
 		}
 		else if (sel_id >= ReservedObjIds::kGizmoFirst && sel_id < ReservedObjIds::kGizmoLast) {
-			gosASSERT(g_sel_obj);
 			drag_type = sel_id;
 			if (g_sel_tr.IsValid()) {
 				drag_start_obj_pos = g_sel_tr.GetPosition();
@@ -719,10 +719,12 @@ void editor_update(camera *cam, const float dt) {
         else if(sel_id >= ReservedObjIds::kFirstEditorObjectId && sel_id < ReservedObjIds::kFirstGameObjectId) {
             for(auto pair: g_transformables) {
                 if(pair.first == sel_id) {
+                    g_sel_obj = nullptr;
                     g_sel_tr.Init(pair.second.first, pair.second.second);
                     g_gizmo.update_mode(g_gizmo.get_mode(), g_sel_tr.HasMove(), g_sel_tr.HasRotate(), g_sel_tr.HasScale());
                     g_gizmo.set_position(g_sel_tr.GetPosition());
                     g_gizmo.set_rotation(g_sel_tr.GetRotation());
+                    break;
                 }
             }
         } else {
@@ -732,7 +734,6 @@ void editor_update(camera *cam, const float dt) {
 
     const bool lmouse_down = gos_GetKeyStatus(KEY_LMOUSE) == KEY_PRESSED || gos_GetKeyStatus(KEY_LMOUSE) == KEY_HELD;
 	if (drag_started && lmouse_down && drag_start_mouse_proj_pos!=cur_mouse_proj_pos) {
-		gosASSERT(g_sel_obj);
 		drag_cur_mouse_world_pos = screen2world(cam, cur_mouse_proj_pos, drag_obj_view_dist);
 
         const vec3 sel_obj_pos = g_sel_tr.GetPosition();
@@ -907,37 +908,35 @@ void editor_render_update(struct RenderFrameContext *rfc, bool b_editor_mode, bo
 {
 
     if(b_editor_mode) {
-        if(g_sel_obj) {
-            if(g_sel_tr.IsValid()) {
-                if(!drag_started) {
-                    // object may be updating its position
-                    g_gizmo.set_position(g_sel_tr.GetPosition());
-                    g_gizmo.set_rotation(g_sel_tr.GetRotation());
-                } else {
+        if(g_sel_tr.IsValid()) {
+            if(!drag_started) {
+                // object may be updating its position
+                g_gizmo.set_position(g_sel_tr.GetPosition());
+                g_gizmo.set_rotation(g_sel_tr.GetRotation());
+            } else {
 
-                    if ((uint32_t)drag_type >= ReservedObjIds::kGizmoMoveXZ &&
-                            (uint32_t)drag_type <= ReservedObjIds ::kGizmoRotateXYZ) {
-                        // a) only makes sense when we drag as its position is in absolute coord,
-                        // and will not take into accout gizmo scaling
-                        // b) when mouse if not moving will draw last known position, minor, fix it later
-                        float s = g_gizmo.get_gizmo_scale(rfc);
-                        const mat4 tr = mat4::translation(drag_rotation_gizmo_helper_pos) *
-                            mat4::scale(vec3(s * 0.05f));
-                        add_debug_mesh(rfc, res_man_load_mesh("sphere"), tr,
-                                vec4(1, 1, 1, 1));
-                    }
+                if ((uint32_t)drag_type >= ReservedObjIds::kGizmoMoveXZ &&
+                        (uint32_t)drag_type <= ReservedObjIds ::kGizmoRotateXYZ) {
+                    // a) only makes sense when we drag as its position is in absolute coord,
+                    // and will not take into accout gizmo scaling
+                    // b) when mouse if not moving will draw last known position, minor, fix it later
+                    float s = g_gizmo.get_gizmo_scale(rfc);
+                    const mat4 tr = mat4::translation(drag_rotation_gizmo_helper_pos) *
+                        mat4::scale(vec3(s * 0.05f));
+                    add_debug_mesh(rfc, res_man_load_mesh("sphere"), tr,
+                            vec4(1, 1, 1, 1));
                 }
-
-                const vec3 gp = g_gizmo.get_position();
-                const float s = g_gizmo.get_gizmo_scale(rfc);
-                const quaternion& q = g_gizmo.get_world_space() ? quaternion::identity()
-                    : g_gizmo.get_rotation_q();
-                rfc->rl_->addDebugLine(gp, gp + 2.5f*s*q.axis0(), vec4(1, 0, 0, 1));
-                rfc->rl_->addDebugLine(gp, gp + 2.5f*s*q.axis1(), vec4(0, 1, 0, 1));
-                rfc->rl_->addDebugLine(gp, gp + 2.5f*s*q.axis2(), vec4(0, 0, 1, 1));
-
-                g_gizmo.draw(rfc);
             }
+
+            const vec3 gp = g_gizmo.get_position();
+            const float s = g_gizmo.get_gizmo_scale(rfc);
+            const quaternion& q = g_gizmo.get_world_space() ? quaternion::identity()
+                : g_gizmo.get_rotation_q();
+            rfc->rl_->addDebugLine(gp, gp + 2.5f*s*q.axis0(), vec4(1, 0, 0, 1));
+            rfc->rl_->addDebugLine(gp, gp + 2.5f*s*q.axis1(), vec4(0, 1, 0, 1));
+            rfc->rl_->addDebugLine(gp, gp + 2.5f*s*q.axis2(), vec4(0, 0, 1, 1));
+
+            g_gizmo.draw(rfc);
         }
 
         RenderMesh *sphere = res_man_load_mesh("sphere");
