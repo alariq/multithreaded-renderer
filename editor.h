@@ -53,3 +53,7 @@ bool editor_get_3dview_hovered();
 ivec4 editor_get_3dview_rect();
 ivec4 editor_calc_3dview(bool b_full, intptr_t scene_colour);
 #endif
+
+class ICameraController* editor_get_cam_controller();
+// a bit of a hack to not expose editor cam controller in .h
+void editor_cam_controller_set_transform(const vec3& pos, float rotX);

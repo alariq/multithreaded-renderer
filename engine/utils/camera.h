@@ -66,6 +66,8 @@ struct camera //: public imgui_props::IPolymorphicPropertyObject
     float get_far() const { return far_; }
     bool get_is_perspective() const { return is_perspective_; }
 
+    static float getXrot(const mat4& view);
+
 private:
 
 	vec3 wpos_;
@@ -92,18 +94,6 @@ private:
 };
 
 PROPERTY_LIST_DECLARE(camera);
-// have it in the header because it becomes unresolved even though it is explicitly instanciated
-// but because "engine" is linked as a static lib, it somehow lost (probably because not referenced anywhere
-// in "engine". If I add PROPERTY_POLYMORPHIC_DRAW_IMPL() to camera class (have to derive from 
-// imgui_props::IPolymorphicPropertyObject) then is it fine, because then GetPropertyList<camera> is
-// actually used.
-PROPERTY_LIST_BEGIN(camera)
-    PROPERTY_READONLY_TEXT("Name", [](const camera& c) { return c.is_perspective_? "Persp" : "Ortho"; });
-    PROPERTY_VEC3(wpos_, "WorldPos");
-    PROPERTY_FLOAT(fov_, "FOV", 0, 30.0f, 120.0f, 1.0f, nullptr, [](camera& c, float fov){ c.set_fov(fov); });
-    PROPERTY_BOOL(is_perspective_, "IsPerspective");
-    PROPERTY_BOOL(b_rh, "RightHanded");
-PROPERTY_LIST_END()
 
 
 class fps_camera {

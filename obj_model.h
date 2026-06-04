@@ -494,3 +494,13 @@ public:
 };
 
 PROPERTY_LIST_DECLARE_DERIVED(MeshObject, GameObject)
+
+
+class ICameraController : public imgui_props::IPolymorphicPropertyObject {
+    public:
+        //PROPERTY_SUPPORT(ICameraController);
+        //PROPERTY_POLYMORPHIC_DRAW_IMPL(ICameraController)
+    virtual struct camera& Update(float dt)  = 0;
+    virtual const struct camera& GetCamera() const  = 0;
+};
+

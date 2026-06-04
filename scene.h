@@ -78,3 +78,6 @@ uint32_t scene_get_object_id_under_cursor();
 // thi sfunction immediately returns object under cursor, uses simple AABB intersection
 class GameObject* scene_get_object_under_cursor(int x, int y);
 
+void scene_set_camera_controller(class ICameraController* cc);
+class ICameraController* scene_get_camera_controller();
+

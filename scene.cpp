@@ -33,6 +33,8 @@ static uint32_t g_obj_id_under_cursor = scene::kInvalidObjectId;
 
 static SceneViewInfo g_scene_view_info;
 
+static ICameraController* g_cam_controller;
+
 void scene_set_object_id_under_cursor(uint32_t obj_id) {
 	g_obj_id_under_cursor = obj_id;
 }
@@ -431,3 +433,12 @@ void scene_get_intersected_objects(
         }
     }
 }
+
+void scene_set_camera_controller(class ICameraController* cc) {
+    g_cam_controller = cc;
+}
+
+ICameraController* scene_get_camera_controller() {
+    return g_cam_controller;
+}
+

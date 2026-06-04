@@ -1513,7 +1513,7 @@ bool DrawPropertySheetCollapsibleList(const char* id, TContainer& items)
 
 #define PROPERTY_LIST_BEGIN(TYPE)                                                               \
 namespace imgui_props {                                                                         \
-template <> inline const ::imgui_props::PropertyList<TYPE>& GetPropertyList<TYPE>()            \
+template <> const ::imgui_props::PropertyList<TYPE>& GetPropertyList<TYPE>()                   \
 {                                                                                                \
     using _imgui_props_type = TYPE;                                                             \
     static const ::imgui_props::PropertyList<_imgui_props_type> s_property_list = []() {       \
@@ -1522,7 +1522,7 @@ template <> inline const ::imgui_props::PropertyList<TYPE>& GetPropertyList<TYPE
 
 #define PROPERTY_LIST_BEGIN_DERIVED(TYPE, BASE_TYPE)                                            \
 namespace imgui_props {                                                                         \
-template <> inline const ::imgui_props::PropertyList<TYPE>& GetPropertyList<TYPE>()            \
+template <> const ::imgui_props::PropertyList<TYPE>& GetPropertyList<TYPE>()                   \
 {                                                                                                \
     using _imgui_props_type = TYPE;                                                             \
     static const ::imgui_props::PropertyList<_imgui_props_type> s_property_list = []() {       \
@@ -1573,6 +1573,7 @@ template <> inline const ::imgui_props::PropertyList<TYPE>& GetPropertyList<TYPE
 }                                                                                               \
 } // namespace imgui_props
   //
+
 #define PROPERTY_LIST_DECLARE_DERIVED(TYPE, BASE_TYPE)                                           \
 namespace imgui_props {\
     template <> struct HasPropertyList<TYPE> : std::true_type {};  \
@@ -1605,16 +1606,3 @@ namespace imgui_props {\
     bool DrawPolymorphicPropertyRows(int tree_depth) override;                                    \
     const char* GetPolymorphicPropertyTypeName() const override
 
-#define PROPERTY_POLYMORPHIC_DRAW_IMPL_EXT(TYPE)                                                  \
-    bool TYPE::DrawPolymorphicPropertySheet(const char* id)                                       \
-    {                                                                                              \
-        return ::imgui_props::DrawPropertySheetTable(id, *static_cast<TYPE*>(this));              \
-    }                                                                                              \
-    bool TYPE::DrawPolymorphicPropertyRows(int tree_depth)                                         \
-    {                                                                                              \
-        return ::imgui_props::DrawPropertyRowsWithBases(*static_cast<TYPE*>(this), tree_depth);   \
-    }                                                                                              \
-    const char* TYPE::GetPolymorphicPropertyTypeName() const                                       \
-    {                                                                                              \
-        return #TYPE;                                                                              \
-    }

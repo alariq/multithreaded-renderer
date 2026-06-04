@@ -10,6 +10,14 @@
 //#include <graphics/gl_utils.h>
 #include "utils/matrix.h"
 
+PROPERTY_LIST_BEGIN(camera)
+    PROPERTY_READONLY_TEXT("Name", [](const camera& c) { return c.is_perspective_ ? "Persp" : "Ortho"; });
+    PROPERTY_VEC3(wpos_, "WorldPos");
+    PROPERTY_FLOAT(fov_, "FOV", 0, 30.0f, 120.0f, 1.0f, nullptr, [](camera& c, float fov){ c.set_fov(fov); });
+    PROPERTY_BOOL(is_perspective_, "IsPerspective");
+    PROPERTY_BOOL(b_rh, "RightHanded");
+PROPERTY_LIST_END()
+
 camera::camera()
 {
 	proj_ = mat4::identity();
@@ -232,6 +240,18 @@ vec3 camera::unproject(const vec2& p, float at_view_z, bool b_perspective, const
     }
     vec3 wpos = (inv_view * vec4(view_pos, 1.0f)).xyz();
     return wpos;
+}
+
+float camera::getXrot(const mat4& view) {
+    const vec2 fwd_hor = view.getForwardVec().xz();
+    //const vec2 fwd_id(0,1); // 0, 0, 1 but with removed Y component
+    //float angle = atan2(cross(fwd_id, fwd_hor), dot(fwd_id, fwd_hor));
+    // or use angle_between_vecors()
+
+    // this is basically same as above, we just rotate vector 90 degree, 
+    // because identity vector is basicaly 1,0,0 rotated 90 around Y to be 0,0,-1
+    vec2 v = vec2(fwd_hor.y, -fwd_hor.x); // rotate 90 
+    return atan2(v.y, v.x);
 }
 
 void fps_camera::update(float dt) {

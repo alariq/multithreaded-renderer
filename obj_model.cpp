@@ -330,4 +330,5 @@ PROPERTY_LIST_BEGIN_DERIVED(MeshObject, GameObject)
     PROPERTY_READONLY_TEXT("Name", [](const MeshObject& o){ return o.GetName();});
 PROPERTY_LIST_END()
 
-
+//PROPERTY_LIST_BEGIN(ICameraController)
+//PROPERTY_LIST_END()

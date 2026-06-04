@@ -260,8 +260,143 @@ static TIWrapper g_sel_tr;
 
 static std::vector<UserEditorInterface> registered_editors;
 static int g_active_user_editor = -1;
+
+class EditorCameraController: public ICameraController {
+
+    vec3 parallel_proj_origin = vec3(0);
+    int use_parallel_projection = 0; // zero or projection index
+                                     //
+    fps_camera fps_cam;
+    ortho_camera ortho_cam;
+
+    camera cam;
+public:
+    PROPERTY_SUPPORT(EditorCameraController);
+    PROPERTY_POLYMORPHIC_DRAW_IMPL(EditorCameraController);
+
+    void SetPosition(const vec3& pos) {
+        // set fps cam pos even if current camera is ortho
+        fps_cam.set_pos(pos);
+    }
+    void SetXRotation(float rotX) {
+        // set fps cam pos even if current camera is ortho
+        fps_cam.rot_x = rotX;
+    }
+
+    virtual const camera& GetCamera() const override { return cam; }
+
+    virtual camera& Update(float dt) override
+    {
+        ivec4 view_rect = editor_get_3dview_rect();
+
+        const float view_x = view_rect.x;
+        const float view_y = view_rect.y;
+        const float view_w = view_rect.z;
+        const float view_h = view_rect.w;
+
+        static float fov = 90.0f;
+        static float moveSpeedK = 10.0f;
+        static float angularSpeedK = 0.05f * 3.1415f / 180.0f; // 0.25 degree per pixel
+        static float zoomLevel = .05f;
+        static bool b_was_warped = false;
+
+        if (gos_GetKeyStatus(KEY_F2) == KEY_RELEASED) {
+            if(!use_parallel_projection) {
+                parallel_proj_origin = cam.get_pos();
+                ortho_cam.set_pos(parallel_proj_origin);
+            }
+            use_parallel_projection = (use_parallel_projection + 1) % (ortho_camera::NUM_VIEWS + 1);
+            ortho_cam.set_proj_idx(use_parallel_projection - 1);
+            ortho_cam.set_pos(parallel_proj_origin);
+        }
+
+        int XDelta, YDelta, WheelDelta;
+        float XPos, YPos;
+        DWORD buttonsPressed;
+        gos_GetMouseInfo(&XPos, &YPos, &XDelta, &YDelta, &WheelDelta, &buttonsPressed);
+        if(b_was_warped) {
+            XDelta = YDelta = 0;
+            b_was_warped = false;
+        }
+
+        const bool RMB_down = (gos_GetKeyStatus(KEY_RMOUSE) == KEY_PRESSED) ||
+            (gos_GetKeyStatus(KEY_RMOUSE) == KEY_HELD);
+
+        if(use_parallel_projection) {
+
+            if(WheelDelta)
+                zoomLevel*= WheelDelta>0 ? 3.0f/4.0f : 4.0f/3.0f;
+
+            float w = view_w*zoomLevel;
+            float h = view_h*zoomLevel;
+            cam.set_ortho_projection(-w / 2, w / 2, h / 2, -h / 2, -0.1, -1000.0f);
+
+            if(RMB_down) {
+                ortho_cam.dx -= XDelta*(w/view_w);
+                ortho_cam.dy += YDelta*(w/view_h);
+            }
+
+            ortho_cam.update(dt);
+            cam.set_view(ortho_cam.get_view());
+
+        } else {
+            cam.set_projection(fov, view_w, view_h, 0.1f, 1000.0f);
+            if (/*!b_editor ||*/ RMB_down) {
+                if (WheelDelta) {
+                    moveSpeedK *= WheelDelta < 0 ? 3.0f / 4.0f : 4.0f / 3.0f;
+                }
+                fps_cam.dx += (gos_GetKeyStatus(KEY_D) || gos_GetKeyStatus(KEY_RIGHT)) ? dt * moveSpeedK : 0.0f;
+                fps_cam.dx -= (gos_GetKeyStatus(KEY_A) || gos_GetKeyStatus(KEY_LEFT)) ? dt * moveSpeedK : 0.0f;
+                fps_cam.dz += (gos_GetKeyStatus(KEY_W) || gos_GetKeyStatus(KEY_UP))   ? dt * moveSpeedK : 0.0f;
+                fps_cam.dz -= (gos_GetKeyStatus(KEY_S) || gos_GetKeyStatus(KEY_DOWN))? dt * moveSpeedK : 0.0f;
+                fps_cam.rot_x -= (float)XDelta * angularSpeedK;
+                fps_cam.rot_y -= (float)YDelta * angularSpeedK;
+            }
+            fps_cam.update(dt);
+            cam.set_view(fps_cam.get_view());
+        }
+
+        cam.set_ortho_plane(use_parallel_projection ? ortho_cam.get_view_type() : ePlanes::kNone);
+
+        if(RMB_down) {
+            bool b_full = false;
+            int wrap_min_x = b_full ? 0 : view_x;
+            int wrap_min_y = b_full ? 0 : view_y;
+            int wrap_max_x = b_full ? Environment.screenWidth : view_x + view_w;
+            int wrap_max_y = b_full ? Environment.screenHeight : view_y + view_h;
+
+            int XInt = XPos*(Environment.screenWidth);
+            int YInt = YPos*(Environment.screenHeight);
+            int XWrapped = XInt< wrap_min_x + 1 ? wrap_max_x-4 : (XInt>wrap_max_x-3 ? wrap_min_x + 1 : XInt);
+            int YWrapped = YInt< wrap_min_y + 1 ? wrap_max_y-4 : (YInt>wrap_max_y-3 ? wrap_min_y + 1 : YInt);
+
+            if(XWrapped != XInt || YWrapped != YInt) {
+                gos_SetMousePosition(XWrapped, YWrapped);
+                b_was_warped = true;
+            }
+        }
+
+        return cam;
+    }
+} * editorCamController = nullptr;
+
+ICameraController* editor_get_cam_controller() { return editorCamController; }
+void editor_cam_controller_set_transform(const vec3& pos, float rotX) {
+    editorCamController->SetPosition(pos);
+    editorCamController->SetXRotation(rotX);
+}
+
+//PROPERTY_LIST_DECLARE_EXTENAL(ICameraController)
+
+PROPERTY_LIST_DECLARE_DERIVED(EditorCameraController, void)
+PROPERTY_LIST_BEGIN_DERIVED(EditorCameraController, void)
+    PROPERTY_CHILD_OBJECT(cam, "cam");
+PROPERTY_LIST_END()
+
 void initialize_editor()
 {
+    editorCamController = new EditorCameraController();
+    editorCamController->SetPosition(vec3(0,15,0));
 }
 
 void initialize_render_editor()

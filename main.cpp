@@ -58,11 +58,6 @@ DeferredRenderer g_deferred_renderer;
 ForwardRenderer g_forward_renderer;
 ObjIdRenderer g_obj_id_renderer;
 
-camera g_camera;
-fps_camera g_cam_controller;
-ortho_camera g_ortho_cam_controller;
-vec3 g_parallel_proj_origin = vec3(0);
-int g_use_parallel_projection = 0;
 camera g_shadow_camera;
 
 void __stdcall Init(void)
@@ -72,10 +67,7 @@ void __stdcall Init(void)
     extern void tests_run();
     tests_run();
 
-	const vec3 init_cam_pos(0, 15, 0);
-    g_cam_controller.set_pos(init_cam_pos);
-
-    vec3 light_dir = normalize(vec3(-1.0,-1.0,-1.0));
+    vec3 light_dir = normalize(vec3(1.0,-1.0,1.0));
 
     vec3 up = vec3(0,1,0);
 
@@ -114,106 +106,6 @@ void __stdcall Deinit(void)
     printf("::Deinit\n");
 }
 
-void UpdateCamera(float dt, bool b_editor, ivec4 view_rect)
-{
-    const float view_x = view_rect.x;
-    const float view_y = view_rect.y;
-    const float view_w = view_rect.z;
-    const float view_h = view_rect.w;
-
-
-    if(!editor_get_3dview_hovered())
-        return;
-
-    static float fov = 90.0f;
-    static float moveSpeedK = 10.0f;
-    static float angularSpeedK = 0.05f * 3.1415f / 180.0f; // 0.25 degree per pixel
-    static float zoomLevel = .05f;
-    static bool b_was_warped = false;
-
-	if (gos_GetKeyStatus(KEY_F2) == KEY_RELEASED) {
-        if(!g_use_parallel_projection) {
-            g_parallel_proj_origin = g_camera.get_pos();
-            g_ortho_cam_controller.set_pos(g_parallel_proj_origin);
-        }
-		g_use_parallel_projection = (g_use_parallel_projection + 1) % (ortho_camera::NUM_VIEWS + 1);
-        g_ortho_cam_controller.set_proj_idx(g_use_parallel_projection - 1);
-        g_ortho_cam_controller.set_pos(g_parallel_proj_origin);
-    }
-
-	int XDelta, YDelta, WheelDelta;
-    float XPos, YPos;
-    DWORD buttonsPressed;
-    gos_GetMouseInfo(&XPos, &YPos, &XDelta, &YDelta, &WheelDelta, &buttonsPressed);
-    if(b_was_warped) {
-        XDelta = YDelta = 0;
-        b_was_warped = false;
-    }
-
-	const bool RMB_down = (gos_GetKeyStatus(KEY_RMOUSE) == KEY_PRESSED) ||
-						  (gos_GetKeyStatus(KEY_RMOUSE) == KEY_HELD);
-
-	if(g_use_parallel_projection) {
-
-        if(WheelDelta)
-            zoomLevel*= WheelDelta>0 ? 3.0f/4.0f : 4.0f/3.0f;
-
-        float w = view_w*zoomLevel;
-        float h = view_h*zoomLevel;
-		g_camera.set_ortho_projection(-w / 2, w / 2, h / 2, -h / 2, -0.1, -1000.0f);
-
-        if(RMB_down) {
-            g_ortho_cam_controller.dx -= XDelta*(w/view_w);
-            g_ortho_cam_controller.dy += YDelta*(w/view_h);
-        }
-
-        g_ortho_cam_controller.update(dt);
-        g_camera.set_view(g_ortho_cam_controller.get_view());
-
-    } else {
-        g_camera.set_projection(fov, view_w, view_h, 0.1f, 1000.0f);
-		if (!b_editor || RMB_down) {
-			if (WheelDelta) {
-				moveSpeedK *= WheelDelta < 0 ? 3.0f / 4.0f : 4.0f / 3.0f;
-			}
-			g_cam_controller.dx += (gos_GetKeyStatus(KEY_D) || gos_GetKeyStatus(KEY_RIGHT)) ? dt * moveSpeedK : 0.0f;
-			g_cam_controller.dx -= (gos_GetKeyStatus(KEY_A) || gos_GetKeyStatus(KEY_LEFT)) ? dt * moveSpeedK : 0.0f;
-			g_cam_controller.dz += (gos_GetKeyStatus(KEY_W) || gos_GetKeyStatus(KEY_UP))   ? dt * moveSpeedK : 0.0f;
-			g_cam_controller.dz -= (gos_GetKeyStatus(KEY_S) || gos_GetKeyStatus(KEY_DOWN))? dt * moveSpeedK : 0.0f;
-			g_cam_controller.rot_x -= (float)XDelta * angularSpeedK;
-			g_cam_controller.rot_y -= (float)YDelta * angularSpeedK;
-		}
-        g_cam_controller.update(dt);
-        g_camera.set_view(g_cam_controller.get_view());
-	}
-
-    g_camera.set_ortho_plane(g_use_parallel_projection ? g_ortho_cam_controller.get_view_type() : ePlanes::kNone);
-
-    if(RMB_down) {
-        bool b_full = false;
-        int wrap_min_x = b_full ? 0 : view_x;
-        int wrap_min_y = b_full ? 0 : view_y;
-        int wrap_max_x = b_full ? Environment.screenWidth : view_x + view_w;
-        int wrap_max_y = b_full ? Environment.screenHeight : view_y + view_h;
-
-        int XInt = XPos*(Environment.screenWidth);
-        int YInt = YPos*(Environment.screenHeight);
-        int XWrapped = XInt< wrap_min_x + 1 ? wrap_max_x-4 : (XInt>wrap_max_x-3 ? wrap_min_x + 1 : XInt);
-        int YWrapped = YInt< wrap_min_y + 1 ? wrap_max_y-4 : (YInt>wrap_max_y-3 ? wrap_min_y + 1 : YInt);
-
-        if(XWrapped != XInt || YWrapped != YInt) {
-            gos_SetMousePosition(XWrapped, YWrapped);
-            b_was_warped = true;
-        }
-    }
-
-    render_from_shadow_camera = gos_GetKeyStatus(KEY_F3) ? true : false;
-    g_show_cascade_index += gos_GetKeyStatus(KEY_LCONTROL) && gos_GetKeyStatus(KEY_K) == KEY_PRESSED ? 1 : 0;
-    if(g_show_cascade_index>2)
-        g_show_cascade_index = 0;
-
-}
-
 void __stdcall Update(void)
 {
     RenderFrameContext* rfc = new RenderFrameContext();
@@ -245,6 +137,11 @@ void __stdcall Update(void)
 
     start_tick = timing::gettickcount();
 
+    ICameraController* game_cc = scene_get_camera_controller();
+    ICameraController* editor_cc = editor_get_cam_controller();
+    ICameraController* main_cc = g_is_in_editor || !game_cc ? editor_cc : game_cc;
+    camera main_cam = main_cc->GetCamera();
+
     if(WITH_EDITOR) {
         if(gos_GetKeyStatus(KEY_F) == KEY_PRESSED && gos_GetKeyStatus(KEY_LCONTROL)) {
             g_exclusive_3dview = !g_exclusive_3dview;
@@ -260,23 +157,30 @@ void __stdcall Update(void)
 
             if(gos_GetKeyStatus(KEY_TAB) == KEY_PRESSED)
             {
-                if(!g_is_in_editor && g_camera_override) {
-                    g_cam_controller.set_pos(g_camera_override->get_pos());
+                if(!g_is_in_editor && game_cc) {
+                    float xrot = camera::getXrot(game_cc->GetCamera().get_view());
+                    editor_cam_controller_set_transform(game_cc->GetCamera().get_pos(), xrot);
                 }
                 g_is_in_editor = !g_is_in_editor;
                 gos_SetRelativeMouseMode(!g_is_in_editor);
             }
         }
+
+        render_from_shadow_camera = gos_GetKeyStatus(KEY_F3) ? true : false;
+        g_show_cascade_index += gos_GetKeyStatus(KEY_LCONTROL) && gos_GetKeyStatus(KEY_K) == KEY_PRESSED ? 1 : 0;
+        if(g_show_cascade_index>2)
+            g_show_cascade_index = 0;
     }
 
-	UpdateCamera(dt_sec, g_is_in_editor, editor_get_3dview_rect());
+    // NOTE: we get 3dview hover/focused states here before they are updated in editor_calc_3dview()
+    // to help mouse cursor wraparound otherwise when mouse is moving fast and goes out of the window 
+    // it is not hovered anymore and then UpdateCamera early outs, need to check if 
+    // "not hovered and mouse movement did not start inside window"
+    const bool b_3dview_hovered = editor_get_3dview_hovered();
 
     // TODO: we call it even in game mode becase game can run in editor viewport
     // need to add something like WITH_EDITOR, so we can distinguish between
     // "editor mode" and "is editor compiled"
-    // NOTE: we update 3dview and hover/focused states here After UpdateCamera to help mouse cursor wraparound
-    // otherwise when mouse is moving fast and goes out of the window it is not hovered anymore
-    // and UpdateCamera early outs, need to check if "not hovered and mouse movement did not start inside window"
     ivec4 scene_viewport = editor_calc_3dview(g_exclusive_3dview, g_deferred_renderer.GetSceneColour());
 
     // TODO: move to array of systems ?
@@ -295,7 +199,10 @@ void __stdcall Update(void)
         }
     }
 
-    scene_update(&g_camera, g_update_simulation, dt_sec);
+
+
+    scene_update(&main_cam, g_update_simulation, dt_sec);
+
     if (g_update_simulation) {
         if (g_update_simulation_step_by_step) {
             g_update_simulation = false;
@@ -303,8 +210,14 @@ void __stdcall Update(void)
     }
 
     if(g_is_in_editor) {
-	    editor_update(&g_camera, dt_sec);
+	    editor_update(&main_cam, dt_sec);
     }
+
+    if(b_3dview_hovered)
+        editor_cc->Update(dt_sec);
+    if(game_cc) game_cc->Update(dt_sec);
+
+    main_cam = main_cc->GetCamera();
 
 	// prepare list of objects to render
     BEGIN_ZONE_N(acq_zone, AcquireRenderList, 0);
@@ -313,25 +226,24 @@ void __stdcall Update(void)
 
     // setup render frame context
     CSMInfo csm_info;
-    fill_csm_frustums(&csm_info, &g_camera, &g_shadow_camera);
+    fill_csm_frustums(&csm_info, &main_cam, &g_shadow_camera);
     rfc->frame_number_ = GetCurrentFrame();
     rfc->rl_ = frame_render_list;
     rfc->csm_info_ = csm_info;
-	rfc->inv_view_ = g_camera.get_inv_view();
-    rfc->view_ = g_camera.get_view();
-    rfc->proj_ = g_camera.get_projection();
-    rfc->inv_proj_ = g_camera.get_inv_projection();
-    rfc->z_near_ = g_camera.get_near();
-    rfc->z_far_ = g_camera.get_far();
-    rfc->fov_ = g_camera.get_fov();
-    rfc->aspect_ = g_camera.get_aspect();
-    rfc->b_is_perspective_ = g_camera.get_is_perspective();
+	rfc->inv_view_ = main_cam.get_inv_view();
+    rfc->view_ = main_cam.get_view();
+    rfc->proj_ = main_cam.get_projection();
+    rfc->inv_proj_ = main_cam.get_inv_projection();
+    rfc->z_near_ = main_cam.get_near();
+    rfc->z_far_ = main_cam.get_far();
+    rfc->fov_ = main_cam.get_fov();
+    rfc->aspect_ = main_cam.get_aspect();
+    rfc->b_is_perspective_ = main_cam.get_is_perspective();
     g_shadow_camera.get_view(&rfc->shadow_view_);
     rfc->shadow_inv_view_ = g_shadow_camera.get_inv_view();
     // TODO: using viewport here might not work if we render to some 
     // pass which uses different WxH, clients need to use per pass current viewport
     rfc->viewport_ = scene_viewport;
-    SetRenderFrameContext(rfc);
     //
 
     char listidx_str[32] = {0};
@@ -352,7 +264,8 @@ void __stdcall Update(void)
 #if WITH_EDITOR
             if(!g_exclusive_3dview) {
                 ImGui::Begin("Property");
-                imgui_props::DrawPropertySheetTable("camera", g_camera);
+                //imgui_props::DrawPropertySheetTable("camera", *main_cc);
+                main_cc->DrawPolymorphicPropertySheet("camera controller");
                 ImGui::End();
             }
 #endif
