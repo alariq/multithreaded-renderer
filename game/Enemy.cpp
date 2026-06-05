@@ -122,12 +122,12 @@ void Enemy::Initialize(GameObject* intarget)
     vec3 pt0 = vec3(off.x,off.y,-z_back);
     vec3 pt1 = vec3(off.y,off.y,z_front-1);
 
-    myCurve = Curve<vec3>();
+    Curve<vec3>& curve = *curve_comp_->GetCurve();
 
-    myCurve.addPoint(pt0 + 0.25f*(pt0 - pt1));
+    curve.addPoint(pt0 + 0.25f*(pt0 - pt1));
 
-    myCurve.addPoint(pt0);
-    myCurve.addPoint(pt1);
+    curve.addPoint(pt0);
+    curve.addPoint(pt1);
 
     // generate a dstorted circle
     const int num_circle_pts = 12;
@@ -140,16 +140,15 @@ void Enemy::Initialize(GameObject* intarget)
         float x = r*cos(t);
         float y = r*sin(t);
         vec3 pos = vec3(x, y, z_front);
-        myCurve.addPoint(pos);
+        curve.addPoint(pos);
         last_pt  = pos;
     }
 
-    myCurve.addPoint(vec3(last_pt.x, last_pt.y, z_front-1));
-    myCurve.addPoint(vec3(last_pt.x, last_pt.y, -z_back));
+    curve.addPoint(vec3(last_pt.x, last_pt.y, z_front-1));
+    curve.addPoint(vec3(last_pt.x, last_pt.y, -z_back));
 
-    myCurve.addPoint(myCurve[myCurve.count()-1] + 0.25f*(myCurve[myCurve.count()-1] - myCurve[myCurve.count()-2]));
+    curve.addPoint(curve[curve.count()-1] + 0.25f*(curve[curve.count()-1] - curve[curve.count()-2]));
 
-    curve_comp_->SetCurve(&myCurve);
     controller_.SetPath(curve_comp_);
 
     int num_labels = COUNTOF(gs_labels);
@@ -265,11 +264,12 @@ void Enemy::AddRenderPackets(struct RenderFrameContext* rfc) const {
                 target_ctx_.right.y, target_ctx_.up.y, target_ctx_.fwd.y, target_ctx_.path_pos.y,
                 target_ctx_.right.z, target_ctx_.up.z, target_ctx_.fwd.z, target_ctx_.path_pos.z, 
                 0, 0, 0, 1);
-        CurveDebugDraw(myCurve, 20, false, &m, rl);
+        auto curve = curve_comp_->GetCurve();
+        CurveDebugDraw(*curve, 20, false, &m, rl);
 
         TransformComponent* tc = GetComponent<TransformComponent>();
 
-        vec3 closest_pos = spline_get_closest_point(myCurve, tc->GetPosition()).point;
+        vec3 closest_pos = spline_get_closest_point(*curve, tc->GetPosition()).point;
         rl->addDebugPoints(&closest_pos, 1, vec4(0,0,1,1), 10, true);
     }
 

@@ -4,12 +4,11 @@
 #include "obj_model.h"
 #include "engine/utils/spline.h"
 #include "engine/utils/vec.h"
-#include "editor.h" // ITransformInterface 
 
 template<> inline constexpr ComponentType 
 get_component_type<class C_Curve>() { return ComponentType::kCurve; }
 class C_Curve: public TransformComponent, public IRenderable {
-    Curve<vec3>* curve_;
+    Curve<vec3> curve_;
     BufferT<int, int> gizmo_node_ids_;
 
 public:
@@ -18,15 +17,14 @@ public:
         return new C_Curve();
     }
 
-    void SetCurve(Curve<vec3>* c);
+    const Curve<vec3>* GetCurve() const { return &curve_; }
+    Curve<vec3>* GetCurve() { return &curve_; }
     int32_t GetNumNodes() const;
     vec3 Get(float t) const;
     vec3 GetDerivative(float t) const;
 
     // AddPoint(vec3)
     // RemovePoint(int idx)
-
-    const Curve<vec3>* GetCurve() const { return curve_; }
 
     PROPERTY_SUPPORT(C_Curve);
     PROPERTY_POLYMORPHIC_DRAW_IMPL(C_Curve)
@@ -66,15 +64,25 @@ PROPERTY_LIST_DECLARE_DERIVED(C_Curve, TransformComponent)
 
 class O_Path: public GameObject {
     std::string name_;
+    C_Curve* curve_comp_ = nullptr;
+    BufferT<MeshComponent*, int> checkpoint_meshes_;
+
+    O_Path() {}
+
 public:
     PROPERTY_SUPPORT(O_Path)
     PROPERTY_POLYMORPHIC_DRAW_IMPL(O_Path)
 
-   static O_Path* Create(const char* res);
-   virtual const char* GetName() const override { return name_.c_str(); } 
+    static O_Path* Create(const char* res);
+    virtual const char* GetName() const override { return name_.c_str(); } 
+
+    virtual void Update(float dt) override;
 
     virtual const TransformComponent* GetTransformInterface() const override { return GetComponent<C_Curve>(); };
     virtual TransformComponent* GetTransformInterface() override { return GetComponent<C_Curve>(); };
+
+    const Curve<vec3>* GetCurve() const { assert(curve_comp_); return curve_comp_->GetCurve(); }
+    Curve<vec3>* GetCurve() { assert(curve_comp_); return curve_comp_->GetCurve(); }
 };
 
 PROPERTY_LIST_DECLARE_DERIVED(O_Path, GameObject)

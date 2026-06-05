@@ -46,6 +46,7 @@ struct SceneViewInfo {
 };
 
 class GameObject;
+class Component;
 typedef uint32_t GameObjectId;
 
 namespace scene {
@@ -65,6 +66,11 @@ void scene_get_intersected_objects(
 
 void scene_add_game_object(GameObject* go);
 void scene_delete_game_object(GameObject* go);
+
+void scene_add_component(Component* comp);
+
+
+void scene_delete_component(Component* comp);
 
 const SceneViewInfo& scene_get_view_info();
 

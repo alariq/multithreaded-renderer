@@ -37,7 +37,7 @@ class MainShip: public GameObject {
 
     std::deque<vec3> trail;
     const ReparameterizeByArclength<vec3>* repar;
-    C_Curve* levelCurve;
+    const Curve<vec3>* levelCurve;
 
     std::vector<CheckPoint> check_points_;
     int cur_check_point_idx_;
@@ -58,7 +58,7 @@ class MainShip: public GameObject {
     virtual const char* GetName() const override { return name_.c_str(); } 
 
     static MainShip* Create(const char* res);
-    void Initialize(const std::vector<CheckPoint>& cps, GameObject* intarget, C_Curve* master_curve);
+    void Initialize(const std::vector<CheckPoint>& cps, GameObject* intarget, const Curve<vec3>* master_curve);
 
     virtual void Update(float dt) override;
     virtual void AddRenderPackets(struct RenderFrameContext* rfc) const override;

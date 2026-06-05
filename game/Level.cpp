@@ -1,3 +1,4 @@
+#include "obj_model.h"
 #include "Level.h"
 #include "Time.h"
 #include "Billboard.h"
@@ -12,75 +13,90 @@
 
 MainShip* g_main_ship = nullptr;
 
-camera ship_cam;
-float ship_cam_distance = 10.0f;
-struct ShipCam {
-    struct State { vec3 pos; quaternion qrot;
-    };
+class ShipCameraController: public ICameraController {
 
-    State cur;
-    State target;
+    MainShip* ship_;
 
-    void init(vec3 pos, quaternion rot) {
-        cur.pos = pos;
-        cur.qrot = rot;
+    camera cam;
+    float cam_distance = 10.0f;
 
+    struct State {
+        vec3 pos; quaternion qrot;
+    } cur, target;
+
+public:
+
+    PROPERTY_SUPPORT(ShipCameraController);
+    PROPERTY_POLYMORPHIC_DRAW_IMPL(ShipCameraController);
+
+    void init() {
+        //SceneViewInfo& svi = scene_get_view_info();
+
+        auto tc = ship_->GetComponent<TransformComponent>();
+        cur.pos = tc->GetPosition();
+        cur.qrot = tc->GetRotation();
         target = cur;
+
+        cam.set_projection(45.0f, Environment.drawableWidth, Environment.drawableHeight, 0.1f, 1000.0f);
+        cam.set_view(mat4::identity());
     }
 
-} ship_cam_state;
+    void SetShip(MainShip* ship) { ship_ = ship; }
 
-void update_ship_cam(MainShip* ship) {
+    const camera& GetCamera() const override { return cam; }
 
-	int XDelta, YDelta, WheelDelta;
-    float XPos, YPos;
-    DWORD buttonsPressed;
-    gos_GetMouseInfo(&XPos, &YPos, &XDelta, &YDelta, &WheelDelta, &buttonsPressed);
-    if(WheelDelta) {
-        ship_cam_distance *= WheelDelta > 0 ? 1.1f : 0.9f;
+    camera& Update(float dt) override {
+
+        if(!ship_) 
+            return cam;
+
+        // this is probably should be in pawn (ship) input update
+        int XDelta, YDelta, WheelDelta;
+        float XPos, YPos;
+        DWORD buttonsPressed;
+        gos_GetMouseInfo(&XPos, &YPos, &XDelta, &YDelta, &WheelDelta, &buttonsPressed);
+        if(WheelDelta) {
+            cam_distance *= WheelDelta > 0 ? 1.1f : 0.9f;
+        }
+        //
+
+        // TODO: fix this mess
+        extern ivec4 editor_get_3dview_rect();
+        ivec4 scene_rect = editor_get_3dview_rect();
+
+        vec3 ship_pos = ship_->GetComponent<TransformComponent>()->GetPosition();
+        cam.set_projection(90.0f, scene_rect.z, scene_rect.w, 0.1f, 1000.0f);
+        //ship_cam.lookat(ship_cam_distance*vec3(1,1,1),  ship_pos, vec3(0,1,0));
+        quaternion rot = ship_->GetComponent<TransformComponent>()->GetRotation();
+        vec3 elevation = vec3(0,1.5f,0);
+
+        target.pos = ship_pos + elevation;
+        target.qrot = rot;
+
+        // Math In Game Development Summit: Getting There in Style: Intro to Interpolation and Control Systems 
+        // exponential decay, K = 2.0
+        // https://theorangeduck.com/page/spring-roll-call
+        float halflife_sec = .25f; // halflife = 0.693 / k (50% of error)
+        float k = 0.693 / halflife_sec;
+        const float alpha = 1.0f - std::exp(-dt * k);
+        cur.pos = //ship_cam_state.target.pos;
+                    lerp(cur.pos, target.pos, alpha);
+        cur.qrot = //ship_cam_state.target.qrot;
+                    slerp(cur.qrot, normalize(target.qrot), alpha);
+
+        mat4 view = camera::make_lookat(
+                cur.pos - cam_distance*cur.qrot.axis2() + vec3(0, 0.2f, 0)*cam_distance,
+                cur.pos,
+                cur.qrot.axis1());
+
+        cam.set_view(view);
+
+        return cam;
     }
+};
 
-    // TODO: fix this mess
-    extern ivec4 editor_get_3dview_rect();
-    ivec4 scene_rect = editor_get_3dview_rect();
-
-    vec3 ship_pos = ship->GetComponent<TransformComponent>()->GetPosition();
-    ship_cam.set_projection(90.0f, scene_rect.z, scene_rect.w, 0.1f, 1000.0f);
-    //ship_cam.lookat(ship_cam_distance*vec3(1,1,1),  ship_pos, vec3(0,1,0));
-    quaternion rot = ship->GetComponent<TransformComponent>()->GetRotation();
-    vec3 elevation = vec3(0,1.5f,0);
-
-    ship_cam_state.target.pos = ship_pos + elevation;
-    ship_cam_state.target.qrot = rot;
-
-    const float dt = 0.016f;
-    // Math In Game Development Summit: Getting There in Style: Intro to Interpolation and Control Systems 
-    // exponential decay, K = 2.0
-    // https://theorangeduck.com/page/spring-roll-call
-    float halflife_sec = .25f; // halflife = 0.693 / k (50% of error)
-    float k = 0.693 / halflife_sec;
-    const float alpha = 1.0f - std::exp(-dt * k);
-    ship_cam_state.cur.pos = //ship_cam_state.target.pos;
-        lerp(ship_cam_state.cur.pos, ship_cam_state.target.pos, alpha);
-    ship_cam_state.cur.qrot = //ship_cam_state.target.qrot;
-        slerp(ship_cam_state.cur.qrot, normalize(ship_cam_state.target.qrot), alpha);
-
-    mat4 view = camera::make_lookat(
-            ship_cam_state.cur.pos - ship_cam_distance*ship_cam_state.cur.qrot.axis2() + vec3(0, 0.2f, 0)*ship_cam_distance,
-            ship_cam_state.cur.pos,
-            ship_cam_state.cur.qrot.axis1());
-
-    ship_cam.set_view(view);
-}
-
-
-void cam_updator_func() {
-    update_ship_cam(g_main_ship); 
-}
-
-typedef void (*CamerUpdateFuncPtr)(void);
-void SetCameraOverride(camera* cam, CamerUpdateFuncPtr update_func);
-
+PROPERTY_LIST_BEGIN_DERIVED(ShipCameraController, ICameraController)
+PROPERTY_LIST_END()
 
 Level* Level::Create(const char* res) {
 
@@ -112,21 +128,25 @@ Level* Level::Create(const char* res) {
         cps.push_back({pos, torus_scale});
     }
 
+    obj->mainPath = O_Path::Create("mainPath");
+    scene_add_game_object(obj->mainPath);
+    Curve<vec3>* curve = obj->mainPath->GetCurve();
+
     // create curve passing through them
     // -----------------------------------------------------------------------------------
-    obj->mainCurve_.addPoint(cps[0].position + 0.25f*(cps[0].position - cps[1].position));
+    curve->addPoint(cps[0].position + 0.25f*(cps[0].position - cps[1].position));
     for(int i=0;i<num_cps; i++) {
-        obj->mainCurve_.addPoint(cps[i].position);
+        curve->addPoint(cps[i].position);
     }
-    obj->mainCurve_.addPoint(cps[num_cps-1].position + 0.25f*(cps[num_cps-1].position - cps[num_cps-2].position));
+    curve->addPoint(cps[num_cps-1].position + 0.25f*(cps[num_cps-1].position - cps[num_cps-2].position));
 
     // create component from the curve
-    obj->mainCurveComp_ = obj->AddComponent<C_Curve>();
-    obj->mainCurveComp_->SetCurve(&obj->mainCurve_);
+    //obj->mainCurveComp_ = obj->AddComponent<C_Curve>();
+    //obj->mainCurveComp_->SetCurve(&obj->mainCurve_);
 
     // generate toruses along the main curve checkpoints
     // -----------------------------------------------------------------------------------
-    const int num_nodes = (int)obj->mainCurve_.getNumNodes();
+    const int num_nodes = (int)curve->getNumNodes();
     for(int i=0;i<num_nodes; i++) {
 
         GameObject* go = MeshObject::Create("torus");
@@ -145,8 +165,8 @@ Level* Level::Create(const char* res) {
             der_t -= 2*dt;
         }
 
-        pos = obj->mainCurve_.getAt(pos_t);
-        spline_get_basis_at(obj->mainCurve_, der_t, dt, right, up, fwd);
+        pos = curve->getAt(pos_t);
+        spline_get_basis_at(*curve, der_t, dt, right, up, fwd);
 
         mat3 m = mat3(right.x, right.y, right.z, up.x, up.y, up.z, fwd.x, fwd.y, fwd.z);
         m = transpose(m);
@@ -173,15 +193,16 @@ Level* Level::Create(const char* res) {
     MainShip* mainShip = MainShip::Create("paper_plane");
     TransformComponent* ftc = mainShip->GetComponent<TransformComponent>();
     //ftc->SetPosition(vec3(10, 4, 10));
-    ftc->SetPosition(obj->mainCurve_.getAt(0));
+    ftc->SetPosition(curve->getAt(0));
     ftc->SetScale(vec3(.5f));
-    mainShip->Initialize(cps, nullptr /* target */, obj->mainCurveComp_);
+    mainShip->Initialize(cps, nullptr /* target */, curve);
     scene_add_game_object(mainShip);
 
     // init main ship camera
-    ship_cam.set_projection(45.0f, Environment.drawableWidth, Environment.drawableHeight, 0.1f, 1000.0f);
-    ship_cam.set_view(mat4::identity());
-    SetCameraOverride(&ship_cam, cam_updator_func);
+    obj->shipCamController_ = new ShipCameraController();
+    obj->shipCamController_->SetShip(mainShip);
+    obj->shipCamController_->init();
+    scene_set_camera_controller(obj->shipCamController_);
 
     obj->mainShip = mainShip;
     g_main_ship  = obj->mainShip;
@@ -206,15 +227,17 @@ void Level::simulateFixedStep(double dt) {
     const vec3 pos = tc->GetPosition();
     const vec3 dir = tc->GetRotation().axis2();
 
+    const Curve<vec3>* mainCurve = mainPath->GetCurve();
+
     // this should not be inside fixed step as this is a constant related to it
     // though if all object will go in lock step then it should be inside and calculated every frame
     // but we actually only care about last position of main ship on the mainCurve (during last call to fixedStep), so could also leverat this fact
     SplineClosestPointResult res;
     {SCOPED_ZONE_N(GetClosest, 0);
-    res = spline_get_closest_point(mainCurve_, pos, 50, 16);
+    res = spline_get_closest_point(*mainCurve, pos, 50, 16);
     }
     const vec3 pos_on_spline  = res.point;
-    vec3 fwd = normalize(mainCurve_.getDerivativeAt(res.t));
+    vec3 fwd = normalize(mainCurve->getDerivativeAt(res.t));
     vec3 up = vec3(0,1,0);
     vec3 right = cross(up, fwd);
 
@@ -413,6 +436,7 @@ void Level::UpdateTextInput() {
 void Level::Update(float dt) {
 
     // TODO: move to better place (this is only updated in game mode)
+    // also this will get previous camera position as camera now updates after scene update
     static bool b_frustum_overriden = false;
     auto c_frustum = GetComponent<FrustumComponent>();
     if(c_frustum && gos_GetKeyStatus(KEY_F) == KEY_PRESSED && gos_GetKeyStatus(KEY_LCONTROL) == KEY_HELD)

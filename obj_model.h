@@ -405,6 +405,10 @@ public:
         return comp;
 	}
 
+    void RemoveAllComponents() {
+        components_.clear();
+    }
+
     // returns component if removed, otherwise nullptr
     template<typename T>
     T* RemoveComponent(T* comp) {

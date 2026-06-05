@@ -13,10 +13,10 @@ class Level: public GameObject {
 
     std::string name_;
 
-    // do we need to store is as a separate member?
-    Curve<vec3> mainCurve_;
+    O_Path* mainPath; 
     C_Curve* mainCurveComp_;
     MainShip* mainShip = nullptr;
+    class ShipCameraController* shipCamController_ = nullptr;
 
     BufferT<Enemy*, int> enemies_;
     uint64_t last_time_spawned_;
@@ -49,3 +49,6 @@ class Level: public GameObject {
 
 };
 PROPERTY_LIST_DECLARE_DERIVED(Level, GameObject)
+
+
+PROPERTY_LIST_DECLARE_DERIVED(ShipCameraController, ICameraController)

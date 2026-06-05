@@ -7,20 +7,16 @@
 #include "engine/utils/vec.h"
 #include "editor.h"
 
-void C_Curve::SetCurve(Curve<vec3>* c) {
-    curve_ = c;
-}
-
 int32_t C_Curve::GetNumNodes() const {
-    return curve_->getNumSegments();
+    return curve_.getNumSegments();
 }
 
 vec3 C_Curve::Get(float t) const {
-    return curve_->getAt(t);
+    return curve_.getAt(t);
 }
 
 vec3 C_Curve::GetDerivative(float t) const {
-    return curve_->getDerivativeAt(t);
+    return curve_.getDerivativeAt(t);
 }
 
 void C_Curve::Initialize() {
@@ -34,13 +30,13 @@ void C_Curve::UpdateComponent(float dt) {
 }
 
 void C_Curve::AddRenderPackets(struct RenderFrameContext* rfc) const {
-    CurveDebugDraw(*curve_, 10, false, &GetTransform(), rfc->rl_);
+    CurveDebugDraw(curve_, 10, false, &GetTransform(), rfc->rl_);
 
     // :(
     ITransformInterface* ti = const_cast<ITransformInterface*>((const ITransformInterface*)this);
     RenderMesh* mesh = res_man_load_mesh("sphere");
-    for(int i=0;i<curve_->getNumNodes();++i) {
-        vec3 node_pos = curve_->getNodeValue(i);
+    for(int i=0;i<curve_.getNumNodes();++i) {
+        vec3 node_pos = curve_.getNodeValue(i);
         vec3 pos = this->Transform(node_pos);
         const int id = editor_add_gizmo(ti, (void*)(ptrdiff_t)i);
         add_debug_mesh_constant_size_px(rfc, mesh, 1, vec4(0.25f, 0.0125f, 0.0125f, 1), mat4::translation(pos), 10, id);
@@ -50,12 +46,12 @@ void C_Curve::AddRenderPackets(struct RenderFrameContext* rfc) const {
 void C_Curve::SetPosition(vec3 p, void* userdata) {
     int idx = (int)((ptrdiff_t)userdata & 0xffffffff);
     assert(!isnan(p.x));
-    curve_->setNodeValue(idx, p);
+    curve_.setNodeValue(idx, p);
 
 }
 vec3 C_Curve::GetPosition(void* userdata) const {
     int idx = (int)((ptrdiff_t)userdata & 0xffffffff);
-    return curve_->getNodeValue(idx);
+    return curve_.getNodeValue(idx);
 }
 
 PROPERTY_LIST_BEGIN_DERIVED(C_Curve, TransformComponent)
@@ -72,8 +68,39 @@ O_Path* O_Path::Create(const char *name) {
     auto tr = obj->AddComponent<TransformComponent>();
     auto cc = obj->AddComponent<C_Curve>();
     cc->SetParent(tr);
+    obj->curve_comp_ = cc;
 
     return obj;
+}
+
+void O_Path::Update(float dt) {
+
+    int num_cps = curve_comp_->GetNumNodes();
+    if(checkpoint_meshes_.size() > num_cps) {
+        for(int i=checkpoint_meshes_.size(); i >=num_cps; i--) {
+            MeshComponent* mc = checkpoint_meshes_[i];
+            RemoveComponent(mc);
+            checkpoint_meshes_.remove_swap(i);
+        }
+        checkpoint_meshes_.resize(num_cps);
+    }
+
+    const Curve<vec3>* curve = curve_comp_->GetCurve();
+    for(int i=0; i < num_cps; ++i) {
+        MeshComponent* mc;
+        if(i >= checkpoint_meshes_.size()) {
+            mc = MeshComponent::Create("cube");
+            AddComponent(mc);
+            //TODO: FIXME: if we AddComponent() before adding go to scene we do not need to call scene_add_component() for every component
+            // but if we create component after object already added to scene we have to call it. This is inconsistent
+            scene_add_component(mc);
+            mc->SetParent(GetComponent<TransformComponent>());
+            checkpoint_meshes_.push(mc);
+        } else {
+            mc = checkpoint_meshes_[i];
+        }
+        mc->SetPosition(curve->getNodeValue(i));
+    }
 }
 
 PROPERTY_LIST_BEGIN_DERIVED(O_Path, GameObject)

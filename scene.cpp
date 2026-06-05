@@ -18,8 +18,10 @@
 
 typedef std::vector<GameObject*> ObjList_t;
 static ObjList_t g_world_objects;
-static std::vector<std::pair<GameObject*, std::vector<Component*>>> g_init_pending;
-static std::vector<std::pair<GameObject*, std::vector<Component*>>> g_destroy_pending;
+static std::vector<GameObject*> g_init_pending_gos;
+static std::vector<Component*> g_init_pending_comps;
+static std::vector<GameObject*> g_destroy_pending_gos;
+static std::vector<Component*> g_destroy_pending_comps;
 // have separate arrays of concrete types?
 static std::vector<std::vector<Component*>> g_components;
 static std::vector<PointLight> g_light_list;
@@ -64,6 +66,16 @@ void initialize_scene() {
     auto* tc = go->GetComponent<TransformComponent>();
     tc->SetPosition(vec3(0, 0, 0));
     tc->SetScale(vec3(50, 1, 50));
+    scene_add_game_object(go);
+
+    go = MeshObject::Create("sphere");
+    tc = go->GetComponent<TransformComponent>();
+    tc->SetPosition(vec3(0, 0, 0));
+    scene_add_game_object(go);
+
+    go = MeshObject::Create("cube");
+    tc = go->GetComponent<TransformComponent>();
+    tc->SetPosition(vec3(1, 0, 0));
     scene_add_game_object(go);
 
     scene_add_game_object(Level::Create("level1"));
@@ -164,17 +176,39 @@ void scene_update(const camera *cam, const bool b_update_simulation, const float
     }
 }
 
-void scene_add_game_object(GameObject* go) {
-    std::vector<Component*> to_init;
-    for (Component *comp : go->GetComponents()) {
-		comp->Initialize();
-        to_init.push_back(comp);
-        if(auto ri = comp->getRenderableInterface()) {
-            g_renderables_init_pending.push_back(ri);
-        }
+
+void scene_add_component(Component* comp) {
+    comp->Initialize();
+    if(auto ri = comp->getRenderableInterface()) {
+        g_renderables_init_pending.push_back(ri);
     }
 
-    g_init_pending.push_back(std::make_pair(go, to_init));
+    g_init_pending_comps.push_back(comp);
+}
+
+void scene_delete_component(Component* comp) {
+    auto& cmp_list = g_components[(uint32_t)comp->GetType()];
+    auto cb = std::begin(cmp_list);
+    auto ce = std::end(cmp_list);
+    cmp_list.erase(std::remove(cb, ce, comp), ce);
+
+    comp->Deinitialize();
+
+    if(auto ri = comp->getRenderableInterface()) {
+        g_renderables_deinit_pending.push_back(ri);
+        auto fit = std::find(g_renderables.begin(), g_renderables.end(), ri);
+        assert(fit != g_renderables.end());
+        g_renderables.erase(fit);
+    }
+
+    g_destroy_pending_comps.push_back(comp);
+}
+
+void scene_add_game_object(GameObject* go) {
+    for (Component *comp : go->GetComponents()) {
+        scene_add_component(comp);
+    }
+    g_init_pending_gos.push_back(go);
 }
 
 // TODO: what will happen if object is still in g_render_init_pending?
@@ -188,27 +222,15 @@ void scene_delete_game_object(GameObject* go) {
         (*it)->SetState(GameObject::kDestroyed);
 	    g_world_objects.erase(it);
 
-        std::vector<Component*> to_deinit;
-		for (Component *comp : go->GetComponents()) {
-            auto& cmp_list = g_components[(uint32_t)comp->GetType()];
-			auto cb = std::begin(cmp_list);
-			auto ce = std::end(cmp_list);
-            cmp_list.erase(std::remove(cb, ce, comp), ce);
-
-            comp->Deinitialize();
-
-            if(auto ri = comp->getRenderableInterface()) {
-                g_renderables_deinit_pending.push_back(ri);
-                auto fit = std::find(g_renderables.begin(), g_renderables.end(), ri);
-                assert(fit != g_renderables.end());
-                g_renderables.erase(fit);
-            }
-            to_deinit.push_back(comp);
-		}
-        g_destroy_pending.push_back(std::make_pair(go, to_deinit));
+        for(Component* comp: go->GetComponents()) {
+            scene_delete_component(comp);
+        }
+        go->RemoveAllComponents();
+        g_destroy_pending_gos.push_back(go);
 	}
 }
 
+// TODO: should this be in an editor.cpp? or even create a separate 3dview.cpp
 void scene_draw_object_list() {
 #if WITH_EDITOR
     ImGui::Begin("ObjList");
@@ -290,56 +312,63 @@ void scene_render_update(struct RenderFrameContext *rfc, bool is_in_editor_mode,
 	}
     g_renderables_deinit_pending.clear();
 
-	// update init pending array
-    for (auto& pair: g_init_pending) {
-        GameObject* go = pair.first;
-        std::vector<Component*> comps = pair.second;
+	// update init pending components array 
+    for (size_t i = 0; i < g_init_pending_comps.size(); ++i) {
+        Component* c = g_init_pending_comps[i];
+        if(c->getState() == Component::kInitialized) {
+            g_components[(uint32_t)c->GetType()].push_back(c);
+            g_init_pending_comps[i] = nullptr;
+        }
+    }
+	{
+		auto b = std::begin(g_init_pending_comps);
+		auto e = std::end(g_init_pending_comps);
+		g_init_pending_comps.erase(
+			std::remove_if(b, e, [](const auto& p) { return p == nullptr; }), e);
+	}
+
+    for (size_t i = 0; i < g_init_pending_gos.size(); ++i) {
+        GameObject* go = g_init_pending_gos[i];
         bool all_initialized = true;
-        for(auto c: comps) {
+        for(auto c: go->GetComponents()) {
             all_initialized &= (c->getState() == Component::kInitialized);
         }
-
         if(all_initialized) {
+            g_init_pending_gos[i] = nullptr;
 			assert(std::find(g_world_objects.begin(), g_world_objects.end(), go) ==
 				   g_world_objects.end());
 			g_world_objects.push_back(go);
-            for(Component* comp: go->GetComponents()) {
-                g_components[(uint32_t)comp->GetType()].push_back(comp);
-            }
-            pair.first = 0;
         }
     }
 	{
-		auto b = std::begin(g_init_pending);
-		auto e = std::end(g_init_pending);
-		g_init_pending.erase(
-			std::remove_if(b, e, [](const auto& p) { return p.first == nullptr; }), e);
+		auto b = std::begin(g_init_pending_gos);
+		auto e = std::end(g_init_pending_gos);
+		g_init_pending_gos.erase(
+			std::remove_if(b, e, [](const auto& p) { return p == nullptr; }), e);
 	}
 
-    // update render destroy pending array
-    for (auto& pair : g_destroy_pending) {
-        GameObject* go = pair.first;
-        std::vector<Component*> comps = pair.second;
-        bool all_deinitialized = true;
-        for(auto c: comps) {
-            all_deinitialized &= (c->getState() == Component::kUninitialized);
-        }
+    // destroy game objects
+    for (GameObject* go: g_destroy_pending_gos) {
+        assert(std::find(g_world_objects.begin(), g_world_objects.end(), go) ==
+                g_world_objects.end());
+        delete go;
+    }
+    g_destroy_pending_gos.clear();
 
-        if(all_deinitialized) {
-			assert(std::find(g_world_objects.begin(), g_world_objects.end(), go) ==
-				   g_world_objects.end());
-
-            delete go;
-            pair.first = nullptr;
+    // destroy components
+    for (size_t i = 0; i < g_destroy_pending_comps.size(); ++i) {
+        Component* c = g_destroy_pending_comps[i];
+        if(c->getState() == Component::kUninitialized) {
+            g_destroy_pending_comps[i] = nullptr;
+            delete c;
         }
     }
 	{
-		auto b = std::begin(g_destroy_pending);
-		auto e = std::end(g_destroy_pending);
-		g_destroy_pending.erase(
-			std::remove_if(b, e, [](const auto& p) { return p.first == nullptr; }), e);
+		auto b = std::begin(g_destroy_pending_comps);
+		auto e = std::end(g_destroy_pending_comps);
+		g_destroy_pending_comps.erase(
+			std::remove_if(b, e, [](const auto& p) { return p == nullptr; }), e);
 	}
-
 
     for(IRenderable* ri: g_renderables) {
         if(ri->IsRenderInitialized()) {

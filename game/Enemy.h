@@ -95,8 +95,6 @@ class Enemy: public GameObject {
     double accumulator;
 
     std::deque<vec3> trail;
-    // no need for this anymore? info in curve_comp_
-    Curve<vec3> myCurve;
 
     char text_label[16];
     bool b_is_active_target_ = false;
