@@ -39,6 +39,8 @@ public:
     virtual void InitRenderResources() { b_render_res_state = 1; }
     virtual void DestroyRenderResources() { b_render_res_state = 2; }
 
+    virtual ~ParticleEmitterInterface() {}
+
 };
 
 ParticleEmitterInterface* CreateStandardEmitter();

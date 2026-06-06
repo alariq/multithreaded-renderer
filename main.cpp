@@ -95,6 +95,8 @@ void __stdcall Deinit(void)
 
     delete g_shadow_pass;
 
+    ParticleSystemManager::Instance().DestroyRenderResources();
+
     finalize_editor();
     finalize_scene();
     finalize_res_man();

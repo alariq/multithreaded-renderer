@@ -480,6 +480,10 @@ public:
 
         ParticleEmitterInterface::DestroyRenderResources();
     }
+
+    ~StandardEmitter() {
+        Destroy();
+    }
 };
 
 void ParticleSystem::Update(const float dt)
@@ -508,8 +512,10 @@ void ParticleSystem::InitRenderResources()
 }
 void ParticleSystem::DestroyRenderResources()
 {
-    for(auto e: emitters_)
+    for(auto e: emitters_) {
         e->DestroyRenderResources();
+        delete e;
+    }
 }
 
 void ParticleSystemManager::Update(const float dt)
@@ -529,6 +535,11 @@ void ParticleSystemManager::DestroyRenderResources()
     gos_DestroyBuffer(StandardEmitter::get_quad_ib());
     gos_DestroyBuffer(StandardEmitter::get_quad_vb());
     gos_DestroyVertexDeclaration(StandardEmitter::get_vdecl());
+
+    std::lock_guard<std::mutex> l(init_rr);
+    for(auto ps: ps_list_) {
+        ps->DestroyRenderResources();
+    }
 }
 
 
