@@ -17,11 +17,11 @@ public:
     static void on_transformed(TransformComponent* );
     void setKinematic(bool b_kinematic);
 
+    virtual void Deinitialize() override;
 
     virtual void UpdateComponent(float dt) override;
 
     static RigidBodyComponent* Create(class PBDSimulation *sim, ICollisionDetection* cd, const vec3 &dim, bool b_invert);
-    static void Destroy(RigidBodyComponent* comp, PBDSimulation *sim, ICollisionDetection* cd);
 };
 
 class RigidBodyObject: public GameObject {
@@ -36,7 +36,6 @@ class RigidBodyObject: public GameObject {
 public:
     static RigidBodyObject* Create(const vec3 &dim);
     RigidBodyObject() = default;
-    ~RigidBodyObject();
 
     // IEditorObject
     virtual int GetIconID() const override { return 2; }

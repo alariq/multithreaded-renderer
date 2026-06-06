@@ -72,15 +72,15 @@ Enemy* Enemy::Create(const char* res) {
     obj->name_ = res;
     obj->name_ += std::to_string(obj_num++);
 
-    auto tr = obj->AddComponent<TransformComponent>();
+    auto tr = scene_create_component<TransformComponent>(obj);
 
-    obj->mesh_comp_ = MeshComponent::Create(res);
-    obj->curve_comp_ = C_Curve::Create(res);
+    obj->mesh_comp_ = MeshComponent::Create(res, obj);
     obj->mesh_comp_->SetScale(vec3(0.2f));
-    obj->AddComponent(obj->mesh_comp_);
     obj->mesh_comp_->SetParent(tr);
 
-    auto* TextComp = obj->AddComponent<EnemyTextComp>();
+    obj->curve_comp_ = scene_create_component<C_Curve>(obj);
+
+    auto TextComp = scene_create_component<EnemyTextComp>(obj);
     TextComp->SetParent(tr);
     TextComp->Initialize();
 

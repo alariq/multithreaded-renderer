@@ -83,9 +83,8 @@ PROPERTY_LIST_BEGIN_DERIVED(TransformComponent, Component)
     PROPERTY_ARRAY(children_, "Children");
 PROPERTY_LIST_END()
 
-
-MeshComponent* MeshComponent::Create(const char *res) {
-    MeshComponent* comp = new MeshComponent();
+MeshComponent* MeshComponent::Create(const char *res, GameObject* go) {
+    auto comp = scene_create_component<MeshComponent>(go);
     comp->mesh_name_ = res;
     return comp;
 }
@@ -164,7 +163,7 @@ ParticleSystemObject::~ParticleSystemObject() {
 
 FrustumObject *FrustumObject::Create() {
     FrustumObject *o = new FrustumObject();
-    o->AddComponent<FrustumComponent>();
+    scene_create_component<FrustumComponent>(o);
     return o;
 }
 
@@ -287,10 +286,9 @@ MeshObject *MeshObject::Create(const char *res) {
     obj->name_ = res;
     obj->name_ += std::to_string(obj_num++);
 
-    auto tr = obj->AddComponent<TransformComponent>();
+    auto tr = scene_create_component<TransformComponent>(obj);
 
-    obj->mesh_comp_ = MeshComponent::Create(res);
-    obj->AddComponent(obj->mesh_comp_);
+    obj->mesh_comp_ = MeshComponent::Create(res, obj);
     obj->mesh_comp_->SetParent(tr);
 
     return obj;

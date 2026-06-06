@@ -15,16 +15,12 @@ MainShip* MainShip::Create(const char* res) {
     obj->name_ = res;
     obj->name_ += std::to_string(obj_num++);
 
-    auto tr = obj->AddComponent<TransformComponent>();
+    auto tr = scene_create_component<TransformComponent>(obj);
 
-    obj->mesh_comp_ = MeshComponent::Create(res);
-    obj->AddComponent(obj->mesh_comp_);
+    obj->mesh_comp_ = MeshComponent::Create(res, obj);
     obj->mesh_comp_->SetParent(tr);
     // rotate mesh to point forward in case of fighter1
     //obj->mesh_comp_->SetRotation(quaternion(vec3(0,1,0), M_PI/2.0f));
-
-    auto* TextComp = obj->AddComponent<GameTextComp>();
-    TextComp->SetParent(tr);
 
     return obj;
 }

@@ -24,10 +24,10 @@ public:
     StaticCollisionComponent() {};
 
     static StaticCollisionComponent* Create(const struct PBDUnifiedSimulation*sim, const vec2 &dim);
-    static void Destroy(StaticCollisionComponent* comp);
+    void Destroy();
 
 	virtual void Initialize() override { state_ = kInitialized; }
-	virtual void Deinitialize() override { state_ = kUninitialized; }
+	virtual void Deinitialize() override { Destroy(); state_ = kUninitialized; }
 };
 
 class PBDStaticCollisionObj: public GameObject {

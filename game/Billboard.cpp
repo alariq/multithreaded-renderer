@@ -115,7 +115,7 @@ O_Billboard* O_Billboard::Create(const char *name) {
     O_Billboard *obj = new O_Billboard();
     obj->name_ = name;
     obj->name_ += std::to_string(obj_num++);
-    auto c_bb = obj->AddComponent<C_Billboard>();
+    auto c_bb = scene_create_component<C_Billboard>(obj);
     // small usability hack: try to set texture same as object name
     // TODO: this all needs res manager rework
     c_bb->SetTexure(name); 

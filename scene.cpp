@@ -115,6 +115,7 @@ void finalize_scene() {
     for (; it != end; ++it) {
         GameObject *go = *it;
         go->SetState(GameObject::kPendingDestroy);
+        //TOOD: should we just remove them from the scene?
         delete go;
     }
 }
@@ -145,6 +146,7 @@ void scene_update(const camera *cam, const bool b_update_simulation, const float
     SCOPED_ZONE_N(UpdateComponents,0);
     for(int t=0;t<(int)ComponentType::kCount;++t) {
         for(auto comp: g_components[t]) {
+            gosASSERT(comp->getState() == Component::kInitialized);
             comp->UpdateComponent(dt);
         }
     }
@@ -162,7 +164,7 @@ void scene_update(const camera *cam, const bool b_update_simulation, const float
             pending_destroy.push_back(go);
         }
 
-        // if object is frustum object.... and we want to update it
+		// if object is frustum object.... and we want to update it
         if (0) {
             camera loc_cam = *cam;
             loc_cam.set_projection(45.0f, Environment.drawableWidth,
@@ -177,7 +179,7 @@ void scene_update(const camera *cam, const bool b_update_simulation, const float
 }
 
 
-void scene_add_component(Component* comp) {
+void scene_add_component__(Component* comp) {
     comp->Initialize();
     if(auto ri = comp->getRenderableInterface()) {
         g_renderables_init_pending.push_back(ri);
@@ -194,6 +196,17 @@ void scene_delete_component(Component* comp) {
 
     comp->Deinitialize();
 
+    GameObject* go = comp->getGameObjectHandle().go_handle_;
+    if(go) {
+        go->DetachComponent(comp);
+    } else {
+        log_warning("No game object when destructing component (type:%d)\n", comp->GetType());
+    }
+
+    // need to be careful that only after renderable is destroyed we actually
+    // delet component (handled now through states)
+    // TODO: just remove if from component interface and instead have a separate
+    // Renderable objects not related to original component class?
     if(auto ri = comp->getRenderableInterface()) {
         g_renderables_deinit_pending.push_back(ri);
         auto fit = std::find(g_renderables.begin(), g_renderables.end(), ri);
@@ -205,9 +218,6 @@ void scene_delete_component(Component* comp) {
 }
 
 void scene_add_game_object(GameObject* go) {
-    for (Component *comp : go->GetComponents()) {
-        scene_add_component(comp);
-    }
     g_init_pending_gos.push_back(go);
 }
 
@@ -222,12 +232,24 @@ void scene_delete_game_object(GameObject* go) {
         (*it)->SetState(GameObject::kDestroyed);
 	    g_world_objects.erase(it);
 
-        for(Component* comp: go->GetComponents()) {
-            scene_delete_component(comp);
+        // smells
+        while(go->GetComponents().size()) {
+            scene_delete_component(go->GetComponents()[0]);
         }
-        go->RemoveAllComponents();
         g_destroy_pending_gos.push_back(go);
 	}
+}
+
+void scene_attach_component(GameObject* go, Component* comp)
+{
+    // TODO: do we need to have this in GameObject? maybe just store correspondence in scene itself
+    go->AttachComponent(comp);
+}
+
+void scene_detach_component(GameObject* go, Component* comp)
+{
+    // TODO: do we need to have this in GameObject? maybe just store correspondence in scene itself
+    go->DetachComponent(comp);
 }
 
 // TODO: should this be in an editor.cpp? or even create a separate 3dview.cpp
@@ -294,9 +316,21 @@ void scene_render_update(struct RenderFrameContext *rfc, bool is_in_editor_mode,
 
 	rfc->point_lights_ = g_light_list;
 
+    for(IRenderable* ri: g_renderables) {
+        if(ri->IsRenderInitialized()) {
+            ri->AddRenderPackets(rfc);
+        }
+    }
+
+    if(!b_exclusive_3dview) {
+        scene_draw_object_list();
+    }
+
+
+    // NOTE: this might not be true anymore
 	// update objects pending creation or destruction after update loop because if we add
 	// object to world we first want it to update its components in scene_update
-	// so by doing it at the end of this fuction objects wich are added here in
+	// so by doing it at the end of this function objects wich are added here in
 	// g_components will be updated next frame and ony drawn after update
 
 	// schedule render resource (de)initialization for pending objects
@@ -333,6 +367,7 @@ void scene_render_update(struct RenderFrameContext *rfc, bool is_in_editor_mode,
         for(auto c: go->GetComponents()) {
             all_initialized &= (c->getState() == Component::kInitialized);
         }
+        // is this condition really necessary?
         if(all_initialized) {
             g_init_pending_gos[i] = nullptr;
 			assert(std::find(g_world_objects.begin(), g_world_objects.end(), go) ==
@@ -370,15 +405,6 @@ void scene_render_update(struct RenderFrameContext *rfc, bool is_in_editor_mode,
 			std::remove_if(b, e, [](const auto& p) { return p == nullptr; }), e);
 	}
 
-    for(IRenderable* ri: g_renderables) {
-        if(ri->IsRenderInitialized()) {
-            ri->AddRenderPackets(rfc);
-        }
-    }
-
-    if(!b_exclusive_3dview) {
-        scene_draw_object_list();
-    }
 }
 
 void scene_get_intersected_objects(

@@ -19,9 +19,17 @@ vec3 C_Curve::GetDerivative(float t) const {
     return curve_.getDerivativeAt(t);
 }
 
+// C_Curve implements IRenderable, but TransformComponent::Initialize will set 
+// state = Initialized before render thread will try to call RenderInitialize
+// and will be confused, because it will expect Uninitialized state, so
+// InitRenderResources will not be called. This all needs to be reworked
+// in favor of separate RenderObjects on render thread in render scene
+// we cannot have one state variable to be responsible for 2 things
 void C_Curve::Initialize() {
-    TransformComponent::Initialize();
+    //TransformComponent::Initialize();
+}
 
+void C_Curve::Deinitialize() {
 }
 
 void C_Curve::UpdateComponent(float dt) {
@@ -65,8 +73,9 @@ O_Path* O_Path::Create(const char *name) {
     obj->name_ = name;
     obj->name_ += std::to_string(obj_num++);
 
-    auto tr = obj->AddComponent<TransformComponent>();
-    auto cc = obj->AddComponent<C_Curve>();
+    auto tr = scene_create_component<TransformComponent>(obj);
+    auto cc = scene_create_component<C_Curve>(obj);
+
     cc->SetParent(tr);
     obj->curve_comp_ = cc;
 
@@ -79,7 +88,7 @@ void O_Path::Update(float dt) {
     if(checkpoint_meshes_.size() > num_cps) {
         for(int i=checkpoint_meshes_.size(); i >=num_cps; i--) {
             MeshComponent* mc = checkpoint_meshes_[i];
-            RemoveComponent(mc);
+            scene_delete_component(mc);
             checkpoint_meshes_.remove_swap(i);
         }
         checkpoint_meshes_.resize(num_cps);
@@ -89,11 +98,8 @@ void O_Path::Update(float dt) {
     for(int i=0; i < num_cps; ++i) {
         MeshComponent* mc;
         if(i >= checkpoint_meshes_.size()) {
-            mc = MeshComponent::Create("cube");
-            AddComponent(mc);
-            //TODO: FIXME: if we AddComponent() before adding go to scene we do not need to call scene_add_component() for every component
-            // but if we create component after object already added to scene we have to call it. This is inconsistent
-            scene_add_component(mc);
+            mc = MeshComponent::Create("cube", this);
+
             mc->SetParent(GetComponent<TransformComponent>());
             checkpoint_meshes_.push(mc);
         } else {

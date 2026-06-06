@@ -4,6 +4,7 @@
 #include "utils/quaternion.h"
 #include "utils/frustum.h"
 #include "utils/imgui_property_list.h"
+#include "utils/logging.h"
 #include "scene.h"
 #include "editor.h"
 
@@ -68,12 +69,12 @@ public:
         assert(!"Object is not in expected state");
 	}
 	void DoDeinitRenderResources() {
-        int exp = (int)kPendingDeinit;
-		if (initState.compare_exchange_strong(exp, (int)kUninitialized)) {
-			DeinitRenderResources();
-            return;
+        if(initState.load() == (int)kPendingDeinit) {
+            DeinitRenderResources();
+        } else {
+            log_error("Object is not in expected state %d\n", initState.load());
+            gosASSERT(!"Object is not in expected state");
 		}
-        assert(!"Object is not in expected state");
 	}
 
 	virtual void InitRenderResources() = 0;
@@ -284,16 +285,16 @@ class MeshComponent : public TransformComponent, public IRenderable {
 	mutable std::string pending_mesh_name_;
 	mutable std::atomic<void *> pending_mesh_;
 
+  public:
 	MeshComponent() : mesh_(nullptr), pending_mesh_(nullptr) {}
 
-  public:
     PROPERTY_SUPPORT(MeshComponent)
     PROPERTY_POLYMORPHIC_DRAW_IMPL(MeshComponent)
 
     int getState() const { return (int)initState.load(); }
     virtual IRenderable* getRenderableInterface() override { return this; }
 	virtual ComponentType GetType() const override { return get_component_type<MeshComponent>(); }
-	static MeshComponent *Create(const char *res);
+	static MeshComponent *Create(const char *res, GameObject* go);
 	virtual void InitRenderResources() override;
 	virtual void DeinitRenderResources() override;
 	virtual void AddRenderPackets(struct RenderFrameContext *) const override;
@@ -386,43 +387,33 @@ public:
 
     const std::vector<Component*>& GetComponents() const { return components_; }
 
-    template<typename T>
-    T* AddComponent() {
-        T* comp = new T();
-        return AddComponent(comp);
-    }
-
-    template<typename T>
-    T* AddComponent(T* comp) {
-        static_assert( std::is_base_of<Component, T>::value == true ); 
+    bool AttachComponent(Component* comp) {
         auto b = std::begin(components_);
         auto e = std::end(components_);
-		assert(e == std::find(b, e, comp));
-		(void)b;
-		(void)e;
-        comp->go_handle_ = GameObjectHandle{this};
-        components_.push_back(comp);
-        return comp;
-	}
-
-    void RemoveAllComponents() {
-        components_.clear();
+        const auto it = std::find(b, e, comp);
+        gosASSERT(it==e);
+        if(it==e) {
+            comp->go_handle_ = GameObjectHandle{this};
+            components_.push_back(comp);
+        }
+        return it==e;
     }
 
-    // returns component if removed, otherwise nullptr
-    template<typename T>
-    T* RemoveComponent(T* comp) {
-        static_assert( std::is_base_of<Component, T>::value == true ); 
+    bool DetachComponent(Component* comp) {
         auto b = std::begin(components_);
         auto e = std::end(components_);
         auto it = std::remove(b, e, comp);
-        assert(it!=e);
+        gosASSERT(it!=e);
         if(it!=e) {
             components_.erase(it, e);
             comp->go_handle_ = GameObjectHandle{nullptr};
-            return comp;
+            return true;
         }
-        return nullptr;
+        return false;
+    }
+
+    void RemoveAllComponents() {
+        components_.clear();
     }
 
 	GameObject() {
@@ -431,9 +422,9 @@ public:
         state_ = kInitialized;
 	}
     virtual ~GameObject() {
-        for(Component* c: components_) {
-            delete c;
-        }
+        //smells
+        while(components_.size())
+            scene_delete_component(components_[0]);
     }
 
     virtual void AddRenderPackets(struct RenderFrameContext* ) const {};

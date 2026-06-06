@@ -883,10 +883,9 @@ StaticCollisionComponent* StaticCollisionComponent::Create(const PBDUnifiedSimul
     return c;
 }
 
-void StaticCollisionComponent::Destroy(StaticCollisionComponent* comp)
+void StaticCollisionComponent::Destroy()
 {
-    collision_remove_box(comp->world_, comp->id_);
-    delete comp;
+    collision_remove_box(world_, id_);
 }
 
 void StaticCollisionComponent::on_transformed(TransformComponent* comp) {
@@ -901,17 +900,16 @@ void StaticCollisionComponent::on_transformed(TransformComponent* comp) {
 }
 
 PBDStaticCollisionObj::PBDStaticCollisionObj(const PBDUnifiedSimulation* sim, const vec2& dim) {
-    Tuple_.tr_ = AddComponent<TransformComponent>();
+    Tuple_.tr_ = scene_create_component<TransformComponent>(this);
 
     Tuple_.coll_ = StaticCollisionComponent::Create(sim, dim);
-    AddComponent(Tuple_.coll_);
+    scene_attach_component(this, Tuple_.coll_);
     Tuple_.coll_->SetParent(Tuple_.tr_);
 }
 
 PBDStaticCollisionObj::~PBDStaticCollisionObj() {
-    delete RemoveComponent(Tuple_.tr_);
-    auto c = RemoveComponent(Tuple_.coll_);
-    StaticCollisionComponent::Destroy(c);
+    scene_delete_component(Tuple_.tr_);
+    scene_delete_component(Tuple_.coll_);
 }
 
 
@@ -924,7 +922,7 @@ PBDTestObject* PBDTestObject::Create() {
     o->dbg_flags_.sb_part_rot = true;
     o->dbg_flags_.distance_constraints = true;
 
-    o->AddComponent<PBDVisComponent>();
+    scene_create_component<PBDVisComponent>(o);
     
     (phys_scenes[g_cur_phys_scene_index])(unified_pbd_get());
 

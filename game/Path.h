@@ -12,11 +12,6 @@ class C_Curve: public TransformComponent, public IRenderable {
     BufferT<int, int> gizmo_node_ids_;
 
 public:
-
-    static C_Curve* Create(const char* name) {
-        return new C_Curve();
-    }
-
     const Curve<vec3>* GetCurve() const { return &curve_; }
     Curve<vec3>* GetCurve() { return &curve_; }
     int32_t GetNumNodes() const;
@@ -30,6 +25,7 @@ public:
     PROPERTY_POLYMORPHIC_DRAW_IMPL(C_Curve)
 
     virtual void Initialize() override;
+    virtual void Deinitialize() override;
     virtual void UpdateComponent(float dt) override;
 
 	virtual void InitRenderResources() override {

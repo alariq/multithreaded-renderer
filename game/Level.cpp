@@ -106,10 +106,8 @@ Level* Level::Create(const char* res) {
     obj->name_ = res;
     obj->name_ += std::to_string(obj_num++);
 
-    //obj->AddComponent<FrustumComponent>();
-
-    //TODO: move game text component from MainShip here
-    //auto* TextComp = obj->AddComponent<GameTextComp>();
+    //scene_create_component<FrustumComponent>(obj);
+    scene_create_component<GameTextComp>(obj);
 
     // create checkpoints
     std::vector<CheckPoint> cps;
@@ -139,10 +137,6 @@ Level* Level::Create(const char* res) {
         curve->addPoint(cps[i].position);
     }
     curve->addPoint(cps[num_cps-1].position + 0.25f*(cps[num_cps-1].position - cps[num_cps-2].position));
-
-    // create component from the curve
-    //obj->mainCurveComp_ = obj->AddComponent<C_Curve>();
-    //obj->mainCurveComp_->SetCurve(&obj->mainCurve_);
 
     // generate toruses along the main curve checkpoints
     // -----------------------------------------------------------------------------------

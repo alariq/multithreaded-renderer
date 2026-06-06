@@ -26,13 +26,14 @@ RigidBodyComponent* RigidBodyComponent::Create(PBDSimulation *sim, ICollisionDet
     return c;
 }
 
-void RigidBodyComponent::Destroy(RigidBodyComponent* comp, PBDSimulation *sim, ICollisionDetection* cd)
-{
-    cd->removeCollisionObject(comp->collision_);
-    sim->removeRigidBody(comp->rigid_body_);
-    delete comp->collision_;
-    delete comp->rigid_body_;
-    delete comp;
+void RigidBodyComponent::Deinitialize() {
+	// not very good to have those functions to return pointers to singletons as we might
+	// want to  have e.g. several simulations, better to destroy all components in a scene and scene will provide sim & cd
+    // or even better have several physics scenes (islands)
+    auto sim = pbd_get_simulation();
+    auto cd = pbd_get_collision_detection();
+    cd->removeCollisionObject(collision_);
+    sim->removeRigidBody(rigid_body_);
 }
 
 void RigidBodyComponent::setKinematic(bool b_kinematic) {
@@ -73,15 +74,14 @@ RigidBodyObject* RigidBodyObject::Create(const vec3 &dim)
     ICollisionDetection* cd = pbd_get_collision_detection(); 
 
     RigidBodyObject* rbo = new RigidBodyObject();
-    rbo->Tuple_.mesh_ = MeshComponent::Create("cube");
+    rbo->Tuple_.mesh_ = MeshComponent::Create("cube", rbo);
     rbo->Tuple_.mesh_->SetScale(0.5f*dim);
     bool b_invert = false;
     rbo->Tuple_.rb_ = RigidBodyComponent::Create(sim, cd, dim, b_invert);
+    scene_attach_component(rbo, rbo->Tuple_.rb_); 
 
-    rbo->Tuple_.tr_ = rbo->AddComponent<TransformComponent>();
-    MeshComponent* mesh_comp = rbo->AddComponent(rbo->Tuple_.mesh_);
-    /*RigidBodyComponent* rb_comp = */rbo->AddComponent(rbo->Tuple_.rb_);
-    mesh_comp->SetParent(rbo->Tuple_.tr_);
+    rbo->Tuple_.tr_ = scene_create_component<TransformComponent>(rbo);
+    rbo->Tuple_.mesh_->SetParent(rbo->Tuple_.tr_);
     //rb_comp->SetParent(rbo->Tuple_.tr_);
     rbo->Tuple_.tr_->on_transformed_fptr_ = on_transformed;
     rbo->Tuple_.rb_->on_transformed_fptr_ = RigidBodyComponent::on_transformed;
@@ -92,17 +92,6 @@ RigidBodyObject* RigidBodyObject::Create(const vec3 &dim)
 void RigidBodyObject::SetTransform(const vec3& pos, const quaternion& rot) {
     Tuple_.tr_->SetPosition(pos);
     Tuple_.tr_->SetRotation(rot);
-}
-
-RigidBodyObject::~RigidBodyObject()
-{
-    delete RemoveComponent(Tuple_.mesh_);
-    
-    auto c = RemoveComponent(Tuple_.rb_);
-	// not very good to have those functions to return pointers to singletons as we might
-	// want to  have e.g. several simulations, better to destroy all components in a scene and scene will provide sim & cd
-    // or even better have several physics scenes (islands)
-	RigidBodyComponent::Destroy(c, pbd_get_simulation(), pbd_get_collision_detection());
 }
 
 void RigidBodyObject::setKinematic(bool b_kinematic) {

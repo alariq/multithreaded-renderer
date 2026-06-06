@@ -65,10 +65,31 @@ void scene_get_intersected_objects(
     std::vector<std::pair<float, GameObject *>>& out_obj);
 
 void scene_add_game_object(GameObject* go);
+
+// using non-type version of enable_if_t with second parameter
+template <typename T, std::enable_if_t<std::is_base_of_v<GameObject, T>, int> = 0>
+T* scene_create_game_object() {
+    T* go = new T();
+    scene_add_game_object(go);
+    return go;
+}
+
+void scene_attach_component(GameObject* go, Component* comp);
+void scene_detach_component(GameObject* go, Component* comp);
+
 void scene_delete_game_object(GameObject* go);
 
-void scene_add_component(Component* comp);
+void scene_add_component__(Component* comp);
 
+// TODO: do we really need any args? maybe only standard base ones
+template <typename T, typename... Params, std::enable_if_t<std::is_base_of_v<Component, T>, int> = 0>
+T* scene_create_component(GameObject* go, Params && ... args) {
+    T* comp = new T(std::forward<Params>(args)...);
+    scene_add_component__(comp);
+    if(go)
+        scene_attach_component(go, comp);
+    return comp;
+}
 
 void scene_delete_component(Component* comp);
 
