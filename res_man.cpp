@@ -278,12 +278,16 @@ RenderMesh* res_man_load_mesh(const std::string mesh_name) {
 
 //:(
 void res_man_release_mesh(struct RenderMesh* mesh) {
-    for(auto wm: g_world_meshes) {
+    for(auto& wm: g_world_meshes) {
         if(wm.second.first == mesh) {
             assert(wm.second.second >= 1);
             wm.second.second--;
             if(wm.second.second == 0) {
+                log_info("erasing\n");
+                // erase inside for() will cause undefined behaviour,
+                // but we break after first erase, so it is ok.
                 g_world_meshes.erase(wm.first);
+                break;
             }
         }
     }
