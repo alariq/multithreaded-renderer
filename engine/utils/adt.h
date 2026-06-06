@@ -184,6 +184,8 @@ static void adt_test() {
     for(int i=0 ;i<v.size(); ++i) {
         assert(objects_hist[i]<=1);
     }
+
+    delete[] objects_hist;
 }
 
 struct adt_test_runner {
