@@ -286,6 +286,7 @@ void res_man_release_mesh(struct RenderMesh* mesh) {
                 log_info("erasing\n");
                 // erase inside for() will cause undefined behaviour,
                 // but we break after first erase, so it is ok.
+                delete mesh;
                 g_world_meshes.erase(wm.first);
                 break;
             }
