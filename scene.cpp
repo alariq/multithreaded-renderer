@@ -386,8 +386,9 @@ void scene_update_pending(struct RenderFrameContext *rfc) {
         for(auto c: go->GetComponents()) {
             all_initialized &= (c->getState() == Component::kInitialized);
         }
-        // is this condition really necessary?
-        if(all_initialized) {
+        // unconditional addition, do not wait for all components to be initialized
+        // as in this case we may e.g. draw mesh before calling Update() first
+        if(true || all_initialized) {
             g_init_pending_gos[i] = nullptr;
 			assert(std::find(g_world_objects.begin(), g_world_objects.end(), go) ==
 				   g_world_objects.end());
