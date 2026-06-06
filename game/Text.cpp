@@ -11,9 +11,10 @@ void GameTextComp::InitRenderResources() {
     assert(font_handle_);
     small_font_handle_ = gos_LoadFont("./data/fonts/roboto_medium_24");
     assert(small_font_handle_);
-    //slug_font_handle_ = gos_LoadSlugFont("./data/fonts/roboto_medium.slug");
+    slug_font_handle_ = gos_LoadSlugFont("./data/fonts/roboto_medium.slug");
     //slug_font_handle_ = gos_LoadSlugFont("./data/fonts/zapfino.slug");
-    slug_font_handle_ = gos_LoadSlugFont("./data/fonts/terminus.slug");
+    //slug_font_handle_ = gos_LoadSlugFont("./data/fonts/terminus.slug");
+    //slug_font_handle_ = gos_LoadSlugFont("./data/fonts/OpenDyslexic.slug");
     assert(slug_font_handle_);
 	state_ = Component::kInitialized;
 
@@ -22,6 +23,8 @@ void GameTextComp::InitRenderResources() {
 
 void GameTextComp::DeinitRenderResources() {
     gos_DeleteFont(font_handle_);
+    gos_DeleteFont(small_font_handle_);
+    gos_DeleteSlugFont(slug_font_handle_);
     state_ = Component::kUninitialized;
 }
 

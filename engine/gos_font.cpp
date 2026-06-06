@@ -130,5 +130,7 @@ void gos_destroy_slug_font(SlugFontData& sfd) {
     sfd.curvesTexture = nullptr;
     free(sfd.bandsTexture);
     sfd.bandsTexture = nullptr;
+    free(sfd.codePoints);
+    sfd.codePoints = nullptr;
 }
 

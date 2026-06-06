@@ -3433,6 +3433,14 @@ HGOSSLUGFONT __stdcall gos_LoadSlugFont( const char* FontFile) {
     return font;
 }
 
+void __stdcall gos_DeleteSlugFont( HGOSSLUGFONT FontHandle )
+{
+    gosASSERT(FontHandle);
+    gosSlugFont* font = FontHandle;
+    getGosRenderer()->deleteSlugFont(font);
+}
+
+
 DWORD __stdcall gos_TextureGetNativeId( DWORD Handle )
 {
     gosTexture* texture = getGosRenderer()->getTexture(Handle);

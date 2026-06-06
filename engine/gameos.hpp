@@ -958,6 +958,7 @@ char* __stdcall gos_GetFormattedTime( WORD Hour=-1, WORD Minute=-1, WORD Second=
 //
 HGOSFONT3D __stdcall gos_LoadFont( const char* FontFile, DWORD StartLine = 0, int CharCount = 256, DWORD TextureHandle=0 );
 HGOSSLUGFONT __stdcall gos_LoadSlugFont( const char* FontFile);
+void __stdcall gos_DeleteSlugFont( HGOSSLUGFONT FontHandle );
 
 //
 // This routine should be called to release storage and textures used by fonts.
