@@ -295,4 +295,6 @@ ShadowRenderPass::~ShadowRenderPass()
     {
 	    gos_DestroyTexture(gos_depth_texture_[i]);
     }
+
+    gos_DestroyTextureSampler(smp_shadow_);
 }
