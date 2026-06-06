@@ -108,6 +108,7 @@ void initialize_scene() {
     }
 }
 
+static void scene_update_pending(struct RenderFrameContext *rfc);
 void finalize_scene() {
 
     ObjList_t::const_iterator it = g_world_objects.begin();
@@ -118,6 +119,21 @@ void finalize_scene() {
         //TOOD: should we just remove them from the scene?
         delete go;
     }
+    RenderFrameContext nullctx;
+
+    // a bit of a hack, because destruction also shcedules
+    // destroy render resources, we need to "tick" render
+    // context and then again call scene_update_pending
+    // to delete all dependent components. We cannot just
+    // delete components without waiting for render commands_
+    // to finish, because it is a same class at the moment
+    // we will just crash
+    scene_update_pending(&nullctx);
+    for (auto& cmd : nullctx.commands_) {
+        cmd();
+    }
+    scene_update_pending(&nullctx);
+
 }
 
 const SceneViewInfo& scene_get_view_info() {
@@ -326,7 +342,10 @@ void scene_render_update(struct RenderFrameContext *rfc, bool is_in_editor_mode,
         scene_draw_object_list();
     }
 
+    scene_update_pending(rfc);
+}
 
+void scene_update_pending(struct RenderFrameContext *rfc) {
     // NOTE: this might not be true anymore
 	// update objects pending creation or destruction after update loop because if we add
 	// object to world we first want it to update its components in scene_update
