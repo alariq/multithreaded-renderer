@@ -1,5 +1,4 @@
 #include "engine/utils/timing.h"
-#include "engine/utils/math_utils.h"
 #include "engine/utils/camera.h"
 #include "engine/utils/obj_loader.h"
 #include "engine/utils/matrix.h"
@@ -22,14 +21,7 @@
 #include "deferred_renderer.h"
 #include "forward_renderer.h"
 #include "obj_id_renderer.h"
-
-#include <cstdlib>
-#include <cstddef>
-#include <string>
-#include <functional>
-#include <list>
-#include <unordered_map>
-
+#include "game/Time.h"
 
 extern int RendererGetNumBufferedFrames();
 extern int RendererGetCurrentFrame();
@@ -126,6 +118,7 @@ void __stdcall Update(void)
     if(!initialization_done)
     {
         gos_SetRelativeMouseMode(!g_is_in_editor);
+        TimerGameTimeInit();
         initialize_scene();
         initialize_editor();
         initialization_done = true;
@@ -205,6 +198,7 @@ void __stdcall Update(void)
         }
     }
 
+    TimerGameTimeUpdate(g_update_simulation? delta_tick : 0);
 
     res_man_update();
 
