@@ -9,6 +9,9 @@ TODO:
    [ ] smooth control point chasing by main ship
    [ ] ability to chase any point (incl. points on a spline) for enemies
    [ ] seamless transition from target to target for enemies
+ [o] res man
+   [ ] make font resource
+   [ ] make all resources ref counted
  [o] graphics
    [ ] add skybox support
    [x] add billboards support
@@ -24,11 +27,12 @@ TODO:
      [x] slug font rendering
      [ ] SDF font rendering?
      [ ] 3d text positioning
+   [ ] debug renderer interface to easily draw debug primitives from any place (not requiring rfc)
  [o] editor
-   [ ] refactor UpdateCamera code into editor camera controller (zoom level, persp/proj, etc.)
+   [x] refactor UpdateCamera code into editor camera controller (zoom level, persp/proj, etc.)
    [x] add selection through PropertySheet
    [ ] zoom to selected object
    [ ] multi-selection (transform a bunch of objects at once)
    [x] Support for gizmos not attached to GameObjects, but to e.g. spline control points). Each object its own pass to draw gizmos?
-   [ ] properly fix race condition in g_obj_under_cursor
+   [x] properly fix race condition in g_obj_under_cursor
  
