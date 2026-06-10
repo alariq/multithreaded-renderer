@@ -358,6 +358,7 @@ vec3 reflect(const vec3& v, const vec3 n);
 
 /** Compute the cross product of two 3D vectors */
 vec3 cross(const vec3 &u, const vec3 &v);
+float cross(const vec2 &u, const vec2 &v);
 
 /** Convert RGBE format to RGB format */
 vec3 rgbeToRGB(unsigned char *rgbe);

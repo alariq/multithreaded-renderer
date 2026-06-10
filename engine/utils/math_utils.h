@@ -171,6 +171,12 @@ inline vec4 make_plane(const vec3& normal, const vec3& pt) {
 	return vec4(normal, dot(normal, pt));
 }
 
+
+// [-pi, pi] normal should be normal to plane created by a and b (e.g. cross product between them)
+inline float angle_between_vecors(const vec3& a, const vec3& b, const vec3& normal) {
+    return atan2(dot(cross(a, b), normal), dot(a, b));
+}
+
 struct pose_s {
 	vec3 pos;
 	quaternion rot;

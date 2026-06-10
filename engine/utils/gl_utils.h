@@ -487,7 +487,7 @@ void  draw_mesh_ptn(bool b_wireframe, camera* pcam, glsl_program* pmat, glMesh<T
 }
 
 template<typename MeshBuffer>
-void subdivide(MeshBuffer& mb, int& vb_offset, typename MeshBuffer::ib_type& ib_offset, vec3 a, vec3 b, vec3 c, float r, int subdiv_count)
+void subdivide(MeshBuffer& mb, size_t& vb_offset, size_t& ib_offset, vec3 a, vec3 b, vec3 c, float r, int subdiv_count)
 {
     vec3 ab = r * normalize(lerp(a, b, 0.5f));
     vec3 bc = r * normalize(lerp(b, c, 0.5f));
@@ -610,14 +610,14 @@ void generate_sphere(MeshBuffer& mb, unsigned int subdiv_count)
     vec3 nc = r * normalize(vec3(c.x, c.y, c.z));
     vec3 nd = r * normalize(vec3(d.x, d.y, d.z));
 
-    typename MeshBuffer::ib_type ib_offset = 0;
-    int vb_offset = 0;
+    size_t ib_offset = 0;
+    size_t vb_offset = 0;
     subdivide(mb, vb_offset, ib_offset, nb, na, nc, r, subdiv_count);
     subdivide(mb, vb_offset, ib_offset, nb, nc, nd, r, subdiv_count);
     subdivide(mb, vb_offset, ib_offset, nb, nd, na, r, subdiv_count);
     subdivide(mb, vb_offset, ib_offset, na, nd, nc, r, subdiv_count);
-    assert(vb_offset<=(int)mb.vb_size_);
-    assert(ib_offset<=(int)mb.ib_size_);
+    assert(vb_offset<=mb.vb_size_);
+    assert(ib_offset<=mb.ib_size_);
 }
 
 template<typename MeshBuffer>

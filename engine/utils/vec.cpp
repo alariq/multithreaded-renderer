@@ -508,6 +508,10 @@ vec3 cross(const vec3 &u, const vec3 &v){
 	return vec3(u.y * v.z - v.y * u.z, u.z * v.x - u.x * v.z, u.x * v.y - u.y * v.x);
 }
 
+float cross(const vec2 &u, const vec2 &v){
+	return u.x * v.y - u.y * v.x;
+}
+
 // v - incident
 // n - normal
 //      n
