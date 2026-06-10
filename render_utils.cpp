@@ -22,14 +22,6 @@ void add_debug_mesh(struct RenderFrameContext *rfc, const RenderMesh *mesh, cons
     rp->is_particle_pass = 0;
 }
 
-void add_debug_sphere_constant_size(struct RenderFrameContext *rfc, const vec3& pos, float no_scale_distance, const vec4& color) {
-
-	const float oo_no_scale_distance = 1.0f / no_scale_distance;
-	const float cam_z = rfc->b_is_perspective_ ? (rfc->view_ * vec4(pos, 1)).z : no_scale_distance;
-	const mat4 tr = mat4::translation(pos) * mat4::scale(vec3(cam_z * oo_no_scale_distance));
-	add_debug_mesh(rfc, res_man_load_mesh("sphere"), tr, color);
-}
-
 // no_scale_distance - distance at which desired object will be drawn with no scale applied
 void add_debug_mesh_constant_size(struct RenderFrameContext *rfc, const RenderMesh *mesh,
 										 const vec4 &color, const mat4 &tr_m,

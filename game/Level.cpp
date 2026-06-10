@@ -11,8 +11,6 @@
 
 #include <cctype>
 
-MainShip* g_main_ship = nullptr;
-
 class ShipCameraController: public ICameraController {
 
     MainShip* ship_;
@@ -183,7 +181,6 @@ Level* Level::Create(const char* res) {
 
     // create player
     // -----------------------------------------------------------------------------------
-    //g_main_ship = MainShip::Create("fighter1");
     MainShip* mainShip = MainShip::Create("paper_plane");
     TransformComponent* ftc = mainShip->GetComponent<TransformComponent>();
     //ftc->SetPosition(vec3(10, 4, 10));
@@ -199,8 +196,6 @@ Level* Level::Create(const char* res) {
     scene_set_camera_controller(obj->shipCamController_);
 
     obj->mainShip = mainShip;
-    g_main_ship  = obj->mainShip;
-
 
     // add some decorations
     auto bb = O_Billboard::Create("clouds");
@@ -269,7 +264,7 @@ void Level::simulateFixedStep(double dt) {
                 text_target_->SetActiveTarget(false);
                 text_target_ = nullptr;
             }
-            enemies_[i]->Destroy();
+            scene_delete_game_object(enemies_[i]);
             enemies_.remove_swap(i);
         } else {
             i++;
@@ -319,7 +314,8 @@ void Level::UpdateTextInput() {
 
         const char* text = skip_spaces(txt_comp->GetText());
         if(!text || text[0] == '\0') {
-            enemy->Destroy();
+            //enemy->Destroy();
+            scene_delete_game_object(enemy);
             int idx = find_enemy_index(enemy);
             assert(idx>=0);
             if(idx >= 0) {
@@ -334,7 +330,8 @@ void Level::UpdateTextInput() {
 
         const char* next = skip_spaces(text + 1);
         if(!next || next[0] == '\0') {
-            enemy->Destroy();
+            //enemy->Destroy();
+            scene_delete_game_object(enemy);
             int idx = find_enemy_index(enemy);
             assert(idx>=0);
             if(idx >= 0) {

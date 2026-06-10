@@ -127,9 +127,15 @@ class Component: public imgui_props::IPolymorphicPropertyObject {
 
     GameObjectHandle getGameObjectHandle() const { return go_handle_; }
     virtual IRenderable* getRenderableInterface() { return nullptr; }
-    int getState() const { return state_; }
+    virtual int getState() const { return state_; }
 	virtual ComponentType GetType() const = 0;
 	virtual void UpdateComponent(float dt){};
+
+    virtual IRenderProxy* CreateRenderProxy() {return nullptr; }
+    virtual IRenderProxy* GetRenderProxy() {return nullptr; }
+    virtual void DestroyRenderProxy(struct RenderFrameContext* ) {};
+	virtual void RenderUpdateComponent(struct RenderFrameContext *) {};
+
 	virtual void Initialize() = 0;
 	virtual void Deinitialize() = 0;
 
@@ -276,62 +282,95 @@ class TransformComponent : public Component, public ITransformInterface {
 
 PROPERTY_LIST_DECLARE_DERIVED(TransformComponent, Component)
 
+class StaticMeshRenderProxy: public IRenderProxy {
+    std::string name_;
+    StaticMesh* mesh_ = nullptr;
+    mat4 transform_ = mat4::identity();
+public:
+    u8 b_is_forward_pass:1;
+    u8 b_is_opaque_pass:1;
+
+    void SetMesh(StaticMesh* mesh) { mesh_ = mesh; }
+    void SetName(const std::string& name) { name_ = name; }
+    void SetTexture(TextureHandle h) { mesh_->tex_handle_ = h; }
+    void SetTransform(const mat4& tr) { transform_ = tr; }
+
+    virtual void Initialize(struct RenderFrameContext* ) override {}
+    virtual void Deinitialize(struct RenderFrameContext* ) override {}
+
+    virtual void AddRenderPackets(struct RenderFrameContext* rfc) override;
+};
+
+
 template<> inline constexpr ComponentType 
 get_component_type<class MeshComponent>() { return ComponentType::kMesh; }
-class MeshComponent : public TransformComponent, public IRenderable {
+class MeshComponent : public TransformComponent {
+protected:
 	std::string mesh_name_;
-	RenderMesh *mesh_;
-
-	mutable std::string pending_mesh_name_;
-	mutable std::atomic<void *> pending_mesh_;
-
-  public:
-	MeshComponent() : mesh_(nullptr), pending_mesh_(nullptr) {}
+	std::string tex_name_;
+	StaticMesh *mesh_;
+    TextureHandle texture_;
+    class StaticMeshRenderProxy* proxy_;
+    bool b_update_transform_;
+    bool b_update_mesh_;
+    bool b_update_texture_;
+public:
+	MeshComponent() : mesh_(nullptr), b_update_transform_(false), b_update_mesh_(false), b_update_texture_(false){}
 
     PROPERTY_SUPPORT(MeshComponent)
     PROPERTY_POLYMORPHIC_DRAW_IMPL(MeshComponent)
 
-    int getState() const { return (int)initState.load(); }
-    virtual IRenderable* getRenderableInterface() override { return this; }
 	virtual ComponentType GetType() const override { return get_component_type<MeshComponent>(); }
 	static MeshComponent *Create(const char *res, GameObject* go);
-	virtual void InitRenderResources() override;
-	virtual void DeinitRenderResources() override;
-	virtual void AddRenderPackets(struct RenderFrameContext *) const override;
-	virtual void UpdateComponent(float dt) override;
+
+    virtual IRenderProxy* CreateRenderProxy() override;
+    virtual void DestroyRenderProxy(struct RenderFrameContext* rfc) override;
+	virtual IRenderProxy* GetRenderProxy() override;
+	virtual void RenderUpdateComponent(struct RenderFrameContext *) override;
+
+    static void OnTransformed(TransformComponent* tc);
+
 	void SetMesh(const char *mesh);
+	void SetTexture(const char *name);
     const AABB& GetAABB() const { return mesh_->aabb_; }
     // this will be updated by Init/Deinit Render Resoueces
-	virtual void Initialize() override {}
-	virtual void Deinitialize() override {}
+	virtual void Initialize() override;
+	virtual void Deinitialize() override;
 };
 
 PROPERTY_LIST_DECLARE_DERIVED(MeshComponent, TransformComponent)
 
 template<> inline constexpr ComponentType 
 get_component_type<class FrustumComponent>() { return ComponentType::kFrustumComponent; }
-class FrustumComponent: public TransformComponent, public IRenderable {
-	RenderMesh *mesh_;
+class FrustumComponent: public TransformComponent {
+    class FrustumRenderProxy* proxy_;
+    bool b_update_proxy_;
+
     mat4 view_, inv_view_;
     float fov_, near_, far_, aspect_;
     bool b_override_;
+
   public:
     PROPERTY_SUPPORT(FrustumComponent)
     PROPERTY_POLYMORPHIC_DRAW_IMPL(FrustumComponent)
 
-    FrustumComponent():mesh_(nullptr), view_(mat4::identity()), 
-    inv_view_(mat4::identity()),
-    fov_(0), near_(0), far_(0), aspect_(0),
-    b_override_(false) {}
+    FrustumComponent():
+        proxy_(nullptr), b_update_proxy_(false),
+        view_(mat4::identity()), 
+        inv_view_(mat4::identity()),
+        fov_(0), near_(0), far_(0), aspect_(0),
+        b_override_(false) {}
 
 	virtual ComponentType GetType() const override { return get_component_type<FrustumComponent>(); }
-	virtual void InitRenderResources() override;
-	virtual void DeinitRenderResources() override;
-    virtual IRenderable* getRenderableInterface() override { return this; }
-	virtual void AddRenderPackets(struct RenderFrameContext *) const override;
-    // this will be updated by Init/Deinit Render Resoueces
-	virtual void Initialize() override {}
-	virtual void Deinitialize() override {}
+    // TODO: do we need a state var at all?
+	virtual void Initialize() override { state_ = Component::kInitialized; }
+	virtual void Deinitialize() override { state_ = Component::kUninitialized; }
+
+    virtual IRenderProxy* CreateRenderProxy() override;
+    virtual void DestroyRenderProxy(struct RenderFrameContext* rfc) override;
+	virtual IRenderProxy* GetRenderProxy() override;
+	virtual void RenderUpdateComponent(struct RenderFrameContext *) override;
+
     
     void OverrideView(const mat4* view, const mat4* inv_view = 0, float fov = 0, float n = 0, float f = 0, float aspect = 0) {
         if(view && inv_view) {
@@ -345,6 +384,7 @@ class FrustumComponent: public TransformComponent, public IRenderable {
         } else {
             b_override_ = false;
         }
+        b_update_proxy_ = true;
     }
 
 };

@@ -7,9 +7,10 @@
 
 template<> inline constexpr ComponentType 
 get_component_type<class C_Curve>() { return ComponentType::kCurve; }
-class C_Curve: public TransformComponent, public IRenderable {
+class C_Curve: public TransformComponent {
     Curve<vec3> curve_;
     BufferT<int, int> gizmo_node_ids_;
+    StaticMesh* sphere_mesh_;
 
 public:
     const Curve<vec3>* GetCurve() const { return &curve_; }
@@ -24,21 +25,14 @@ public:
     PROPERTY_SUPPORT(C_Curve);
     PROPERTY_POLYMORPHIC_DRAW_IMPL(C_Curve)
 
+    virtual bool IsSelectable() { return true; }
+	virtual ComponentType GetType() const override { return get_component_type<C_Curve>(); }
+
     virtual void Initialize() override;
     virtual void Deinitialize() override;
-    virtual void UpdateComponent(float dt) override;
 
-	virtual void InitRenderResources() override {
-        state_ = Component::kInitialized;
-    }
-	virtual void DeinitRenderResources() override {
-        state_ = Component::kUninitialized;
-    }
-
-    virtual bool IsSelectable() { return true; }
-    virtual IRenderable* getRenderableInterface() override { return this; }
-	virtual ComponentType GetType() const override { return get_component_type<C_Curve>(); }
-	virtual void AddRenderPackets(struct RenderFrameContext *) const override;
+	virtual void RenderUpdateComponent(struct RenderFrameContext *) override;
+    //static void OnTransformed(TransformComponent* tc);
 
     bool IsValid() { return true; }
     void SetPosition(vec3 p, void* userdata) override;
@@ -65,6 +59,7 @@ class O_Path: public GameObject {
 
     O_Path() {}
 
+    void update_gates();
 public:
     PROPERTY_SUPPORT(O_Path)
     PROPERTY_POLYMORPHIC_DRAW_IMPL(O_Path)

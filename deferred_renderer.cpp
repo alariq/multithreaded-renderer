@@ -66,6 +66,9 @@ bool DeferredRenderer::Init(uint32_t width, uint32_t height)
     gos_AddRenderMaterial("upsample_bilateral");
     gos_AddRenderMaterial("copy_depth");
 
+    fs_quad_ = res_man_load_mesh2("fs_quad");
+    sphere_ = res_man_load_mesh2("sphere");
+
     b_initialized_ = true;
     return true;
 }
@@ -279,6 +282,9 @@ void DeferredRenderer::RenderGeometry(const struct RenderFrameContext* rfc)
 
 void DeferredRenderer::RenderDirectionalLighting(const struct RenderFrameContext* rfc)
 {
+    if(!fs_quad_->rd.vb_)
+        return;
+
     SCOPED_GPU_ZONE(Deferred_RenderDirectionalLighting);
     SCOPED_ZONE_N(Deferred_RenderDirectionalLighting, 0);
 
@@ -312,9 +318,6 @@ void DeferredRenderer::RenderDirectionalLighting(const struct RenderFrameContext
 
     gos_ApplyRenderMaterial(mat);
 
-    RenderMesh* fs_quad = res_man_load_mesh("fs_quad");
-
-
     gos_SetRS(gosRSStencil{
             .enable = true,
             .func_f = gos_Cmp_Equal, .func_b = gos_Cmp_Equal,
@@ -325,7 +328,7 @@ void DeferredRenderer::RenderDirectionalLighting(const struct RenderFrameContext
             .zpass_f = gos_Stencil_Keep, .zpass_b = gos_Stencil_Keep,
             });
 
-    gos_RenderIndexedArray(fs_quad->ib_, fs_quad->vb_, fs_quad->vdecl_, fs_quad->prim_type_);
+    gos_RenderIndexedArray(fs_quad_->rd.ib_, fs_quad_->rd.vb_, fs_quad_->rd.vdecl_, fs_quad_->prim_type_);
 
     gos_SetRS(gosRSStencil{ .enable = false }); }
 
@@ -364,7 +367,6 @@ void DeferredRenderer::draw_point_lights(const struct RenderFrameContext* rfc, H
     const mat4 view_proj = rfc->proj_ * rfc->view_;
 
     const bool is_null_mat = mat == gos_getRenderMaterial("null");
-    RenderMesh *sphere = res_man_load_mesh("sphere");
 
     for (const PointLight &l : point_lights) {
 
@@ -386,7 +388,9 @@ void DeferredRenderer::draw_point_lights(const struct RenderFrameContext* rfc, H
 
         gos_ApplyRenderMaterial(mat);
 
-        gos_RenderIndexedArray(sphere->ib_, sphere->vb_, sphere->vdecl_, sphere->prim_type_);
+        gosASSERT(sphere_);
+        if(sphere_->rd.vb_)
+            gos_RenderIndexedArray(sphere_->rd.ib_, sphere_->rd.vb_, sphere_->rd.vdecl_, sphere_->prim_type_);
     }
 }
 
@@ -512,7 +516,7 @@ void DeferredRenderer::RenderDownsampledForward(std::function<void(void)> f, con
     // downsample depth
     downlsampleFboDepth(stencil_fbo_, downsampled_fbo_, width_, height_,
                         ds_width_, ds_height_);
-    if(0)
+    if(0 && fs_quad_->rd.vb_)
     {
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, downsampled_fbo_);
         glDrawBuffer(GL_NONE);
@@ -528,9 +532,8 @@ void DeferredRenderer::RenderDownsampledForward(std::function<void(void)> f, con
         HGOSRENDERMATERIAL mat = gos_getRenderMaterial("copy_depth");
         gos_ApplyRenderMaterial(mat);
 
-		RenderMesh* fs_quad = res_man_load_mesh("fs_quad");
-        gos_RenderIndexedArray(fs_quad->ib_, fs_quad->vb_,
-                               fs_quad->vdecl_, fs_quad->prim_type_);
+        gos_RenderIndexedArray(fs_quad_->rd.ib_, fs_quad_->rd.vb_,
+                               fs_quad_->rd.vdecl_, fs_quad_->prim_type_);
         glDrawBuffer(GL_COLOR_ATTACHMENT0);
     }
 
@@ -596,8 +599,7 @@ void DeferredRenderer::RenderDownsampledForward(std::function<void(void)> f, con
 
     gos_ApplyRenderMaterial(mat);
 
-    RenderMesh* fs_quad = res_man_load_mesh("fs_quad");
-    gos_RenderIndexedArray(fs_quad->ib_, fs_quad->vb_, fs_quad->vdecl_, fs_quad->prim_type_);
+    gos_RenderIndexedArray(fs_quad_->rd.ib_, fs_quad_->rd.vb_, fs_quad_->rd.vdecl_, fs_quad_->prim_type_);
 }
 
 void DeferredRenderer::Present(int w, int h)
@@ -619,13 +621,14 @@ void DeferredRenderer::Present(int w, int h)
     gos_SetRenderMaterialParameterFloat4(mat, "scale_offset", vec4(1,1,0,0));
     gos_ApplyRenderMaterial(mat);
 
-    RenderMesh* fs_quad = res_man_load_mesh("fs_quad");
-    gos_RenderIndexedArray(fs_quad->ib_, fs_quad->vb_, fs_quad->vdecl_, fs_quad->prim_type_);
-    res_man_release_mesh(fs_quad);
+    gos_RenderIndexedArray(fs_quad_->rd.ib_, fs_quad_->rd.vb_, fs_quad_->rd.vdecl_, fs_quad_->prim_type_);
 
     glDisable(GL_FRAMEBUFFER_SRGB);
 }
 
-
+void DeferredRenderer::Deinit() {
+    res_man_release_mesh2(fs_quad_);
+    res_man_release_mesh2(sphere_);
+}
 
 

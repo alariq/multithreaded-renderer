@@ -42,6 +42,9 @@ class DeferredRenderer {
 
     bool b_initialized_;
 
+    struct StaticMesh* fs_quad_;
+    struct StaticMesh* sphere_;
+
     void setup();
 
     void stencil_pass(const struct RenderFrameContext* rfc);
@@ -49,6 +52,7 @@ class DeferredRenderer {
 
     public:
     bool Init(uint32_t width, uint32_t height);
+    void Deinit();
     bool RecreateRenderTargets(uint32_t width, uint32_t height);
     void RenderGeometry(const struct RenderFrameContext* rfc);
     void RenderDirectionalLighting(const struct RenderFrameContext* rfc);

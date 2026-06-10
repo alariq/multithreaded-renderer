@@ -966,7 +966,11 @@ static HGOSVERTEXDECLARATION get_pbd_vdecl() {
 
 extern int RendererGetNumBufferedFrames();
 void PBDVisComponent::InitRenderResources() {
+    // TODO: rewrite using new API
+#if 0
 	sphere_mesh_ = res_man_load_mesh("sphere");
+#endif
+    gosASSERT(!"Rewrite using new API");
 
 	gos_AddRenderMaterial("deferred_pbd_particle");
 

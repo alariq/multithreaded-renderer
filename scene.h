@@ -108,3 +108,4 @@ class GameObject* scene_get_object_under_cursor(int x, int y);
 void scene_set_camera_controller(class ICameraController* cc);
 class ICameraController* scene_get_camera_controller();
 
+void scene_update_rt_proxies(struct RenderFrameContext* rfc);

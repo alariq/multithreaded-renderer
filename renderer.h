@@ -1,5 +1,7 @@
 #pragma once 
 
+#include "res_man.h"
+
 #include "engine/utils/frustum.h"
 #include "engine/utils/intersection.h" //aabb
 #include "engine/gameos.hpp"
@@ -43,6 +45,45 @@ struct RenderMesh {
     // state 
     uint32_t                two_sided_: 1;
 };
+// TODO: this actually belongs more to res_man, should be a Mesh resource (then delete texture references from here)
+// of ModelResource
+struct StaticMesh {
+    struct RenderData {
+    HGOSBUFFER				vb_;
+    HGOSBUFFER				ib_;
+    HGOSBUFFER				inst_vb_;
+    HGOSVERTEXDECLARATION	vdecl_;
+    HGOSRENDERMATERIAL      mat_;
+    } rd;
+
+    TextureHandle           tex_handle_;
+
+    uint32_t                num_instances;
+    gosPRIMITIVETYPE        prim_type_;
+    uint32_t                vb_first_;
+    uint32_t                vb_count_;
+
+    AABB                    aabb_;
+    // state 
+    uint32_t                two_sided_: 1;
+};
+
+inline RenderMesh tmp_rm(const StaticMesh* sm) {
+    RenderMesh mesh;
+    mesh.vb_ = sm->rd.vb_;
+    mesh.ib_ = sm->rd.ib_;
+    mesh.inst_vb_ = sm->rd.inst_vb_;
+    mesh.vdecl_ = sm->rd.vdecl_;
+    mesh.mat_ = sm->rd.mat_;
+    mesh.num_instances = sm->num_instances;
+    mesh.tex_id_ = texture_res_get_gpu_id(sm->tex_handle_);
+    mesh.prim_type_ = sm->prim_type_;
+    mesh.aabb_ = sm->aabb_;
+    mesh.vb_first_ = sm->vb_first_;
+    mesh.vb_count_ = sm->vb_count_;
+    mesh.two_sided_ = sm->two_sided_;
+    return mesh;
+}
 
 struct PointLight {
     vec4 color_; // w - intensity
@@ -289,3 +330,14 @@ struct RenderFrameContext {
 };
 
 void ScheduleRenderCommand(RenderFrameContext *rfc, std::function<void(void)>&& );
+
+
+class IRenderProxy {
+    enum State: u32 { kUninitialized, kInitialized, kDestroyPending, kDestroyed };
+    u32 state;
+public:
+    virtual void AddRenderPackets(struct RenderFrameContext* ) = 0;
+    virtual void Initialize(struct RenderFrameContext* ) = 0;
+    virtual void Deinitialize(struct RenderFrameContext* ) = 0;
+    virtual ~IRenderProxy() {}
+};

@@ -31,9 +31,14 @@ std::vector<IRenderable*> g_renderables_init_pending;
 std::vector<IRenderable*> g_renderables_deinit_pending;
 std::vector<IRenderable*> g_renderables;
 
+static std::vector<std::pair<Component*, IRenderProxy*>> g_render_proxies;
+static std::vector<std::pair<Component*, IRenderProxy*>> g_render_proxies_init_pending;
+static std::vector<std::pair<Component*, std::pair<i32, IRenderProxy*>>> g_render_proxies_deinit_pending;
+
 static uint32_t g_obj_id_under_cursor = scene::kInvalidObjectId;
 
 static SceneViewInfo g_scene_view_info;
+static StaticMesh* g_xy_quad = nullptr;
 
 static ICameraController* g_cam_controller;
 
@@ -60,6 +65,8 @@ const std::vector<PointLight>& scene_get_light_list() {
 }
 
 void initialize_scene() {
+    g_xy_quad = res_man_load_mesh2("xy_quad");
+
     g_components.resize((size_t)ComponentType::kCount);
 
     MeshObject* go = MeshObject::Create("floor");
@@ -111,6 +118,8 @@ void initialize_scene() {
 static void scene_update_pending(struct RenderFrameContext *rfc);
 void finalize_scene() {
 
+    res_man_release_mesh2(g_xy_quad);
+
     ObjList_t::const_iterator it = g_world_objects.begin();
     ObjList_t::const_iterator end = g_world_objects.end();
     for (; it != end; ++it) {
@@ -121,7 +130,7 @@ void finalize_scene() {
     }
     RenderFrameContext nullctx;
 
-    // a bit of a hack, because destruction also shcedules
+    // a bit of a hack, because destruction also schedules
     // destroy render resources, we need to "tick" render
     // context and then again call scene_update_pending
     // to delete all dependent components. We cannot just
@@ -132,8 +141,14 @@ void finalize_scene() {
     for (auto& cmd : nullctx.commands_) {
         cmd();
     }
+    // 2x because of 1 frame delay when deleting render proxies
+    scene_update_rt_proxies(&nullctx);
+    scene_update_rt_proxies(&nullctx);
     scene_update_pending(&nullctx);
 
+    //debug:
+    printf("proxies: %d init pending:%d deinit pending:%d\n", (int)g_render_proxies.size(),
+        (int)g_render_proxies_init_pending.size(), (int)g_render_proxies_deinit_pending.size());
 }
 
 const SceneViewInfo& scene_get_view_info() {
@@ -199,6 +214,9 @@ void scene_add_component__(Component* comp) {
     comp->Initialize();
     if(auto ri = comp->getRenderableInterface()) {
         g_renderables_init_pending.push_back(ri);
+    }
+    if(IRenderProxy* proxy = comp->CreateRenderProxy()) {
+        g_render_proxies_init_pending.push_back(std::make_pair(comp, proxy));
     }
 
     g_init_pending_comps.push_back(comp);
@@ -309,9 +327,9 @@ void scene_render_update(struct RenderFrameContext *rfc, bool is_in_editor_mode,
 		const int icon_id = go->GetIconID();
 
 		if (is_in_editor_mode && tc && icon_id > 0) {
-			RenderMesh* mesh = res_man_load_mesh("xy_quad");
+			RenderMesh mesh = tmp_rm(g_xy_quad);
 			vec3 pos = tc->Transform(vec3(0));
-			add_debug_mesh_constant_size_px(rfc, mesh, 1, vec4(0, 0.5, 1, 1),
+			add_debug_mesh_constant_size_px(rfc, &mesh, 1, vec4(0, 0.5, 1, 1),
 											mat4::translation(pos), 20, go->GetId());
 
 			if (true) {
@@ -331,6 +349,15 @@ void scene_render_update(struct RenderFrameContext *rfc, bool is_in_editor_mode,
 	}
 
 	rfc->point_lights_ = g_light_list;
+
+    { SCOPED_ZONE_N(RenderUpdateComponents,0);
+        for(int t=0;t<(int)ComponentType::kCount;++t) {
+            for(auto comp: g_components[t]) {
+                gosASSERT(comp->getState() == Component::kInitialized);
+                comp->RenderUpdateComponent(rfc);
+            }
+        }
+    }
 
     for(IRenderable* ri: g_renderables) {
         if(ri->IsRenderInitialized()) {
@@ -415,6 +442,21 @@ void scene_update_pending(struct RenderFrameContext *rfc) {
         Component* c = g_destroy_pending_comps[i];
         if(c->getState() == Component::kUninitialized) {
             g_destroy_pending_comps[i] = nullptr;
+
+            if(IRenderProxy* proxy = c->GetRenderProxy()) {
+                g_render_proxies_deinit_pending.push_back(std::make_pair(c, std::make_pair(1, proxy)));
+
+                //TODO: should be O(1)
+                {
+                    const size_t old_size = g_render_proxies.size();
+                    auto b = std::begin(g_render_proxies);
+                    auto e = std::end(g_render_proxies);
+                    g_render_proxies.erase(
+                            std::remove_if(b, e, [c](const auto& p) { return p.first == c; }), e);
+                    gosASSERT(g_render_proxies.size() == old_size - 1);
+                }
+            }
+
             delete c;
         }
     }
@@ -425,6 +467,42 @@ void scene_update_pending(struct RenderFrameContext *rfc) {
 			std::remove_if(b, e, [](const auto& p) { return p == nullptr; }), e);
 	}
 
+}
+
+void scene_update_rt_proxies(struct RenderFrameContext* rfc) {
+
+    for(auto p: g_render_proxies_init_pending) {
+        p.second->Initialize(rfc);
+        g_render_proxies.push_back(p);
+    }
+    g_render_proxies_init_pending.clear();
+
+    for(auto p: g_render_proxies) {
+        p.second->AddRenderPackets(rfc);
+    }
+
+    for(auto& p: g_render_proxies_deinit_pending) {
+        // NOTE: p.first - is a component pointer and is most probably
+        // already destructed, use just for debugging
+        // NOTE: could use same appoah as in res_man, so that component
+        // will not be destroyed until barrier will be set from rt
+
+        // delay destroy one frame because render proxy could be scheduled in update before owning 
+        // component was destroyed (could happen if it is destroyed by another componen/objcect 
+        // later in update loop
+        if(0 == p.second.first--) {
+            delete p.second.second;
+        } else {
+            p.second.second->Deinitialize(rfc);
+        }
+    }
+
+	{
+		auto b = std::begin(g_render_proxies_deinit_pending);
+		auto e = std::end(g_render_proxies_deinit_pending);
+		g_render_proxies_deinit_pending.erase(
+			std::remove_if(b, e, [](const auto& p) { return p.second.first==-1; }), e);
+	}
 }
 
 void scene_get_intersected_objects(

@@ -21,6 +21,11 @@
 #include <cassert>
 #include <cfloat> // FLT_MAX
 
+
+static StaticMesh* g_sphere_mesh = nullptr;
+static StaticMesh* g_cube_mesh = nullptr;
+static StaticMesh* g_torus_mesh = nullptr;
+
 enum class GizmoMode {
 	kMove,
 	kRotate,
@@ -123,7 +128,7 @@ class Gizmo {
 		GizmoMode mode = mode_;
 		const mat4 rot = bWorldSpace ? mat4::identity() : rot_;
 
-		RenderMesh *cube = res_man_load_mesh("cube");
+		RenderMesh cube = tmp_rm(g_cube_mesh);
 		const float scaler = get_scale(pos_, rfc->view_, rfc->proj_, rfc->fov_, rfc->b_is_perspective_, rfc->viewport_.z);
 		const float al = kAxisLength;
 		const float aw = kAxisWidth;
@@ -139,11 +144,11 @@ class Gizmo {
 		uint32_t axis_y_id = GizmoMode::kMove == mode ? ReservedObjIds::kGizmoMoveY : 0;
 		uint32_t axis_z_id = GizmoMode::kMove == mode ? ReservedObjIds::kGizmoMoveZ : 0;
         if(flags_ & kMoveX)
-            add_debug_mesh(rfc, cube, tr_x, vec4(1.0f, 0.15f, 0.15f, 1.0f), axis_x_id);
+            add_debug_mesh(rfc, &cube, tr_x, vec4(1.0f, 0.15f, 0.15f, 1.0f), axis_x_id);
         if(flags_ & kMoveY)
-            add_debug_mesh(rfc, cube, tr_y, vec4(0.15f, 1.0f, 0.15f, 1.0f), axis_y_id);
+            add_debug_mesh(rfc, &cube, tr_y, vec4(0.15f, 1.0f, 0.15f, 1.0f), axis_y_id);
         if(flags_ & kMoveZ)
-            add_debug_mesh(rfc, cube, tr_z, vec4(0.15f, 0.15f, 1.0f, 1.0f), axis_z_id);
+            add_debug_mesh(rfc, &cube, tr_z, vec4(0.15f, 0.15f, 1.0f, 1.0f), axis_z_id);
 
 		if (GizmoMode::kScale == mode) {
 			const float cl = aw*kScaleCubesScale;
@@ -156,18 +161,18 @@ class Gizmo {
 				mat4::translation(pos) * rot * mat4::translation(vec3(0.0f, 0.0f, 1.0f * al * scaler)) * scale_cube_scale ;
 
             if(flags_ & kScaleX)
-                add_debug_mesh(rfc, cube, tr_sx, vec4(1.0f, 0.15f, 0.15f, 1.0f),
+                add_debug_mesh(rfc, &cube, tr_sx, vec4(1.0f, 0.15f, 0.15f, 1.0f),
 						   ReservedObjIds::kGizmoScaleX);
             if(flags_ & kScaleY)
-                add_debug_mesh(rfc, cube, tr_sy, vec4(0.15f, 1.0f, 0.15f, 1.0f),
+                add_debug_mesh(rfc, &cube, tr_sy, vec4(0.15f, 1.0f, 0.15f, 1.0f),
 						   ReservedObjIds::kGizmoScaleY);
             if(flags_ & kScaleZ)
-                add_debug_mesh(rfc, cube, tr_sz, vec4(0.15f, 0.15f, 1.0f, 1.0f),
+                add_debug_mesh(rfc, &cube, tr_sz, vec4(0.15f, 0.15f, 1.0f, 1.0f),
 						   ReservedObjIds::kGizmoScaleZ);
 
             const mat4 tr_sxyz = mat4::translation(pos) * scale_cube_scale;
             if((flags_ & (kScaleX|kScaleY|kScaleZ)) == (kScaleX|kScaleY|kScaleZ))
-                add_debug_mesh(rfc, cube, tr_sxyz, vec4(0.15f, 0.15f, 1.0f, 1.0f),
+                add_debug_mesh(rfc, &cube, tr_sxyz, vec4(0.15f, 0.15f, 1.0f, 1.0f),
 						   ReservedObjIds::kGizmoScaleXYZ);
 		}
 
@@ -186,18 +191,18 @@ class Gizmo {
 															: ReservedObjIds::kGizmoScaleYZ;
             if((GizmoMode::kMove == mode && (flags_ & (kMoveX|kMoveZ))==(kMoveX|kMoveZ)) || 
                 (GizmoMode::kScale == mode && (flags_ & (kScaleX|kScaleZ))==(kScaleX|kScaleZ)))
-                add_debug_mesh(rfc, cube, tr_xz, vec4(1.0f, 0.0f, 1.0f, .25f), plane_xz_id);
+                add_debug_mesh(rfc, &cube, tr_xz, vec4(1.0f, 0.0f, 1.0f, .25f), plane_xz_id);
 
             if((GizmoMode::kMove == mode && (flags_ & (kMoveX|kMoveY))==(kMoveX|kMoveY)) || 
                 (GizmoMode::kScale == mode && (flags_ & (kScaleX|kScaleY))==(kScaleX|kScaleY)))
-                add_debug_mesh(rfc, cube, tr_yx, vec4(1.0f, 1.0f, 0.0f, .25f), plane_yx_id);
+                add_debug_mesh(rfc, &cube, tr_yx, vec4(1.0f, 1.0f, 0.0f, .25f), plane_yx_id);
 
             if((GizmoMode::kMove == mode && (flags_ & (kMoveZ|kMoveY))==(kMoveZ|kMoveY)) || 
                 (GizmoMode::kScale == mode && (flags_ & (kScaleZ|kScaleY))==(kScaleZ|kScaleY)))
-                add_debug_mesh(rfc, cube, tr_yz, vec4(0.0f, 1.0f, 1.0f, .25f), plane_yz_id);
+                add_debug_mesh(rfc, &cube, tr_yz, vec4(0.0f, 1.0f, 1.0f, .25f), plane_yz_id);
 		} else {
-			RenderMesh *torus = res_man_load_mesh("torus");
-			RenderMesh *sphere = res_man_load_mesh("sphere");
+			RenderMesh torus = tmp_rm(g_torus_mesh);
+			RenderMesh sphere = tmp_rm(g_sphere_mesh);
 			const float sr = 2.0f*kRotSphereRadius; // because default sphere mesh geom is 0.5f radius
 
 			const mat4 tr_rx = mat4::translation(pos) * rot * mat4::rotationY(90 * M_PI / 180.0f) *
@@ -208,17 +213,17 @@ class Gizmo {
 
 			const mat4 tr_s = mat4::translation(pos) * mat4::scale(vec3(sr, sr, sr) * scaler);
             if((flags_ & (kRotateX|kRotateY|kRotateZ)) == (kRotateX|kRotateY|kRotateZ))
-                add_debug_mesh(rfc, sphere, tr_s, vec4(.5f, 0.5f, .5f, .4f),
+                add_debug_mesh(rfc, &sphere, tr_s, vec4(.5f, 0.5f, .5f, .4f),
 						   ReservedObjIds::kGizmoRotateXYZ);
 
             if(flags_ & kRotateX)
-                add_debug_mesh(rfc, torus, tr_rx, vec4(1.0f, 0.f, 0.f, 1.0f),
+                add_debug_mesh(rfc, &torus, tr_rx, vec4(1.0f, 0.f, 0.f, 1.0f),
 						   ReservedObjIds::kGizmoRotateX);
             if(flags_ & kRotateY)
-                add_debug_mesh(rfc, torus, tr_ry, vec4(0.f, 1.0f, 0.f, 1.0f),
+                add_debug_mesh(rfc, &torus, tr_ry, vec4(0.f, 1.0f, 0.f, 1.0f),
 						   ReservedObjIds::kGizmoRotateY);
             if(flags_ & kRotateZ)
-                add_debug_mesh(rfc, torus, tr_rz, vec4(0.f, 0.f, 1.0f, 1.0f),
+                add_debug_mesh(rfc, &torus, tr_rz, vec4(0.f, 0.f, 1.0f, 1.0f),
 						   ReservedObjIds::kGizmoRotateZ);
 
 		}
@@ -396,7 +401,11 @@ PROPERTY_LIST_END()
 void initialize_editor()
 {
     editorCamController = new EditorCameraController();
-    editorCamController->SetPosition(vec3(0,15,0));
+    editorCamController->SetPosition(vec3(0,15,-10));
+
+	g_cube_mesh = res_man_load_mesh2("cube");
+	g_sphere_mesh = res_man_load_mesh2("sphere");
+	g_torus_mesh = res_man_load_mesh2("torus");
 }
 
 void initialize_render_editor()
@@ -406,6 +415,9 @@ void initialize_render_editor()
 
 void finalize_editor()
 {
+	res_man_release_mesh2(g_cube_mesh );
+	res_man_release_mesh2(g_sphere_mesh);
+	res_man_release_mesh2(g_torus_mesh);
 }
 
 int editor_register_user_editor(UserEditorInterface ue_interface) {
@@ -923,8 +935,8 @@ void editor_render_update(struct RenderFrameContext *rfc, bool b_editor_mode, bo
                     float s = g_gizmo.get_gizmo_scale(rfc);
                     const mat4 tr = mat4::translation(drag_rotation_gizmo_helper_pos) *
                         mat4::scale(vec3(s * 0.05f));
-                    add_debug_mesh(rfc, res_man_load_mesh("sphere"), tr,
-                            vec4(1, 1, 1, 1));
+                    RenderMesh rm = tmp_rm(g_sphere_mesh);
+                    add_debug_mesh(rfc, &rm, tr, vec4(1, 1, 1, 1));
                 }
             }
 
@@ -939,16 +951,16 @@ void editor_render_update(struct RenderFrameContext *rfc, bool b_editor_mode, bo
             g_gizmo.draw(rfc);
         }
 
-        RenderMesh *sphere = res_man_load_mesh("sphere");
-        assert(sphere);
+        if(g_sphere_mesh)
         {
             auto& light_list = scene_get_light_list();
             rfc->rl_->ReservePackets(light_list.size());
 
+            RenderMesh rm = tmp_rm(g_sphere_mesh);
             // add lights to debug render pass
             for (auto &l : light_list) {
                 vec4 c(l.color_.getXYZ(), 0.5f);
-                add_debug_mesh_constant_size(rfc, sphere, c, l.transform_, 1.0f);
+                add_debug_mesh_constant_size(rfc, &rm, c, l.transform_, 1.0f);
             }
         }
 

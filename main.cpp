@@ -85,6 +85,8 @@ void __stdcall Init(void)
     unified_pbd_init();
     pbd_create_simulation();
     pbd_create_collision_detection();
+
+    initialize_res_man();
 }
 
 void __stdcall Deinit(void)
@@ -92,6 +94,8 @@ void __stdcall Deinit(void)
     g_obj_id_renderer.Deinit();
 
     DeleteRenderLists();
+
+    g_deferred_renderer.Deinit();
 
     delete g_shadow_pass;
 
@@ -202,6 +206,8 @@ void __stdcall Update(void)
     }
 
 
+    res_man_update();
+
 
     scene_update(&main_cam, g_update_simulation, dt_sec);
 
@@ -279,6 +285,8 @@ void __stdcall Update(void)
         }
 	}
 
+    res_man_schedule_rt_requests(rfc);
+
     SetRenderFrameContext(rfc);
 
     END_ZONE(list_idx);
@@ -293,7 +301,7 @@ class ShapeRenderer {
     vec4 lightdir_;
     const float* zfar_;
     HGOSTEXTURESAMPLER shadow_sampler_;
-    DWORD gos_default_texture_;
+    TextureHandle def_tex_;
 
 public:
 
@@ -307,13 +315,13 @@ public:
                            const DWORD *shadow_maps,
                            const HGOSTEXTURESAMPLER shadow_sampler,
                            const float *zfar,
-                           const DWORD gos_default_texture) {
+                           const TextureHandle def_tex) {
         shadow_matrices_ = shadow_matrices;
         shadow_maps_ = shadow_maps;
         shadow_sampler_ = shadow_sampler;
         lightdir_ = lightdir;
         zfar_ = zfar;
-        gos_default_texture_ = gos_default_texture;
+        def_tex_ = def_tex;
     }
 
     void render(const RenderPacket &rp) {
@@ -321,7 +329,7 @@ public:
 
         HGOSRENDERMATERIAL mat = gos_getRenderMaterial("simple");
 
-        gos_SetRenderState(gos_State_Texture, ro.tex_id_ ? ro.tex_id_ : gos_default_texture_);
+        gos_SetRenderState(gos_State_Texture, ro.tex_id_ ? ro.tex_id_ : texture_res_get_gpu_id(def_tex_));
         gos_SetRenderState(gos_State_Filter, gos_FilterBiLinear);
 
         gos_SetRenderState(gos_State_ZCompare, 1);
@@ -388,8 +396,9 @@ void render_quad(uint32_t tex_id, const vec4& scale_offset, HGOSRENDERMATERIAL m
     gos_SetRenderMaterialParameterFloat4(mat, "scale_offset", scale_offset);
     gos_ApplyRenderMaterial(mat);
 
-    RenderMesh* fs_quad = res_man_load_mesh("fs_quad");
-    gos_RenderIndexedArray(fs_quad->ib_, fs_quad->vb_, fs_quad->vdecl_, fs_quad->prim_type_);
+    StaticMesh* fs_quad = res_man_load_mesh2("fs_quad");
+    if(fs_quad->rd.vb_)
+        gos_RenderIndexedArray(fs_quad->rd.ib_, fs_quad->rd.vb_, fs_quad->rd.vdecl_, fs_quad->prim_type_);
 
 }
 
@@ -405,7 +414,6 @@ void __stdcall Render(void)
     // should this be a command added by Update to render thread?
     if(!initialized)
     {
-        initialize_res_man();
 
         g_shadow_pass = new ShadowRenderPass();
         if(!g_shadow_pass->Init(1024, 2))
@@ -431,9 +439,22 @@ void __stdcall Render(void)
 
     ParticleSystemManager::Instance().InitRenderResources();
 
-    const RenderFrameContext* rfc = (RenderFrameContext*)GetRenderFrameContext();
+    RenderFrameContext* rfc_mut = (RenderFrameContext*)GetRenderFrameContext();
+    const RenderFrameContext* rfc = rfc_mut;
     assert(rfc && rfc->frame_number_ == RendererGetCurrentFrame());
 
+	// process all scheduled commands
+	{
+		SCOPED_ZONE_N(Commands, 0);
+		for (auto& cmd : rfc->commands_) {
+			cmd();
+		}
+	}
+
+    // update render proxies
+    scene_update_rt_proxies(rfc_mut);
+
+    // TODO: confine mouse pointer in 3d view if in game mode?
 
     const uint32_t view_w = rfc->viewport_.z;
     const uint32_t view_h = rfc->viewport_.w;
@@ -462,13 +483,6 @@ void __stdcall Render(void)
 		}
 	}
 
-	// process all scheduled commands
-	{
-		SCOPED_ZONE_N(Commands, 0);
-		for (auto& cmd : rfc->commands_) {
-			cmd();
-		}
-	}
 
     const CSMInfo& csm_info = rfc->csm_info_;
 
@@ -500,7 +514,7 @@ void __stdcall Render(void)
 
     shape_renderer.set_shadow_params(
         lightdir, cascade_matrices, cascade_shadow_maps, shadow_sampler,
-        csm_info.zfar_, res_man_load_texture("default"));
+        csm_info.zfar_, res_man_load_texture2("default"));
 
     const RenderPacketList_t& rpl = rfc->rl_->GetRenderPackets();
     const TextRenderPacketList_t& trpl = rfc->rl_->GetTextPackets();

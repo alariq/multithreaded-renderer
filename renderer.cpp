@@ -54,7 +54,7 @@ void DeleteRenderLists() {
 void ScheduleRenderCommand(RenderFrameContext *rfc, std::function<void(void)>&& cmd)
 {
     assert(rfc);
-    rfc->commands_.push_back(cmd);
+    rfc->commands_.push_back(std::move(cmd));
 }
 
 HGOSVERTEXDECLARATION get_svd_vdecl() {

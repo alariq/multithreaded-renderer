@@ -9,58 +9,56 @@ get_component_type<class EnemyTextComp>() { return ComponentType::kEnemyText; }
 
 
 // Game related dirty hardcoded crap goes here
-class GameTextComp: public TransformComponent, public IRenderable {
-    HGOSFONT3D font_handle_;
-    HGOSFONT3D small_font_handle_;
-    HGOSSLUGFONT slug_font_handle_;
+class GameTextComp: public TransformComponent {
+    std::string font_name_;
+    std::string slug_font_name_;
     float intensity_;
     int text_size_;
     float frame_time_ms_;
     char text[128];
+    class FontRenderProxy* proxy_;
+
   public:
     PROPERTY_SUPPORT(GameTextComp)
     PROPERTY_POLYMORPHIC_DRAW_IMPL(GameTextComp)
 
 	virtual ComponentType GetType() const override { return get_component_type<GameTextComp>(); }
 
-	virtual void InitRenderResources() override;
-	virtual void DeinitRenderResources() override;
-
-    virtual IRenderable* getRenderableInterface() override { return this; }
-	virtual void AddRenderPackets(struct RenderFrameContext *) const override;
-
-    // this will be updated by Init/Deinit Render Resoueces
 	virtual void Initialize() override;
-	virtual void Deinitialize() override;
+
+    virtual IRenderProxy* CreateRenderProxy() override;
+    virtual void DestroyRenderProxy(struct RenderFrameContext* rfc) override;
+	virtual IRenderProxy* GetRenderProxy() override;
 
     virtual void UpdateComponent(float dt) override;
+	virtual void RenderUpdateComponent(struct RenderFrameContext *) override;
+
 };
 PROPERTY_LIST_DECLARE_DERIVED(GameTextComp, TransformComponent)
 
-class EnemyTextComp: public TransformComponent, public IRenderable {
+class EnemyTextComp: public TransformComponent {
     HGOSFONT3D font_handle_;
     float intensity_;
     uint32_t colour_;
     char text[32];
     int text_size_;
     bool b_is_active_;
+
+    class FontRenderProxy* proxy_;
   public:
     PROPERTY_SUPPORT(EnemyTextComp);
     PROPERTY_POLYMORPHIC_DRAW_IMPL(EnemyTextComp)
 
 	virtual ComponentType GetType() const override { return get_component_type<EnemyTextComp>(); }
 
-	virtual void InitRenderResources() override;
-	virtual void DeinitRenderResources() override;
-
-    virtual IRenderable* getRenderableInterface() override { return this; }
-	virtual void AddRenderPackets(struct RenderFrameContext *) const override;
-
-    // this will be updated by Init/Deinit Render Resoueces
 	virtual void Initialize() override;
-	virtual void Deinitialize() override;
+
+    IRenderProxy* CreateRenderProxy() override;
+    void DestroyRenderProxy(struct RenderFrameContext* rfc) override;
+    IRenderProxy* GetRenderProxy() override;
 
     virtual void UpdateComponent(float dt) override;
+	virtual void RenderUpdateComponent(struct RenderFrameContext *) override;
 
     //----------------------------------------------
 

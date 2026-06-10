@@ -4,31 +4,84 @@
 #include "Time.h"
 #include "gameos.hpp"
 
-void GameTextComp::InitRenderResources() {
+class FontRenderProxy: public IRenderProxy {
+    HGOSFONT3D font_handle_ = 0;
+    HGOSSLUGFONT slug_font_handle_ = 0;
+    std::string name_;
+    bool b_is_slug_;
+public:
+    FontRenderProxy():font_handle_(0), slug_font_handle_(0),
+        b_is_slug_(false), size_(0) {}
 
-    //font_handle_ = gos_LoadFont("./data/fonts/roboto_medium_64");
-    font_handle_ = gos_LoadFont("./data/fonts/roboto_medium_24");
-    assert(font_handle_);
-    small_font_handle_ = gos_LoadFont("./data/fonts/roboto_medium_24");
-    assert(small_font_handle_);
-    slug_font_handle_ = gos_LoadSlugFont("./data/fonts/roboto_medium.slug");
-    //slug_font_handle_ = gos_LoadSlugFont("./data/fonts/zapfino.slug");
-    //slug_font_handle_ = gos_LoadSlugFont("./data/fonts/terminus.slug");
-    //slug_font_handle_ = gos_LoadSlugFont("./data/fonts/OpenDyslexic.slug");
-    assert(slug_font_handle_);
-	state_ = Component::kInitialized;
+    std::string text_;
+    int size_; // only for slug
+    vec2 screenpos_;
+    u32 color_;
 
-    text_size_ = 24;
+    // TODO: font should also be resource and split on main + rt parts
+    void SetFontName(const std::string& name, bool b_is_slug) {
+        if(name_ != name) {
+            if(font_handle_) {
+                //FIXME: cannot delet fonts at the moment, because they could be used
+                //by others and they are not ref counted at the moment
+                gos_DeleteFont(font_handle_);
+                font_handle_ = 0;
+            }
+            if(slug_font_handle_) {
+                //FIXME: cannot delet fonts at the moment, because they could be used
+                //by others and they are not ref counted at the moment
+                gos_DeleteSlugFont(slug_font_handle_);
+                slug_font_handle_ = 0;
+            }
+
+            b_is_slug_ = b_is_slug;
+            if(b_is_slug) {
+                slug_font_handle_ = gos_LoadSlugFont(name.c_str());
+            } else {
+                font_handle_ = gos_LoadFont(name.c_str());
+            }
+            name_ = name;
+        }
+    }
+
+    virtual void AddRenderPackets(struct RenderFrameContext* rfc) override {
+        if(b_is_slug_ && slug_font_handle_) {
+            rfc->rl_->addSlugTextPacket(text_.c_str(), slug_font_handle_, color_, size_, screenpos_.x, screenpos_.y);
+        } else if(!b_is_slug_ && font_handle_) {
+            rfc->rl_->addTextPacket(text_.c_str(), font_handle_, color_, 24, screenpos_.x, screenpos_.y);
+        }
+    }
+
+    virtual void Initialize(struct RenderFrameContext* ) override {
+
+    }
+
+    virtual void Deinitialize(struct RenderFrameContext* ) override {
+        if(font_handle_)
+            gos_DeleteFont(font_handle_);
+        if(slug_font_handle_)
+            gos_DeleteSlugFont(slug_font_handle_);
+    }
+
+};
+
+IRenderProxy* GameTextComp::CreateRenderProxy() {
+    proxy_ = new FontRenderProxy();
+    return proxy_;
 }
 
-void GameTextComp::DeinitRenderResources() {
-    gos_DeleteFont(font_handle_);
-    gos_DeleteFont(small_font_handle_);
-    gos_DeleteSlugFont(slug_font_handle_);
-    state_ = Component::kUninitialized;
+void GameTextComp::DestroyRenderProxy(struct RenderFrameContext* rfc) {
+    ScheduleRenderCommand(rfc, [proxy = proxy_]() {
+        delete proxy;
+    });
+    proxy_ = nullptr;
+}
+IRenderProxy* GameTextComp::GetRenderProxy() {
+    gosASSERT(proxy_);
+    return proxy_;
 }
 
-void GameTextComp::AddRenderPackets(struct RenderFrameContext * rfc) const {
+void GameTextComp::RenderUpdateComponent(struct RenderFrameContext * rfc) {
 
     uint32_t i = (int)(intensity_ * 255.0f + 0.5f);
     //               b        g         r       a
@@ -40,19 +93,37 @@ void GameTextComp::AddRenderPackets(struct RenderFrameContext * rfc) const {
     vec2 screenpos = (vec2(ppos.x/ppos.w, ppos.y/ppos.w)*vec2(0.5f, 0.5f) + vec2(0.5f))*vec2(rfc->viewport_.z, rfc->viewport_.w);
     snprintf(pposbuf, sizeof(pposbuf), "%.2f, %.2f, %.2f %.2f\n", screenpos.x, screenpos.y, ppos.z, ppos.w);
 
+    //FIXME: TODO: font render proxy is cool and so on, but we can have only one, actually would be better to move font to resource as well, 
+    // so we could create it on main thread and then just use simple addTextPacket() to draw whatever we want
+#if 0
     uint64_t game_ticks = TimerGetGameTime();
     float game_time = (float)timing::ticks2ms(game_ticks)/1000.0f;
-char buf[256]; sprintf(buf, "%.2f GT:%.1fs %s", frame_time_ms_, game_time, pposbuf); rfc->rl_->addTextPacket(buf, font_handle_, color, 64, 10, 5); //rfc->rl_->addSlugTextPacket("Hello!", small_font_handle_, color, 24, screenpos.x, screenpos.y);
-    //rfc->rl_->addSlugTextPacket("This is Slug!", slug_font_handle_, color, text_size_, screenpos.x, screenpos.y);
-    rfc->rl_->addSlugTextPacket("Hello!KLMWNO", slug_font_handle_, color, text_size_, screenpos.x, screenpos.y);
+    char buf[256];
+    sprintf(buf, "%.2f GT:%.1fs %s", frame_time_ms_, game_time, pposbuf); rfc->rl_->addTextPacket(buf, font_handle_, color, 64, 10, 5);
+#endif
+
+    ScheduleRenderCommand(rfc, [proxy = proxy_, color, size = text_size_, text = text, screenpos, name = slug_font_name_]() {
+        proxy->size_ = size;
+        proxy->screenpos_ = screenpos;
+        proxy->color_ = color;
+        proxy->text_ = text;
+        proxy->SetFontName(name, true);
+    });
 }
 
 void GameTextComp::Initialize() {
     intensity_ = 0.75f;
     frame_time_ms_ = 0.0f;
-}
+    text_size_ = 24;
+    strcpy(text, "Hello!KLMWNO");
 
-void GameTextComp::Deinitialize() { 
+    //"./data/fonts/zapfino.slug"
+    //"./data/fonts/terminus.slug"
+    //"./data/fonts/OpenDyslexic.slug"
+    font_name_ = "./data/fonts/roboto_medium_24";
+    slug_font_name_ = "./data/fonts/roboto_medium.slug";
+
+    TransformComponent::Initialize();
 }
 
 
@@ -78,20 +149,31 @@ PROPERTY_LIST_END()
 //------------------------------------------------------------------------------------------------------
 
 
-void EnemyTextComp::InitRenderResources() {
-
-    font_handle_ = gos_LoadFont("./data/fonts/roboto_medium_24");
+void EnemyTextComp::Initialize() {
     text_size_ = 24;
-    assert(font_handle_);
-	state_ = Component::kInitialized;
+    intensity_ = 0.5f;
+    b_is_active_ = false; 
+
+    TransformComponent::Initialize();
 }
 
-void EnemyTextComp::DeinitRenderResources() {
-    gos_DeleteFont(font_handle_);
-    state_ = Component::kUninitialized;
+IRenderProxy* EnemyTextComp::CreateRenderProxy() {
+    proxy_ = new FontRenderProxy();
+    return proxy_;
 }
 
-void EnemyTextComp::AddRenderPackets(struct RenderFrameContext * rfc) const {
+void EnemyTextComp::DestroyRenderProxy(struct RenderFrameContext* rfc) {
+    ScheduleRenderCommand(rfc, [proxy = proxy_]() {
+        delete proxy;
+    });
+    proxy_ = nullptr;
+}
+IRenderProxy* EnemyTextComp::GetRenderProxy() {
+    gosASSERT(proxy_);
+    return proxy_;
+}
+
+void EnemyTextComp::RenderUpdateComponent(struct RenderFrameContext * rfc) {
 
     uint32_t i = (int)(intensity_ * 255.0f + 0.5f);
     //               b        g         r       a 
@@ -104,19 +186,19 @@ void EnemyTextComp::AddRenderPackets(struct RenderFrameContext * rfc) const {
     vec4 ppos = rfc->proj_ * rfc->view_ * vec4(GetPosition(), 1);
     // TODO: using viewport here might not work if we render to some pass which uses different WxH, need to use per pass current viewport
     vec2 screenpos = (vec2(ppos.x/ppos.w, ppos.y/ppos.w)*vec2(0.5f, +0.5f) + vec2(0.5f))*vec2(rfc->viewport_.z, rfc->viewport_.w);
+    // TODO: FIXME: as soon fong will be a real resource, I will be able to just use this:
+    // no render proxies will be needed
+    //rfc->rl_->addTextPacket(text, font_handle_, color, 24, screenpos.x, screenpos.y);
 
-    //char buf[256];
-    //sprintf(buf, "[%s]", text);
+    ScheduleRenderCommand(rfc, [proxy = proxy_, color, size = text_size_, text = text, screenpos]() {
+        proxy->size_ = size;
+        proxy->screenpos_ = screenpos;
+        proxy->color_ = color;
+        proxy->text_ = text;
+        proxy->SetFontName("./data/fonts/roboto_medium_24", false);
+    });
 
-    rfc->rl_->addTextPacket(text, font_handle_, color, 24, screenpos.x, screenpos.y);
-    HGOSSLUGFONT font = gos_getSlugFont("./data/fonts/terminus.slug");
-    if(font) {
-       rfc->rl_->addSlugTextPacket(text, font, color, text_size_, screenpos.x, screenpos.y + 20);
-    }
 }
-
-void EnemyTextComp::Initialize() { intensity_ = 0.5f; b_is_active_ = false; }
-void EnemyTextComp::Deinitialize() { }
 
 void EnemyTextComp::UpdateComponent(float dt) {
     // TODO: add game time (does not grow when game is paused)

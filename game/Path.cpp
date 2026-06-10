@@ -19,35 +19,27 @@ vec3 C_Curve::GetDerivative(float t) const {
     return curve_.getDerivativeAt(t);
 }
 
-// C_Curve implements IRenderable, but TransformComponent::Initialize will set 
-// state = Initialized before render thread will try to call RenderInitialize
-// and will be confused, because it will expect Uninitialized state, so
-// InitRenderResources will not be called. This all needs to be reworked
-// in favor of separate RenderObjects on render thread in render scene
-// we cannot have one state variable to be responsible for 2 things
 void C_Curve::Initialize() {
-    //TransformComponent::Initialize();
+    sphere_mesh_ = res_man_load_mesh2("sphere");
+    TransformComponent::Initialize();
 }
 
 void C_Curve::Deinitialize() {
+    res_man_release_mesh2(sphere_mesh_);
+    TransformComponent::Deinitialize();
 }
 
-void C_Curve::UpdateComponent(float dt) {
-    //for(int i=0;i<curve_->getNumNodes();++i) {
-    //}
-}
+void C_Curve::RenderUpdateComponent(struct RenderFrameContext* rfc) {
 
-void C_Curve::AddRenderPackets(struct RenderFrameContext* rfc) const {
     CurveDebugDraw(curve_, 10, false, &GetTransform(), rfc->rl_);
 
-    // :(
-    ITransformInterface* ti = const_cast<ITransformInterface*>((const ITransformInterface*)this);
-    RenderMesh* mesh = res_man_load_mesh("sphere");
+    ITransformInterface* ti = this;
+    RenderMesh mesh = tmp_rm(sphere_mesh_);
     for(int i=0;i<curve_.getNumNodes();++i) {
         vec3 node_pos = curve_.getNodeValue(i);
         vec3 pos = this->Transform(node_pos);
         const int id = editor_add_gizmo(ti, (void*)(ptrdiff_t)i);
-        add_debug_mesh_constant_size_px(rfc, mesh, 1, vec4(0.25f, 0.0125f, 0.0125f, 1), mat4::translation(pos), 10, id);
+        add_debug_mesh_constant_size_px(rfc, &mesh, 1, vec4(0.25f, 0.0125f, 0.0125f, 1), mat4::translation(pos), 10, id);
     }
 }
 
@@ -78,12 +70,12 @@ O_Path* O_Path::Create(const char *name) {
 
     cc->SetParent(tr);
     obj->curve_comp_ = cc;
+    obj->update_gates();
 
     return obj;
 }
 
-void O_Path::Update(float dt) {
-
+void O_Path::update_gates() {
     int num_cps = curve_comp_->GetNumNodes();
     if(checkpoint_meshes_.size() > num_cps) {
         for(int i=checkpoint_meshes_.size(); i >=num_cps; i--) {
@@ -107,6 +99,10 @@ void O_Path::Update(float dt) {
         }
         mc->SetPosition(curve->getNodeValue(i));
     }
+}
+
+void O_Path::Update(float dt) {
+    update_gates();
 }
 
 PROPERTY_LIST_BEGIN_DERIVED(O_Path, GameObject)
