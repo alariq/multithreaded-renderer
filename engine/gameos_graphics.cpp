@@ -86,6 +86,24 @@ GLint getGLTextureFilterMode(gos_FilterMode filter_mode,
     return gl_filter_mode;
 }
 
+static TexFormat translate_gos_format(gos_TextureFormat gos_fmt) {
+    switch(gos_fmt) {
+        case gos_Texture_Depth: return TF_DEPTH32F;
+        case gos_Texture_Depth_Stencil: return TF_DEPTH24_S8;
+        case gos_Texture_RGB8: return TF_RGB8;
+        case gos_Texture_RGBA8: return TF_RGBA8;
+        case gos_Texture_R32UI: return TF_R32UI;
+        case gos_Texture_R32F: return TF_R32F;
+        case gos_Texture_R8: return TF_R8;
+        case gos_Texture_RGBA32F: return TF_RGBA32F;
+        case gos_Texture_RG16UI: return TF_RG16UI;
+        default:
+            gosASSERT("Incorrect gos fomat\n");
+            return TF_NONE;
+    }
+}
+
+
 struct gosTextureSampler {
     gos_TextureAddressMode address_s;
     gos_TextureAddressMode address_t;
@@ -934,8 +952,11 @@ class gosTexture {
             size_ = 0;
             pcompdata_ = NULL;
             if(size) {
-                size_ = size;
-                pcompdata_ = new BYTE[size];
+                // in case we only pass partial data for the texture (slug I am looking at you)
+                u32 size_padded = w * h * getTexFormatPixelSize(translate_gos_format(fmt));
+                size_ = size_padded > size ? size_padded : size;
+                pcompdata_ = new BYTE[size_];
+                memset(pcompdata_, 0, size_);
                 memcpy(pcompdata_, pdata, size);
             }
 
@@ -1093,23 +1114,6 @@ struct gosSlugTextAttribs {
     DWORD WrapType;
     bool DisableEmbeddedCodes;
 };
-
-static TexFormat translate_gos_format(gos_TextureFormat gos_fmt) {
-    switch(gos_fmt) {
-        case gos_Texture_Depth: return TF_DEPTH32F;
-        case gos_Texture_Depth_Stencil: return TF_DEPTH24_S8;
-        case gos_Texture_RGB8: return TF_RGB8;
-        case gos_Texture_RGBA8: return TF_RGBA8;
-        case gos_Texture_R32UI: return TF_R32UI;
-        case gos_Texture_R32F: return TF_R32F;
-        case gos_Texture_R8: return TF_R8;
-        case gos_Texture_RGBA32F: return TF_RGBA32F;
-        case gos_Texture_RG16UI: return TF_RG16UI;
-        default:
-            gosASSERT("Incorrect gos fomat\n");
-            return TF_NONE;
-    }
-}
 
 bool gosTexture::createHardwareTexture() {
 
